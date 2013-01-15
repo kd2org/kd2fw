@@ -306,7 +306,7 @@ class Delta
 		** source file.
 		*/
 		$nHash = (int) ($lenSrc / self::NHASH);
-		$collide = array_fill(0, $nHash * 2 * PHP_INT_SIZE, -1 & 0xffffffff);
+		$collide = array_fill(0, $nHash * 2 * PHP_INT_SIZE, $this->u32(-1));
 		$landmark = array_slice($collide, $nHash);
 
 		//memset(landmark, -1, nHash*sizeof(int));
@@ -320,16 +320,13 @@ class Delta
 			$landmark[$hv] = $i / self::NHASH;
 		}
 
-		//printf("landmark: %s\n", print_r($landmark, true));
-
 		/* Begin scanning the target file and generating copy commands and
 		** literal sections of the delta.
 		*/
 		$base = 0;    /* We have already generated everything before zOut[base] */
 		while ($base + self::NHASH < $lenOut)
 		{
-			$iSrc = 0;
-			$iBlock = 0;
+			printf("base: %u\n", $base);
 			$bestOfst = 0;
 			$bestLitsz = 0;
 			
