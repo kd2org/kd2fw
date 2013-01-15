@@ -12,7 +12,7 @@
 namespace KD2;
 
 $delta = new Delta;
-file_put_contents('d', $delta->create(file_get_contents('/tmp/a'), file_get_contents('/tmp/b')));
+file_put_contents($argv[3], $delta->create(file_get_contents($argv[1]), file_get_contents($argv[2])));
 
 class Delta_Hash
 {
