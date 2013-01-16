@@ -1,13 +1,33 @@
 <?php
+/**
+ * Delta algorithm
+ * ported from the C code of Fossil SCM
+ * http://www.fossil-scm.org/xfer/doc/trunk/www/delta_format.wiki
+ * http://www.fossil-scm.org/xfer/doc/trunk/www/delta_encoder_algorithm.wiki
+ *
+ * KD2 PHP framework - http://dev.kd2.org/fw/
+ */
 
 /*
-	Fossil Delta algorithm
-	Copyright (c) 2006 D. Richard Hipp (Fossil algorithm)
-	Copyright (c) 2013 bohwaz (PHP Port)
+** Copyright (c) 2006 D. Richard Hipp
+** Copyright (c) 2013 BohwaZ (PHP port)
+**
+** This program is free software; you can redistribute it and/or
+** modify it under the terms of the Simplified BSD License (also
+** known as the "2-Clause License" or "FreeBSD License".)
 
-	http://www.fossil-scm.org/xfer/doc/trunk/www/delta_format.wiki
-	http://www.fossil-scm.org/xfer/doc/trunk/www/delta_encoder_algorithm.wiki
-*/
+** This program is distributed in the hope that it will be useful,
+** but without any warranty; without even the implied warranty of
+** merchantability or fitness for a particular purpose.
+**
+** Authors contact information:
+**   drh@hwaci.com
+**   http://www.hwaci.com/drh/
+**
+**   http://bohwaz.net/
+**
+*******************************************************************************
+**/
 
 namespace KD2;
 
@@ -40,7 +60,7 @@ class Delta_Hash
 class Delta
 {
 	const NHASH = 16;
-	public $debug_enabled = true;
+	public $debug_enabled = false;
 
 	protected function debug($msg)
 	{
