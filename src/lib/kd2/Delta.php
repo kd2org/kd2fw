@@ -11,11 +11,7 @@
 
 namespace KD2;
 
-$delta = new Delta;
-$d = $delta->create(file_get_contents($argv[1]), file_get_contents($argv[2]));
-file_put_contents($argv[3], $d);
-
-var_dump($delta->outputSize($d));
+class Delta_Exception extends \Exception {}
 
 class Delta_Hash
 {
@@ -168,8 +164,8 @@ class Delta
 		}
 
 		$z--;
-		$pLen -= $z - strlen($pz);
 		$pz = substr($pz, $z);
+		$pLen = strlen($pz);
 		return $v;
 	}
 
@@ -525,7 +521,7 @@ class Delta
 	{
 		$lenDelta = strlen($zDelta);
 		$size = $this->getInt($zDelta, $lenDelta);
-		
+
 		if (substr($zDelta, 0, 1) != "\n")
 		{
 			/* ERROR: size integer not terminated by "\n" */
@@ -556,7 +552,6 @@ class Delta
 	** Refer to the delta_create() documentation above for a description
 	** of the delta file format.
 	*/
-/*
 	public function apply($zSrc, $zDelta)
 	{
 		$zOut = '';
@@ -564,87 +559,107 @@ class Delta
 		$lenDelta = strlen($zDelta);
 
 		$total = 0;
-		$zOrigOut = $zOut;
+		$zOut;
 
 		$limit = $this->getInt($zDelta, $lenDelta);
 
-		if (substr($zDelta, -1) != "\n")
+		if (substr($zDelta, 0, 1) != "\n")
 		{
-			// ERROR: size integer not terminated by "\n" 
-			return -1;
+			throw new Delta_Exception('size integer not terminated by "\n"');
 		}
 
-		$zDelta++;
+		$zDelta = substr($zDelta, 1);
 		$lenDelta--;
-		while( *zDelta && lenDelta>0 )
+
+		while ($zDelta != '' && $lenDelta > 0)
 		{
-			unsigned int cnt, ofst;
-			cnt = getInt(&zDelta, &lenDelta);
-			switch( zDelta[0] )
+			$cnt = $this->getInt($zDelta, $lenDelta);
+
+			switch ($zDelta[0])
 			{
-				case '@': {
-				zDelta++; lenDelta--;
-				ofst = getInt(&zDelta, &lenDelta);
-				if( lenDelta>0 && zDelta[0]!=',' ){
-				// ERROR: copy command not terminated by ',' 
-				return -1;
+				case '@': 
+				{
+					$zDelta = substr($zDelta, 1); 
+					$lenDelta--;
+
+					$ofst = $this->getInt($zDelta, $lenDelta);
+
+					if ($lenDelta > 0 && $zDelta[0] != ',' )
+					{
+						throw new Delta_Exception("copy command not terminated by ','");
+					}
+
+					$zDelta = substr($zDelta, 1); 
+					$lenDelta--;
+
+					if ($this->debug_enabled) {
+						$this->debug(sprintf("COPY %d from %d\n", $cnt, $ofst)); 
+					}
+
+					$total += $cnt;
+
+					if ($total > $limit)
+					{
+						throw new Delta_Exception('copy exceeds output file size');
+					}
+
+					if ($ofst + $cnt > $lenSrc)
+					{
+						throw new Delta_Exception('copy extends past end of input'); 
+					}
+
+					$zOut .= substr($zSrc, $ofst, $cnt);
+					break;
 				}
-				zDelta++; lenDelta--;
-				DEBUG1( printf("COPY %d from %d\n", cnt, ofst); )
-				total += cnt;
-				if( total>limit ){
-				// ERROR: copy exceeds output file size 
-				return -1;
+				case ':': 
+				{
+					$zDelta = substr($zDelta, 1); 
+					$lenDelta--;
+					$total += $cnt;
+
+					if ($total > $limit)
+					{
+						throw new Delta_Exception('insert command gives an output larger than predicted');
+					}
+
+					if ($this->debug_enabled) {
+						$this->debug(sprintf("INSERT %d\n", $cnt));
+					}
+
+					if ($cnt > $lenDelta)
+					{
+						throw new Delta_Exception('insert count exceeds size of delta');
+					}
+
+					$zOut .= substr($zDelta, 0, $cnt);
+					$zDelta = substr($zDelta, $cnt); 
+					$lenDelta -= $cnt;
+					break;
 				}
-				if( ofst+cnt > lenSrc ){
-				// ERROR: copy extends past end of input 
-				return -1;
+				case ';':
+				{
+					$zDelta = substr($zDelta, 1); 
+					$lenDelta--;
+					
+					if ($cnt != ($ck = $this->checksum($zOut, $total)))
+					{
+						throw new Delta_Exception('bad checksum: '.sprintf("%u", $ck));
+					}
+
+					if ($total != $limit)
+					{
+						throw new Delta_Exception('generated size does not match predicted size');
+					}
+
+					return $zOut;
 				}
-				memcpy(zOut, &zSrc[ofst], cnt);
-				zOut += cnt;
-				break;
-				}
-				case ':': {
-				zDelta++; lenDelta--;
-				total += cnt;
-				if( total>limit ){
-				// ERROR:  insert command gives an output larger than predicted 
-				return -1;
-				}
-				DEBUG1( printf("INSERT %d\n", cnt); )
-				if( cnt>lenDelta ){
-				// ERROR: insert count exceeds size of delta 
-				return -1;
-				}
-				memcpy(zOut, zDelta, cnt);
-				zOut += cnt;
-				zDelta += cnt;
-				lenDelta -= cnt;
-				break;
-				}
-				case ';': {
-				zDelta++; lenDelta--;
-				zOut[0] = 0;
-				#ifndef FOSSIL_OMIT_DELTA_CKSUM_TEST
-				if( cnt!=checksum(zOrigOut, total) ){
-				// ERROR:  bad checksum 
-				return -1;
-				}
-				#endif
-				if( total!=limit ){
-				// ERROR: generated size does not match predicted size 
-				return -1;
-				}
-				return total;
-				}
-				default: {
-				// ERROR: unknown delta operator 
-				return -1;
+				default: 
+				{
+					throw new Delta_Exception('unknown delta operator: ' . sprintf("'%s'", $zDelta[0]));
 				}
 			}
 		}
-		// ERROR: unterminated delta 
-		return -1;
+
+		throw new Delta_Exception('unterminated delta');
 	}
-*/
 }
