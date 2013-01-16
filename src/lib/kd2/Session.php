@@ -49,7 +49,7 @@ class Session extends Singleton
         {
         	if (headers_sent())
         	{
-        		throw new RuntimeException('Headers already sent: session can\'t started.');
+        		throw new \RuntimeException('Headers already sent: session can\'t started.');
         	}
 
             session_start();
@@ -62,7 +62,7 @@ class Session extends Singleton
 
         if (!isset($_SESSION))
         {
-        	throw new RuntimeException('Unable to start session.');
+        	throw new \RuntimeException('Unable to start session.');
         }
 
         // If not writing and non-blocking, free the session now

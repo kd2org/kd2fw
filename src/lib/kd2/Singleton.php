@@ -18,7 +18,7 @@ abstract class Singleton
      */
     final public function __clone()
     {
-        throw new LogicException('Cloning disabled: class is a singleton');
+        throw new \LogicException('Cloning disabled: class is a singleton');
     }
 
     /**
