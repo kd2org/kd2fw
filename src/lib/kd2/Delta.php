@@ -49,11 +49,21 @@ class Delta
 		return;
 	}
 
+	/**
+	 * Emulates C-like 32-bits integer
+	 * @param  mixed 	$number
+	 * @return integer 	Unsigned integer
+	 */
 	protected function u32($number)
 	{
 		return $number & 0xffffffff;
 	}
 
+	/**
+	 * Emulates C-like 16-bit integer
+	 * @param  mixed $number 
+	 * @return mixed Unsigned integer
+	 */
 	protected function u16($number)
 	{
 		return $number & 0xffff;
@@ -87,7 +97,6 @@ class Delta
 		$pHash->i = ($pHash->i+1) & (self::NHASH - 1);
 		$pHash->a = $pHash->a - $old + $c;
 		$pHash->b = $pHash->b - self::NHASH * $old + $pHash->a;
-		printf("hash i: %u / a: %u / b: %u / c: %u\n", $pHash->i, $pHash->a, $pHash->b, $c);
 	}
 
 	/*
@@ -194,12 +203,13 @@ class Delta
 		$sum3 += $this->u32($sum2 << 8) + $this->u32($sum1 << 16) + $this->u32($sum0 << 24);
 		
 		switch ($N) {
-			case 3:   $sum3 += (ord($z[2]) << 8);
-			case 2:   $sum3 += (ord($z[1]) << 16);
-			case 1:   $sum3 += (ord($z[0]) << 24);
+			case 3:   $sum3 += $this->u32(ord($z[2]) << 8);
+			case 2:   $sum3 += $this->u32(ord($z[1]) << 16);
+			case 1:   $sum3 += $this->u32(ord($z[0]) << 24);
 			default:  ;
 		}
 
+		$sum3 = $this->u32($sum3);
 		return sprintf('%u', $sum3);
 	}
 
@@ -310,9 +320,6 @@ class Delta
 		$collide = array_fill(0, $nHash * 2 * PHP_INT_SIZE, $this->u32(-1));
 		$landmark = array_slice($collide, $nHash);
 
-		//memset(landmark, -1, nHash*sizeof(int));
-		//memset(collide, -1, nHash*sizeof(int));
-
 		for ($i = 0; $i < $lenSrc - self::NHASH; $i += self::NHASH) 
 		{
 			$this->hash_init($h, substr($zSrc, $i, self::NHASH));
@@ -327,7 +334,6 @@ class Delta
 		$base = 0;    /* We have already generated everything before zOut[base] */
 		while ($base + self::NHASH < $lenOut)
 		{
-			printf("base: %u\n", $base);
 			$bestOfst = 0;
 			$bestLitsz = 0;
 			
@@ -347,8 +353,6 @@ class Delta
 				}
 
 				$iBlock = $landmark[$hv];
-
-				$this->debug(sprintf("iBlock %u / hv %u", $iBlock, $hv));
 
 				while ($iBlock != $this->u32(-1) && $iBlock >= 0 && ($limit--) > 0)
 				{
@@ -420,7 +424,6 @@ class Delta
 
 					/* Check the next matching block */
 					$iBlock = $collide[$iBlock];
-					printf("next iblock: %u\n", $iBlock);
 				}
 
 				/* We have a copy command that does not cause the delta to be larger
