@@ -87,6 +87,7 @@ class Delta
 		$pHash->i = ($pHash->i+1) & (self::NHASH - 1);
 		$pHash->a = $pHash->a - $old + $c;
 		$pHash->b = $pHash->b - self::NHASH * $old + $pHash->a;
+		printf("hash i: %u / a: %u / b: %u / c: %u\n", $pHash->i, $pHash->a, $pHash->b, $c);
 	}
 
 	/*
@@ -94,7 +95,7 @@ class Delta
 	*/
 	protected function hash_32bit(Delta_Hash $pHash)
 	{
-		return ($pHash->a & 0xffff) | sprintf('%u', $this->u32($pHash->b & 0xffff)<<16);
+		return ($pHash->a & 0xffff) | sprintf('%u', $this->u32(($pHash->b & 0xffff)<<16));
 	}
 
 	/*
@@ -477,7 +478,7 @@ class Delta
 				}
 
 				/* Advance the hash by one character.  Keep looking for a match */
-				$this->hash_next($h, $zOut[$base + $i + self::NHASH]);
+				$this->hash_next($h, ord($zOut[$base + $i + self::NHASH]));
 				$i++;
 			}
 		}
