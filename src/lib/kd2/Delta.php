@@ -12,7 +12,10 @@
 namespace KD2;
 
 $delta = new Delta;
-file_put_contents($argv[3], $delta->create(file_get_contents($argv[1]), file_get_contents($argv[2])));
+$d = $delta->create(file_get_contents($argv[1]), file_get_contents($argv[2]));
+file_put_contents($argv[3], $d);
+
+var_dump($delta->outputSize($d));
 
 class Delta_Hash
 {
@@ -139,29 +142,34 @@ class Delta
 	** the integer.  The *pLen parameter holds the length of the string
 	** in *pz and is decremented once for each character in the integer.
 	*/
-	protected function getInt($pz, $pLen)
+	protected function getInt(&$pz, &$pLen)
 	{
 		$zValue = array(
 			-1, -1, -1, -1, -1, -1, -1, -1,   -1, -1, -1, -1, -1, -1, -1, -1,
 			-1, -1, -1, -1, -1, -1, -1, -1,   -1, -1, -1, -1, -1, -1, -1, -1,
 			-1, -1, -1, -1, -1, -1, -1, -1,   -1, -1, -1, -1, -1, -1, -1, -1,
-			0,  1,  2,  3,  4,  5,  6,  7,    8,  9, -1, -1, -1, -1, -1, -1,
+	  		 0,  1,  2,  3,  4,  5,  6,  7,    8,  9, -1, -1, -1, -1, -1, -1,
 			-1, 10, 11, 12, 13, 14, 15, 16,   17, 18, 19, 20, 21, 22, 23, 24,
 			25, 26, 27, 28, 29, 30, 31, 32,   33, 34, 35, -1, -1, -1, -1, 36,
 			-1, 37, 38, 39, 40, 41, 42, 43,   44, 45, 46, 47, 48, 49, 50, 51,
 			52, 53, 54, 55, 56, 57, 58, 59,   60, 61, 62, -1, -1, -1, 63, -1,
 		);
 
-		$v = 0;
-		$z = $zStart = $pz;
+		foreach ($zValue as &$row)
+		{
+			$row = $this->u32($row);
+		}
 
-		while ( ($c = $zValue[0x7f&($z++)])>=0 ) {
+		$v = 0;
+		$z = 0;
+
+		while ( ($c = $zValue[0x7f&ord($pz[$z++])]) != $this->u32(-1) ) {
 			$v = ($v<<6) + $c;
 		}
 
 		$z--;
-		$pLen -= $z - $zStart;
-		$pz = $z;
+		$pLen -= $z - strlen($pz);
+		$pz = substr($pz, $z);
 		return $v;
 	}
 
@@ -513,11 +521,12 @@ class Delta
 	** for the output and hence allocate nor more space that is really
 	** needed.
 	*/
-	public function delta_output_size(&$zDelta, $lenDelta)
+	public function outputSize($zDelta)
 	{
+		$lenDelta = strlen($zDelta);
 		$size = $this->getInt($zDelta, $lenDelta);
 		
-		if (substr($zDelta, -1) != "\n")
+		if (substr($zDelta, 0, 1) != "\n")
 		{
 			/* ERROR: size integer not terminated by "\n" */
 			return -1;
@@ -554,19 +563,19 @@ class Delta
 		$lenSrc = strlen($zSrc);
 		$lenDelta = strlen($zDelta);
 
-		unsigned int limit;
-		unsigned int total = 0;
-		#ifndef FOSSIL_OMIT_DELTA_CKSUM_TEST
-		char *zOrigOut = zOut;
-		#endif
+		$total = 0;
+		$zOrigOut = $zOut;
 
-		limit = getInt(&zDelta, &lenDelta);
-		if( *zDelta!='\n' )
+		$limit = $this->getInt($zDelta, $lenDelta);
+
+		if (substr($zDelta, -1) != "\n")
 		{
 			// ERROR: size integer not terminated by "\n" 
 			return -1;
 		}
-		zDelta++; lenDelta--;
+
+		$zDelta++;
+		$lenDelta--;
 		while( *zDelta && lenDelta>0 )
 		{
 			unsigned int cnt, ofst;
