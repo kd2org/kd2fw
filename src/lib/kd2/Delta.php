@@ -36,7 +36,7 @@ class Delta_Exception extends \Exception {}
 class Delta_Hash
 {
 	public $a; /* Hash values */
-	public $b; 
+	public $b;
 	public $i; /* Start of the hash window */
 	public $z; /* The values that have been hashed */
 
@@ -80,7 +80,7 @@ class Delta
 
 	/**
 	 * Emulates C-like 16-bit integer
-	 * @param  mixed $number 
+	 * @param  mixed $number
 	 * @return mixed Unsigned integer
 	 */
 	protected function u16($number)
@@ -133,7 +133,7 @@ class Delta
 	{
 		static $zDigits = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz~';
 					   /*  123456789 123456789 123456789 123456789 123456789 123456789 123 */
-		
+
 		$zBuf = (string)'';
 		$pz = '';
 
@@ -205,7 +205,7 @@ class Delta
 	{
 		$sum0 = $sum1 = $sum2 = $sum3 = (float)0.0;
 
-		while ($N >= 16) 
+		while ($N >= 16)
 		{
 			$sum0 += (ord($z[0]) + ord($z[4]) + ord($z[8]) + ord($z[12]));
 			$sum1 += (ord($z[1]) + ord($z[5]) + ord($z[9]) + ord($z[13]));
@@ -225,7 +225,7 @@ class Delta
 		}
 
 		$sum3 += $this->u32($sum2 << 8) + $this->u32($sum1 << 16) + $this->u32($sum0 << 24);
-		
+
 		switch ($N) {
 			case 3:   $sum3 += $this->u32(ord($z[2]) << 8);
 			case 2:   $sum3 += $this->u32(ord($z[1]) << 16);
@@ -240,7 +240,7 @@ class Delta
 	/*
 	** Create a new delta.
 	**
-	** The delta is written into a preallocated buffer, zDelta, which 
+	** The delta is written into a preallocated buffer, zDelta, which
 	** should be at least 60 bytes longer than the target file, zOut.
 	** The delta string will be NUL-terminated, but it might also contain
 	** embedded NUL characters if either the zSrc or zOut files are
@@ -256,7 +256,7 @@ class Delta
 	** found there.  The delta_output_size() routine does exactly this.
 	**
 	** After the initial size number, the delta consists of a series of
-	** literal text segments and commands to copy from the SOURCE file.  
+	** literal text segments and commands to copy from the SOURCE file.
 	** A copy command looks like this:
 	**
 	**     NNN@MMM,
@@ -294,7 +294,7 @@ class Delta
 	** made to extend the matching section to regions that come before
 	** and after the 16-byte hash window.  A copy command is only issued
 	** if the result would use less space that just quoting the text
-	** literally. Literal text is added to the delta for sections that 
+	** literally. Literal text is added to the delta for sections that
 	** do not match or which can not be encoded efficiently using copy
 	** commands.
 	*/
@@ -344,7 +344,7 @@ class Delta
 		$collide = array_fill(0, $nHash * 2 * PHP_INT_SIZE, $this->u32(-1));
 		$landmark = array_slice($collide, $nHash);
 
-		for ($i = 0; $i < $lenSrc - self::NHASH; $i += self::NHASH) 
+		for ($i = 0; $i < $lenSrc - self::NHASH; $i += self::NHASH)
 		{
 			$this->hash_init($h, substr($zSrc, $i, self::NHASH));
 			$hv = $this->hash_32bit($h) % $nHash;
@@ -360,7 +360,7 @@ class Delta
 		{
 			$bestOfst = 0;
 			$bestLitsz = 0;
-			
+
 			$this->hash_init($h, substr($zOut, $base, self::NHASH));
 
 			$i = 0;     /* Trying to match a landmark against zOut[base+i] */
@@ -381,9 +381,9 @@ class Delta
 				while ($iBlock != $this->u32(-1) && $iBlock >= 0 && ($limit--) > 0)
 				{
 					/*
-					** The hash window has identified a potential match against 
+					** The hash window has identified a potential match against
 					** landmark block iBlock.  But we need to investigate further.
-					** 
+					**
 					** Look for a region in zOut that matches zSrc. Anchor the search
 					** at zSrc[iSrc] and zOut[base+i].  Do not include anything prior to
 					** zOut[base] or after zOut[outLen] nor anything after zSrc[srcLen].
@@ -402,7 +402,7 @@ class Delta
 
 					for($j = 0, $x = $iSrc, $y = $base + $i; $x < $lenSrc && $y < $lenOut; $j++, $x++, $y++)
 					{
-						if ($zSrc[$x] != $zOut[$y]) 
+						if ($zSrc[$x] != $zOut[$y])
 						{
 							break;
 						}
@@ -414,7 +414,7 @@ class Delta
 					** the number of characters that match */
 					for ($k = 1; $k < $iSrc && $k <= $i; $k++)
 					{
-						if ($zSrc[$iSrc - $k] != $zOut[$base + $i - $k]) 
+						if ($zSrc[$iSrc - $k] != $zOut[$base + $i - $k])
 							break;
 					}
 
@@ -440,7 +440,7 @@ class Delta
 						$bestCnt = $cnt;
 						$bestOfst = $iSrc - $k;
 						$bestLitsz = $litsz;
-						
+
 						if ($this->debug_enabled) {
 							$this->debug(sprintf("... BEST SO FAR"));
 						}
@@ -462,7 +462,7 @@ class Delta
 						$zDelta .= ':';
 						$zDelta .= substr($zOut, $base, $bestLitsz);
 						$base += $bestLitsz;
-						
+
 						if ($this->debug_enabled) {
 							$this->debug(sprintf("insert %d", $bestLitsz));
 						}
@@ -472,7 +472,7 @@ class Delta
 					$zDelta .= $this->putInt($bestCnt);
 					$zDelta .= '@';
 					$zDelta .= $this->putInt($bestOfst);
-					
+
 					if ($this->debug_enabled) {
 						$this->debug(sprintf("copy %d bytes from %d", $bestCnt, $bestOfst));
 					}
@@ -530,7 +530,7 @@ class Delta
 
 	/*
 	** Return the size (in bytes) of the output from applying
-	** a delta. 
+	** a delta.
 	**
 	** This routine is provided so that an procedure that is able
 	** to call delta_apply() can learn how much space is required
@@ -597,9 +597,9 @@ class Delta
 
 			switch ($zDelta[0])
 			{
-				case '@': 
+				case '@':
 				{
-					$zDelta = substr($zDelta, 1); 
+					$zDelta = substr($zDelta, 1);
 					$lenDelta--;
 
 					$ofst = $this->getInt($zDelta, $lenDelta);
@@ -609,11 +609,11 @@ class Delta
 						throw new Delta_Exception("copy command not terminated by ','");
 					}
 
-					$zDelta = substr($zDelta, 1); 
+					$zDelta = substr($zDelta, 1);
 					$lenDelta--;
 
 					if ($this->debug_enabled) {
-						$this->debug(sprintf("COPY %d from %d\n", $cnt, $ofst)); 
+						$this->debug(sprintf("COPY %d from %d\n", $cnt, $ofst));
 					}
 
 					$total += $cnt;
@@ -625,15 +625,15 @@ class Delta
 
 					if ($ofst + $cnt > $lenSrc)
 					{
-						throw new Delta_Exception('copy extends past end of input'); 
+						throw new Delta_Exception('copy extends past end of input');
 					}
 
 					$zOut .= substr($zSrc, $ofst, $cnt);
 					break;
 				}
-				case ':': 
+				case ':':
 				{
-					$zDelta = substr($zDelta, 1); 
+					$zDelta = substr($zDelta, 1);
 					$lenDelta--;
 					$total += $cnt;
 
@@ -652,15 +652,15 @@ class Delta
 					}
 
 					$zOut .= substr($zDelta, 0, $cnt);
-					$zDelta = substr($zDelta, $cnt); 
+					$zDelta = substr($zDelta, $cnt);
 					$lenDelta -= $cnt;
 					break;
 				}
 				case ';':
 				{
-					$zDelta = substr($zDelta, 1); 
+					$zDelta = substr($zDelta, 1);
 					$lenDelta--;
-					
+
 					if ($cnt != ($ck = $this->checksum($zOut, $total)))
 					{
 						throw new Delta_Exception('bad checksum: '.sprintf("%u", $ck));
@@ -673,7 +673,7 @@ class Delta
 
 					return $zOut;
 				}
-				default: 
+				default:
 				{
 					throw new Delta_Exception('unknown delta operator: ' . sprintf("'%s'", $zDelta[0]));
 				}
