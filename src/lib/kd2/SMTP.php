@@ -3,7 +3,7 @@ namespace KD2;
 
 /*
 	Simple SMTP library for PHP
-	Copyright 2012 BohwaZ <http://bohwaz.net/>
+	Copyright 2012-2013 BohwaZ <http://bohwaz.net/>
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU Lesser General Public License as published by
@@ -75,7 +75,7 @@ class SMTP
 		fputs($this->conn, $data . ($eol ? self::EOL : ''));
 	}
 
-	public function __construct($server, $port, $username = null, $password = null, $secure = self::NONE)
+	public function __construct($server = 'localhost', $port = 25, $username = null, $password = null, $secure = self::NONE)
 	{
 		$this->server = $secure == self::SSL ? 'ssl://' . $server : $server;
 		$this->port = $port;
@@ -168,6 +168,14 @@ class SMTP
 		return true;
 	}
 
+	/**
+	 * Send an email to $to, using $subject as a subject and $message as content
+	 * @param  mixed  $to      List of recipients, as an array or a string
+	 * @param  string $subject Message subject
+	 * @param  string $message Message content
+	 * @param  mixed  $headers Additional headers, either as an array of key=>value pairs or a string
+	 * @return boolean		   TRUE if success, exception if it fails
+	 */
 	public function send($to, $subject, $message, $headers = array())
 	{
 		if (is_null($this->conn))
@@ -176,15 +184,47 @@ class SMTP
 			$this->authenticate();
 		}
 
+		// Parse $headers if it's a string
+		if (is_string($headers))
+		{
+			preg_match_all('/^(\\S.*?):(.*?)\\s*(?=^\\S|\\Z)/sm', $headers, $match);
+			$headers = array();
+
+			foreach ($match as $header)
+			{
+				$headers[$header[1]] = $header[2];
+			}
+		}
+
+		// Normalize headers
+		$headers_normalized = array();
+
+		foreach ($headers as $key=>$value)
+		{
+			$key = preg_replace_callback('/^.|(?<=-)./', function ($m) { return ucfirst($m[0]); }, strtolower(trim($key)));
+			$headers_normalized[$key] = $value;
+		}
+
+		$headers = $headers_normalized;
+		unset($headers_normalized);
+
+		// Set default headers if they are missing
 		if (!isset($headers['Date']))
 		{
 			$headers['Date'] = date(DATE_RFC822);
 		}
 
-		$headers['To'] = $to;
 		$headers['Subject'] = '=?UTF-8?B?'.base64_encode($subject).'?=';
-		$headers['MIME-Version'] = '1.0';
-		$headers['Content-type'] = 'text/plain; charset=UTF-8';
+
+		if (!isset($headers['MIME-Version']))
+		{
+			$headers['MIME-Version'] = '1.0';
+		}
+
+		if (!isset($headers['Content-Type']))
+		{
+			$headers['Content-Type'] = 'text/plain; charset=UTF-8';
+		}
 
 		if (!isset($headers['From']))
 		{
@@ -202,18 +242,27 @@ class SMTP
 		$content = preg_replace("#(?<!\r)\n#si", self::EOL, $content);
 		$content = wordwrap($content, 998, self::EOL, true);
 
+		// Take the first sender address for the smtp
 		list($from) = self::extractEmailAddresses($headers['From']);
 
-		$to = self::extractEmailAddresses($headers['To']);
+		// Extract and filter recipients addresses
+		$to = self::extractEmailAddresses($to);
+		$headers['To'] = implode(', ', $to);
 
 		if (isset($headers['Cc']))
 		{
-			$to = array_merge(self::extractEmailAddresses($headers['Cc']));
+			$headers['Cc'] = self::extractEmailAddresses($headers['Cc']);
+			$to = array_merge($to, $headers['Cc']);
+
+			$headers['Cc'] = implode(', ', $headers['Cc']);
 		}
 
 		if (isset($headers['Bcc']))
 		{
-			$to = array_merge(self::extractEmailAddresses($headers['Bcc']));
+			$headers['Bcc'] = self::extractEmailAddresses($headers['Bcc']);
+			$to = array_merge($to, $headers['Bcc']);
+
+			$headers['Bcc'] = implode(', ', $headers['Bcc']);
 		}
 
 		$this->_write('MAIL FROM: <'.$from.'>');
@@ -246,6 +295,22 @@ class SMTP
 	 */
 	public static function extractEmailAddresses($str)
 	{
+		if (is_array($str))
+		{
+			$out = array();
+
+			// Filter invalid email addresses
+			foreach ($str as $email)
+			{
+				if (filter_var($email, FILTER_VALIDATE_EMAIL))
+				{
+					$out[] = $email;
+				}
+			}
+
+			return $out;
+		}
+
 		$str = explode(',', $str);
 		$out = array();
 
@@ -262,7 +327,7 @@ class SMTP
 			}
 			else
 			{
-				echo "$s\n";
+				// unrecognized, skip
 			}
 		}
 
