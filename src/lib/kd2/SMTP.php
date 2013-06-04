@@ -214,7 +214,7 @@ class SMTP
 			$headers['Date'] = date(DATE_RFC822);
 		}
 
-		$headers['Subject'] = '=?UTF-8?B?'.base64_encode($subject).'?=';
+		$headers['Subject'] = (trim($subject) == '') ? '' : '=?UTF-8?B?'.base64_encode($subject).'?=';
 
 		if (!isset($headers['MIME-Version']))
 		{
