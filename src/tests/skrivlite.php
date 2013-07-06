@@ -6,6 +6,7 @@ require __DIR__ . '/_assert.php';
 require KD2FW_ROOT . '/SkrivLite.php';
 
 $skriv = new SkrivLite;
+$skriv->setCodeHighLightCallback(false); // Disable code highlighting
 
 test($skriv instanceOf SkrivLite, '$skriv must be an instance of SkrivLite');
 
@@ -76,4 +77,56 @@ $target = '<p>some text
 </p></blockquote><p>reply</p></blockquote>';
 
 test($skriv->render($orig) == $target, 'blockquote rendering error');
+
+$orig = 'What is ??KD2FW|KD2 micro framework???';
+$target = '<p>What is <abbr title="KD2 micro framework">KD2FW</abbr>?</p>';
+
+test($skriv->render($orig) == $target, 'abbreviation rendering error');
+
+$orig = '
+Here is an example:
+ At least one space at the beginning of each
+ line is enough to create a preformatted paragraph.
+ 
+ Skriv syntax **works**.';
+
+$target = '<p>Here is an example:
+</p><pre>At least one space at the beginning of each
+line is enough to create a preformatted paragraph.
+
+Skriv syntax <strong>works</strong>.</pre>';
+
+test($skriv->render($orig) == $target, 'preformatted text rendering error');
+
+$orig = '
+[[[
+verbatim block
+**not rendered**
+]]]
+**yes rendered**';
+
+$target = '<pre>
+verbatim block
+**not rendered**
+</pre>
+<p><strong>yes rendered</strong></p>';
+
+test($skriv->render($orig) == $target, 'verbatim rendering error');
+
+$orig = '
+[[[ javascript
+(function () {
+	console.log("lol");
+}());
+]]]';
+
+$target = '<pre><code class="language-javascript">
+(function () {
+	console.log("lol");
+}());
+</code></pre>';
+
+test($skriv->render($orig) == $target, 'code block rendering error');
+
+echo $skriv->render($orig);
 

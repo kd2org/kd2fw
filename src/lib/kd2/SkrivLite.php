@@ -2,11 +2,17 @@
 
 namespace KD2;
 
-
 /**
  * SkrivLite
  *
- * Lightweight and fast implementation of SkrivML 
+ * Lightweight and one-file implementation of Skriv Markup Language.
+ *
+ * What differs from the main SkrivML renderer:
+ * - no smileys and symbols shortcuts
+ * - no extensions (yet)
+ * - no styled paragraphs (yet)
+ * - ability to allow HTML (if enabled, you should only allow secure tags and use HTML tidy to make the code valid)
+ * - no integration with GeShi for code highlighting, use your own callback to do that
  */
 
 class SkrivLite
@@ -27,8 +33,38 @@ class SkrivLite
 
 	protected $_stack = array();
 
+	protected $_verbatim = false;
+	protected $_code = false;
+
+	protected $_code_highlight_callback = null;
+
 	public function __construct()
 	{
+		// Default callback
+		$this->setCodeHighLightCallback(function ($language, $line)
+		{
+			if ($language == 'php')
+			{
+				if (strpos($line, '<?php') === false)
+					$line = "<?php\n" . $line;
+				
+				$line = highlight_string($line, true);
+			}
+			else
+			{
+				$line = htmlspecialchars($line, ENT_QUOTES, 'UTF-8');
+			}
+		});
+	}
+
+	public function setCodeHighLightCallback($callback)
+	{
+		if ((is_bool($callback) && $callback === false) || is_callable($callback))
+			$this->_code_highlight_callback = $callback;
+		else
+			throw new UnexpectedValue('$callback is not a valid callback or FALSE');
+
+		return true;
 	}
 
 	protected function _buildInlineMatchFromTags()
@@ -43,18 +79,30 @@ class SkrivLite
 		$this->_inline_match = substr($this->_inline_match, 0, -1);
 	}
 
+	protected function _escape($text)
+	{
+		return htmlspecialchars($text, ENT_QUOTES, 'UTF-8', false);
+	}
+
 	protected function _renderInline($text)
 	{
 		if (!$this->allow_html)
 		{
-			$text = htmlspecialchars($text, ENT_QUOTES, 'UTF-8', true);
+			$text = $this->_escape($text);
 		}
 
 		$tags = $this->inline_tags;
 
+		// Simple inline tags
 		$text = preg_replace_callback('/(?<![\\\\\S])(' . $this->_inline_match . ')(.*?)\\1/',
 			function ($matches) use ($tags) {
 				return '<' . $tags[$matches[1]] . '>' . $matches[2] . '</' . $tags[$matches[1]] . '>';
+			}, $text);
+
+		// Abbreviations
+		$text = preg_replace_callback('/(?<![\\\\\S])\?\?([^|]+)\|(.+)\?\?/U', 
+			function ($matches) {
+				return '<abbr title="' . htmlspecialchars($matches[2], ENT_QUOTES, 'UTF-8') . '">' . $matches[1] . '</abbr>';
 			}, $text);
 
 		return $text;
@@ -126,8 +174,52 @@ class SkrivLite
 
 	protected function _renderLine($line, $prev = null, $next = null)
 	{
+		// In a verbatim block: no further processing
+		if ($this->_verbatim && strpos($line, ']]]') !== 0)
+		{
+			if ($this->_code && $this->_code_highlight_callback)
+			{
+				return call_user_func($this->_code_highlight_callback, $this->_code, $line);
+			}
+			else
+			{
+				return $this->allow_html ? $line : $this->_escape($line);
+			}
+		}
+
+		// Verbatim/Code
+		if (strpos($line, '[[[') === 0)
+		{
+			$before = $this->_closeStack();
+			$before .= '<pre>';
+			$this->_stack[] = 'pre';
+
+			// If programming language is given it's a code block
+			if (trim(substr($line, 3)) !== '')
+			{
+				$language = strtolower(trim(substr($line, 3)));
+				$before .= '<code class="language-' . $this->_escape($language) . '">';
+				$this->_stack[] = 'code';
+				$this->_code = $language;
+			}
+
+			$line = $before;
+			$this->_verbatim = true;
+		}
+		// Closing verbatim/code block
+		elseif (strpos($line, ']]]') === 0)
+		{
+			$line = $this->_closeStack();
+			$this->_verbatim = false;
+			$this->_code = false;
+		}
+		// Horizontal rule
+		elseif (strpos($line, '----') === 0)
+		{
+			$line = '<hr />';
+		}
 		// Titles
-		if (preg_match('#^(?<!\\\\)(={1,6})\s*(.*?)(?:\s*(?<!\\\\)\\1(?:\s*(.+))?)?$#', $line, $match))
+		elseif (preg_match('#^(?<!\\\\)(={1,6})\s*(.*?)(?:\s*(?<!\\\\)\\1(?:\s*(.+))?)?$#', $line, $match))
 		{
 			$level = strlen($match[1]);
 			$line = trim($match[2]);
@@ -212,6 +304,20 @@ class SkrivLite
 			}
 
 			$line = $before . $line . $after;
+		}
+		// Preformatted text
+		elseif (isset($line[0]) && $line[0] == ' ')
+		{
+			$before = '';
+
+			if (!$this->_checkLastStack('pre'))
+			{
+				$before .= $this->_closeStack();
+				$before .= '<pre>';
+				$this->_stack[] = 'pre';
+			}
+
+			$line = $before . $this->_renderInline(substr($line, 1));
 		}
 		// Paragraphs breaks
 		elseif (trim($line) == '')
