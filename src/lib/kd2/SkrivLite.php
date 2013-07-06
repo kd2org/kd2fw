@@ -47,7 +47,7 @@ class SkrivLite
 			{
 				if (strpos($line, '<?php') === false)
 					$line = "<?php\n" . $line;
-				
+
 				$line = highlight_string($line, true);
 			}
 			else
@@ -103,6 +103,13 @@ class SkrivLite
 		$text = preg_replace_callback('/(?<![\\\\\S])\?\?([^|]+)\|(.+)\?\?/U', 
 			function ($matches) {
 				return '<abbr title="' . htmlspecialchars($matches[2], ENT_QUOTES, 'UTF-8') . '">' . $matches[1] . '</abbr>';
+			}, $text);
+
+		// Images
+		$text = preg_replace_callback('/(?<![\\\\\S])\{\{(?:(.*)\|)?(.*)\}\}/', 
+			function ($matches) {
+				return '<img src="' . htmlspecialchars($matches[2], ENT_QUOTES, 'UTF-8') . '" '
+					. 'alt="' . htmlspecialchars($matches[1] != '' ? $matches[1] : $matches[2], ENT_QUOTES, 'UTF-8') . '" />';
 			}, $text);
 
 		return $text;
@@ -342,12 +349,6 @@ class SkrivLite
 			}
 		}
 
-		// If we're at the end of the processing, we must close opened tags
-		if (is_null($next))
-		{
-			$line .= $this->_closeStack();
-		}
-
 		return $line;
 	}
 
@@ -364,11 +365,14 @@ class SkrivLite
 
 		foreach ($text as $i => &$line)
 		{
-			$line = $this->_renderLine($line, 
-				($i > 0) ? $text[$i - 1] : null, 
-				($i + 1 < $max) ? $text[$i + 1] : null
+			$line = $this->_renderLine(
+				$line, 
+				($i > 0) ? $text[$i - 1] : null, // Previous line
+				($i + 1 < $max) ? $text[$i + 1] : null // Next line
 			);
 		}
+
+		$line .= $this->_closeStack();
 
 		return implode("\n", $text);
 	}

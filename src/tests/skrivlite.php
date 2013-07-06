@@ -128,5 +128,6 @@ $target = '<pre><code class="language-javascript">
 
 test($skriv->render($orig) == $target, 'code block rendering error');
 
+$orig = '{{image|http://lol.png}}';
 echo $skriv->render($orig);
 
