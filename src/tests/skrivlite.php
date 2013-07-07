@@ -6,7 +6,7 @@ require __DIR__ . '/_assert.php';
 require KD2FW_ROOT . '/SkrivLite.php';
 
 $skriv = new SkrivLite;
-$skriv->setCodeHighLightCallback(false); // Disable code highlighting
+$skriv->setCallback(SkrivLite::CALLBACK_CODE_HIGHLIGHT, false); // Disable code highlighting
 
 test($skriv instanceOf SkrivLite, '$skriv must be an instance of SkrivLite');
 
@@ -129,5 +129,25 @@ $target = '<pre><code class="language-javascript">
 test($skriv->render($orig) == $target, 'code block rendering error');
 
 $orig = '{{image|http://lol.png}}';
+$target = '<p><img src="http://lol.png" alt="image" /></p>';
+
+test($skriv->render($orig) == $target, 'image rendering error');
+
+$orig = '
+some text
+
+{{{ class1 class2
+enclosed **text**
+
+text1
+text2
+
+{{{ {{{ class3
+
+text3
+
+}}}
+
+}}}';
 echo $skriv->render($orig);
 

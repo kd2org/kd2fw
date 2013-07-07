@@ -17,9 +17,14 @@ namespace KD2;
 
 class SkrivLite
 {
+	const CALLBACK_CODE_HIGHLIGHT = 'codehl';
+	const CALLBACK_URL_ESCAPING = 'urlescape';
+	const CALLBACK_URL_SHORTENING = 'urlshort';
+	const CALLBACK_TITLE_TO_ID = 'title2id';
+
 	public $allow_html = true;
 
-	public $inline_tags = array(
+	protected $inline_tags = array(
 			'**'	=>	'strong',
 			"''"	=>	'em',
 			'__'	=>	'u',
@@ -36,33 +41,39 @@ class SkrivLite
 	protected $_verbatim = false;
 	protected $_code = false;
 
-	protected $_code_highlight_callback = null;
+	protected $_classes = array();
+
+	protected $_callback = array();
 
 	public function __construct()
 	{
-		// Default callback
-		$this->setCodeHighLightCallback(function ($language, $line)
-		{
-			if ($language == 'php')
-			{
-				if (strpos($line, '<?php') === false)
-					$line = "<?php\n" . $line;
-
-				$line = highlight_string($line, true);
-			}
-			else
-			{
-				$line = htmlspecialchars($line, ENT_QUOTES, 'UTF-8');
-			}
-		});
+		$this->setCallback(self::CALLBACK_URL_ESCAPING, array(__NAMESPACE__ . '\SkrivLite_Helper', 'protectUrl'));
+		$this->setCallback(self::CALLBACK_CODE_HIGHLIGHT, array(__NAMESPACE__ . '\SkrivLite_Helper', 'highlightCode'));
+		$this->setCallback(self::CALLBACK_TITLE_TO_ID, array(__NAMESPACE__ . '\SkrivLite_Helper', 'titleToIdentifier'));
 	}
 
-	public function setCodeHighLightCallback($callback)
+	public function setCallback($function, $callback)
 	{
+		$callbacks = array(
+			self::CALLBACK_CODE_HIGHLIGHT,
+			self::CALLBACK_URL_ESCAPING,
+			self::CALLBACK_URL_SHORTENING,
+			self::CALLBACK_TITLE_TO_ID
+		);
+
+		if (!in_array($function, $callbacks))
+		{
+			throw new \UnexpectedValue('Invalid callback method "' . $function . '"');
+		}
+
 		if ((is_bool($callback) && $callback === false) || is_callable($callback))
-			$this->_code_highlight_callback = $callback;
+		{
+			$this->_callback[$function] = $callback;
+		}
 		else
-			throw new UnexpectedValue('$callback is not a valid callback or FALSE');
+		{
+			throw new \UnexpectedValue('$callback is not a valid callback or FALSE');
+		}
 
 		return true;
 	}
@@ -106,39 +117,14 @@ class SkrivLite
 			}, $text);
 
 		// Images
+		$callback = $this->_callback[self::CALLBACK_URL_ESCAPING];
 		$text = preg_replace_callback('/(?<![\\\\\S])\{\{(?:(.*)\|)?(.*)\}\}/', 
-			function ($matches) {
-				return '<img src="' . htmlspecialchars($matches[2], ENT_QUOTES, 'UTF-8') . '" '
+			function ($matches) use ($callback) {
+				return '<img src="' . call_user_func($callback, $matches[2]) . '" '
 					. 'alt="' . htmlspecialchars($matches[1] != '' ? $matches[1] : $matches[2], ENT_QUOTES, 'UTF-8') . '" />';
 			}, $text);
 
 		return $text;
-	}
-
-	protected function _titleToIdentifier($text)
-	{
-        // Don't process empty strings
-        if (!trim($text))
-            return '-';
-
-		// conversion of accented characters
-		// see http://www.weirdog.com/blog/php/supprimer-les-accents-des-caracteres-accentues.html
-		$text = htmlentities($text, ENT_NOQUOTES, 'utf-8');
-		$text = preg_replace('#&([A-za-z])(?:acute|cedil|circ|grave|orn|ring|slash|th|tilde|uml);#', '\1', $text);
-		$text = preg_replace('#&([A-za-z]{2})(?:lig);#', '\1', $text);	// for ligatures e.g. '&oelig;'
-		$text = preg_replace('#&([lr]s|sb|[lrb]d)(quo);#', ' ', $text);	// for *quote (http://www.degraeve.com/reference/specialcharacters.php)
-		$text = str_replace('&nbsp;', ' ', $text);                      // for non breaking space
-		$text = preg_replace('#&[^;]+;#', '', $text);                   // strips other characters
-
-		$text = preg_replace("/[^a-zA-Z0-9_-]/", ' ', $text);           // remove any other characters
-		$text = str_replace(' ', '-', $text);
-		$text = preg_replace('/\s+/', " ", $text);
-		$text = preg_replace('/-+/', "-", $text);
-		$text = trim($text, '-');
-		$text = trim($text);
-		$text = empty($text) ? '-' : $text;
-
-        return $text;
 	}
 
 	protected function _closeStack()
@@ -184,9 +170,9 @@ class SkrivLite
 		// In a verbatim block: no further processing
 		if ($this->_verbatim && strpos($line, ']]]') !== 0)
 		{
-			if ($this->_code && $this->_code_highlight_callback)
+			if ($this->_code && !empty($this->_callback[self::CALLBACK_CODE_HIGHLIGHT]))
 			{
-				return call_user_func($this->_code_highlight_callback, $this->_code, $line);
+				return call_user_func($this->_callback[self::CALLBACK_CODE_HIGHLIGHT], $this->_code, $line);
 			}
 			else
 			{
@@ -205,7 +191,7 @@ class SkrivLite
 			if (trim(substr($line, 3)) !== '')
 			{
 				$language = strtolower(trim(substr($line, 3)));
-				$before .= '<code class="language-' . $this->_escape($language) . '">';
+				$before .= '<code "class"="language-' . $this->_escape($language) . '">';
 				$this->_stack[] = 'code';
 				$this->_code = $language;
 			}
@@ -242,7 +228,7 @@ class SkrivLite
 				$id = $line;
 			}
 
-			$id = $this->_titleToIdentifier($id);
+			$id = call_user_func($this->_callback[self::CALLBACK_TITLE_TO_ID], $id);
 			$line = $this->_closeStack() . '<h' . $level . ' id="' . $id . '">' . $this->_renderInline($line) . '</h' . $level . '>';
 		}
 		// Quotes
@@ -326,6 +312,35 @@ class SkrivLite
 
 			$line = $before . $this->_renderInline(substr($line, 1));
 		}
+		// Styled blocks
+		elseif (preg_match('/^((?:\{{3}\s*)+)\s*(.*)$/', $line, $match))
+		{
+			$this->_classes[] = trim($match[2]);
+			$line = '<div class="' . implode(' ', $this->_classes) . '">';
+		}
+		// Closing styled blocks
+		elseif (preg_match('/^((?:\}{3}\s*)+)$/', $line, $match))
+		{
+			$nb_closing = substr_count($line, '}}}');
+			$line = '';
+
+			// Just checking we have the right amount of closing curly brackets
+			// If not, let's just assume this is a mistake and close all styled blocks now
+			if ($nb_closing != count($this->_classes))
+			{
+				while (count($this->_classes))
+				{
+					array_pop($this->_classes);
+					$line .= '</div>';
+				}
+			}
+			else
+			{
+				array_pop($this->_classes);
+				$line .= '</div>';
+			}
+
+		}
 		// Paragraphs breaks
 		elseif (trim($line) == '')
 		{
@@ -378,6 +393,152 @@ class SkrivLite
 	}
 }
 
+/**
+ * Some useful default callbacks for SkrivLite class
+ */
+class SkrivLite_Helper
+{
+	/**
+	 * Allowed schemes in URLs
+	 * @var array
+	 */
+    static public $allowed_url_schemes = array(
+        'http'  =>  '://',
+        'https' =>  '://',
+        'ftp'   =>  '://',
+        'mailto'=>  ':',
+        'xmpp'  =>  ':',
+        'news'  =>  ':',
+        'nntp'  =>  '://',
+        'tel'   =>  ':',
+        'callto'=>  ':',
+        'ed2k'  =>  '://',
+        'irc'   =>  '://',
+        'magnet'=>  ':',
+        'mms'   =>  '://',
+        'rtsp'  =>  '://',
+        'sip'   =>  ':',
+        );
 
+	/**
+	 * Simple and dirty code highlighter
+	 * @param  string $language Language code in lowercase (not filtered for security)
+	 * @param  string $line Code line to highlight (not escaped)
+	 * @return string Highlighted code
+	 */
+	static public function highlightCode($language, $line)
+	{
+		
+		$line = htmlspecialchars($line, ENT_QUOTES, 'UTF-8');
+		$line = preg_replace('![;{}[]$]!', '<b>$1</b>', $line);
+		$line = preg_replace('!(public|static|protected|function|private|return)!i', '<i>$1</i>', $line);
+		$line = preg_replace('!(false|true|boolean|bool|integer|int)!i', '<u>$1</u>', $line);
+		return $line;
+	}
+
+	/**
+	 * Protects a URL/URI given as an image/link target against XSS attacks
+	 * (at least it tries) - copied from garbage2xhtml class by bohwaz
+	 * @param  string 	$value 	Original URL
+	 * @return string 	Filtered URL
+	 */
+	static public function protectUrl($value)
+	{
+        // Decode entities and encoded URIs
+        $value = rawurldecode($value);
+        $value = html_entity_decode($value, ENT_QUOTES, 'UTF-8');
+
+        // Convert unicode entities back to ASCII
+        // unicode entities don't always have a semicolon ending the entity
+        $value = preg_replace_callback('~&#x0*([0-9a-f]+);?~i', 
+			function($match) { return chr(hexdec($match[1])); }, 
+			$value);
+        $value = preg_replace_callback('~&#0*([0-9]+);?~', 
+        	function ($match) { return chr($match[1]); },
+        	$value);
+
+        // parse_url already have some tricks against XSS
+        $url = parse_url($value);
+        $value = '';
+
+        if (!empty($url['scheme']))
+        {
+            $url['scheme'] = strtolower($url['scheme']);
+
+            if (!array_key_exists($url['scheme'], self::$allowed_url_schemes))
+                return '';
+
+            $value .= $url['scheme'] . self::$allowed_url_schemes[$url['scheme']];
+        }
+
+        if (!empty($url['host']))
+        {
+            $value .= $url['host'];
+        }
+
+        if (!empty($url['path']))
+        {
+            $value .= $url['path'];
+        }
+
+        if (!empty($url['query']))
+        {
+            // We can't use parse_str and build_http_string to sanitize url here
+            // Or else we'll get things like ?param1&param2 transformed in ?param1=&param2=
+            $query = explode('&', $url['query']);
+
+            foreach ($query as &$item)
+            {
+                $item = explode('=', $item);
+
+                if (isset($item[1]))
+                    $item = rawurlencode(rawurldecode($item[0])) . '=' . rawurlencode(rawurldecode($item[1]));
+                else
+                    $item = rawurlencode(rawurldecode($item[0]));
+            }
+
+            $value .= '?' . $this->escape(implode('&', $query));
+        }
+
+        if (!empty($url['fragment']))
+        {
+            $value .= '#' . $url['fragment'];
+        }
+        return $value;
+	}
+
+	/**
+	 * Transforms a title (used in headings) to a unique identifier (used in id attribute)
+	 * Copied from SkrivMarkup project by Amaury Bouchard
+	 * @param  string $text original title
+	 * @return string unique title identifier
+	 */
+	static public function titleToIdentifier($text)
+	{
+        // Don't process empty strings
+        if (!trim($text))
+            return '-';
+
+		// conversion of accented characters
+		// see http://www.weirdog.com/blog/php/supprimer-les-accents-des-caracteres-accentues.html
+		$text = htmlentities($text, ENT_NOQUOTES, 'utf-8');
+		$text = preg_replace('#&([A-za-z])(?:acute|cedil|circ|grave|orn|ring|slash|th|tilde|uml);#', '\1', $text);
+		$text = preg_replace('#&([A-za-z]{2})(?:lig);#', '\1', $text);	// for ligatures e.g. '&oelig;'
+		$text = preg_replace('#&([lr]s|sb|[lrb]d)(quo);#', ' ', $text);	// for *quote (http://www.degraeve.com/reference/specialcharacters.php)
+		$text = str_replace('&nbsp;', ' ', $text);                      // for non breaking space
+		$text = preg_replace('#&[^;]+;#', '', $text);                   // strips other characters
+
+		$text = preg_replace("/[^a-zA-Z0-9_-]/", ' ', $text);           // remove any other characters
+		$text = str_replace(' ', '-', $text);
+		$text = preg_replace('/\s+/', " ", $text);
+		$text = preg_replace('/-+/', "-", $text);
+		$text = trim($text, '-');
+		$text = trim($text);
+		$text = empty($text) ? '-' : $text;
+
+        return $text;
+	}
+
+}
 
 ?>
