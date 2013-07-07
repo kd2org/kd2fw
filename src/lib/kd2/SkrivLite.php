@@ -113,7 +113,7 @@ class SkrivLite
 		// Abbreviations
 		$text = preg_replace_callback('/(?<![\\\\\S])\?\?([^|]+)\|(.+)\?\?/U', 
 			function ($matches) {
-				return '<abbr title="' . htmlspecialchars($matches[2], ENT_QUOTES, 'UTF-8', false) . '">' . $matches[1] . '</abbr>';
+				return '<abbr title="' . htmlspecialchars(trim($matches[2]), ENT_QUOTES, 'UTF-8', false) . '">' . trim($matches[1]) . '</abbr>';
 			}, $text);
 
 		// Links
@@ -123,13 +123,12 @@ class SkrivLite
 			{
 				if (($pos = strpos($matches[1], '|')) !== false)
 				{
-					$text = substr($matches[1], 0, $pos);
-					$url = substr($matches[1], $pos + 1);
-					echo "$text = $url\n";
+					$text = trim(substr($matches[1], 0, $pos));
+					$url = trim(substr($matches[1], $pos + 1));
 				}
 				else
 				{
-					$text = $url = $matches[1];
+					$text = $url = trim($matches[1]);
 				}
 
 				return '<a href="' . call_user_func($callback, $url) . '">'
@@ -142,12 +141,12 @@ class SkrivLite
 			{
 				if (($pos = strpos($matches[1], '|')) !== false)
 				{
-					$text = substr($matches[1], 0, $pos);
-					$url = substr($matches[1], $pos + 1);
+					$text = trim(substr($matches[1], 0, $pos));
+					$url = trim(substr($matches[1], $pos + 1));
 				}
 				else
 				{
-					$text = $url = $matches[1];
+					$text = $url = trim($matches[1]);
 				}
 
 				return '<img src="' . call_user_func($callback, $url) . '" '
