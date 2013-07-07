@@ -47,8 +47,8 @@ class SkrivLite
 
 	public function __construct()
 	{
-		$this->setCallback(self::CALLBACK_URL_ESCAPING, array(__NAMESPACE__ . '\SkrivLite_Helper', 'protectUrl'));
 		$this->setCallback(self::CALLBACK_CODE_HIGHLIGHT, array(__NAMESPACE__ . '\SkrivLite_Helper', 'highlightCode'));
+		$this->setCallback(self::CALLBACK_URL_ESCAPING, array(__NAMESPACE__ . '\SkrivLite_Helper', 'protectUrl'));
 		$this->setCallback(self::CALLBACK_TITLE_TO_ID, array(__NAMESPACE__ . '\SkrivLite_Helper', 'titleToIdentifier'));
 	}
 
@@ -113,15 +113,45 @@ class SkrivLite
 		// Abbreviations
 		$text = preg_replace_callback('/(?<![\\\\\S])\?\?([^|]+)\|(.+)\?\?/U', 
 			function ($matches) {
-				return '<abbr title="' . htmlspecialchars($matches[2], ENT_QUOTES, 'UTF-8') . '">' . $matches[1] . '</abbr>';
+				return '<abbr title="' . htmlspecialchars($matches[2], ENT_QUOTES, 'UTF-8', false) . '">' . $matches[1] . '</abbr>';
+			}, $text);
+
+		// Links
+		$callback = $this->_callback[self::CALLBACK_URL_ESCAPING];
+		$text = preg_replace_callback('/\[\[(.+?)\]\]/', 
+			function ($matches) use ($callback) 
+			{
+				if (($pos = strpos($matches[1], '|')) !== false)
+				{
+					$text = substr($matches[1], 0, $pos);
+					$url = substr($matches[1], $pos + 1);
+					echo "$text = $url\n";
+				}
+				else
+				{
+					$text = $url = $matches[1];
+				}
+
+				return '<a href="' . call_user_func($callback, $url) . '">'
+					. htmlspecialchars($text, ENT_QUOTES, 'UTF-8') . '</a>';
 			}, $text);
 
 		// Images
-		$callback = $this->_callback[self::CALLBACK_URL_ESCAPING];
-		$text = preg_replace_callback('/(?<![\\\\\S])\{\{(?:(.*)\|)?(.*)\}\}/', 
-			function ($matches) use ($callback) {
-				return '<img src="' . call_user_func($callback, $matches[2]) . '" '
-					. 'alt="' . htmlspecialchars($matches[1] != '' ? $matches[1] : $matches[2], ENT_QUOTES, 'UTF-8') . '" />';
+		$text = preg_replace_callback('/(?<![\\\\\S])\{\{(.+?)\}\}/', 
+			function ($matches) use ($callback)
+			{
+				if (($pos = strpos($matches[1], '|')) !== false)
+				{
+					$text = substr($matches[1], 0, $pos);
+					$url = substr($matches[1], $pos + 1);
+				}
+				else
+				{
+					$text = $url = $matches[1];
+				}
+
+				return '<img src="' . call_user_func($callback, $url) . '" '
+					. 'alt="' . htmlspecialchars($text, ENT_QUOTES, 'UTF-8', false) . '" />';
 			}, $text);
 
 		return $text;
@@ -170,7 +200,7 @@ class SkrivLite
 		// In a verbatim block: no further processing
 		if ($this->_verbatim && strpos($line, ']]]') !== 0)
 		{
-			if ($this->_code && !empty($this->_callback[self::CALLBACK_CODE_HIGHLIGHT]))
+			if ($this->_code && $this->_callback[self::CALLBACK_CODE_HIGHLIGHT])
 			{
 				return call_user_func($this->_callback[self::CALLBACK_CODE_HIGHLIGHT], $this->_code, $line);
 			}
@@ -191,7 +221,7 @@ class SkrivLite
 			if (trim(substr($line, 3)) !== '')
 			{
 				$language = strtolower(trim(substr($line, 3)));
-				$before .= '<code "class"="language-' . $this->_escape($language) . '">';
+				$before .= '<code class="language-' . $this->_escape($language) . '">';
 				$this->_stack[] = 'code';
 				$this->_code = $language;
 			}
@@ -313,13 +343,13 @@ class SkrivLite
 			$line = $before . $this->_renderInline(substr($line, 1));
 		}
 		// Styled blocks
-		elseif (preg_match('/^((?:\{{3}\s*)+)\s*(.*)$/', $line, $match))
+		elseif (preg_match('/^(?<!\\\\)((?:\{{3}\s*)+)\s*(.*)$/', $line, $match))
 		{
 			$this->_classes[] = trim($match[2]);
 			$line = '<div class="' . implode(' ', $this->_classes) . '">';
 		}
 		// Closing styled blocks
-		elseif (preg_match('/^((?:\}{3}\s*)+)$/', $line, $match))
+		elseif (preg_match('/^(?<!\\\\)((?:\}{3}\s*)+)$/', $line, $match))
 		{
 			$nb_closing = substr_count($line, '}}}');
 			$line = '';

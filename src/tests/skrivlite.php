@@ -20,6 +20,7 @@ line
 break
 
 new paragraph';
+
 $target = '<p>line
 <br />break
 </p>
@@ -128,8 +129,8 @@ $target = '<pre><code class="language-javascript">
 
 test($skriv->render($orig) == $target, 'code block rendering error');
 
-$orig = '{{image|http://lol.png}}';
-$target = '<p><img src="http://lol.png" alt="image" /></p>';
+$orig = '{{image|http://lol.png}} {{image.jpg}}';
+$target = '<p><img src="http://lol.png" alt="image" /> <img src="image.jpg" alt="image.jpg" /></p>';
 
 test($skriv->render($orig) == $target, 'image rendering error');
 
@@ -149,5 +150,30 @@ text3
 }}}
 
 }}}';
+// Note that we don't close the second styled block properly
+
+$target = '<p>some text
+</p>
+<div class="class1 class2">
+<p>enclosed <strong>text</strong>
+</p>
+<p>text1
+<br />text2
+</p>
+<div class="class1 class2 class3">
+
+<p>text3
+</p>
+</div></div>
+
+';
+
+test($skriv->render($orig) == $target, 'styled block rendering error');
+
+$orig = 'text [[http://kd2.org/]] and [[LQDN|http://lqdn.net/]]';
+$target = '<p>text <a href="http://kd2.org/">http://kd2.org/</a> and <a href="http://lqdn.net/">LQDN</a></p>';
+
+test($skriv->render($orig) == $target, 'link rendering error');
+
 echo $skriv->render($orig);
 
