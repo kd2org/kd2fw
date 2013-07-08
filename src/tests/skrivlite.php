@@ -175,5 +175,13 @@ $target = '<p>text <a href="http://kd2.org/">http://kd2.org/</a> and <a href="ht
 
 test($skriv->render($orig) == $target, 'link rendering error');
 
+$orig = '
+> quote
+!! one !! two
+|| un || deux
+|| 1 || 2 || 3
+|| un seul
+> quote';
+
 echo $skriv->render($orig);
 

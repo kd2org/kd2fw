@@ -10,7 +10,6 @@ namespace KD2;
  * What differs from the main SkrivML renderer:
  * - no smileys and symbols shortcuts
  * - no extensions (yet)
- * - no styled paragraphs (yet)
  * - ability to allow HTML (if enabled, you should only allow secure tags and use HTML tidy to make the code valid)
  * - no integration with GeShi for code highlighting, use your own callback to do that
  */
@@ -238,7 +237,8 @@ class SkrivLite
 		// Horizontal rule
 		elseif (strpos($line, '----') === 0)
 		{
-			$line = '<hr />';
+			$line = $this->_closeStack();
+			$line .= '<hr />';
 		}
 		// Titles
 		elseif (preg_match('#^(?<!\\\\)(={1,6})\s*(.*?)(?:\s*(?<!\\\\)\\1(?:\s*(.+))?)?$#', $line, $match))
@@ -263,12 +263,19 @@ class SkrivLite
 		// Quotes
 		elseif (preg_match('#^(?<!\\\\)((?:>\s*)+)\s*(.*)$#', $line, $match))
 		{
+			$before = $after = '';
+
 			// Number of opened <blockquotes>
 			$nb_bq = $this->_countTagsInStack('blockquote');
 
+			if (!$nb_bq)
+			{
+				$before .= $this->_closeStack();
+			}
+
 			// Number of quotes character
 			$nb_q = substr_count($match[1], '>');
-			$before = $after = '';
+
 			$line = trim($match[2]) == '' ? '' : $this->_renderInline($match[2]);
 
 			// If we need to get one level down, we have to close some tags
@@ -345,7 +352,7 @@ class SkrivLite
 		elseif (preg_match('/^(?<!\\\\)((?:\{{3}\s*)+)\s*(.*)$/', $line, $match))
 		{
 			$this->_classes[] = trim($match[2]);
-			$line = '<div class="' . implode(' ', $this->_classes) . '">';
+			$line = $this->_closeStack() . '<div class="' . implode(' ', $this->_classes) . '">';
 		}
 		// Closing styled blocks
 		elseif (preg_match('/^(?<!\\\\)((?:\}{3}\s*)+)$/', $line, $match))
@@ -369,6 +376,44 @@ class SkrivLite
 				$line .= '</div>';
 			}
 
+		}
+		// Tables
+		elseif (preg_match('/^(?<!\\\\)(!!|\|\|)\s*(.*)$/', $line, $match))
+		{
+			$line = '';
+			$columns = explode($match[1], $match[2]);
+
+			if (!$this->_checkLastStack('table'))
+			{
+				// Close opened tags before
+				$line .= $this->_closeStack();
+
+				$this->_stack[] = 'table';
+				$line .= '<table>';
+				$this->_nb_columns = count($columns);
+			}
+			// Avoid having the wrong number of columns after the first row
+			elseif (count($columns) != $this->_nb_columns)
+			{
+				// Will limit the array size to number of columns in the first row
+				$columns = explode($match[1], $match[2], $this->_nb_columns);
+
+				// If there is a missing column, just append empty content
+				while (count($columns) < $this->_nb_columns)
+				{
+					$columns[] = '';
+				}
+			}
+
+			$line .= '<tr>';
+
+			foreach ($columns as $col)
+			{
+				$tag = ($match[1] == '!!') ? 'th' : 'td';
+				$line .= '<' . $tag . '>' . $this->_renderInline(trim($col)) . '</' . $tag . '>';
+			}
+
+			$line .= '</tr>';
 		}
 		// Paragraphs breaks
 		elseif (trim($line) == '')
