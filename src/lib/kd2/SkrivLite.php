@@ -12,6 +12,9 @@ namespace KD2;
  * - no extensions (yet)
  * - ability to allow HTML (if enabled, you should only allow secure tags and use HTML tidy to make the code valid)
  * - no integration with GeShi for code highlighting, use your own callback to do that
+ * - better security on outgoing links
+ *
+ * MISSING: extensions, lists, footnotes
  */
 
 class SkrivLite
@@ -22,6 +25,7 @@ class SkrivLite
 	const CALLBACK_TITLE_TO_ID = 'title2id';
 
 	public $allow_html = true;
+	public $footnotes_prefix = 'skriv-notes-';
 
 	protected $inline_tags = array(
 			'**'	=>	'strong',
@@ -44,11 +48,15 @@ class SkrivLite
 
 	protected $_callback = array();
 
+	protected $_footnotes = array();
+	protected $_footnotes_index = 0;
+
 	public function __construct()
 	{
 		$this->setCallback(self::CALLBACK_CODE_HIGHLIGHT, array(__NAMESPACE__ . '\SkrivLite_Helper', 'highlightCode'));
 		$this->setCallback(self::CALLBACK_URL_ESCAPING, array(__NAMESPACE__ . '\SkrivLite_Helper', 'protectUrl'));
 		$this->setCallback(self::CALLBACK_TITLE_TO_ID, array(__NAMESPACE__ . '\SkrivLite_Helper', 'titleToIdentifier'));
+		$this->footnotes_prefix = 'skriv-notes-' . base_convert(rand(0, 50000), 10, 36) . '-';
 	}
 
 	public function setCallback($function, $callback)
@@ -77,6 +85,52 @@ class SkrivLite
 		return true;
 	}
 
+	public function addFootnote($matches)
+	{
+		$content = $matches[1];
+		$id = count($this->_footnotes) + 1;
+
+		// Custom ID
+		if (($pos = strpos($content, '|')) !== false)
+		{
+			$label = trim(substr($content, 0, $pos));
+			$content = trim(substr($content, $pos + 1));
+		}
+		else
+		{
+			$content = trim($content);
+			$label = ++$this->_footnotes_index;
+		}
+
+		$this->_footnotes[$id] = array($label, $content);
+
+		return '<sup class="footnote-ref"><a href="#cite_note-' . $id 
+			. '" id="cite_ref-' . $id . '">' . $this->_escape($label) . '</a></sup>';
+	}
+
+	public function getFootnotes($raw = false)
+	{
+		if ($raw === true)
+		{
+			return $this->_footnotes;
+		}
+		
+		$footnotes = '';
+
+		foreach ($this->_footnotes as $index=>$note)
+		{
+			list($label, $text) = $note;
+
+			$id = $this->footnotes_prefix . $index;
+
+			$footnotes .= '<p class="footnote"><a href="#cite_ref-' . $id 
+				. '" id="cite_note-' . $id . '">';
+			$footnotes .= $this->_escape($label) . '</a>. ' . $this->_renderInline($text) . '</p>';
+		}
+		
+		return "\n" . '<div class="footnotes">' . $footnotes . '</div>';
+	}
+
 	protected function _buildInlineMatchFromTags()
 	{
 		$this->_inline_match = '';
@@ -101,6 +155,9 @@ class SkrivLite
 			$text = $this->_escape($text);
 		}
 
+		// Footnotes
+		$text = preg_replace_callback('/(?<![\\\\])\(\((.*?)\)\)/', array($this, 'addFootnote'), $text);
+
 		$tags = $this->inline_tags;
 
 		// Simple inline tags
@@ -109,15 +166,15 @@ class SkrivLite
 				return '<' . $tags[$matches[1]] . '>' . $matches[2] . '</' . $tags[$matches[1]] . '>';
 			}, $text);
 
-		// Abbreviations
+		// Abbreviations: ??W3C|World Wide Web Consortium??
 		$text = preg_replace_callback('/(?<![\\\\\S])\?\?([^|]+)\|(.+)\?\?/U', 
 			function ($matches) {
 				return '<abbr title="' . htmlspecialchars(trim($matches[2]), ENT_QUOTES, 'UTF-8', false) . '">' . trim($matches[1]) . '</abbr>';
 			}, $text);
 
-		// Links
+		// Links: [[http://example.tld/]] or [[Example|http://example.tld/]]
 		$callback = $this->_callback[self::CALLBACK_URL_ESCAPING];
-		$text = preg_replace_callback('/\[\[(.+?)\]\]/', 
+		$text = preg_replace_callback('/(?<![\\\\])\[\[(.+?)\]\]/', 
 			function ($matches) use ($callback) 
 			{
 				if (($pos = strpos($matches[1], '|')) !== false)
@@ -131,11 +188,11 @@ class SkrivLite
 				}
 
 				return '<a href="' . call_user_func($callback, $url) . '">'
-					. htmlspecialchars($text, ENT_QUOTES, 'UTF-8') . '</a>';
+					. htmlspecialchars($text, ENT_QUOTES, 'UTF-8', false) . '</a>';
 			}, $text);
 
-		// Images
-		$text = preg_replace_callback('/(?<![\\\\\S])\{\{(.+?)\}\}/', 
+		// Images: {{image.jpg}} or {{alternative text|image.jpg}}
+		$text = preg_replace_callback('/(?<![\\\\])\{\{(.+?)\}\}/', 
 			function ($matches) use ($callback)
 			{
 				if (($pos = strpos($matches[1], '|')) !== false)
@@ -151,6 +208,8 @@ class SkrivLite
 				return '<img src="' . call_user_func($callback, $url) . '" '
 					. 'alt="' . htmlspecialchars($text, ENT_QUOTES, 'UTF-8', false) . '" />';
 			}, $text);
+
+		// Footnotes: ((identifier|Foot note)) or ((numbered foot note))
 
 		return $text;
 	}
@@ -443,6 +502,11 @@ class SkrivLite
 
 	public function render($text)
 	{
+		// Reset internal storage of footnotes and TOC
+		$this->_footnotes = array();
+		$this->_footnotes_index = 0;
+		$this->_toc = array();
+
 		$this->_buildInlineMatchFromTags();
 
 		$text = str_replace("\r", '', $text);
@@ -463,7 +527,14 @@ class SkrivLite
 
 		$line .= $this->_closeStack();
 
-		return implode("\n", $text);
+		$text = implode("\n", $text);
+
+		if (!empty($this->_footnotes))
+		{
+			$text .= $this->getFootnotes();
+		}
+
+		return $text;
 	}
 }
 
