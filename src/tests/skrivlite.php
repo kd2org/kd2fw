@@ -7,6 +7,7 @@ require KD2FW_ROOT . '/SkrivLite.php';
 
 $skriv = new SkrivLite;
 $skriv->setCallback(SkrivLite::CALLBACK_CODE_HIGHLIGHT, false); // Disable code highlighting
+$skriv->footnotes_prefix = 'test';
 
 test($skriv instanceOf SkrivLite, '$skriv must be an instance of SkrivLite');
 
@@ -195,15 +196,43 @@ SkrivML is powerful ((Skriv|[[http://markup.skriv.org/]]))
 
 Last try((ok))';
 
-$target = '
-<p>Maybe<sup class="footnote-ref"><a href="#cite_note-1" id="cite_ref-1">1</a></sup>.
+$target = '<p>Maybe<sup class="footnote-ref"><a href="#cite_note-test1" id="cite_ref-test1">1</a></sup>.
 </p>
-<p>SkrivML is powerful <sup class="footnote-ref"><a href="#cite_note-2" id="cite_ref-2">Skriv</a></sup>
+<p>SkrivML is powerful <sup class="footnote-ref"><a href="#cite_note-test2" id="cite_ref-test2">Skriv</a></sup>
 </p>
-<p>Last try<sup class="footnote-ref"><a href="#cite_note-3" id="cite_ref-3">2</a></sup></p>
-<div class="footnotes"><p class="footnote"><a href="#cite_ref-skriv-notes-62q-1" id="cite_note-skriv-notes-62q-1">1</a>. sure</p><p class="footnote"><a href="#cite_ref-skriv-notes-62q-2" id="cite_note-skriv-notes-62q-2">Skriv</a>. <a href="http://markup.skriv.org/">http://markup.skriv.org/</a></p><p class="footnote"><a href="#cite_ref-skriv-notes-62q-3" id="cite_note-skriv-notes-62q-3">2</a>. ok</p></div>';
+<p>Last try<sup class="footnote-ref"><a href="#cite_note-test3" id="cite_ref-test3">2</a></sup></p>
+<div class="footnotes"><p class="footnote"><a href="#cite_ref-test1" id="cite_note-test1">1</a>. sure</p><p class="footnote"><a href="#cite_ref-test2" id="cite_note-test2">Skriv</a>. <a href="http://markup.skriv.org/">http://markup.skriv.org/</a></p><p class="footnote"><a href="#cite_ref-test3" id="cite_note-test3">2</a>. ok</p></div>';
 
 test($skriv->render($orig) == $target, 'footnote rendering error');
+
+$orig = '
+* list 1
+*list 2
+
+# list 1
+# list 2
+not in list
+
+* level 1
+** level 2
+* level 1
+** level 2
+** level 2
+*** level 3
+* back to level 1
+
+== now a mix ==
+
+* level 1
+*# level 2
+*#* level 3
+*#* level 3
+*# back to level 2
+** level 2 but unordered
+## level 2 ordered
+
+**bold bold**
+';
 
 echo $skriv->render($orig);
 

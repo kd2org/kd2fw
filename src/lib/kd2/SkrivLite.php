@@ -14,7 +14,7 @@ namespace KD2;
  * - no integration with GeShi for code highlighting, use your own callback to do that
  * - better security on outgoing links
  *
- * MISSING: extensions, lists, footnotes
+ * MISSING: extensions, lists
  */
 
 class SkrivLite
@@ -103,6 +103,8 @@ class SkrivLite
 		}
 
 		$this->_footnotes[$id] = array($label, $content);
+
+		$id = $this->footnotes_prefix . $id;
 
 		return '<sup class="footnote-ref"><a href="#cite_note-' . $id 
 			. '" id="cite_ref-' . $id . '">' . $this->_escape($label) . '</a></sup>';
@@ -474,6 +476,90 @@ class SkrivLite
 
 			$line .= '</tr>';
 		}
+		// Match lists but not lines like:
+		// **not a list**
+		// but will match:
+		// **list 1
+		// **list2 **bold**
+		elseif (preg_match('/^(?<!\\\\)((?:[*#]+\s*)+)\s*(.*)$/', $line, $match) 
+			&& !(($this->_checkLastStack('p') || empty($this->_stack)) && preg_match('/\*\*|##/', $match[1]) 
+				&& preg_match('/\*\*|##/', $match[2])))
+		{
+			$list = preg_replace('/\s/', '', $match[1]);
+			$list = str_split($list, 1);
+
+			$before = $after = '';
+
+			$nb_ul = $this->_countTagsInStack('ul');
+			$nb_ol = $this->_countTagsInStack('ol');
+
+			// First close the stack if we're at the beginning of a list
+			if (!$nb_ul && !$nb_ol)
+			{
+				$before .= $this->_closeStack();
+			}
+
+			// FIXME: The following section would need some simplification
+			$stack_idx = 0;
+
+			// For each */#, compare with current tag stack and close or open tags accordingly
+			foreach ($list as $char)
+			{
+				$tag = isset($this->_stack[$stack_idx]) ? $this->_stack[$stack_idx] : false;
+				$list_tag = ($char == '*') ? 'ul' : 'ol';
+
+				// The list order differs from the existing one, we need to get back to the common parent
+				if ($tag != $list_tag)
+				{
+					// Close stack up to $stack_idx
+					$idx = count($this->_stack);
+					while ($idx > $stack_idx)
+					{
+						$before .= '</' . array_pop($this->_stack) . '>';
+						$idx--;
+					}
+
+					$tag = false;
+				}
+
+				// No tag, we need to open one
+				if (!$tag)
+				{
+					$before .= '<' . $list_tag . '>';
+					$this->_stack[] = $list_tag;
+				}
+
+				$stack_idx++;
+
+				// Skips <li> tags
+				if (isset($this->_stack[$stack_idx]) && $this->_stack[$stack_idx] == 'li')
+				{
+					$stack_idx++;
+				}
+			}
+
+			// If there is still tags in stack it means we are going some levels down
+			if (count($this->_stack) - $stack_idx > 0)
+			{
+				// Close stack up to $stack_idx
+				$idx = count($this->_stack);
+				while ($idx > $stack_idx)
+				{
+					$before .= '</' . array_pop($this->_stack) . '>';
+					$idx--;
+				}
+			}
+
+			if ($this->_checkLastStack('li'))
+			{
+				$before .= '</' . array_pop($this->_stack) . '>';
+			}
+
+			$before .= '<li>';
+			$this->_stack[] = 'li';
+
+			$line = $before . $this->_renderInline($match[2]);
+		}
 		// Paragraphs breaks
 		elseif (trim($line) == '')
 		{
@@ -486,8 +572,7 @@ class SkrivLite
 			// Line has content but no <p> container, open one
 			if (!$this->_checkLastStack('p'))
 			{
-				$paragraph = true;
-				$line = '<p>' . $line;
+				$line = $this->_closeStack() . '<p>' . $line;
 				$this->_stack[] = 'p';
 			}
 			// Already in a <p>? that means the previous-line needs a line-break
