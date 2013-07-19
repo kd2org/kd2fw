@@ -7,6 +7,8 @@ namespace KD2;
  *
  * Lightweight and one-file implementation of Skriv Markup Language.
  *
+ * Skriv Markup Language and original implementation are from Amaury Bouchard, see http://markup.skriv.org/
+ *
  * What differs from the main SkrivML renderer:
  * - no smileys and symbols shortcuts
  * - no extensions (yet)
@@ -14,7 +16,6 @@ namespace KD2;
  * - no integration with GeShi for code highlighting, use your own callback to do that
  * - better security on outgoing links
  *
- * MISSING: extensions, lists
  */
 
 class SkrivLite
@@ -704,6 +705,12 @@ class SkrivLite_Helper
         if (!empty($url['host']))
         {
             $value .= $url['host'];
+        }
+
+        if (!empty($url['port']) && !($url['scheme'] == 'http' && $url['port'] == 80) 
+        	&& !($url['scheme'] == 'https' && $url['port'] == 443))
+        {
+        	$value .= ':' . (int) $url['port'];
         }
 
         if (!empty($url['path']))
