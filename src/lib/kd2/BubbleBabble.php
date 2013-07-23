@@ -70,7 +70,9 @@ class BubbleBabble
         {
             if ($i >= strlen($src))
             {
-                $out .= self::$vowels[$c%6] . self::$consonants[16] . self::$vowels[$c/6];
+                $out .= self::$vowels[$c%6];
+                $out .= self::$consonants[16];
+                $out .= substr(self::$vowels, $c/6, 1);
                 break;
             }
 
