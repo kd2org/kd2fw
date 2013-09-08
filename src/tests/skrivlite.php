@@ -67,7 +67,7 @@ some text
 
 $target = '<p>some text
 </p>
-<blockquote><p>"great quote"
+<blockquote><p>&quot;great quote&quot;
 <br />(he said)
 </p>
 <p>but on a new paragraph
@@ -124,7 +124,7 @@ $orig = '
 
 $target = '<pre><code class="language-javascript">
 (function () {
-	console.log("lol");
+	console.log(&quot;lol&quot;);
 }());
 </code></pre>';
 
@@ -205,6 +205,12 @@ $target = '<p>Maybe<sup class="footnote-ref"><a href="#cite_note-test1" id="cite
 
 test($skriv->render($orig) == $target, 'footnote rendering error');
 
+// https://github.com/Amaury/SkrivMarkup/issues/3
+$orig = 'aa ##--bbb## ccc';
+$target = '<p>aa <tt>--bbb</tt> ccc</p>';
+
+test($skriv->render($orig) == $target, 'inline rendering error');
+
 $orig = '
 * list 1
 *list 2
@@ -234,5 +240,93 @@ not in list
 **bold bold**
 ';
 
-echo $skriv->render($orig);
+$target = '<ul><li>list 1
+</li><li>list 2
+</li></ul>
+<ol><li>list 1
+</li><li>list 2
+</li></ol><p>not in list
+</p>
+<ul><li>level 1
+<ul><li>level 2
+</li></ul></li><li>level 1
+<ul><li>level 2
+</li><li>level 2
+<ul><li>level 3
+</li></ul></li></ul></li><li>back to level 1
+</li></ul>
+<h2 id="now-a-mix">now a mix</h2>
+
+<ul><li>level 1
+<ol><li>level 2
+<ul><li>level 3
+</li><li>level 3
+</li></ul></li><li>back to level 2
+</li></ol><ul><li>level 2 but unordered
+</li></ul></li></ul><ol><ol><li>level 2 ordered
+</li></ol></ol>
+<p><strong>bold bold</strong></p>';
+
+test($skriv->render($orig) == $target, 'list rendering error');
+
+// https://github.com/Amaury/SkrivMarkup/issues/15
+$orig = '[[##__invoke## | http://www.php.net/manual/fr/language.oop5.magic.php#object.invoke]]';
+$target = '<p><a href="http://www.php.net/manual/fr/language.oop5.magic.php#object.invoke"><tt>__invoke</tt></a></p>';
+
+test($skriv->render($orig) == $target, 'issue 15 rendering error');
+
+$skriv->registerExtension('lipsum', function($args, $content = null) 
+{
+	if (isset($args['length']))
+		$length = (int) $args['length'];
+	elseif (isset($args[0]))
+		$length = (int)$args[0];
+	else
+		$length = null;
+	
+	$text = 'Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.';
+
+	if ($length)
+		$text = substr($text, 0, $length);
+	
+	if (!is_null($content))
+	{
+		$text = '<p>' . $text . '</p>';
+	}
+
+	return $text;
+});
+
+$target = '<p><s>text</s> Lorem ipsum dolor si <strong>bold</strong> normal</p>';
+$orig = '--text-- <<lipsum|20>> **bold** normal';
+
+test($skriv->render($orig) == $target, 'inline extension rendering error');
+
+$orig = '--text-- <<lipsum length=20>> **bold** normal';
+
+test($skriv->render($orig) == $target, 'inline extension with named argument rendering error');
+
+$orig = '<<lipsum length="20"
+>>';
+
+$target = '
+<p>Lorem ipsum dolor si</p>';
+
+test($skriv->render($orig) == $target, 'block extension with named argument rendering error');
+
+$skriv->registerExtension('html', function($args, $content = null)  { return $content; });
+
+$orig = '
+<b>Escaped html</b>
+<<html
+<p><b>Not escaped</b></p>
+>>';
+
+$target = '<p>&lt;b&gt;Escaped html&lt;/b&gt;
+</p>
+
+<p><b>Not escaped</b></p>
+';
+
+test($skriv->render($orig) == $target, 'block html extension rendering error');
 

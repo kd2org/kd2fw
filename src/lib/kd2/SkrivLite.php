@@ -10,13 +10,16 @@ namespace KD2;
  * Skriv Markup Language and original implementation are from Amaury Bouchard, see http://markup.skriv.org/
  *
  * What differs from the main SkrivML renderer:
- * - no smileys and symbols shortcuts
- * - no extensions (yet)
- * - ability to allow HTML (if enabled, you should only allow secure tags and use HTML tidy to make the code valid)
+ * - no smileys and symbols shortcuts (this is a choice)
+ * - ability to allow HTML (if enabled, you should filter tags before passing the text to SkrivLite
+ *   and use HTML tidy to make the code valid after SkrivLite returned the text)
  * - no integration with GeShi for code highlighting, use your own callback to do that
  * - better security on outgoing links
+ * - named extension parameters: <<lipsum paragraphs=5>>
  *
  */
+
+class SkrivLite_Exception extends \Exception {}
 
 class SkrivLite
 {
@@ -25,9 +28,14 @@ class SkrivLite
 	const CALLBACK_URL_SHORTENING = 'urlshort';
 	const CALLBACK_TITLE_TO_ID = 'title2id';
 
-	public $allow_html = true;
+	public $throw_exception_on_syntax_error = false;
+	public $allow_html = false;
 	public $footnotes_prefix = 'skriv-notes-';
 
+	/**
+	 * Simple inline tags
+	 * @var array
+	 */
 	protected $inline_tags = array(
 			'**'	=>	'strong',
 			"''"	=>	'em',
@@ -38,26 +46,81 @@ class SkrivLite
 			',,'	=>	'sub'
 		);
 
-	protected $_inline_match = null;
-
+	/**
+	 * Block tag stack (flat)
+	 * @var array
+	 */
 	protected $_stack = array();
 
+	/**
+	 * true if we are in a verbatim/code block
+	 * @var boolean
+	 */
 	protected $_verbatim = false;
+
+	/**
+	 * stores the language name of a code block
+	 * @var string
+	 */
 	protected $_code = false;
 
-	protected $_classes = array();
+	/**
+	 * Stores current block content for code and extensions block
+	 * @var mixed
+	 */
+	protected $_block = true;
 
+	/**
+	 * Configurable callbacks
+	 * @var array
+	 */
 	protected $_callback = array();
 
+	/**
+	 * Footnotes
+	 * @var array
+	 */
 	protected $_footnotes = array();
 	protected $_footnotes_index = 0;
 
+	/**
+	 * User-defined extensions
+	 * @var array
+	 */
+	protected $_extensions = array();
+
+	/**
+	 * Stores current block extension name and arguments
+	 * @var array
+	 */
+	protected $_extension = false;
+
+	/**
+	 * Inline regexp, initialized at __construct
+	 * @var string
+	 */
+	protected $_inline_regexp = null;
+
 	public function __construct()
 	{
+		// Match link/image/extension/footnote not preceded by a backslash
+		$this->_inline_regexp = '/(?<![\\\\])([' . preg_quote('[{<(') . '])\1';
+
+		// Match other tags not preceded by a backslash or any character 
+		// that is not a whitespace character (so that this**doesn't**work but this **does** work)
+		$this->_inline_regexp.= '|(?<![\\\\\S])([' . preg_quote('?,*_^#\'-') . '])\2/';
+
+		// Set default callbacks
 		$this->setCallback(self::CALLBACK_CODE_HIGHLIGHT, array(__NAMESPACE__ . '\SkrivLite_Helper', 'highlightCode'));
 		$this->setCallback(self::CALLBACK_URL_ESCAPING, array(__NAMESPACE__ . '\SkrivLite_Helper', 'protectUrl'));
 		$this->setCallback(self::CALLBACK_TITLE_TO_ID, array(__NAMESPACE__ . '\SkrivLite_Helper', 'titleToIdentifier'));
 		$this->footnotes_prefix = 'skriv-notes-' . base_convert(rand(0, 50000), 10, 36) . '-';
+	}
+
+	public function registerExtension($name, Callable $callback)
+	{
+		$this->_extensions[$name] = $callback;
+		return true;
 	}
 
 	public function setCallback($function, $callback)
@@ -86,20 +149,14 @@ class SkrivLite
 		return true;
 	}
 
-	public function addFootnote($matches)
+	public function addFootnote($content, $label = null)
 	{
-		$content = $matches[1];
 		$id = count($this->_footnotes) + 1;
+		$content = trim($content);
 
 		// Custom ID
-		if (($pos = strpos($content, '|')) !== false)
+		if (is_null($label))
 		{
-			$label = trim(substr($content, 0, $pos));
-			$content = trim(substr($content, $pos + 1));
-		}
-		else
-		{
-			$content = trim($content);
 			$label = ++$this->_footnotes_index;
 		}
 
@@ -134,87 +191,185 @@ class SkrivLite
 		return "\n" . '<div class="footnotes">' . $footnotes . '</div>';
 	}
 
-	protected function _buildInlineMatchFromTags()
+	protected function _parseError($msg, $block = false)
 	{
-		$this->_inline_match = '';
-
-		foreach ($this->inline_tags as $tag=>$html)
+		if ($this->throw_exception_on_syntax_error)
 		{
-			$this->_inline_match .= preg_quote($tag, '/') . '|';
+			throw new SkrivLite_Exception($msg);
+		}
+		else
+		{
+			$tag = $block ? 'p' : 'b';
+			return '<' . $tag . ' style="color: red; background: yellow;">' . $msg . '</' . $tag . '>';
+		}
+	}
+
+	protected function _callExtension($match, $content = null)
+	{
+		$name = strtolower($match[1]);
+
+		if (!array_key_exists($name, $this->_extensions))
+		{
+			return $this->_parseError('Unknown extension: ' . $match[1]);
 		}
 
-		$this->_inline_match = substr($this->_inline_match, 0, -1);
+		$_args = trim($match[2]);
+
+		// "official" unnamed arguments separated by a pipe
+		if ($_args != '' && $_args[0] == '|')
+		{
+			$args = explode('|', substr($_args, 1));
+		}
+		// unofficial named arguments similar to html args
+		elseif ($_args != '')
+		{
+			$args = array();
+			preg_match_all('/([[:alpha:]][[:alnum:]]*)(?:\s*=\s*(?:([\'"])(.*?)\2|([^>\s\'"]+)))?/i', $_args, $_args, PREG_SET_ORDER);
+
+			foreach ($_args as $_a)
+			{
+				$args[$_a[1]] = isset($_a[4]) ? $_a[4] : (isset($_a[3]) ? $_a[3] : null);
+			}
+		}
+		else
+		{
+			$args = null;
+		}
+
+		return call_user_func($this->_extensions[$name], $args, $content);
 	}
 
 	protected function _escape($text)
 	{
-		return htmlspecialchars($text, ENT_QUOTES, 'UTF-8', false);
+		return htmlspecialchars($text, ENT_QUOTES, 'UTF-8', true);
 	}
 
-	protected function _renderInline($text)
+	protected function _inlineTag($tag, $text, &$tag_length)
 	{
-		if (!$this->allow_html)
+		$out = '';
+
+		// Inline extensions: <<extension>> <<extension|param1|param2>> <<extension param1="value" param2>>
+		if ($tag == '<<' && preg_match('/(^[a-z_]+)(.*?)>>/i', $text, $match))
 		{
-			$text = $this->_escape($text);
+			$out = $this->_callExtension($match);
+		}
+		// Footnotes: ((identifier|Foot note)) or ((numbered foot note))
+		elseif ($tag == '((' && preg_match('/^(.*?)\)\)/', $text, $match))
+		{
+			if (($pos = strpos($match[1], '|')) !== false)
+			{
+				$label = trim(substr($match[1], 0, $pos));
+				$content = trim(substr($match[1], $pos + 1));
+			}
+			else
+			{
+				$content = trim($match[1]);
+				$label = null;
+			}
+
+			$out = $this->addFootnote($content, $label);
+		}
+		// Inline tags: **bold** ''italics'' --strike-through-- __underline__ ^^sup^^ ,,sub,,
+		elseif (array_key_exists($tag, $this->inline_tags) 
+			&& preg_match('/^(.*?)' . preg_quote($tag, '/') . '/', $text, $match))
+		{
+			$out = '<' . $this->inline_tags[$tag] . '>' . $match[1] . '</' . $this->inline_tags[$tag] . '>';
+		}
+		// Abbreviations: ??W3C|World Wide Web Consortium??
+		elseif ($tag == '??' && preg_match('/^(.+)\|(.+)\?\?/U', $text, $match))
+		{
+			$out = '<abbr title="' . $this->_escape(trim($match[2])) . '">' . trim($match[1]) . '</abbr>';
+		}
+		// Links: [[http://example.tld/]] or [[Example|http://example.tld/]]
+		elseif ($tag == '[[' && preg_match('/(.+?)\]\]/', $text, $match))
+		{
+			if (($pos = strpos($match[1], '|')) !== false)
+			{
+				$text = trim(substr($match[1], 0, $pos));
+				$text = $this->_renderInline($text);
+				$url = trim(substr($match[1], $pos + 1));
+			}
+			else
+			{
+				$text = $url = trim($match[1]);
+				$text = $this->_escape($text);
+			}
+
+			$out = '<a href="' . call_user_func($this->_callback[self::CALLBACK_URL_ESCAPING], $url) . '">'
+				. $text . '</a>';
+		}
+		// Images: {{image.jpg}} or {{alternative text|image.jpg}}
+		elseif ($tag == '{{' && preg_match('/(.+?)\}\}/', $text, $match))
+		{
+			if (($pos = strpos($match[1], '|')) !== false)
+			{
+				$text = trim(substr($match[1], 0, $pos));
+				$url = trim(substr($match[1], $pos + 1));
+			}
+			else
+			{
+				$text = $url = trim($match[1]);
+			}
+
+			$out = '<img src="' . call_user_func($this->_callback[self::CALLBACK_URL_ESCAPING], $url) . '" '
+				. 'alt="' . $this->_escape($text) . '" />';
+		}
+		else
+		{
+			// Invalid tag
+			$out = $tag . $text;
 		}
 
-		// Footnotes
-		$text = preg_replace_callback('/(?<![\\\\])\(\((.*?)\)\)/', array($this, 'addFootnote'), $text);
+		if (isset($match[0]))
+		{
+			$tag_length = strlen($match[0]);
+		}
 
-		$tags = $this->inline_tags;
+		return $out;
+	}
 
-		// Simple inline tags
-		$text = preg_replace_callback('/(?<![\\\\\S])(' . $this->_inline_match . ')(.*?)\\1/',
-			function ($matches) use ($tags) {
-				return '<' . $tags[$matches[1]] . '>' . $matches[2] . '</' . $tags[$matches[1]] . '>';
-			}, $text);
-
-		// Abbreviations: ??W3C|World Wide Web Consortium??
-		$text = preg_replace_callback('/(?<![\\\\\S])\?\?([^|]+)\|(.+)\?\?/U', 
-			function ($matches) {
-				return '<abbr title="' . htmlspecialchars(trim($matches[2]), ENT_QUOTES, 'UTF-8', false) . '">' . trim($matches[1]) . '</abbr>';
-			}, $text);
-
-		// Links: [[http://example.tld/]] or [[Example|http://example.tld/]]
-		$callback = $this->_callback[self::CALLBACK_URL_ESCAPING];
-		$text = preg_replace_callback('/(?<![\\\\])\[\[(.+?)\]\]/', 
-			function ($matches) use ($callback) 
+	protected function _renderInline($text, $escape = false)
+	{
+		$out = '';
+		
+		while ($text != '')
+		{
+			if (preg_match($this->_inline_regexp, $text, $match, PREG_OFFSET_CAPTURE))
 			{
-				if (($pos = strpos($matches[1], '|')) !== false)
+				$pos = $match[0][1];
+
+				if (!$this->allow_html || $escape)
 				{
-					$text = trim(substr($matches[1], 0, $pos));
-					$url = trim(substr($matches[1], $pos + 1));
+					$out .= $this->_escape(substr($text, 0, $pos));
 				}
 				else
 				{
-					$text = $url = trim($matches[1]);
+					$out .= substr($text, 0, $pos);
 				}
 
-				return '<a href="' . call_user_func($callback, $url) . '">'
-					. htmlspecialchars($text, ENT_QUOTES, 'UTF-8', false) . '</a>';
-			}, $text);
+				$pos += 2;
+				$text = substr($text, $pos);
 
-		// Images: {{image.jpg}} or {{alternative text|image.jpg}}
-		$text = preg_replace_callback('/(?<![\\\\])\{\{(.+?)\}\}/', 
-			function ($matches) use ($callback)
+				$out .= $this->_inlineTag($match[0][0], $text, $pos);
+
+				$text = substr($text, $pos);
+			}
+			else
 			{
-				if (($pos = strpos($matches[1], '|')) !== false)
+				if (!$this->allow_html || $escape)
 				{
-					$text = trim(substr($matches[1], 0, $pos));
-					$url = trim(substr($matches[1], $pos + 1));
+					$out .= $this->_escape($text);
 				}
 				else
 				{
-					$text = $url = trim($matches[1]);
+					$out .= substr($text);
 				}
 
-				return '<img src="' . call_user_func($callback, $url) . '" '
-					. 'alt="' . htmlspecialchars($text, ENT_QUOTES, 'UTF-8', false) . '" />';
-			}, $text);
+				$text = '';
+			}
+		}
 
-		// Footnotes: ((identifier|Foot note)) or ((numbered foot note))
-
-		return $text;
+		return $out;
 	}
 
 	protected function _closeStack()
@@ -262,12 +417,18 @@ class SkrivLite
 		{
 			if ($this->_code && $this->_callback[self::CALLBACK_CODE_HIGHLIGHT])
 			{
-				return call_user_func($this->_callback[self::CALLBACK_CODE_HIGHLIGHT], $this->_code, $line);
+				$this->_block .= $line . "\n";
+				return null;
 			}
 			else
 			{
 				return $this->allow_html ? $line : $this->_escape($line);
 			}
+		}
+		elseif ($this->_extension && strpos($line, '>>') !== 0)
+		{
+			$this->_block .= $line . "\n";
+			return null;
 		}
 
 		// Verbatim/Code
@@ -292,9 +453,36 @@ class SkrivLite
 		// Closing verbatim/code block
 		elseif (strpos($line, ']]]') === 0)
 		{
-			$line = $this->_closeStack();
+			$line = '';
+
+			if ($this->_code && $this->_callback[self::CALLBACK_CODE_HIGHLIGHT])
+			{
+				$line .= call_user_func($this->_callback[self::CALLBACK_CODE_HIGHLIGHT], $this->_code, $this->_block);
+				$this->_code = false;
+			}
+
+			$line .= $this->_closeStack();
 			$this->_verbatim = false;
-			$this->_code = false;
+		}
+		// Opening of extension block
+		elseif (strpos($line, '<<') === 0)
+		{
+			if (!preg_match('/^<<<?([a-z_]+)(.*)$/i', $line, $match))
+			{
+				return $this->_parseError('Invalid extension tag: ' . $line);
+			}
+
+			$line = $this->_closeStack();
+			$this->_block = '';
+			$this->_extension = $match;
+		}
+		// Closing extension block
+		elseif (strpos($line, '>>') === 0 && $this->_extension)
+		{
+			$line = $this->_callExtension($this->_extension, $this->_block);
+
+			$this->_block = false;
+			$this->_extension = false;
 		}
 		// Horizontal rule
 		elseif (strpos($line, '----') === 0)
@@ -593,8 +781,6 @@ class SkrivLite
 		$this->_footnotes_index = 0;
 		$this->_toc = array();
 
-		$this->_buildInlineMatchFromTags();
-
 		$text = str_replace("\r", '', $text);
 		$text = preg_replace("/\n{3,}/", "\n\n", $text);
 		$text = preg_replace("/^\n+|\n+$/", '', $text); // Remove line breaks at beginning and end of text
@@ -756,14 +942,22 @@ class SkrivLite_Helper
         if (!trim($text))
             return '-';
 
-		// conversion of accented characters
-		// see http://www.weirdog.com/blog/php/supprimer-les-accents-des-caracteres-accentues.html
-		$text = htmlentities($text, ENT_NOQUOTES, 'utf-8');
-		$text = preg_replace('#&([A-za-z])(?:acute|cedil|circ|grave|orn|ring|slash|th|tilde|uml);#', '\1', $text);
-		$text = preg_replace('#&([A-za-z]{2})(?:lig);#', '\1', $text);	// for ligatures e.g. '&oelig;'
-		$text = preg_replace('#&([lr]s|sb|[lrb]d)(quo);#', ' ', $text);	// for *quote (http://www.degraeve.com/reference/specialcharacters.php)
-		$text = str_replace('&nbsp;', ' ', $text);                      // for non breaking space
-		$text = preg_replace('#&[^;]+;#', '', $text);                   // strips other characters
+        if (function_exists('transliterator_transliterate'))
+        {
+        	// Use a proper transliterator if available
+        	$text = transliterator_transliterate('Any-Latin; Latin-ASCII', $text);
+        }
+        else
+        {
+			// conversion of accented characters
+			// see http://www.weirdog.com/blog/php/supprimer-les-accents-des-caracteres-accentues.html
+			$text = htmlentities($text, ENT_NOQUOTES, 'utf-8');
+			$text = preg_replace('#&([A-za-z])(?:acute|cedil|circ|grave|orn|ring|slash|th|tilde|uml);#', '\1', $text);
+			$text = preg_replace('#&([A-za-z]{2})(?:lig);#', '\1', $text);	// for ligatures e.g. '&oelig;'
+			$text = preg_replace('#&([lr]s|sb|[lrb]d)(quo);#', ' ', $text);	// for *quote (http://www.degraeve.com/reference/specialcharacters.php)
+			$text = str_replace('&nbsp;', ' ', $text);                      // for non breaking space
+			$text = preg_replace('#&[^;]+;#', '', $text);                   // strips other characters
+		}
 
 		$text = preg_replace("/[^a-zA-Z0-9_-]/", ' ', $text);           // remove any other characters
 		$text = str_replace(' ', '-', $text);
