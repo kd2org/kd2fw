@@ -178,12 +178,12 @@ test($skriv->render($orig) == $target, 'link rendering error');
 
 $orig = '
 !! one !! two
-|| un || deux
+|| un || deux||
 || 1 || 2 ||one column too much
 || missing column';
 
 $target = '<table><tr><th>one</th><th>two</th></tr>
-<tr><td>un</td><td>deux</td></tr>
+<tr><td>un</td><td>deux||</td></tr>
 <tr><td>1</td><td>2 ||one column too much</td></tr>
 <tr><td>missing column</td><td></td></tr></table>';
 

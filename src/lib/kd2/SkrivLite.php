@@ -4,18 +4,35 @@ namespace KD2;
 
 /**
  * SkrivLite
- *
  * Lightweight and one-file implementation of Skriv Markup Language.
  *
- * Skriv Markup Language and original implementation are from Amaury Bouchard, see http://markup.skriv.org/
- *
- * What differs from the main SkrivML renderer:
- * - no smileys and symbols shortcuts (this is a choice)
- * - ability to allow HTML (if enabled, you should filter tags before passing the text to SkrivLite
- *   and use HTML tidy to make the code valid after SkrivLite returned the text)
- * - no integration with GeShi for code highlighting, use your own callback to do that
- * - better security on outgoing links
- * - named extension parameters: <<lipsum paragraphs=5>>
+ * Copyright (C) 2013 BohwaZ <http://bohwaz.net>
+ * All rights reserved.
+ * 
+ * Redistribution and use in source and binary forms, with or without 
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, 
+ *   this list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ * 
+ * Skriv Markup Language and original implementation are from Amaury Bouchard,
+ * see http://markup.skriv.org/ (under GNU GPL).
  *
  */
 
@@ -665,13 +682,10 @@ class SkrivLite
 
 			$line .= '</tr>';
 		}
-		// Match lists but not lines like:
-		// **not a list**
-		// but will match:
-		// **list 1
-		// **list2 **bold**
+		// Match lists but avoid parsing bold/monospace tags **/##.
 		elseif (preg_match('/^(?<!\\\\)((?:[*#]+\s*)+)\s*(.*)$/', $line, $match) 
-			&& !(($this->_checkLastStack('p') || empty($this->_stack)) && preg_match('/\*\*|##/', $match[1]) 
+			&& !(($this->_checkLastStack('p') || empty($this->_stack)) 
+				&& (trim($match[1]) == '##' || trim($match[1]) == '**')
 				&& preg_match('/\*\*|##/', $match[2])))
 		{
 			$list = preg_replace('/\s/', '', $match[1]);
@@ -774,6 +788,11 @@ class SkrivLite
 		return $line;
 	}
 
+	/**
+	 * Parse a text string and convert it from SkrivML to HTML
+	 * @param  string $text SrivML formatted text string
+	 * @return string 		HTML formatted text string
+	 */	
 	public function render($text)
 	{
 		// Reset internal storage of footnotes and TOC
@@ -797,10 +816,12 @@ class SkrivLite
 			);
 		}
 
+		// Close tags that are still open
 		$line .= $this->_closeStack();
 
 		$text = implode("\n", $text);
 
+		// Add footnotes
 		if (!empty($this->_footnotes))
 		{
 			$text .= $this->getFootnotes();
