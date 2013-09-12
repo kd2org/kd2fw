@@ -1,0 +1,62 @@
+.codeEditor {
+	width: 100%;
+	height: 300px;
+	border: 1px solid #ccc;
+	background: #eee;
+	position: relative;
+	display: block;
+}
+
+.codeEditor .lineCount, .codeEditor textarea {
+	font-family: "Courier New", Courier, monospace;
+	font-size: 12pt;
+	line-height: 12pt;
+}
+
+.codeEditor .lineCount {
+	position: absolute;
+	top: 0;
+	left: 0;
+	bottom: 0;
+	width: 46px;
+	text-align: right;
+	border-right: 2px solid #ccc;
+	overflow: hidden;
+}
+
+.codeEditor .lineCount i {
+	display: block;
+	padding-right: 2px;
+	font-weight: normal;
+}	
+
+.codeEditor .lineCount b {
+	display: block;
+	padding-right: 2px;
+	font-weight: normal;
+}
+
+.codeEditor .lineCount b.current {
+	background: #ccc;
+}
+
+.codeEditor .container {
+	position: absolute;
+	right: 0px;
+	top: 0px;
+	bottom: 0px;
+	left: 50px;
+	margin: 0;
+	padding: 0;
+}
+
+.codeEditor textarea {
+	height: 100%;
+	width: 100%;
+	padding: 0 0 0 2px;
+	margin: 0;
+	background: transparent;
+	border: none;
+	overflow: auto;
+	resize: none;
+}
