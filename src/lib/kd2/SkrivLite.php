@@ -683,7 +683,7 @@ class SkrivLite
 			$line .= '</tr>';
 		}
 		// Match lists but avoid parsing bold/monospace tags **/##.
-		elseif (preg_match('/^(?<!\\\\)((?:[*#]+\s*)+)\s*(.*)$/', $line, $match) 
+		elseif (preg_match('/^(?<!\\\\)([*#]+)\s*(.*)$/', $line, $match) 
 			&& !(($this->_checkLastStack('p') || empty($this->_stack)) 
 				&& (trim($match[1]) == '##' || trim($match[1]) == '**')
 				&& preg_match('/\*\*|##/', $match[2])))
