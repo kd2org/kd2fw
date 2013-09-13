@@ -34,6 +34,7 @@
 		that = this;
 
 		this.init();
+		this.textarea.spellcheck = false;
 
 		this.shortcuts.push({shift: true, key: 'tab', callback: this.indent});
 		this.shortcuts.push({key: 'tab', callback: this.indent});
@@ -42,6 +43,7 @@
 		this.shortcuts.push({ctrl: true, key: 'g', callback: this.goToLine});
 		this.shortcuts.push({key: 'F3', callback: this.searchNext});
 		this.shortcuts.push({key: 'backspace', callback: this.backspace});
+		this.shortcuts.push({key: 'enter', callback: this.enter});
 		this.shortcuts.push({key: '"', callback: this.insertBrackets});
 		this.shortcuts.push({key: '\'', callback: this.insertBrackets});
 		this.shortcuts.push({key: '[', callback: this.insertBrackets});
@@ -341,6 +343,21 @@
 
 		window.alert(this.params.lang.replace_result.replace(/%d/g, nb));
 
+		return true;
+	};
+
+	codeEditor.prototype.enter = function (e)
+	{
+		var selection = this.getSelection();
+		var line = this.getLineNumberFromPosition(selection);
+		line = this.getLines()[line-1];
+
+		var match = line.match(/^(\s+)/);
+
+		if (!match)
+			return false;
+
+		this.insertAtPosition(selection.start, "\n" + match[1]);
 		return true;
 	};
 
