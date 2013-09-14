@@ -227,7 +227,7 @@
 
 		if (s.length == 0 && s.start == line_sel.start)
 		{
-			var prev_match = lines[line-1].match(/^(\s+)/);
+			var prev_match = (line-1 in lines) ? lines[line-1].match(/^(\s+)/) : false;
 
 			if (!prev_match || line_sel.length != 0)
 			{
@@ -364,19 +364,21 @@
 	{
 		var selection = this.getSelection();
 		var line = this.getLineNumberFromPosition(selection);
+		var indent = '';
 		line = this.getLines()[line];
-
-		var match = line.match(/^(\s+)/);
-
-		if (!match)
-			return false;
-
-		var indent = match[1];
 
 		if (this.textarea.value.substr(selection.start - 1, 1) == '{')
 		{
 			indent += ' '.repeat(this.params.indent_size);
 		}
+
+		if (match = line.match(/^(\s+)/))
+		{
+			indent += match[1];
+		}
+
+		if (!indent)
+			return false;
 
 		this.insertAtPosition(selection.start, "\n" + indent);
 		return true;
@@ -403,7 +405,7 @@
 		// Unindent
 		var txt = this.textarea.value.substr(s.start - 20, 20);
 
-		if ((pos = txt.search(/\n(\s+)$/m)) != -1)
+		if ((pos = txt.search(/^(\s+)$/m)) != -1)
 		{
 			s.start -= this.params.indent_size;
 			this.replaceSelection(s, '');
