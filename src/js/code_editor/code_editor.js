@@ -19,9 +19,10 @@
 		this.search_str = null;
 		this.search_pos = 0;
 		this.params = {
-			'indent_size': 4,
-			'tab_size': 8,
-			'lang': {
+			indent_size: 4,
+			tab_size: 8,
+			convert_tabs: true,
+			lang: {
 				'search': "Text to search?\n(regexps allowed, begin them with '/')",
 				'replace': "Text for replacement?\n(use $1, $2... for regexp replacement)",
 				'search_selection': "Text to replace in selection?\n(regexps allowed, begin them with '/')",
@@ -90,6 +91,12 @@
 		this.textarea = this.parent.getElementsByTagName('textarea')[0];
 		this.textarea.wrap = 'off';
 
+		if (this.params.convert_tabs)
+		{
+			this.textarea.value = this.textarea.value.replace(/[ ]{1,7}\t/g, ' '.repeat(this.params.tab_size));
+			this.textarea.value = this.textarea.value.replace(/\t/g, ' '.repeat(this.params.tab_size));
+		}
+
 		this.textarea.onclick = function () {
 			that.update();
 		};
@@ -109,7 +116,7 @@
 
 	codeEditor.prototype.update = function () {
 		var selection = this.getSelection();
-		var line = this.getLineNumberFromPosition(selection);
+		var line = this.getLineNumberFromPosition(selection) + 1;
 		var nb_lines = this.countLines();
 		this.search_pos = selection.end;
 
@@ -160,11 +167,11 @@
 
 		if (s.start == 0)
 		{
-			return 1;
+			return 0;
 		}
 
-		var match = this.textarea.value.substr(0, s.start).match(/(\r?\n)/g)
-		return match ? match.length + 1 : 1;
+		var match = this.textarea.value.substr(0, s.start).match(/(\r?\n)/g);
+		return match ? match.length : 0;
 	};
 
 	codeEditor.prototype.getLines = function ()
@@ -178,7 +185,7 @@
 
 		for (i = 0; i < lines.length; i++)
 		{
-			if (i == line - 1)
+			if (i == line)
 			{
 				return {start: start + i, end: start + lines[i].length, length: lines[i].length, text: lines[i]};
 			}
@@ -208,23 +215,31 @@
 		var lines = this.getLines();
 		var line = this.getLineNumberFromPosition(s);
 		var line_sel = this.getLinePosition(lines, line);
-		var line_start = line_sel.text.substr(line_sel.start, s.start - line_sel.start);
-		
-		if (!line_start.match(/^\s*$/))
-		{
-			if (!unindent)
-			{
-				this.insertAtPosition(s.start, "\t");
-			}
+		var multiline_sel = (s.end > line_sel.end) ? true : false;
 
+		// We are not at the start of the line and we didn't select any text
+		// or the selection is not multine: just return a tab character
+		if ((s.length == 0 || !multiline_sel) && s.start != line_sel.start)
+		{
+			this.insertAtPosition(s.start, ' '.repeat(this.params.indent_size));
 			return true;
 		}
 
-		var previousIndentation = '';
-
-		if (s.length == 0)
+		if (s.length == 0 && s.start == line_sel.start)
 		{
-			s.end = s.start + this.textarea.value.substr(s.start).indexOf("\n");
+			var prev_match = lines[line-1].match(/^(\s+)/);
+
+			if (!prev_match || line_sel.length != 0)
+			{
+				var insert = ' '.repeat(this.params.indent_size);
+			}
+			else
+			{
+				var insert = ' '.repeat(prev_match[1].length);
+			}
+			
+			this.insertAtPosition(s.start, insert);
+			return true;
 		}
 
 		var txt = this.textarea.value.substr(s.start, (s.end - s.start));
@@ -236,7 +251,6 @@
 
 			for (var i = 0; i < lines.length; i++)
 			{
-				lines[i] = lines[i].replace(/\t/g, ' '.repeat(this.params.tab_size));
 				lines[i] = lines[i].replace(r, '');
 			}
 		}
@@ -350,7 +364,7 @@
 	{
 		var selection = this.getSelection();
 		var line = this.getLineNumberFromPosition(selection);
-		line = this.getLines()[line-1];
+		line = this.getLines()[line];
 
 		var match = line.match(/^(\s+)/);
 
