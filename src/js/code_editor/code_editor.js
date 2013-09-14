@@ -23,12 +23,12 @@
 			tab_size: 8,
 			convert_tabs: true,
 			lang: {
-				'search': "Text to search?\n(regexps allowed, begin them with '/')",
-				'replace': "Text for replacement?\n(use $1, $2... for regexp replacement)",
-				'search_selection': "Text to replace in selection?\n(regexps allowed, begin them with '/')",
-				'replace_result': "%d occurence found and replaced.",
-				'goto': "Line to go to:",
-				'no_search_result': "No search result found."
+				search: "Text to search?\n(regexps allowed, begin them with '/')",
+				replace: "Text for replacement?\n(use $1, $2... for regexp replacement)",
+				search_selection: "Text to replace in selection?\n(regexps allowed, begin them with '/')",
+				replace_result: "%d occurence found and replaced.",
+				goto: "Line to go to:",
+				no_search_result: "No search result found."
 			}
 		};
 
@@ -371,7 +371,14 @@
 		if (!match)
 			return false;
 
-		this.insertAtPosition(selection.start, "\n" + match[1]);
+		var indent = match[1];
+
+		if (this.textarea.value.substr(selection.start - 1, 1) == '{')
+		{
+			indent += ' '.repeat(this.params.indent_size);
+		}
+
+		this.insertAtPosition(selection.start, "\n" + indent);
 		return true;
 	};
 
@@ -398,7 +405,7 @@
 
 		if ((pos = txt.search(/\n(\s+)$/m)) != -1)
 		{
-			s.start -= (20 - pos) - 1;
+			s.start -= this.params.indent_size;
 			this.replaceSelection(s, '');
 			return true;
 		}
