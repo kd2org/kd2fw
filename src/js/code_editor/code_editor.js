@@ -14,6 +14,9 @@
 	{
 		textEditor.call(this, id);
 
+		this.onlinechange = null;
+		this.onlinenumberchange = null;
+
 		this.nb_lines = 0;
 		this.current_line = 0;
 		this.search_str = null;
@@ -96,22 +99,13 @@
 			this.textarea.value = this.textarea.value.replace(/[ ]{1,7}\t/g, ' '.repeat(this.params.tab_size));
 			this.textarea.value = this.textarea.value.replace(/\t/g, ' '.repeat(this.params.tab_size));
 		}
-
-		this.textarea.onclick = function () {
-			that.update();
-		};
-
-		this.textarea.onfocus = function () {
-			that.update();
-		};
-
-		this.textarea.addEventListener('keyup', function () {
-			that.update();
-		});
-
-		this.textarea.onscroll = function () {
+ 
+		this.textarea.addEventListener('focus', function() { that.update(); }, false);
+		this.textarea.addEventListener('keyup', function() { that.update(); }, false);
+		this.textarea.addEventListener('click', function() { that.update(); }, false);
+		this.textarea.addEventListener('scroll', function () {
 			that.lineCounter.scrollTop = that.textarea.scrollTop;
-		}
+		}, false);
 	};
 
 	codeEditor.prototype.update = function () {
@@ -139,6 +133,11 @@
 			}
 
 			this.nb_lines = nb_lines;
+
+			if (typeof this.onlinenumberchange === 'function')
+			{
+				this.onlinenumberchange.call(this);
+			}
 		}
 
 		if (line != this.current_line)
@@ -152,6 +151,11 @@
 
 			lines[line-1].className = 'current';
 			this.current_line = line;
+
+			if (typeof this.onlinechange === 'function')
+			{
+				this.onlinechange.call(this);
+			}
 		}
 	};
 
@@ -177,6 +181,11 @@
 	codeEditor.prototype.getLines = function ()
 	{
 		return this.textarea.value.split("\n");
+	};
+
+	codeEditor.prototype.getLine = function (line)
+	{
+		return this.textarea.value.split("\n", line+1)[line];
 	};
 
 	codeEditor.prototype.getLinePosition = function (lines, line)
@@ -365,7 +374,7 @@
 		var selection = this.getSelection();
 		var line = this.getLineNumberFromPosition(selection);
 		var indent = '';
-		line = this.getLines()[line];
+		line = this.getLine(line);
 
 		if (this.textarea.value.substr(selection.start - 1, 1) == '{')
 		{

@@ -15,10 +15,15 @@
 	?></textarea></p>
 </fieldset>
 
+<p>You are editing line number <b id="lineNb">0</b></p>
+
 <script src="../text_editor/text_editor.js" type="text/javascript"></script>
 <script src="code_editor.js" type="text/javascript"></script>
 <script type="text/javascript">
 var code = new codeEditor('f_code');
+code.onlinechange = function () { 
+	document.getElementById("lineNb").innerHTML = this.current_line;
+};
 </script>
 
 </body>

@@ -8,9 +8,9 @@
 }
 
 .codeEditor .lineCount, .codeEditor textarea {
-	font-family: "Courier New", Courier, monospace;
-	font-size: 12pt;
-	line-height: 12pt;
+	font-family: "Deja Vu Sans Mono", "Droid Sans Mono", "Courier New", Courier, monospace;
+	font-size: 11pt;
+	line-height: 11pt;
 }
 
 .codeEditor .lineCount {
