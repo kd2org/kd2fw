@@ -49,10 +49,11 @@
 		this.shortcuts.push({key: 'backspace', callback: this.backspace});
 		this.shortcuts.push({key: 'enter', callback: this.enter});
 		this.shortcuts.push({key: '"', callback: this.insertBrackets});
-		this.shortcuts.push({key: '\'', callback: this.insertBrackets});
+		//this.shortcuts.push({key: '\'', callback: this.insertBrackets});
 		this.shortcuts.push({key: '[', callback: this.insertBrackets});
 		this.shortcuts.push({key: '{', callback: this.insertBrackets});
 		this.shortcuts.push({key: '(', callback: this.insertBrackets});
+		this.shortcuts.push({key: 'F11', callback: this.toggleFullscreen});
 
 		this.textarea.addEventListener('keypress', this.keyEvent, true);
 		this.textarea.addEventListener('keydown', this.keyEvent, true);
@@ -446,6 +447,25 @@
 			this.wrapSelection(s, o, c);
 		}
 
+		return true;
+	};
+
+	codeEditor.prototype.toggleFullscreen = function (e)
+	{
+		var classes = this.parent.className.split(' ');
+
+		for (var i = 0; i < classes.length; i++)
+		{
+			if (classes[i] == 'fullscreen')
+			{
+				classes.splice(i, 1);
+				this.parent.className = classes.join(' ');
+				return true;
+			}
+		}
+		
+		classes.push('fullscreen');
+		this.parent.className = classes.join(' ');
 		return true;
 	};
 }());
