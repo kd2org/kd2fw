@@ -17,6 +17,7 @@
 		this.onlinechange = null;
 		this.onlinenumberchange = null;
 
+		this.fullscreen = false;
 		this.nb_lines = 0;
 		this.current_line = 0;
 		this.search_str = null;
@@ -111,7 +112,7 @@
 
 	codeEditor.prototype.update = function () {
 		var selection = this.getSelection();
-		var line = this.getLineNumberFromPosition(selection) + 1;
+		var line = this.getLineNumberFromPosition(selection);
 		var nb_lines = this.countLines();
 		this.search_pos = selection.end;
 
@@ -150,7 +151,7 @@
 				lines[i].className = '';
 			}
 
-			lines[line-1].className = 'current';
+			lines[line].className = 'current';
 			this.current_line = line;
 
 			if (typeof this.onlinechange === 'function')
@@ -460,12 +461,14 @@
 			{
 				classes.splice(i, 1);
 				this.parent.className = classes.join(' ');
+				this.fullscreen = false;
 				return true;
 			}
 		}
 		
 		classes.push('fullscreen');
 		this.parent.className = classes.join(' ');
+		this.fullscreen = true;
 		return true;
 	};
 }());
