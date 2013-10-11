@@ -941,7 +941,7 @@ class SkrivLite_Helper
                     $item = rawurlencode(rawurldecode($item[0]));
             }
 
-            $value .= '?' . $this->escape(implode('&', $query));
+            $value .= '?' . htmlspecialchars(implode('&', $query), ENT_QUOTES, 'UTF-8', true);
         }
 
         if (!empty($url['fragment']))
