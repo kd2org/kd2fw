@@ -249,7 +249,7 @@ class FeedParser
      * @param  string $value  Date string
      * @return integer 		  Timestamp
      */
-    static public function getValidDate($format, $value)
+    static protected function getValidDate($format, $value)
     {
         $date = \DateTime::createFromFormat($format, $value);
 
@@ -262,9 +262,23 @@ class FeedParser
     }
 
     /**
-     * Parses attributes from a XML
-     * @param  [type] $str [description]
-     * @return [type]      [description]
+     * Returns the content of an XML tag, without entities
+     * @param  string $string Raw XML string
+     * @return string 		  Decoded string
+     */
+    static protected function getXmlContent($string)
+    {
+    	$string = trim($string);
+    	$string = preg_replace('/^.*<!\[CDATA\[/is', '', $string);
+    	$string = preg_replace('/\]\]>.*$/s', '', $string);
+    	$string = html_entity_decode($string, ENT_COMPAT, '');
+    	return $string;
+    }
+
+    /**
+     * Parses attributes from a XML/HTML tag
+     * @param  string $str String containing all attributes
+     * @return array       List of attributes
      */
 	static protected function parseAttributes($str)
 	{
@@ -432,7 +446,7 @@ class FeedParser
 	 */
 	protected function parseChannel()
 	{
-		$channel = new stdClass;
+		$channel = new \stdClass;
 		$channel->title = null;
 		$channel->description = null;
 		$channel->link = null;
@@ -444,9 +458,9 @@ class FeedParser
 
 		foreach ($tags as $_tag)
 		{
-			$tag = new stdClass;
+			$tag = new \stdClass;
 			$tag->name = $_tag[1];
-			$tag->content = isset($_tag[3]) ? html_entity_decode(trim($_tag[3]), ENT_COMPAT, '') : null;
+			$tag->content = isset($_tag[3]) ? self::getXmlContent($_tag[3]) : null;
 			$tag->attributes = !empty($_tag[2]) ? self::parseAttributes($_tag[2]) : array();
 			$channel->xml[] = $tag;
 
@@ -499,7 +513,7 @@ class FeedParser
 	{
 		foreach ($this->items as $key=>$_item)
 		{
-			$item = new stdClass;
+			$item = new \stdClass;
 			$item->title = null;
 			$item->description = null;
 			$item->link = null;
@@ -512,9 +526,9 @@ class FeedParser
 
 			foreach ($tags as $_tag)
 			{
-				$tag = new stdClass;
+				$tag = new \stdClass;
 				$tag->name = $_tag[1];
-				$tag->content = isset($_tag[3]) ? html_entity_decode(trim($_tag[3]), ENT_COMPAT, '') : null;
+				$tag->content = isset($_tag[3]) ? self::getXmlContent($_tag[3]) : null;
 				$tag->attributes = !empty($_tag[2]) ? self::parseAttributes($_tag[2]) : array();
 				$item->xml[] = $tag;
 
@@ -553,7 +567,7 @@ class FeedParser
 					case 'summary':
 						$item->description = $tag->content;
 					case 'content:encoded':
-						$item->content = preg_replace('/^.*<!\[CDATA\[(.*?)\]\]>.*$/is', '\1', $tag->content);
+						$item->content = $tag->content;
 					default:
 						break;
 				}
