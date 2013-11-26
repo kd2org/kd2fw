@@ -547,7 +547,8 @@ class FeedParser
 					case 'published':
 					case 'updated':
 					case 'issued':
-						$item->date = $tag->content;
+						if (!empty($tag->content))
+							$item->date = $tag->content;
 						break;
 					case 'link':
 						if (!empty($tag->attributes['rel']) && strtolower($tag->attributes['rel']) == 'self')
