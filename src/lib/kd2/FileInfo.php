@@ -4,6 +4,8 @@ namespace KD2;
 
 /**
  * Various tools to get informations on files
+ * Part of KD2fw
+ * Copyleft (C) 2013 BohwaZ <http://bohwaz.net/>
  */
 
 class FileInfo
