@@ -71,8 +71,7 @@ class FileInfo
 			=>	["PK\003\004", 26 => "\x8\0\0\0mimetypeapplication/", 50 => 'vnd.oasis.opendocument.image'],
 
 		// Video/audio
-		'audio/x-ms-asf'		=>	["\x75\xb2\x26\x30"],
-		'audio/x-wm'			=>	["\x30\x26\xb2\x75\x8e\x66\xcf\x11\xa6\xd9\x00\xaa\x00\x62\xce\x6c"],
+		'audio/x-ms-asf'			=>	["\x30\x26\xb2\x75"],
 		'audio/x-wav'			=>	['RIFF', 8 => 'WAVE'],
 		'video/x-msvideo'		=>	['RIFF', 8 => 'AVI'],
 		'video/x-msvideo'		=>	['RIFX'],
@@ -104,6 +103,69 @@ class FileInfo
 
 		'application/x-shockwave-flash'	=>	['FWS'],
 		'application/x-shockwave-flash'	=>	['CWS'],
+	];
+
+	/**
+	 * List of extensions for recognized MIME-types
+	 * @var array
+	 */
+	static public $mime_extensions = [
+		// Images
+		'image/gif'	=>	'gif',
+		'image/png'	=>	'png',
+		'image/jpeg'=>	'jpg',
+		'image/tiff'=>	'tif',
+		'image/bmp'	=>	'bmp',
+		'image/vnd.adobe.photoshop'	=>	'psd',
+		'image/x-icon'	=>	'ico',
+
+		// Office documents
+		'application/msword'		=>	'doc'
+		'application/pdf'			=>	'pdf',
+		'application/postscript'	=>	'ps',
+		'application/epub+zip'		=>	'epub',
+		
+		// Open Office 1.x
+		'application/vnd.sun.xml.writer'	=>	'sxw',
+		'application/vnd.sun.xml.calc'		=>	'sxc',
+		'application/vnd.sun.xml.draw'		=>	'sxd'
+		'application/vnd.sun.xml.impress'	=>	'sxi',
+		'application/vnd.sun.xml.math'		=>	'sxf',
+
+		// Open Office 2.x
+		'application/vnd.oasis.opendocument.text'		=>	'odt',
+		'application/vnd.oasis.opendocument.graphics'	=>	'odg',
+		'application/vnd.oasis.opendocument.presentation'=>	'odp',
+		'application/vnd.oasis.opendocument.spreadsheet'=>	'ods',
+		'application/vnd.oasis.opendocument.chart'		=>	'odc',
+		'application/vnd.oasis.opendocument.formula'	=>	'odf',
+
+		// Video/audio
+		'audio/x-ms-asf'		=>	'asx',
+		'audio/x-wav'			=>	'wav',
+		'video/x-msvideo'		=>	'avi',
+		'video/quicktime'		=>	'mov',
+		'video/mpeg'			=>	'mpeg',
+		'audio/mpeg'			=>	'mp3',
+		'audio/x-pn-realaudio'	=>	'ra',
+		'audio/vnd.rn-realaudio'=>	'ram',
+		'audio/x-flac'			=>	'flac',
+		'application/ogg'		=>	'ogg',
+		'audio/midi'			=>	'mid',
+
+		// Text
+		'text/xml'	=>	'xml',
+		'text/rtf'	=>	'rtf',
+
+		// Others
+		'application/zip'		=>	'zip',
+		'application/x-tar'		=>	'tar',
+		'application/x-gzip'	=>	'gz',
+		'application/x-bzip'	=>	'bz',
+		'application/x-bzip2'	=>	'bz2',
+		'application/x-rar'		=>	'rar',
+
+		'application/x-shockwave-flash'	=>	'swf',
 	];
 
 	/**
@@ -143,5 +205,21 @@ class FileInfo
 		}
 
 		return false;
+    }
+
+    /**
+     * Get a file extension from its MIME-type
+     * @param  string $type MIME-type, eg. audio/flac
+     * @return string 		extension, eg. flac
+     */
+    static public function getFileExtensionFromMimeType($type)
+    {
+    	foreach (self::$mime_extensions as $mime=>$ext)
+    	{
+    		if ($mime === $type)
+    			return $ext;
+    	}
+
+    	return false;
     }
 }
