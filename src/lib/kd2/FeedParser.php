@@ -271,7 +271,7 @@ class FeedParser
     	$string = trim($string);
     	$string = preg_replace('/^.*<!\[CDATA\[/is', '', $string);
     	$string = preg_replace('/\]\]>.*$/s', '', $string);
-    	$string = html_entity_decode($string, ENT_COMPAT, '');
+    	$string = html_entity_decode($string, ENT_COMPAT, 'UTF-8');
     	return $string;
     }
 
@@ -576,6 +576,11 @@ class FeedParser
 
 			// Convert the date string to a timestamp
 			$item->date = self::parseDate($item->date);
+
+			if (is_null($item->description) && !is_null($item->content))
+				$item->description = $item->content;
+			elseif (!is_null($item->description) && is_null($item->content))
+				$item->content = $item->description;
 
 			$this->items[$key] = $item;
 		}
