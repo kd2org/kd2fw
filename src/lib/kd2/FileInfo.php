@@ -120,7 +120,7 @@ class FileInfo
 		'image/x-icon'	=>	'ico',
 
 		// Office documents
-		'application/msword'		=>	'doc'
+		'application/msword'		=>	'doc',
 		'application/pdf'			=>	'pdf',
 		'application/postscript'	=>	'ps',
 		'application/epub+zip'		=>	'epub',
@@ -128,7 +128,7 @@ class FileInfo
 		// Open Office 1.x
 		'application/vnd.sun.xml.writer'	=>	'sxw',
 		'application/vnd.sun.xml.calc'		=>	'sxc',
-		'application/vnd.sun.xml.draw'		=>	'sxd'
+		'application/vnd.sun.xml.draw'		=>	'sxd',
 		'application/vnd.sun.xml.impress'	=>	'sxi',
 		'application/vnd.sun.xml.math'		=>	'sxf',
 
