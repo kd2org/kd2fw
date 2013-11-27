@@ -480,10 +480,8 @@ class FeedParser
 					$channel->date = $tag->content;
 					break;
 				case 'link':
-					if (!empty($tag->attributes['rel']) && strtolower($tag->attributes['rel']) == 'self')
-					{
+					if (!empty($channel->link))
 						break;
-					}
 
 					if (!empty($tag->attributes['href']))
 					{
@@ -551,10 +549,8 @@ class FeedParser
 							$item->date = $tag->content;
 						break;
 					case 'link':
-						if (!empty($tag->attributes['rel']) && strtolower($tag->attributes['rel']) == 'self')
-						{
+						if (!empty($item->link))
 							break;
-						}
 
 						if (!empty($tag->attributes['href']))
 						{
