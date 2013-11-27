@@ -101,7 +101,7 @@ class FeedParser
 		$_base = parse_url($base_url);
 
 		// protocol-relative URL ie. //bits.wikimedia.org/static/elements/rss.xml
-		if (!empty($_href['host']))
+		if (substr($href, 0, 2) == '//')
 			return $_base['scheme'] . ':' . $href;
 
 		$url = $_base['scheme'] . '://';
