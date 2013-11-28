@@ -311,7 +311,7 @@ class FeedParser
 		foreach ($_params as $_p)
 		{
 			$value = isset($_p[4]) ? trim($_p[4]) : (isset($_p[3]) ? trim($_p[3]) : null);
-			$params[strtolower($_p[1])] = $value ? self::utf8_decode($value) : $value;
+			$params[strtolower($_p[1])] = $value ? self::utf8_encode($value) : $value;
 		}
 
 		return $params;
