@@ -271,7 +271,8 @@ class FeedParser
     	$string = trim($string);
     	$string = preg_replace('/^.*<!\[CDATA\[/is', '', $string);
     	$string = preg_replace('/\]\]>.*$/s', '', $string);
-    	$string = html_entity_decode(self::utf8_encode($string), ENT_COMPAT, 'UTF-8');
+    	$string = str_replace('&apos;', '&#039;', $string);
+    	$string = html_entity_decode(self::utf8_encode($string), ENT_QUOTES, 'UTF-8');
     	return $string;
     }
 
@@ -397,17 +398,23 @@ class FeedParser
 		// Separate items from channel
 		$pos = $end = false;
 
-		if ($pos = stripos($content, '<entry'))
+		if ($items = preg_split('/<\/?(item|entry)(\s+.*?)?>/is', $content, -1, PREG_SPLIT_OFFSET_CAPTURE | PREG_SPLIT_NO_EMPTY))
 		{
-			$end = strripos($content, '</entry');
-			$this->items = substr($content, $pos + 6, $end ? ($end - $pos + 6) : -1);
-			$this->items = preg_split('!<entry[^>]*>!i', $this->items);
-		}
-		elseif ($pos = stripos($content, '<item'))
-		{
-			$end = strripos($content, '</item');
-			$this->items = substr($content, $pos + 5, $end ? ($end - $pos + 5) : -1);
-			$this->items = preg_split('!<item[^>]*>!i', $this->items);
+			$pos = $items[1][1];
+			$end = $items[count($items) - 2][1] + strlen($items[count($items) - 2][0]);
+			
+			unset($items[0]);
+			unset($items[count($items)-1]);
+
+			foreach ($items as $item)
+			{
+				if (trim($item[0]) == '')
+					continue;
+
+				$this->items[] = $item[0];
+			}
+
+			unset($items);
 		}
 
 		if ($pos)
