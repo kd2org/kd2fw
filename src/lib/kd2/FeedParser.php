@@ -403,8 +403,8 @@ class FeedParser
 			$pos = $items[1][1];
 			$end = $items[count($items) - 2][1] + strlen($items[count($items) - 2][0]);
 			
-			unset($items[0]);
 			unset($items[count($items)-1]);
+			unset($items[0]);
 
 			foreach ($items as $item)
 			{
