@@ -39,7 +39,7 @@ $maps = [
 			['name' => 'Dijon', 'lat' => 47.322047, 'lon' => 5.041480],
 			['name' => 'Chalon-sur-Saône', 'lat' => 46.780764, 'lon' => 4.853947],
 		],
-		'width'		=>	671,
+		'width'		=>	651,
 		'height'	=>	705,
 	],
 ];
@@ -95,6 +95,10 @@ else
 	    display: block; 
 	    width: 0;
    	}
+
+   	svg {
+   		background: rgba(0, 0, 0, 0.2);
+   	}
 	</style>
 </head>
 
@@ -116,7 +120,7 @@ else
 <dl>
 	<dt><?=$map['a']['name']?></dt>
 	<dd>GPS: <?=$map['a']['lat']?> <?=$map['a']['lon']?></dd>
-	<dd id="coords_a">Click on this point on the map.</dd>
+	<dd id="coords_a"><b>Click on this point on the map.</b></dd>
 	<dt><?=$map['b']['name']?></dt>
 	<dd>GPS: <?=$map['b']['lat']?> <?=$map['b']['lon']?></dd>
 	<dd id="coords_b"></dd>
