@@ -66,6 +66,27 @@ class Karto
     }
 
     /**
+     * Is this latitude/longitude contained inside the given NW/SE bounds?
+     * @param  double  $lat        Point latitude
+     * @param  double  $lon        Point longitude
+     * @param  array   $north_west NW boundary ['lat' => 0.0, 'lon' => 0.0]
+     * @param  array   $south_east SW boundary
+     * @return boolean             true if point is inside the boundaries, false if it is outside
+     */
+    public function isContainedInBounds($lat, $lon, $north_west, $south_east)
+    {
+        if ($lon < max($north_west['lon'], $south_east['lon'])
+            && $lon > min($north_west['lon'], $south_east['lon'])
+            && $lat < max($north_west['lat'], $south_east['lon'])
+            && $lat > min($north_west['lat'], $south_east['lat']))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
      * Distance in pixels between two points at a specific zoom level
      * @param  float $lat1 Latitude of starting point (decimal)
      * @param  float $lon1 Longitude of starting point (decimal)
