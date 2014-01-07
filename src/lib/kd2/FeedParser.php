@@ -398,7 +398,8 @@ class FeedParser
 		// Separate items from channel
 		$pos = $end = false;
 
-		if ($items = preg_split('/<\/?(item|entry)(\s+.*?)?>/is', $content, -1, PREG_SPLIT_OFFSET_CAPTURE | PREG_SPLIT_NO_EMPTY))
+		if (($items = preg_split('/<\/?(item|entry)(\s+.*?)?>/is', $content, -1, PREG_SPLIT_OFFSET_CAPTURE | PREG_SPLIT_NO_EMPTY))
+			&& !empty($items[1]))
 		{
 			$pos = $items[1][1];
 			$end = $items[count($items) - 2][1] + strlen($items[count($items) - 2][0]);
