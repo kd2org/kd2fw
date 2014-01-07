@@ -1,5 +1,7 @@
 <?php
 
+namespace KD2;
+
 class SVGPlot
 {
 	protected $width = null;
@@ -106,6 +108,9 @@ class SVGPlot
 
 		foreach ($this->data as $row)
 		{
+			if (count($row->get()) < 1)
+				continue;
+			
 			if ($max_value == 0)
 			{
 				$nb_elements = count($row->get());
@@ -152,25 +157,28 @@ class SVGPlot
 			$x += $space + $this->data[0]->width;
 		}
 
-		// labels for x axis
-		$y = $this->height - ($this->height * 0.07);
-		$i = 0;
-		$step = round($nb_elements / 5);
-
-		for ($i = 0; $i <= $nb_elements; $i += $step)
+		if (!empty($this->labels))
 		{
-			//echo
-			$x = ($i * ($space + $this->data[0]->width)) + ($this->width * 0.1);
+			// labels for x axis
+			$y = $this->height - ($this->height * 0.07);
+			$i = 0;
+			$step = round($nb_elements / 5);
 
-			if ($x >= $this->width)
-				break;
-
-			if (isset($this->labels[$i]))
+			for ($i = 0; $i <= $nb_elements; $i += $step)
 			{
-				$out .= '<g><text x="'.$x.'" y="'.($y+($this->height * 0.06)).'" '
-					.	'font-size="'.($this->height * 0.04).'" fill="gray" text-anchor="middle" '
-					.	'style="font-family: Verdana, Arial, sans-serif;">'
-					.	($this->labels[$i]).'</text></g>' . PHP_EOL;
+				//echo
+				$x = ($i * ($space + $this->data[0]->width)) + ($this->width * 0.1);
+
+				if ($x >= $this->width)
+					break;
+
+				if (isset($this->labels[$i]))
+				{
+					$out .= '<g><text x="'.$x.'" y="'.($y+($this->height * 0.06)).'" '
+						.	'font-size="'.($this->height * 0.04).'" fill="gray" text-anchor="middle" '
+						.	'style="font-family: Verdana, Arial, sans-serif;">'
+						.	($this->labels[$i]).'</text></g>' . PHP_EOL;
+				}
 			}
 		}
 

@@ -1,5 +1,7 @@
 <?php
 
+namespace KD2;
+
 class SVGPie
 {
 	protected $width = null;
