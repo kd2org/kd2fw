@@ -2,101 +2,249 @@
 
 namespace KD2;
 
-# Cache Cookie - (C) 2011 Frank Denis - Public domain
-# https://00f.net/2011/01/19/thoughts-on-php-sessions/
-# TODO: real object + messagepack support
+/**
+ * Cache Cookie
+ * (C) 2011-2014 BohwaZ
+ * Inspired by Frank Denis (C) 2011 Public domain
+ * https://00f.net/2011/01/19/thoughts-on-php-sessions/
+ */
 
-define('CACHE_COOKIE_NAME', 'cache');
-define('CACHE_COOKIE_SECRET_KEY', '<change this>');
-define('CACHE_COOKIE_DIGEST_METHOD', 'md5');
-define('CACHE_COOKIE_DURATION', 30 * 60);
+class CacheCookie
+{
+    protected $name = 'cache';
+    protected $secret_key = null;
+    protected $digest_method = 'md5';
+    protected $path = '/';
+    protected $domain = null;
+    protected $duration = 0;
+    protected $secure = false;
 
-class CacheCookie {
-    static function set($key, $value, $lifetime) {
-        $cookie_content = self::_fetch_cookie_content();
-        $now = time();
-        $cookie_content->{$key} = array('value' => $value,
-                                        'expires_at' => $now + $lifetime);
-        $cookie_json = json_encode($cookie_content);
-        $cookie = hash_hmac(CACHE_COOKIE_DIGEST_METHOD, $cookie_json,
-                            CACHE_COOKIE_SECRET_KEY) . '|' . $cookie_json;
-        self::_wipe_previous_cookie(CACHE_COOKIE_NAME);
-        setcookie(CACHE_COOKIE_NAME, $cookie, $now + CACHE_COOKIE_DURATION,
-                  COOKIES_PATH, COOKIES_DOMAIN, FALSE, TRUE);
-        $_COOKIE[CACHE_COOKIE_NAME] = $cookie;
+    protected $content = null;
 
-        return TRUE;
-    }
-    
-    static function get($key) {
-        $cookie_content = self::_fetch_cookie_content();
-        if (!isset($cookie_content->{$key})) {
-            return NULL;
+    public function __construct($name = null, $secret = null, $duration = null, $path = null, $domain = null, $secure = null)
+    {
+        if (!is_null($name))
+        {
+            $this->setName($name);
         }
-        $entry = $cookie_content->{$key};
-        if (!is_object($entry) || !isset($entry->value) ||
-            !isset($entry->expires_at) ||
-            !is_numeric($entry->expires_at) || time() > $entry->expires_at) {
-            self::delete($key);
-            
-            return NULL;
+
+        if (!is_null($secret))
+        {
+            $this->setSecret($secret);
         }
-        return $entry->value;
+        else
+        {
+            // Default secret key
+            $this->setSecret(md5($_SERVER['DOCUMENT_ROOT']));
+        }
+
+        if (!is_null($duration))
+        {
+            $this->setDuration($duration);
+        }
+
+        if (!is_null($path))
+        {
+            $this->setPath($path);
+        }
+
+        if (!is_null($domain))
+        {
+            $this->setDomain($domain);
+        }
+        else
+        {
+            $this->setDomain(!empty($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : $_SERVER['SERVER_NAME']);
+        }
+
+        if (!is_null($secure))
+        {
+            $this->setSecure($secure);
+        }
     }
-    
-    static function delete($key) {
-        $cookie_content = self::_fetch_cookie_content();
-        $key_existed = isset($cookie_content->{$key});
-        unset($cookie_content->{$key});
-        $cookie_json = json_encode($cookie_content);
-        $cookie = hash_hmac(CACHE_COOKIE_DIGEST_METHOD, $cookie_json,
-                            CACHE_COOKIE_SECRET_KEY) . '|' . $cookie_json;
-        self::_wipe_previous_cookie(CACHE_COOKIE_NAME);
-        setcookie(CACHE_COOKIE_NAME, $cookie, time() + CACHE_COOKIE_DURATION,
-                  COOKIES_PATH, COOKIES_DOMAIN, FALSE, TRUE);
-        $_COOKIE[CACHE_COOKIE_NAME] = $cookie;        
-        
-        return $key_existed;
+
+    public function setName($name)
+    {
+        $this->name = $name;
     }
-    
-    static function delete_all() {
-        self::_wipe_previous_cookie(CACHE_COOKIE_NAME);
-        setcookie(CACHE_COOKIE_NAME, '', 1, COOKIES_PATH, COOKIES_DOMAIN,
-                  FALSE, TRUE);
-        unset($_COOKIE[CACHE_COOKIE_NAME]);
+
+    public function setSecret($secret)
+    {
+        $this->secret = $secret;
     }
-    
-    protected static function _wipe_previous_cookie($cookie_name) {
-        $headers = headers_list();
-        header_remove();
-        $rx = '/^Set-Cookie\\s*:\\s*' . preg_quote($cookie_name) . '=/';
-        foreach ($headers as $header) {
-            if (preg_match($rx, $header) <= 0) {
-                header($header, TRUE);
+
+    public function setDuration($duration)
+    {
+        $this->duration = (int) $duration;
+    }
+
+    public function setPath($path)
+    {
+        $this->path = $path;
+    }
+
+    public function setDomain($domain)
+    {
+        $this->domain = $domain;
+    }
+
+    public function setSecure($secure)
+    {
+        $this->secure = (bool)$secure;
+    }
+
+    protected function _getCookie()
+    {
+        if (!is_null($this->content))
+        {
+            return $this->content;
+        }
+
+        $cookie = null;
+        $this->content = [];
+
+        if (!empty($_COOKIE[$this->name]))
+        {
+            $cookie = $_COOKIE[$this->name];
+        }
+
+        if (!empty($cookie) && (strpos($cookie, '|') !== false))
+        {
+            list($digest, $data) = explode('|', $cookie, 2);
+
+            if (!empty($digest) && !empty($data) &&
+                ($digest === hash_hmac($this->digest_method, $data, $this->secret)))
+            {
+                if (substr($data, 0, 1) == '{')
+                {
+                    $this->content = json_decode($data, true);
+                }
+                elseif (function_exists('msgpack_unpack'))
+                {
+                    $this->content = msgpack_unpack($data);
+                }
             }
         }
+
+        return $this->content;
     }
-    
-    protected static function _fetch_cookie_content() {
-        $cookie = NULL;
-        if (!empty($_COOKIE[CACHE_COOKIE_NAME])) {
-            $cookie = $_COOKIE[CACHE_COOKIE_NAME];
+
+    /**
+     * Sends the cookie content to the user-agent
+     * @return boolean TRUE for success, 
+     * or RuntimeException if the HTTP headers have already been sent
+     */
+    public function save()
+    {
+        if (headers_sent())
+        {
+            throw new \RuntimeException('Cache cookie can not be saved as headers have '
+                . 'already been sent to the user agent.');
         }
-        if (empty($cookie)) {
-            $cookie_content = new \stdClass();
-        } else {
-            @list($digest, $cookie_json) = explode('|', $cookie, 2);
-            if (empty($digest) || empty($cookie_json) ||
-                $digest !== hash_hmac(CACHE_COOKIE_DIGEST_METHOD, $cookie_json,
-                                      CACHE_COOKIE_SECRET_KEY)) {
-                $cookie_content = new \stdClass();
-            } else {
-                $cookie_content = @json_decode($cookie_json);
+
+        $headers = headers_list(); // List all headers
+        header_remove(); // remove all headers
+        $regexp = '/^Set-Cookie\\s*:\\s*' . preg_quote($this->name) . '=/';
+
+        foreach ($headers as $header)
+        {
+            // Re-add every header except the one for this cookie
+            if (!preg_match($regexp, $header))
+            {
+                header($header, true);
             }
         }
-        if (!is_object($cookie_content)) {
-            $cookie_content = new \stdClass();
+
+        if (!empty($this->content) && count($this->content) > 0)
+        {
+            if (function_exists('msgpack_pack'))
+            {
+                $data = msgpack_pack($this->content);
+            }
+            else
+            {
+                $data = json_encode($this->content);
+            }
+
+            $cookie = hash_hmac($this->digest_method, $data, $this->secret) . '|' . $data;
+            $duration = $this->duration ? time() + $this->duration : 0;
+
+            if (strlen($cookie . $this->path . $this->duration . $this->domain . $this->name) > 4080)
+            {
+                throw new \OverflowException('Cache cookie can not be saved as its size exceeds 4KB.');
+            }
+
+            setcookie($this->name, $cookie, $duration, $this->path, $this->domain, $this->secure, true);
+
+            $_COOKIE[$this->name] = $cookie;
         }
-        return $cookie_content;
+        else
+        {
+            setcookie($this->name, '', 1, $this->path, $this->domain, $this->secure, true);
+            unset($_COOKIE[$this->name]);
+        }
+
+        return true;
+    }
+
+    /**
+     * Set a key/value pair in the cache cookie
+     * @param mixed  $key   Key (integer or string)
+     * @param mixed  $value Value (integer, string, boolean, array, float...)
+     */
+    public function set($key, $value)
+    {
+        $this->_getCookie();
+
+        if (is_null($value))
+        {
+            unset($this->content[$key]);
+        }
+        else
+        {
+            $this->content[$key] = $value;
+        }
+
+        return true;
+    }
+
+    /**
+     * Get data from the cache cookie, if $key is NULL then all the keys will be returned
+     * @param  mixed    $key Data key
+     * @return mixed    NULL if the key is not found, or content of the requested key
+     */
+    public function get($key = null)
+    {
+        $content = $this->_getCookie();
+
+        if (is_null($key))
+        {
+            return $content;
+        }
+
+        if (!array_key_exists($key, $content))
+        {
+            return null;
+        }
+        else
+        {
+            return $content[$key];
+        }
+    }
+
+    /**
+     * Delete the cookie and all its data
+     * @return boolean TRUE
+     */
+    public function delete()
+    {
+        $content = $this->get();
+
+        foreach ($content as $key=>$value)
+        {
+            $this->set($key, null);
+        }
+
+        return $this->save();
     }
 }
