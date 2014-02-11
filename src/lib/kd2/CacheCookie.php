@@ -11,16 +11,83 @@ namespace KD2;
 
 class CacheCookie
 {
+    /**
+     * Name of the cookie
+     * @var string
+     */
     protected $name = 'cache';
+
+    /**
+     * Secret key/random hash
+     * @var string
+     */
     protected $secret_key = null;
+
+    /**
+     * Digest method for hash_hmac
+     * @var string
+     */
     protected $digest_method = 'md5';
+
+    /**
+     * Default expiration delay of data (in minutes)
+     * @var integer
+     */
+    protected $data_expiration = 60;
+
+    /**
+     * Delay before expiration when we should renew the cookie
+     * before it expires (in minutes)
+     * @var integer
+     */
+    protected $auto_renew = 30;
+
+    /**
+     * Default cookie path
+     * @var string
+     */
     protected $path = '/';
+
+    /**
+     * Default cookie domain
+     * @var string
+     */
     protected $domain = null;
+
+    /**
+     * Default cookie duration
+     * @var integer
+     */
     protected $duration = 0;
+
+    /**
+     * True if the cookie should only be sent over a SSL/TLS connection
+     * @var boolean
+     */
     protected $secure = false;
 
+    /**
+     * Start timestamp used to store a shorter timestamp in the cookie
+     * @var integer
+     */
+    protected $start_timestamp = 1391209200; //2014-02-01 00:00:00
+
+    /**
+     * Cookie content
+     * @var array
+     */
     protected $content = null;
 
+    /**
+     * Create a new CacheCookie instance and setup default parameters
+     * @param string $name     Cookie name
+     * @param string $secret   Secret random hash (should stay the same for at least the cookie duration)
+     * @param int    $duration Cookie duration in seconds, set to 0 (zero) to make the cookie lasts for the
+     * whole user agent session (cookie will be deleted when the browser is closed).
+     * @param string $path     Cookie path
+     * @param string $domain   Cookie domain, if left null the current HTTP_HOST or SERVER_NAME will be used
+     * @param string $secure   Set to TRUE if the cookie should only be sent on a secure connection
+     */
     public function __construct($name = null, $secret = null, $duration = null, $path = null, $domain = null, $secure = null)
     {
         if (!is_null($name))
@@ -93,6 +160,20 @@ class CacheCookie
         $this->secure = (bool)$secure;
     }
 
+    public function setDataExpiration($expiration)
+    {
+        $this->data_expiration = (int) $expiration;
+    }
+
+    public function setAutoRenew($renew)
+    {
+        $this->auto_renew = (int) $renew;
+    }
+
+    /**
+     * Gets the cookie content
+     * @return array Data contained in the cookie
+     */
     protected function _getCookie()
     {
         if (!is_null($this->content))
@@ -108,12 +189,14 @@ class CacheCookie
             $cookie = $_COOKIE[$this->name];
         }
 
-        if (!empty($cookie) && (strpos($cookie, '|') !== false))
+        if (!empty($cookie) && (substr_count($cookie, '|') >= 2))
         {
-            list($digest, $data) = explode('|', $cookie, 2);
+            list($digest, $expire, $data) = explode('|', $cookie, 3);
 
-            if (!empty($digest) && !empty($data) &&
-                ($digest === hash_hmac($this->digest_method, $data, $this->secret)))
+            // Check data expiration and integrity
+            if (!empty($digest) && !empty($data) && !empty($expire) 
+                && ($expire > round((time() - $this->start_timestamp) / 60))
+                && ($digest === hash_hmac($this->digest_method, $expire . '|' . $data, $this->secret)))
             {
                 if (substr($data, 0, 1) == '{')
                 {
@@ -123,6 +206,17 @@ class CacheCookie
                 {
                     $this->content = msgpack_unpack($data);
                 }
+
+                // If the cookie will expire soon we try to renew it first
+                if ($expire - round((time() - $this->start_timestamp)/60) <= $this->auto_renew)
+                {
+                    $this->save();
+                }
+            }
+            else
+            {
+                // Invalid cookie: just remove it
+                $this->save();
             }
         }
 
@@ -166,7 +260,11 @@ class CacheCookie
                 $data = json_encode($this->content);
             }
 
+            // Store expiration time in minutes
+            $data = round((time() - $this->start_timestamp + $this->data_expiration*60)/60) . '|' . $data;
+
             $cookie = hash_hmac($this->digest_method, $data, $this->secret) . '|' . $data;
+
             $duration = $this->duration ? time() + $this->duration : 0;
 
             if (strlen($cookie . $this->path . $this->duration . $this->domain . $this->name) > 4080)
@@ -175,7 +273,6 @@ class CacheCookie
             }
 
             setcookie($this->name, $cookie, $duration, $this->path, $this->domain, $this->secure, true);
-
             $_COOKIE[$this->name] = $cookie;
         }
         else
@@ -246,5 +343,17 @@ class CacheCookie
         }
 
         return $this->save();
+    }
+
+    /**
+     * Returns raw cookie data
+     * @return string cookie content
+     */
+    public function getRawData()
+    {
+        if (isset($_COOKIE[$this->name]))
+            return $_COOKIE[$this->name];
+
+        return null;
     }
 }
