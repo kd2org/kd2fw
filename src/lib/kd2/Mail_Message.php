@@ -23,6 +23,115 @@ class Mail_Message
 		return $this->headers[$key];
 	}
 
+	public function getMessageId()
+	{
+		foreach ($this->headers as $key=>$value)
+		{
+			if ($key == 'message-id')
+			{
+				if (is_array($value))
+				{
+					$value = current($value);
+				}
+
+				if (preg_match('!<(.*?)>!', $value, $match))
+				{
+					return $match[1];
+				}
+
+				if (filter_var(trim($value), FILTER_VALIDATE_EMAIL))
+				{
+					return $value;
+				}
+
+				return false;
+			}
+		}
+
+		return false;
+	}
+
+	public function setMessageId($id = null)
+	{
+		if (is_null($id))
+		{
+			$id = uniqid();
+			$hash = sha1($id . print_r($this->headers, true));
+
+			if (!empty($_SERVER['SERVER_NAME']))
+			{
+				$host = $_SERVER['SERVER_NAME'];
+			}
+			else
+			{
+				$host = preg_replace('/[^a-z]/', '', base_convert($hash, 16, 36));
+				$host = substr($host, 10, -3) . '.' . substr($host, -3);
+			}
+
+			$id = $id . '.' . substr(base_convert($hash, 16, 36), 0, 10) . '@' . $host;
+		}
+
+		$this->headers['message-id'] = '<' . $id . '>';
+		return $id;
+	}
+
+	public function getInReplyTo()
+	{
+		foreach ($this->headers as $key=>$value)
+		{
+			if ($key == 'in-reply-to')
+			{
+				if (is_array($value))
+				{
+					$value = current($value);
+				}
+
+				if (preg_match('!<(.*?)>!', $value, $match))
+				{
+					return $match[1];
+				}
+
+				if (filter_var(trim($value), FILTER_VALIDATE_EMAIL))
+				{
+					return $value;
+				}
+
+				return false;
+			}
+		}
+
+		return false;
+	}
+
+	public function getReferences()
+	{
+		foreach ($this->headers as $key=>$value)
+		{
+			if ($key == 'references')
+			{
+				if (is_array($value))
+				{
+					$value = current($value);
+				}
+
+				if (preg_match_all('!<(.*?)>!', $value, $match, PREG_PATTERN_ORDER))
+				{
+					return $match[1];
+				}
+
+				if (filter_var(trim($value), FILTER_VALIDATE_EMAIL))
+				{
+					return [$value];
+				}
+
+				return false;
+			}
+		}
+
+		return false;
+	}
+
+
 	public function setHeader($key, $value)
 	{
 		$this->headers[$key] = $value;
