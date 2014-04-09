@@ -18,6 +18,31 @@ class Mail_Message
 		return $this->headers;
 	}
 
+	public function getHeader($key)
+	{
+		return $this->headers[$key];
+	}
+
+	public function setHeader($key, $value)
+	{
+		$this->headers[$key] = $value;
+		return true;
+	}
+
+	public function setBody($content)
+	{
+		foreach ($this->parts as &$part)
+		{
+			if ($part['type'] == 'text/plain')
+			{
+				$part['content'] = $content;
+				return true;
+			}
+		}
+
+		return $this->addPart('text/plain', $content);
+	}
+
 	public function getBody()
 	{
 		foreach ($this->parts as $part)
@@ -46,7 +71,8 @@ class Mail_Message
 
 		foreach ($this->parts as $id=>$p)
 		{
-			$out[$id] = ['type' => $p['type'], 'name' => $p['name'], 'id' => $p['id']];
+			unset($p['content']);
+			$out[$id] = $p;
 		}
 
 		return $out;
@@ -60,6 +86,135 @@ class Mail_Message
 	public function getPartContent($id)
 	{
 		return $this->parts[$id]['content'];
+	}
+
+	public function HTMLToText($str)
+	{
+        $str = preg_replace('!<br\s*/?>\n!i', '<br />', $str);
+        $str = preg_replace('!</?(?:b|strong)(?:\s+[^>]*)?>!i', '*', $str);
+        $str = preg_replace('!</?(?:i|em)(?:\s+[^>]*)?>!i', '/', $str);
+        $str = preg_replace('!</?(?:u|ins)(?:\s+[^>]*)?>!i', '_', $str);
+        $str = preg_replace('!<h(\d)(?:\s+[^>]*)?>!i', function ($match) {
+        	return str_repeat('=', (int)$match[1]) . ' ';
+        }, $str);
+        $str = preg_replace('!</h(\d)>!i', function ($match) {
+        	return ' ' . str_repeat('=', (int)$match[1]);
+        }, $str);
+
+        $str = str_replace("\r", "\n", $str);
+        $str = preg_replace("!</p>\n*!i", "\n\n", $str);
+        $str = preg_replace("!<br[^>]*>\n*!i", "\n", $str);
+
+        $str = preg_replace('!<img[^>]*src=([\'"])([^\1]*?)\1[^>]*>!i', 'Image : $2', $str);
+
+        preg_match_all('!<a[^>]href=([\'"])([^\1]*?)\1[^>]*>(.*?)</a>!i', $str, $match, PREG_SET_ORDER);
+
+        if (!empty($match))
+        {
+            $i = 1;
+            $str .= "\n\n== Liens cités ==\n";
+
+            foreach ($match as $link)
+            {
+                $str = str_replace($link[0], $link[3] . '['.$i.']', $str);
+                $str.= str_pad($i, 2, ' ', STR_PAD_LEFT).'. '.$link[2]."\n";
+                $i++;
+            }
+        }
+
+        $str = strip_tags($str);
+
+        $str = html_entity_decode($str, ENT_QUOTES, 'UTF-8');
+        $str = preg_replace("!\n{3,}!", "\n\n", $str);
+        return $str;
+	}
+
+	public function removePart($id)
+	{
+		unset($this->parts[$id]);
+		return true;
+	}
+
+	public function addPart($type, $content, $name = null, $cid = null)
+	{
+		$this->parts[] = [
+			'type'		=>	$type,
+			'content'	=>	$content,
+			'name'		=>	$name,
+			'cid'		=>	$cid,
+		];
+
+		return true;
+	}
+
+	public function getOrigRaw()
+	{
+		return $this->raw;
+	}
+
+	public function getRaw()
+	{
+		$body = '';
+		$out = '';
+
+		$headers = $this->headers;
+
+		$parts = array_values($this->parts);
+
+		if (count($parts) == 1 && $parts[0]['type'] == 'text/plain')
+		{
+			$headers['content-type'] = 'text/plain; charset=utf-8';
+			$headers['content-transfer-encoding'] = 'quoted-printable';
+			$body = quoted_printable_encode($parts[0]['content']);
+		}
+		else
+		{
+			// FIXME
+			// https://en.wikipedia.org/wiki/MIME
+			foreach ($parts as $part)
+			{
+			}
+		}
+
+		foreach ($headers as $key=>$value)
+		{
+			if (is_array($value))
+			{
+				foreach ($value as $line)
+				{
+					$out .= $this->_encodeHeader($key, $line) . "\n";
+				}
+			}
+			else
+			{
+				$out .= $this->_encodeHeader($key, $value) . "\n";
+			}
+		}
+
+		$out .= "\n" . $body;
+
+		$out = preg_replace("#(?<!\r)\n#si", "\r\n", $out);
+
+		return $out;
+	}
+
+	protected function _encodeHeader($key, $value)
+	{
+		$key = strtolower($key);
+
+		$key = preg_replace_callback('/(^\w|-\w)/i', function ($match) {
+			return strtoupper($match[1]);
+		}, $key);
+
+		if ($this->is_utf8($value))
+		{
+			$value = '=?UTF-8?B?'.base64_encode($value).'?=';
+		}
+
+		$value = preg_replace("/^[ ]*/m", ' ', $value);
+		$value = trim($value);
+
+		return $key . ': ' . $value;
 	}
 
 	public function parse($raw)
@@ -95,7 +250,7 @@ class Mail_Message
 				'name'      =>  null,
 				'content'   =>  $body,
 				'type'      =>  $type,
-				'id'        =>  null,
+				'cid'       =>  null,
 			];
 		}
 
@@ -123,7 +278,7 @@ class Mail_Message
 			}
 			
 			// start of new header
-			if (preg_match('/^([a-z][^:]*): ?(.*)$/i', $line, $matches))
+			if (preg_match('/^(\w[^:]*): ?(.*)$/i', $line, $matches))
 			{
 				$header = strtolower($matches[1]);
 				$value = $this->_decodeHeader($matches[2]);
@@ -147,9 +302,9 @@ class Mail_Message
 			}
 			else // more lines related to the current header
 			{
-				if ($current_header && $line[0] == " ")
+				if ($current_header && preg_match('/^\h/', $line))
 				{
-					$current_header .= "\n" . substr($line, 1);
+					$current_header .= "\n" . ltrim($line);
 				}
 			}
 
@@ -269,7 +424,7 @@ class Mail_Message
 
 		$encoding = isset($headers['content-transfer-encoding']) ? $headers['content-transfer-encoding'] : '';
 
-		$name = $id = null;
+		$name = $cid = null;
 
 		$type = preg_replace('/;.*$/', '', $headers['content-type']);
 		$type = trim($type);
@@ -285,13 +440,13 @@ class Mail_Message
 
 		if (!empty($headers['content-id']) && preg_match('/<(.*?)>/m', $headers['content-id'], $match))
 		{
-			$id = $match[1];
+			$cid = $match[1];
 		}
 
 		$part = [
 			'type'  =>  $type,
 			'name'  =>  $name,
-			'id'    =>  $id,
+			'cid'   =>  $cid,
 			'content'=> $body,
 		];
 
@@ -303,9 +458,9 @@ class Mail_Message
 		return $this->_decodeMultipart(array_slice($lines, $end));
 	}
 
-	protected function utf8_encode($str)
+	protected function is_utf8($str)
 	{
-		if (!preg_match('%(?:
+		return preg_match('%(?:
 			[\xC2-\xDF][\x80-\xBF]        # non-overlong 2-byte
 			|\xE0[\xA0-\xBF][\x80-\xBF]               # excluding overlongs
 			|[\xE1-\xEC\xEE\xEF][\x80-\xBF]{2}      # straight 3-byte
@@ -313,7 +468,12 @@ class Mail_Message
 			|\xF0[\x90-\xBF][\x80-\xBF]{2}    # planes 1-3
 			|[\xF1-\xF3][\x80-\xBF]{3}                  # planes 4-15
 			|\xF4[\x80-\x8F][\x80-\xBF]{2}    # plane 16
-			)+%xs', $str))
+			)+%xs', $str);
+	}
+
+	protected function utf8_encode($str)
+	{
+		if (!$this->is_utf8($str))
 		{
 			return utf8_encode($str);
 		}
