@@ -20,7 +20,9 @@ class Mail_Message
 
 	public function getHeader($key)
 	{
-		return $this->headers[$key];
+		if (array_key_exists($key, $this->headers))
+			return $this->headers[$key];
+		return null;
 	}
 
 	public function getMessageId()
@@ -298,6 +300,29 @@ class Mail_Message
 		return $this->raw;
 	}
 
+	public function getRawHeaders($headers = null)
+	{
+		$headers = is_null($headers) ? $this->headers : $headers;
+		$out = '';
+
+		foreach ($headers as $key=>$value)
+		{
+			if (is_array($value))
+			{
+				foreach ($value as $line)
+				{
+					$out .= $this->_encodeHeader($key, $line) . "\n";
+				}
+			}
+			else
+			{
+				$out .= $this->_encodeHeader($key, $value) . "\n";
+			}
+		}
+
+		return $out;
+	}
+
 	public function getRaw()
 	{
 		$body = '';
@@ -322,21 +347,7 @@ class Mail_Message
 			}
 		}
 
-		foreach ($headers as $key=>$value)
-		{
-			if (is_array($value))
-			{
-				foreach ($value as $line)
-				{
-					$out .= $this->_encodeHeader($key, $line) . "\n";
-				}
-			}
-			else
-			{
-				$out .= $this->_encodeHeader($key, $value) . "\n";
-			}
-		}
-
+		$out .= $this->getRawHeaders($headers);
 		$out .= "\n" . $body;
 
 		$out = preg_replace("#(?<!\r)\n#si", "\r\n", $out);
