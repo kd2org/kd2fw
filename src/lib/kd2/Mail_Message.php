@@ -29,6 +29,20 @@ class Mail_Message
 		return true;
 	}
 
+	public function setHeaders($headers)
+	{
+		$this->headers = $headers;
+	}
+
+	public function appendHeaders($headers)
+	{
+		foreach ($headers as $key=>$value)
+		{
+			$this->headers[$key] = $value;
+		}
+		return true;
+	}
+
 	public function setBody($content)
 	{
 		foreach ($this->parts as &$part)
@@ -126,6 +140,29 @@ class Mail_Message
 
         $str = html_entity_decode($str, ENT_QUOTES, 'UTF-8');
         $str = preg_replace("!\n{3,}!", "\n\n", $str);
+        return $str;
+	}
+
+	public function getSignature($str)
+	{
+        // From http://www.cs.cmu.edu/~vitor/papers/sigFilePaper_finalversion.pdf
+        if (preg_match('/^(?:--[ ]?\n|\s*[*#+^$\/=%:&~!_-]{10,}).*?\n/m', $str, $match, PREG_OFFSET_CAPTURE))
+        {
+        	$str = substr($str, $match[0][1] + strlen($match[0][0]));
+        	return trim($str);
+        }
+
+        return false;
+	}
+
+	public function removeSignature($str)
+	{
+        // From http://www.cs.cmu.edu/~vitor/papers/sigFilePaper_finalversion.pdf
+        if (preg_match('/^(?:--[ ]?\n|\s*[*#+^$\/=%:&~!_-]{10,})/m', $str, $match, PREG_OFFSET_CAPTURE))
+        {
+        	return trim(substr($str, 0, $match[0][1]));
+        }
+
         return $str;
 	}
 
