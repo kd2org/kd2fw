@@ -8,9 +8,11 @@ class Mail_Message
 	protected $raw = '';
 	protected $parts = [];
 	protected $boundaries = [];
+	protected $output_boundary = '';
 
 	public function __construct()
 	{
+		$this->output_boundary = '==_=_' . uniqid() . '-' . substr(sha1(microtime(true)), -10);
 	}
 
 	public function getHeaders()
@@ -143,6 +145,12 @@ class Mail_Message
 	public function setHeaders($headers)
 	{
 		$this->headers = $headers;
+	}
+
+	public function setDate($ts = null)
+	{
+		$this->headers['date'] = is_null($ts) ? date(DATE_RFC2822) : date(DATE_RFC2822, $ts);
+		return true;
 	}
 
 	public function appendHeaders($headers)
@@ -295,17 +303,34 @@ class Mail_Message
 		return true;
 	}
 
-	public function getOrigRaw()
+	public function attachMessage($content)
+	{
+		return $this->addPart('message/rfc822', $content);
+	}
+
+	public function getRaw()
 	{
 		return $this->raw;
 	}
 
-	public function getRawHeaders($headers = null)
+	public function outputHeaders()
 	{
-		$headers = is_null($headers) ? $this->headers : $headers;
 		$out = '';
 
-		foreach ($headers as $key=>$value)
+		$parts = array_values($this->parts);
+
+		if (count($parts) == 1 && $parts[0]['type'] == 'text/plain')
+		{
+			$this->headers['content-type'] = 'text/plain; charset=utf-8';
+			$this->headers['content-transfer-encoding'] = 'quoted-printable';
+		}
+		else
+		{
+			$this->headers['content-type'] = 'multipart/mixed; boundary="' . $this->output_boundary . '"';
+			$this->headers['mime-version'] = '1.0';
+		}
+
+		foreach ($this->headers as $key=>$value)
 		{
 			if (is_array($value))
 			{
@@ -320,39 +345,125 @@ class Mail_Message
 			}
 		}
 
+		$out = preg_replace("#(?<!\r)\n#si", "\r\n", $out);
+
 		return $out;
 	}
 
-	public function getRaw()
+	public function outputBody()
 	{
-		$body = '';
-		$out = '';
-
-		$headers = $this->headers;
-
 		$parts = array_values($this->parts);
 
 		if (count($parts) == 1 && $parts[0]['type'] == 'text/plain')
 		{
-			$headers['content-type'] = 'text/plain; charset=utf-8';
-			$headers['content-transfer-encoding'] = 'quoted-printable';
-			$body = quoted_printable_encode($parts[0]['content']);
+			if (stristr($this->getHeader('content-transfer-encoding'), 'quoted-printable'))
+			{
+				$body = quoted_printable_encode($parts[0]['content']);
+			}
+			elseif (stristr($this->getHeader('content-transfer-encoding'), 'base64'))
+			{
+				$body = quoted_printable_encode($parts[0]['content']);
+			}
+			else
+			{
+				$body = $parts[0]['content'];
+			}
 		}
 		else
 		{
-			// FIXME
-			// https://en.wikipedia.org/wiki/MIME
-			foreach ($parts as $part)
-			{
-			}
+	        $body = "This is a message in multipart MIME format. ";
+	        $body.= "Your mail client should not be displaying this. ";
+	        $body.= "Consider upgrading your mail client to view this message correctly.";
+	        $body.= "\n\n";
+
+	        if (!empty($parts[0]) && !empty($parts[1])
+	        	&& (($parts[0]['type'] == 'text/plain' && $parts[1]['type'] == 'text/html')
+	        		|| ($parts[1]['type'] == 'text/plain' && $parts[0]['type'] == 'text/html')))
+	        {
+	        	$body .= '--' . $this->output_boundary . "\n";
+	        	$body .= 'Content-Type: multipart/alternative; boundary="alt=_-=';
+	        	$body .= $this->output_boundary . "\"\n\n\n";
+
+	        	$p = ($parts[0]['type'] == 'text/plain') ? 0 : 1;
+
+	        	$body .= '--alt=_-=' . $this->output_boundary . "\n";
+	        	$body .= $this->outputPart($parts[$p]) . "\n";
+	        	
+	        	$p = $p ? 0 : 1;
+	        	$body .= '--alt=_-=' . $this->output_boundary . "\n";
+	        	$body .= $this->outputPart($parts[$p]) . "\n";
+	        	$body .= '--alt=_-=' . $this->output_boundary . "--\n\n"; // End
+
+	        	$parts = array_slice($parts, 2);
+	        }
+
+	        foreach ($parts as $part)
+	        {
+	        	$body .= '--' . $this->output_boundary . "\n";
+	        	$body .= $this->outputPart($part) . "\n";
+	        }
+
+	        $body .= '--' . $this->output_boundary . "--\n";
+    	}
+
+		$body = preg_replace("#(?<!\r)\n#si", "\r\n", $body);
+
+    	return $body;
+	}
+
+	public function outputPart($part)
+	{
+		$out = 'Content-Type: ' . $part['type'];
+
+		if (!empty($part['name']))
+		{
+			$out .= '; name="' . str_replace('"', '', $part['name']) . '"';
 		}
 
-		$out .= $this->getRawHeaders($headers);
-		$out .= "\n" . $body;
+		if ($part['type'] == 'message/rfc822')
+		{
+			$out .= "\n";
+			$content = $part['content'];
+		}
+		elseif (stripos($part['type'], 'text/') === 0)
+		{
+			$out .= "; charset=utf-8\n";
+			$out .= "Content-Transfer-Encoding: quoted-printable\n";
+			$content = quoted_printable_encode($part['content']);
+		}
+		else
+		{
+			$out .= "\nContent-Transfer-Encoding: base64\n";
+			$content = chunk_split(base64_encode($part['content']));
+		}
 
-		$out = preg_replace("#(?<!\r)\n#si", "\r\n", $out);
+		if (!empty($part['name']) && (!empty($part['cid']) || !empty($part['location'])))
+		{
+			$out .= 'Content-Disposition: inline; filename="' . $part['name'] . "\"\n";
+		}
+		elseif (!empty($part['name']))
+		{
+			$out .= 'Content-Disposition: attachment; filename="' . $part['name'] . "\"\n";
+		}
+
+		if (!empty($part['cid']))
+		{
+			$out .= 'Content-ID: <' . $part['cid'] . ">\n";
+		}
+
+		if (!empty($part['location']))
+		{
+			$out .= 'Content-Location: ' . $part['location'] . "\n";
+		}
+
+		$out .= "\n" . $content;
 
 		return $out;
+	}
+
+	public function output()
+	{
+		return trim($this->outputHeaders()) . "\r\n\r\n" . trim($this->outputBody());
 	}
 
 	protected function _encodeHeader($key, $value)
