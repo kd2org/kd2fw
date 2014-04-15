@@ -92,6 +92,11 @@ class SMTP
 
 	public function disconnect()
 	{
+		if (is_null($this->conn))
+		{
+			return true;
+		}
+
 		$this->_write('QUIT');
 		$this->_read();
 		fclose($this->conn);
@@ -169,6 +174,53 @@ class SMTP
 	}
 
 	/**
+	 * Send a raw email
+	 * @param  string $from From address (MAIL FROM:)
+	 * @param  mixed  $to   To address (RCPT TO:), can be a string (single recipient) 
+	 *                      or an array (multiple recipients)
+	 * @param  string $data Mail data (DATA)
+	 * @return boolean TRUE if success, exception if it fails
+	 */
+	public function rawSend($from, $to, $data)
+	{
+		if (is_null($this->conn))
+		{
+			$this->connect();
+			$this->authenticate();
+		}
+
+		$this->_write('RSET');
+		$this->_read();
+
+		$this->_write('MAIL FROM: <'.$from.'>');
+		$this->_read();
+
+		if (is_string($to))
+		{
+			$to = array($to);
+		}
+
+		foreach ($to as $dest)
+		{
+			$this->_write('RCPT TO: <'.$dest.'>');
+			$this->_read();
+		}
+
+		$data = rtrim($data) . self::EOL;
+
+		$this->_write('DATA');
+		$this->_read();
+		$this->_write($data . '.');
+
+		if ($this->_readCode() != 250)
+		{
+			throw new SMTP_Exception('Can\'t send message. SMTP said: ' . $this->last_line);
+		}
+
+		return true;
+	}
+
+	/**
 	 * Send an email to $to, using $subject as a subject and $message as content
 	 * @param  mixed  $to      List of recipients, as an array or a string
 	 * @param  string $subject Message subject
@@ -178,12 +230,6 @@ class SMTP
 	 */
 	public function send($to, $subject, $message, $headers = array())
 	{
-		if (is_null($this->conn))
-		{
-			$this->connect();
-			$this->authenticate();
-		}
-
 		// Parse $headers if it's a string
 		if (is_string($headers))
 		{
@@ -264,6 +310,15 @@ class SMTP
 
 			$headers['Bcc'] = implode(', ', $headers['Bcc']);
 		}
+
+		if (is_null($this->conn))
+		{
+			$this->connect();
+			$this->authenticate();
+		}
+
+		$this->_write('RSET');
+		$this->_read();
 
 		$this->_write('MAIL FROM: <'.$from.'>');
 		$this->_read();
