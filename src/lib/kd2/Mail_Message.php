@@ -281,8 +281,7 @@ class Mail_Message
 
 	public function removeSignature($str)
 	{
-        // From http://www.cs.cmu.edu/~vitor/papers/sigFilePaper_finalversion.pdf
-        if (preg_match('/^(?:--[ ]?\n|\s*[*#+^$\/=%:&~!_-]{10,})/m', $str, $match, PREG_OFFSET_CAPTURE))
+        if (preg_match('/^--[ ]*$/m', $str, $match, PREG_OFFSET_CAPTURE))
         {
         	return trim(substr($str, 0, $match[0][1]));
         }
