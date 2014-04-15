@@ -147,6 +147,11 @@ class Mail_Message
 		$this->headers = $headers;
 	}
 
+	public function removeHeader($key)
+	{
+		unset($this->headers[$key]);
+	}
+
 	public function setDate($ts = null)
 	{
 		$this->headers['date'] = is_null($ts) ? date(DATE_RFC2822) : date(DATE_RFC2822, $ts);
@@ -494,7 +499,7 @@ class Mail_Message
 		list($headers, $body) = $this->_parseHeadersAndBody($raw);
 
 		if (!empty($headers['content-type']) && stristr($headers['content-type'], 'multipart/')
-			&& preg_match('/boundary=(?:"(.*?)"|([^\s]*?))/mi', $headers['content-type'], $match))
+			&& preg_match('/boundary=(?:"(.*?)"|([^\s]+))/mi', $headers['content-type'], $match))
 		{
 			$this->boundaries[] = !empty($match[2]) ? $match[2] : $match[1];
 
@@ -544,7 +549,7 @@ class Mail_Message
 				$body = array_slice($lines, $i);
 				break;
 			}
-			
+
 			// start of new header
 			if (preg_match('/^(\w[^:]*): ?(.*)$/i', $line, $matches))
 			{
@@ -642,7 +647,7 @@ class Mail_Message
 		// Skip to beginning of next part
 		foreach ($lines as $line)
 		{
-			if (preg_match('!boundary=(?:"(.*?)"|([^\s]*?))!si', $line, $match))
+			if (preg_match('!boundary=(?:"(.*?)"|([^\s]+?))!si', $line, $match))
 			{
 				$this->boundaries[] = !empty($match[2]) ? $match[2] : $match[1];
 			}
@@ -663,7 +668,7 @@ class Mail_Message
 				}
 				else if (is_null($end))
 				{
-					$end = $i;
+					$end = $i - 1;
 					break;
 				}
 			}
