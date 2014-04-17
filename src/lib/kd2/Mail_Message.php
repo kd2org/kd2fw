@@ -576,7 +576,7 @@ class Mail_Message
 			{
 				if ($current_header && preg_match('/^\h/', $line))
 				{
-					$current_header .= $this->_decodeHeader(substr($line, 1));
+					$current_header .= $this->_decodeHeader($line);
 				}
 			}
 
