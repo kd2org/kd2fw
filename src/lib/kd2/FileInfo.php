@@ -22,24 +22,24 @@ class FileInfo
 	 */
 	static public $magic_numbers = [
 		// Images
-		'image/gif'	=>	['GIF'],
+		'image/gif'	=>	[['GIF87a'], ['GIF89a']],
 		'image/png'	=>	["\x89PNG"],
 		'image/jpeg'=>	["\xff\xd8\xff\xe0"],
-		'image/tiff'=>	["\x49\x49\x2A\x00"],
-		'image/tiff'=>	["\x4D\x4D\x00\x2A"],
+		'image/tiff'=>	[["\x49\x49\x2A\x00"], ["\x4D\x4D\x00\x2A"]],
 		'image/bmp'	=>	['BM'],
 		'image/vnd.adobe.photoshop'	=>	['8BPS'],
 		'image/x-icon'	=>	["\000\000\001\000"],
 
 		// Office documents
-		'application/msword'		=>	["\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1", 546 => 'jbjb'],
-		'application/msword'		=>	["\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1", 546 => 'bjbj'],
+		'application/msword'		=>	[
+			["\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1", 546 => 'jbjb'],
+			["\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1", 546 => 'bjbj']
+		],
 		'application/x-msoffice'	=>	["\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"],
 		'application/pdf'			=>	['%PDF-'],
-		'application/postscript'	=>	["\004%"],
-		'application/postscript'	=>	['%'],
+		'application/postscript'	=>	[["\004%"], ['%!PS-Adobe-']],
 		'application/epub+zip'		=>	["PK\003\004", 30 => 'mimetypeapplication/epub+zip'],
-		
+
 		// Open Office 1.x
 		'application/vnd.sun.xml.writer'
 			=>	["PK\003\004", 26 => "\x8\0\0\0mimetypeapplication/", 50 => 'vnd.sun.xml.writer'],
@@ -73,15 +73,10 @@ class FileInfo
 		// Video/audio
 		'audio/x-ms-asf'			=>	["\x30\x26\xb2\x75"],
 		'audio/x-wav'			=>	['RIFF', 8 => 'WAVE'],
-		'video/x-msvideo'		=>	['RIFF', 8 => 'AVI'],
-		'video/x-msvideo'		=>	['RIFX'],
-		'video/quicktime'		=>	['mdat'],
-		'video/quicktime'		=>	['moov'],
-		'video/mpeg'			=>	["\x1B\x3"],
-		'video/mpeg'			=>	["\x1B\xA"],
-		'video/mpeg'			=>	["\x1E\x0"],
-		'audio/mpeg'			=>	["\xff\xfb"],
-		'audio/mpeg'			=>	['ID3'],
+		'video/x-msvideo'		=>	[['RIFF', 8 => 'AVI'], ['RIFX']],
+		'video/quicktime'		=>	[['mdat'], ['moov']],
+		'video/mpeg'			=>	[["\x1B\x3"], ["\x1B\xA"], ["\x1E\x0"]],
+		'audio/mpeg'			=>	[["\xff\xfb"], ['ID3']],
 		'audio/x-pn-realaudio'	=>	["\x2e\x72\x61\xfd"],
 		'audio/vnd.rn-realaudio'=>	['.RMF'],
 		'audio/x-flac'			=>	['fLaC'],
@@ -91,6 +86,8 @@ class FileInfo
 		// Text
 		'text/xml'	=>	['<?xml'],
 		'text/rtf'	=>	['{\\rtf'],
+		'text/x-php'=>	'/<\?php|<\?=/',
+		'text/html'	=>	'/<!DOCTYPE html|<(?:html|head|title|script|style|table|a href=)/i',
 
 		// Others
 		'application/zip'		=>	["PK\003\004"],
@@ -101,8 +98,11 @@ class FileInfo
 		'application/x-bzip2'	=>	['BZh'],
 		'application/x-rar'		=>	['Rar!'],
 
-		'application/x-shockwave-flash'	=>	['FWS'],
-		'application/x-shockwave-flash'	=>	['CWS'],
+		'application/x-shockwave-flash'	=>	[['FWS'], ['CWS']],
+
+		'application/x-sqlite3'	=>	['SQLite format 3'],
+		'text/x-shellscript'	=>	['#!/'],
+		'application/octet-stream'=>["\177ELF"],
 	];
 
 	/**
@@ -156,6 +156,8 @@ class FileInfo
 		// Text
 		'text/xml'	=>	'xml',
 		'text/rtf'	=>	'rtf',
+		'text/x-php'=>	'php',
+		'text/html'	=>	'html',
 
 		// Others
 		'application/zip'		=>	'zip',
@@ -166,6 +168,10 @@ class FileInfo
 		'application/x-rar'		=>	'rar',
 
 		'application/x-shockwave-flash'	=>	'swf',
+
+		'application/x-sqlite3'	=>	'sqlite',
+		'text/x-shellscript'	=>	'sh',
+		'application/octet-stream'	=>	'exe',
 	];
 
 	/**
@@ -175,37 +181,80 @@ class FileInfo
 	 */
 	static public function guessMimeType($bytes)
 	{
-		$max = strlen($bytes);
-
 		// try to match for every mimetype
-		foreach (self::$magic_numbers as $type=>$magic)
+		foreach (self::$magic_numbers as $type=>$match)
 		{
-			$match = 0;
-
-			// Try to match every magic number for this mimetype
-			foreach ($magic as $pos=>$v)
+			// Regexp match
+			if (is_string($match))
 			{
-				// Content is too short to try matching this mimetype
-				if ($pos > $max)
-				{
-					continue(2);
-				}
+				if (self::matchRegexp($match, $bytes))
+					return $type;
 
-				$len = strlen($v);
-
-				// No match: skip to next mimetype
-				if (substr($bytes, $pos, $len) !== $v)
-				{
-					continue(2);
-				}
+				continue;
 			}
 
-			// All magic numbers matched: it's the right mimetype
-			return $type;
+			// Multiple matches possible for one type
+			if (is_array(current($match)))
+			{
+				foreach ($match as $_submatch)
+				{
+					if (self::matchBytes($_submatch, $bytes))
+						return $type;
+				}
+
+				continue;
+			}
+
+			// Single match
+			if (self::matchBytes($match, $bytes))
+				return $type;
 		}
 
 		return false;
     }
+
+    /**
+     * Tries to match a regular expression against the first bytes of the file
+     * @param  string $regexp Regexp to test
+     * @param  string $bytes  Binary string of first bytes of the file
+     * @return boolean 		  TRUE if regexp matches, or else FALSE
+     */
+    static protected function matchRegexp($regexp, $bytes)
+    {
+    	return preg_match($regexp, $bytes);
+    }
+
+    /**
+     * Tries to match magic numbers at specified positions
+     * @param  array  $magic associative array: (byte position) => matching string
+     * @param  string $bytes Binary string of first bytes
+     * @return boolean 		 TRUE if magic numbers actually match, or else FALSE
+     */
+    static protected function matchBytes($magic, $bytes)
+    {
+		$match = 0;
+		$max = strlen($bytes);
+
+		// Try to match every magic number for this mimetype
+		foreach ($magic as $pos=>$v)
+		{
+			// Content is too short to try matching this mimetype
+			if ($pos > $max)
+			{
+				return false;
+			}
+
+			$len = strlen($v);
+
+			// No match: skip to next mimetype
+			if (substr($bytes, $pos, $len) !== $v)
+			{
+				return false;
+			}
+		}
+
+		return true;
+	}
 
     /**
      * Get a file extension from its MIME-type
