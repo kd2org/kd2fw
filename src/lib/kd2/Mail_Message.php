@@ -169,6 +169,11 @@ class Mail_Message
 
 	public function setBody($content)
 	{
+		if (!is_string($content))
+		{
+			throw new \InvalidArgumentException('Content must be a string, but is a ' . gettype($content));
+		}
+
 		foreach ($this->parts as &$part)
 		{
 			if ($part['type'] == 'text/plain')
@@ -192,7 +197,7 @@ class Mail_Message
 		foreach ($this->parts as $part)
 		{
 			if ($part['type'] == 'text/html')
-				return $part;
+				return $this->HTMLToText($part['content']);
 		}
 
 		return false;
@@ -232,10 +237,10 @@ class Mail_Message
         $str = preg_replace('!</?(?:b|strong)(?:\s+[^>]*)?>!i', '*', $str);
         $str = preg_replace('!</?(?:i|em)(?:\s+[^>]*)?>!i', '/', $str);
         $str = preg_replace('!</?(?:u|ins)(?:\s+[^>]*)?>!i', '_', $str);
-        $str = preg_replace('!<h(\d)(?:\s+[^>]*)?>!i', function ($match) {
+        $str = preg_replace_callback('!<h(\d)(?:\s+[^>]*)?>!i', function ($match) {
         	return str_repeat('=', (int)$match[1]) . ' ';
         }, $str);
-        $str = preg_replace('!</h(\d)>!i', function ($match) {
+        $str = preg_replace_callback('!</h(\d)>!i', function ($match) {
         	return ' ' . str_repeat('=', (int)$match[1]);
         }, $str);
 
@@ -249,6 +254,17 @@ class Mail_Message
 
         if (!empty($match))
         {
+        	foreach ($match as $key=>$link)
+        	{
+        		if ($link[3] == $link[2])
+        		{
+        			unset($match[$key]);
+        		}
+        	}
+        }
+
+    	if (!empty($match))
+    	{
             $i = 1;
             $str .= "\n\n== Liens cités ==\n";
 
@@ -263,8 +279,10 @@ class Mail_Message
         $str = strip_tags($str);
 
         $str = html_entity_decode($str, ENT_QUOTES, 'UTF-8');
+        $str = preg_replace('/^\h*/m', '', $str);
         $str = preg_replace("!\n{3,}!", "\n\n", $str);
-        return $str;
+
+        return trim($str);
 	}
 
 	public function getSignature($str)
@@ -323,10 +341,13 @@ class Mail_Message
 
 		$parts = array_values($this->parts);
 
-		if (count($parts) == 1 && $parts[0]['type'] == 'text/plain')
+		if (count($parts) <= 1)
 		{
-			$this->headers['content-type'] = 'text/plain; charset=utf-8';
-			$this->headers['content-transfer-encoding'] = 'quoted-printable';
+			if (!isset($this->headers['content-type']))
+			{
+				$this->headers['content-type'] = $parts[0]['type'] . '; charset=utf-8';
+				$this->headers['content-transfer-encoding'] = 'quoted-printable';
+			}
 		}
 		else
 		{
@@ -358,7 +379,7 @@ class Mail_Message
 	{
 		$parts = array_values($this->parts);
 
-		if (count($parts) == 1 && $parts[0]['type'] == 'text/plain')
+		if (count($parts) <= 1)
 		{
 			if (stristr($this->getHeader('content-transfer-encoding'), 'quoted-printable'))
 			{
@@ -576,7 +597,7 @@ class Mail_Message
 			{
 				if ($current_header && preg_match('/^\h/', $line))
 				{
-					$current_header .= $this->_decodeHeader($line);
+					$current_header .= "\n" . $this->_decodeHeader($line);
 				}
 			}
 
@@ -631,7 +652,11 @@ class Mail_Message
 		}
 		elseif (function_exists('iconv_mime_decode'))
 		{
-			$value = self::utf8_encode(iconv_mime_decode($value));
+			$value = self::utf8_encode(iconv_mime_decode($value, ICONV_MIME_DECODE_CONTINUE_ON_ERROR));
+		}
+		elseif (function_exists('mb_decode_mimeheader'))
+		{
+			$value = self::utf8_encode(mb_decode_mimeheader($value));
 		}
 
 		return $value;
@@ -705,7 +730,7 @@ class Mail_Message
 		{
 			$name = !empty($match[2]) ? $match[2] : $match[1];
 		}
-		elseif (!empty($headers['content-disposition']) && preg_match('/filename=(?:"(.*?)"|([^\s]+)/mi', $headers['content-disposition'], $match))
+		elseif (!empty($headers['content-disposition']) && preg_match('/filename=(?:"(.*?)"|([^\s]+))/mi', $headers['content-disposition'], $match))
 		{
 			$name = !empty($match[2]) ? $match[2] : $match[1];
 		}
