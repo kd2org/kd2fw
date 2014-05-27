@@ -208,7 +208,7 @@ class CacheCookie
                 }
 
                 // If the cookie will expire soon we try to renew it first
-                if ($expire - round((time() - $this->start_timestamp)/60) <= $this->auto_renew)
+                if ($this->auto_renew && ($expire - round((time() - $this->start_timestamp)/60) <= $this->auto_renew))
                 {
                     $this->save();
                 }
