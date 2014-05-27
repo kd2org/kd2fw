@@ -22,6 +22,8 @@ class Mail_Message
 
 	public function getHeader($key)
 	{
+		$key = strtolower($key);
+
 		if (array_key_exists($key, $this->headers))
 			return $this->headers[$key];
 		return null;
@@ -138,6 +140,7 @@ class Mail_Message
 
 	public function setHeader($key, $value)
 	{
+		$key = strtolower($key);
 		$this->headers[$key] = $value;
 		return true;
 	}
@@ -162,6 +165,7 @@ class Mail_Message
 	{
 		foreach ($headers as $key=>$value)
 		{
+			$key = strtolower($key);
 			$this->headers[$key] = $value;
 		}
 		return true;
