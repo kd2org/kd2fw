@@ -22,7 +22,7 @@ class Image
         'jpeg_quality' => 75,
         'png_compression' => 9,
         'background_color' => '000000',
-    ]
+    ];
 
     // Libs
     const IMLIB = 1;
@@ -254,7 +254,7 @@ class Image
 
         if (empty($lib))
         {
-            throw new throw new \RuntimeException('No usable image library found');
+            throw new \RuntimeException('No usable image library found');
         }
 
         if ($lib == self::IMLIB)
@@ -451,7 +451,7 @@ class Image
         }
         else
         {
-            $jpeg_quality = (int) $option['jpeg_quality']
+            $jpeg_quality = (int) $option['jpeg_quality'];
 
             if (empty($jpeg_quality))
                 $jpeg_quality = 85;
