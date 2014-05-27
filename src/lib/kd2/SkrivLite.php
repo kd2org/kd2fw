@@ -273,16 +273,18 @@ class SkrivLite
 		// Footnotes: ((identifier|Foot note)) or ((numbered foot note))
 		elseif ($tag == '((' && preg_match('/^(.*?)\)\)/', $text, $match))
 		{
-			if (($pos = strpos($match[1], '|')) !== false)
+			if (preg_match('/^([\w\d ]+)\|/', $match[1], $submatch))
 			{
-				$label = trim(substr($match[1], 0, $pos));
-				$content = trim(substr($match[1], $pos + 1));
+				$label = trim($submatch[1]);
+				$content = trim(substr($match[1], count($submatch[1])));
 			}
 			else
 			{
 				$content = trim($match[1]);
 				$label = null;
 			}
+
+			var_dump($label);
 
 			$out = $this->addFootnote($content, $label);
 		}
