@@ -284,8 +284,6 @@ class SkrivLite
 				$label = null;
 			}
 
-			var_dump($label);
-
 			$out = $this->addFootnote($content, $label);
 		}
 		// Inline tags: **bold** ''italics'' --strike-through-- __underline__ ^^sup^^ ,,sub,,
