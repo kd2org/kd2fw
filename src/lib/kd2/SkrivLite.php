@@ -312,6 +312,11 @@ class SkrivLite
 				$text = $this->_escape($text);
 			}
 
+			if (filter_var($url, FILTER_VALIDATE_EMAIL))
+			{
+				$url = 'mailto:' . $url;
+			}
+
 			$out = '<a href="' . call_user_func($this->_callback[self::CALLBACK_URL_ESCAPING], $url) . '">'
 				. $text . '</a>';
 		}
