@@ -123,7 +123,7 @@ class Image
         if (!$image && self::canUseImagick())
         {
             try {
-                $im = new Imagick($src_file);
+                $im = new \Imagick($src_file);
 
                 if ($im)
                 {
@@ -138,7 +138,7 @@ class Image
 
                 unset($im);
             }
-            catch (ImagickException $e)
+            catch (\ImagickException $e)
             {
             }
 
@@ -388,9 +388,9 @@ class Image
     static protected function imagickResize($src_file, $dst_file, $new_width, $new_height, $options)
     {
         try {
-            $im = new Imagick($src_file);
+            $im = new \Imagick($src_file);
         }
-        catch (ImagickException $e)
+        catch (\ImagickException $e)
         {
             return false;
         }
@@ -409,13 +409,13 @@ class Image
         elseif ($options['force_size_using_bg_color'])
         {
             if ($options['force_size_using_bg_color'] == 'transparent')
-                $c = new ImagickPixel('transparent');
+                $c = new \ImagickPixel('transparent');
             else
-                $c = new ImagickPixel('#' . $option['force_size_using_bg_color']);
+                $c = new \ImagickPixel('#' . $option['force_size_using_bg_color']);
 
             $im->thumbnailImage($new_width, $new_height, true);
 
-            $bg = new Imagick;
+            $bg = new \Imagick;
             $bg->newImage($new_width, $new_height, $c, 'png');
 
             $geometry = $im->getImageGeometry();
@@ -424,7 +424,7 @@ class Image
             $x = ($new_width - $geometry['width']) / 2;
             $y = ($new_height - $geometry['height']) / 2;
 
-            $bg->compositeImage($im, imagick::COMPOSITE_OVER, $x, $y);
+            $bg->compositeImage($im, \Imagick::COMPOSITE_OVER, $x, $y);
             $im->destroy();
             $im = $bg;
             unset($bg);
@@ -442,7 +442,7 @@ class Image
                 $png_compression = 5;
 
             $im->setImageFormat('png');
-            $im->setCompression(Imagick::COMPRESSION_LZW);
+            $im->setCompression(\Imagick::COMPRESSION_LZW);
             $im->setCompressionQuality($png_compression * 10);
         }
         elseif ($type == 'gif')
@@ -457,7 +457,7 @@ class Image
                 $jpeg_quality = 85;
 
             $im->setImageFormat('jpeg');
-            $im->setCompression(Imagick::COMPRESSION_JPEG);
+            $im->setCompression(\Imagick::COMPRESSION_JPEG);
             $im->setCompressionQuality($jpeg_quality);
         }
 
