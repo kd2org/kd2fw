@@ -543,7 +543,7 @@ class Mail_Message
             	return $value;
             }
 
-            if (isset($matches['name']))
+            if (!empty($matches['name']))
             {
             	return '"' . $this->_encodeHeaderValue($matches['name']) . '" <' . $matches['namedEmail'] . '>';
             }
