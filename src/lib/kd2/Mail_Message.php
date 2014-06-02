@@ -495,6 +495,12 @@ class Mail_Message
 		return trim($this->outputHeaders()) . "\r\n\r\n" . trim($this->outputBody());
 	}
 
+	/**
+	 * Encodes a header
+	 * @param  string $key   Header name
+	 * @param  mixed  $value Header value (if it's an array it will be concatenated)
+	 * @return string        Name: Value header content
+	 */
 	protected function _encodeHeader($key, $value)
 	{
 		$key = strtolower($key);
@@ -503,15 +509,54 @@ class Mail_Message
 			return strtoupper($match[1]);
 		}, $key);
 
-		if ($this->is_utf8($value))
+		if (is_array($value))
 		{
-			$value = '=?UTF-8?B?'.base64_encode($value).'?=';
+			array_walk($value, 'trim');
+			array_walk($value, [$this, '_encodeHeaderValue'], $key);
+			
+			$glue = in_array($key, ['From', 'Cc', 'To', 'Bcc', 'Reply-To']) ? ', ' : '';
+			$value = implode($glue, $value);
+		}
+		else
+		{
+			$value = $this->_encodeHeaderValue($value, $key);
 		}
 
 		$value = preg_replace("/^[ ]*/m", ' ', $value);
 		$value = trim($value);
 
 		return $key . ': ' . $value;
+	}
+
+	/**
+	 * Encodes header value if it's not ASCII
+	 * @param  string $value Header value
+	 * @param  string $key   Header name
+	 * @return string        Encoded header value
+	 */
+	protected function _encodeHeaderValue($value, $key = null)
+	{
+		if (in_array($key, ['From', 'Cc', 'To', 'Bcc', 'Reply-To']))
+		{
+            if (!preg_match('/^((?:"?(?P<name>.*?)"?)<(?P<namedEmail>[^>]+)>|(?P<email>.+))$/', $value, $matches))
+            {
+            	return $value;
+            }
+
+            if (isset($matches['name']))
+            {
+            	return '"' . $this->_encodeHeaderValue($matches['name']) . '" <' . $matches['namedEmail'] . '>';
+            }
+
+            return $value;
+		}
+
+		if ($this->is_utf8($value))
+		{
+			$value = '=?UTF-8?B?'.base64_encode($value).'?=';
+		}
+
+		return $value;
 	}
 
 	public function parse($raw)
