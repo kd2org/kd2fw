@@ -564,6 +564,7 @@ class Mail_Message
 		$this->raw = $raw;
 		$this->parts = [];
 		$this->headers = [];
+		$this->boundaries = [];
 
 		list($headers, $body) = $this->_parseHeadersAndBody($raw);
 
@@ -585,7 +586,7 @@ class Mail_Message
 			$body = implode("\n", $body);
 			$body = $this->_decodePart($body, $headers['content-type'], $encoding);
 
-			$type = preg_replace('/;.*$/', '', $headers['content-type']);
+			$type = preg_replace('/;.*$/s', '', $headers['content-type']);
 			$type = trim($type);
 
 			$this->parts[] = [
@@ -720,7 +721,7 @@ class Mail_Message
 		// Skip to beginning of next part
 		foreach ($lines as $line)
 		{
-			if (preg_match('!boundary=(?:"(.*?)"|([^\s]+?))!si', $line, $match))
+			if (preg_match('!Content-Type:.*boundary=(?:"(.*?)"|([^\s]+))!si', $line, $match))
 			{
 				$this->boundaries[] = !empty($match[2]) ? $match[2] : $match[1];
 			}
@@ -741,7 +742,7 @@ class Mail_Message
 				}
 				else if (is_null($end))
 				{
-					$end = $i - 1;
+					$end = $i;
 					break;
 				}
 			}
@@ -754,7 +755,7 @@ class Mail_Message
 			return false;
 		}
 
-		list($headers, $body) = $this->_parseHeadersAndBody(array_slice($lines, $start, $end));
+		list($headers, $body) = $this->_parseHeadersAndBody(array_slice($lines, $start, $end - $start));
 
 		if (empty($headers['content-type']))
 		{
@@ -772,7 +773,7 @@ class Mail_Message
 
 		$name = $cid = null;
 
-		$type = preg_replace('/;.*$/', '', $headers['content-type']);
+		$type = preg_replace('/;.*$/s', '', $headers['content-type']);
 		$type = trim($type);
 
 		if (preg_match('/name=(?:"(.*?)"|([^\s]*))/mi', $headers['content-type'], $match))
