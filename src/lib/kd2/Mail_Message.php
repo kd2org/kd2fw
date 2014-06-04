@@ -671,7 +671,7 @@ class Mail_Message
 
 		if (stristr($type, 'text/'))
 		{
-			$body = self::utf8_encode($body);
+			$body = $this->utf8_encode($body);
 		}
 
 		return trim($body);
@@ -683,7 +683,7 @@ class Mail_Message
 
 		if (strpos($value, '=?') === false)
 		{
-			return self::utf8_encode($value);
+			return $this->utf8_encode($value);
 		}
 
 		if (function_exists('imap_mime_header_decode'))
@@ -702,11 +702,11 @@ class Mail_Message
 		}
 		elseif (function_exists('iconv_mime_decode'))
 		{
-			$value = self::utf8_encode(iconv_mime_decode($value, ICONV_MIME_DECODE_CONTINUE_ON_ERROR));
+			$value = $this->utf8_encode(iconv_mime_decode($value, ICONV_MIME_DECODE_CONTINUE_ON_ERROR));
 		}
 		elseif (function_exists('mb_decode_mimeheader'))
 		{
-			$value = self::utf8_encode(mb_decode_mimeheader($value));
+			$value = $this->utf8_encode(mb_decode_mimeheader($value));
 		}
 
 		return $value;
@@ -805,7 +805,7 @@ class Mail_Message
 		return $this->_decodeMultipart(array_slice($lines, $end));
 	}
 
-	protected function is_utf8($str)
+	public function is_utf8($str)
 	{
 		return preg_match('%(?:
 			[\xC2-\xDF][\x80-\xBF]        # non-overlong 2-byte
@@ -818,7 +818,7 @@ class Mail_Message
 			)+%xs', $str);
 	}
 
-	protected function utf8_encode($str)
+	public function utf8_encode($str)
 	{
 		if (!$this->is_utf8($str))
 		{
