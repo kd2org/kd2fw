@@ -722,7 +722,7 @@ class Mail_Message
 		// Skip to beginning of next part
 		foreach ($lines as $line)
 		{
-			if (preg_match('!Content-Type:.*boundary=(?:"(.*?)"|([^\s]+))!si', $line, $match))
+			if (preg_match('!(?:Content-Type:.*|^\s+)boundary=(?:"(.*?)"|([^\s]+))!si', $line, $match))
 			{
 				$this->boundaries[] = !empty($match[2]) ? $match[2] : $match[1];
 			}
