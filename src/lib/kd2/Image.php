@@ -411,7 +411,7 @@ class Image
             if ($options['force_size_using_bg_color'] == 'transparent')
                 $c = new \ImagickPixel('transparent');
             else
-                $c = new \ImagickPixel('#' . $option['force_size_using_bg_color']);
+                $c = new \ImagickPixel('#' . $options['force_size_using_bg_color']);
 
             $im->thumbnailImage($new_width, $new_height, true);
 
@@ -431,12 +431,12 @@ class Image
         }
         else
         {
-            $im->thumbnailImage($new_width, $new_height, !$option['ignore_aspect_ratio']);
+            $im->thumbnailImage($new_width, $new_height, !$options['ignore_aspect_ratio']);
         }
 
         if ($type == 'png')
         {
-            $png_compression = (int) $option['png_compression'];
+            $png_compression = (int) $options['png_compression'];
 
             if (empty($png_compression))
                 $png_compression = 5;
@@ -451,7 +451,7 @@ class Image
         }
         else
         {
-            $jpeg_quality = (int) $option['jpeg_quality'];
+            $jpeg_quality = (int) $options['jpeg_quality'];
 
             if (empty($jpeg_quality))
                 $jpeg_quality = 85;
@@ -478,8 +478,8 @@ class Image
         if (!$infos)
             return false;
 
-        if ($option['force_output_format'])
-            $type = $option['force_output_format'];
+        if ($options['force_output_format'])
+            $type = $options['force_output_format'];
         else
             $type = $infos['format'];
 
