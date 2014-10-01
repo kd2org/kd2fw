@@ -2,7 +2,7 @@
 
 namespace KD2;
 
-class Passphrase
+class Passphrase_FR
 {
     const DEFAULT_CHARACTERS = '\pL\'-';
     const DEFAULT_WORDS_NUMBER = 4;
@@ -50,5 +50,7 @@ class Passphrase
     }
 
 }
+
+class_alias('KD2\Passphrase_FR', 'KD2\Passphrase');
 
 ?>
