@@ -489,14 +489,21 @@ class SkrivLite
 		// Opening of extension block
 		elseif (strpos($line, '<<') === 0)
 		{
-			if (!preg_match('/^<<<?([a-z_]+)(.*)$/i', $line, $match))
+			if (!preg_match('/^<<<?([a-z_]+)(.*?)(>>)?$/i', $line, $match))
 			{
 				return $this->_parseError('Invalid extension tag: ' . $line);
 			}
 
-			$line = $this->_closeStack();
-			$this->_block = '';
-			$this->_extension = $match;
+			if (!empty($match[3]))
+			{
+				$line = $this->_callExtension($match, null);
+			}
+			else
+			{
+				$line = $this->_closeStack();
+				$this->_block = '';
+				$this->_extension = $match;
+			}
 		}
 		// Closing extension block
 		elseif (strpos($line, '>>') === 0 && $this->_extension)
