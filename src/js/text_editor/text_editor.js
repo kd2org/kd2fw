@@ -31,10 +31,9 @@
 		}
 
 		this.preventKeyPress = false;
-		var that = this;
 
-		this.textarea.addEventListener('keydown', this.keyEvent, true);
-		this.textarea.addEventListener('keypress', this.keyEvent, true);
+		this.textarea.addEventListener('keydown', this.keyEvent.bind(this), true);
+		this.textarea.addEventListener('keypress', this.keyEvent.bind(this), true);
 	};
 
 	textEditor.prototype.keyEvent = function (e) {
@@ -43,15 +42,15 @@
 		// Event propagation cancellation between keydown/keypress
 		// Firefox/Gecko has a bug here where it's not stopping propagation
 		// to keypress when keydown asks cancellation
-		if (that.preventKeyPress && e.type == 'keypress')
+		if (this.preventKeyPress && e.type == 'keypress')
 		{
-			that.preventKeyPress = false;
-			return that.preventDefault(e);
+			this.preventKeyPress = false;
+			return this.preventDefault(e);
 		}
 
-		for (var key in that.shortcuts)
+		for (var key in this.shortcuts)
 		{
-			var shortcut = that.shortcuts[key];
+			var shortcut = this.shortcuts[key];
 
 			if (e.metaKey)
 				continue;
@@ -65,7 +64,7 @@
 			if ((e.altKey && !shortcut.alt) || (shortcut.alt && !e.altKey))
 				continue;
 
-			if (!(key = that.matchKeyPress(shortcut.key, e)))
+			if (!(key = this.matchKeyPress(shortcut.key, e)))
 			{
 				continue;
 			}
@@ -77,14 +76,14 @@
 				throw new Error("Invalid callback type for shortcut "+key_name);
 			}
 
-			var r = shortcut.callback.call(that, e, key);
+			var r = shortcut.callback.call(this, e, key);
 
 			if (e.type == 'keydown' && r)
 			{
-				that.preventKeyPress = true;
+				this.preventKeyPress = true;
 			}
 
-			return r ? that.preventDefault(e) : true;
+			return r ? this.preventDefault(e) : true;
 		}
 
 		return true;
@@ -92,21 +91,19 @@
 
 	textEditor.prototype.matchKeyPress = function (key, e)
 	{
-		e.key = (typeof e.which === 'number' && e.charCode) ? e.which : e.keyCode;
-		key = key.toLowerCase();
+		if (e.which == null)
+			var keyCode = e.keyCode;
+		else if (e.which != 0 && e.charCode != 0)
+			var keyCode = e.charCode;
+		else
+			return false;
 
-		if (e.type == 'keypress' && e.which)
-		{
-			return (key == String.fromCharCode(e.key).toUpperCase()) ? key : false;
-		}
-		else if (this._key_map[e.key])
-		{
-			return (this._key_map[e.key] == key) ? key : false;
-		}
-		else 
-		{
-			return (String.fromCharCode(e.key).toLowerCase() == key) ? key : false;
-		}
+		if (this._key_map[keyCode] == key)
+			return true;
+		else if (key.toUpperCase() == String.fromCharCode(keyCode).toUpperCase())
+			return true;
+		else
+			return false;
 	};
 
 	textEditor.prototype.preventDefault = function (e) {
