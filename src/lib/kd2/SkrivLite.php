@@ -208,7 +208,7 @@ class SkrivLite
 		return "\n" . '<div class="footnotes">' . $footnotes . '</div>';
 	}
 
-	protected function _parseError($msg, $block = false)
+	public function parseError($msg, $block = false)
 	{
 		if ($this->throw_exception_on_syntax_error)
 		{
@@ -217,7 +217,7 @@ class SkrivLite
 		else
 		{
 			$tag = $block ? 'p' : 'b';
-			return '<' . $tag . ' style="color: red; background: yellow;">' . $msg . '</' . $tag . '>';
+			return '<' . $tag . ' style="color: red; background: yellow;">' . htmlspecialchars($msg, ENT_QUOTES, 'UTF-8') . '</' . $tag . '>';
 		}
 	}
 
@@ -227,7 +227,7 @@ class SkrivLite
 
 		if (!array_key_exists($name, $this->_extensions))
 		{
-			return $this->_parseError('Unknown extension: ' . $match[1]);
+			return $this->parseError('Unknown extension: ' . $match[1]);
 		}
 
 		$_args = trim($match[2]);
@@ -238,7 +238,7 @@ class SkrivLite
 			$args = explode('|', substr($_args, 1));
 		}
 		// unofficial named arguments similar to html args
-		elseif ($_args != '')
+		elseif ($_args != '' && (strpos($_args, '=') !== false))
 		{
 			$args = array();
 			preg_match_all('/([[:alpha:]][[:alnum:]]*)(?:\s*=\s*(?:([\'"])(.*?)\2|([^>\s\'"]+)))?/i', $_args, $_args, PREG_SET_ORDER);
@@ -247,6 +247,15 @@ class SkrivLite
 			{
 				$args[$_a[1]] = isset($_a[4]) ? $_a[4] : (isset($_a[3]) ? $_a[3] : null);
 			}
+		}
+		// unofficial unnamed arguments separated by spaces
+		elseif ($_args != '' && $match[2][0] == ' ')
+		{
+			$args = preg_split('/[ ]+/', $_args);
+		}
+		elseif ($_args != '')
+		{
+			return $this->parseError('Invalid arguments (expecting arg1|arg2|arg3… or arg1="value1") for extension "'.$name.'": '.$_args);
 		}
 		else
 		{
@@ -491,7 +500,7 @@ class SkrivLite
 		{
 			if (!preg_match('/^<<<?([a-z_]+)(.*?)(>>)?$/i', $line, $match))
 			{
-				return $this->_parseError('Invalid extension tag: ' . $line);
+				return $this->parseError('Invalid extension tag: ' . $line);
 			}
 
 			if (!empty($match[3]))
