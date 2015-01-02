@@ -120,15 +120,43 @@ else
 <dl>
 	<dt><?=$map['a']['name']?></dt>
 	<dd>GPS: <?=$map['a']['lat']?> <?=$map['a']['lon']?></dd>
-	<dd id="coords_a"><b>Click on this point on the map.</b></dd>
+	<dd id="coords_a">Click on this point on the map.</dd>
 	<dt><?=$map['b']['name']?></dt>
 	<dd>GPS: <?=$map['b']['lat']?> <?=$map['b']['lon']?></dd>
 	<dd id="coords_b"></dd>
 </dl>
 
+<p><input type="button" id="draw" value="Draw on map" /></p>
+
 <script type="text/javascript" src="../lib.karto.js"></script>
 <script type="text/javascript">
 var map = <?=json_encode($map)?>;
+
+document.getElementById('draw').onclick = function (e) {
+	//this.disabled = true;
+
+	var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+	svg.setAttribute('width', map.width);
+	svg.setAttribute('height', map.height);
+	svg.setAttributeNS("http://www.w3.org/2000/xmlns/", "xmlns:xlink", "http://www.w3.org/1999/xlink");
+	document.getElementById('map').appendChild(svg);
+
+	var line = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+	line.id = 'svgLine';
+	line.setAttributeNS(null, "points", '');
+	line.setAttributeNS(null, "stroke", "red");
+	line.setAttributeNS(null, "fill", "none");
+	line.setAttributeNS(null, "stroke-width", "3");
+
+	svg.appendChild(line);
+	svg.relMouseCoords = HTMLElement.prototype.relMouseCoords;
+
+	document.getElementById('map').onclick = function (e) {
+		var pos = this.relMouseCoords(e);
+		document.getElementById('svgLine').setAttributeNS(null, 'points',
+			document.getElementById('svgLine').getAttributeNS(null, 'points') + ' ' + pos.x + ',' + pos.y);
+	};
+};
 
 HTMLElement.prototype.relMouseCoords = function (event) {
     var totalOffsetX = 0;
