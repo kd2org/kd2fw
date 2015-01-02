@@ -234,7 +234,7 @@ class SimpleDiff
     {
         if ($diff === false && $new === false)
         {
-            throw new Exception("diff_to_array needs either the diff text or the new text file");
+            throw new \Exception("diff_to_array needs either the diff text or the new text file");
         }
 
         if ($diff === false)
