@@ -24,7 +24,7 @@
 		this.search_pos = 0;
 		this.params = {
 			indent_size: 4,
-			tab_size: 8,
+			tab_size: 4,
 			convert_tabs: true,
 			lang: {
 				search: "Text to search?\n(regexps allowed, begin them with '/')",
