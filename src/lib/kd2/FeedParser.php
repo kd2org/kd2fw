@@ -137,7 +137,7 @@ class FeedParser
 		if (preg_match('!^/!', $href))
 			return $url . $href;
 
-		$url .= preg_replace('!/.*?$!', '/', $_base['path']);
+		$url .= preg_replace('!/[^/]*$!', '/', $_base['path']);
 
 		// query-based URI, eg. ?feed
 		if (!empty($_href['path']))
