@@ -570,7 +570,7 @@ class Mail_Message
             return $value;
 		}
 
-		if ($this->is_utf8($value))
+		if ($this->is_utf8($value) && !stristr($this->getHeader('content-type'), 'utf-8'))
 		{
 			$value = '=?UTF-8?B?'.base64_encode($value).'?=';
 		}
@@ -642,6 +642,11 @@ class Mail_Message
 			// start of new header
 			if (preg_match('/^(\w[^:]*): ?(.*)$/i', $line, $matches))
 			{
+				if (!is_null($current_header))
+				{
+					$current_header = trim($current_header);
+				}
+
 				$header = strtolower($matches[1]);
 				$value = $this->_decodeHeader($matches[2]);
 
@@ -664,9 +669,9 @@ class Mail_Message
 			}
 			else // more lines related to the current header
 			{
-				if ($current_header && preg_match('/^\h/', $line))
+				if (!is_null($current_header) && preg_match('/^\h/', $line))
 				{
-					$current_header .= "\n" . $this->_decodeHeader($line);
+					$current_header .= "\n" . $this->_decodeHeader(substr($line, 1));
 				}
 			}
 
@@ -698,7 +703,7 @@ class Mail_Message
 
 	protected function _decodeHeader($value)
 	{
-		$value = trim($value);
+		$value = rtrim($value);
 
 		if (strpos($value, '=?') === false)
 		{
