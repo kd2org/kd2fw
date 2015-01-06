@@ -409,7 +409,7 @@ class Mail_Message
 			}
 			elseif (stristr($this->getHeader('content-transfer-encoding'), 'base64'))
 			{
-				$body = quoted_printable_encode($parts[0]['content']);
+				$body = base64_encode($parts[0]['content']);
 			}
 			else
 			{
@@ -685,15 +685,15 @@ class Mail_Message
 		}
 		elseif (trim($encoding) && stristr('base64', $encoding))
 		{
-			$body = base64_decode(str_replace(["\r", "\n", " "], '', $body));
+			$body = base64_decode($body);
 		}
 
 		if (stristr($type, 'text/'))
 		{
-			$body = $this->utf8_encode($body);
+			$body = $this->utf8_encode(rtrim($body));
 		}
 
-		return trim($body);
+		return $body;
 	}
 
 	protected function _decodeHeader($value)
