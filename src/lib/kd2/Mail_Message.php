@@ -208,14 +208,26 @@ class Mail_Message
 		return $this->addPart('text/plain', $content);
 	}
 
-	public function getBody()
+	public function getBody($html = false)
 	{
+		if ($html)
+		{
+			foreach ($this->parts as $part)
+			{
+				if ($part['type'] == 'text/html')
+					return $part['content'];
+			}
+
+			return false;
+		}
+
 		foreach ($this->parts as $part)
 		{
 			if ($part['type'] == 'text/plain')
 				return $part['content'];
 		}
 
+		// Fallback to html stripped of tags
 		foreach ($this->parts as $part)
 		{
 			if ($part['type'] == 'text/html')
@@ -624,7 +636,7 @@ class Mail_Message
 	protected function _parseHeadersAndBody($raw)
 	{
 		$lines = is_array($raw) ? $raw : preg_split("/(\r?\n|\r)/", $raw);
-		$body = '';
+		$body = [];
 		$headers = [];
 
 		$current_header = null;
@@ -648,7 +660,7 @@ class Mail_Message
 				}
 
 				$header = strtolower($matches[1]);
-				$value = $this->_decodeHeader($matches[2]);
+				$value = $matches[2];
 
 				// this is a multiple header (like Received:)
 				if (array_key_exists($header, $headers))
@@ -671,11 +683,27 @@ class Mail_Message
 			{
 				if (!is_null($current_header) && preg_match('/^\h/', $line))
 				{
-					$current_header .= "\n" . $this->_decodeHeader(substr($line, 1));
+					$current_header .= $line;
 				}
 			}
 
 			$i++;
+		}
+
+		// Decode headers
+		foreach ($headers as &$value)
+		{
+			if (is_array($value))
+			{
+				foreach ($value as &$subvalue)
+				{
+					$subvalue = $this->_decodeHeader($subvalue);
+				}
+			}
+			else
+			{
+				$value = $this->_decodeHeader($value);
+			}
 		}
 
 		unset($i, $current_header, $lines);
