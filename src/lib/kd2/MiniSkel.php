@@ -105,16 +105,15 @@ class MiniSkel
     protected $variables = array();
 
     /**
-     * Here we save for each loop the variables they have
-     * (It's for pre and post optional content of conditional variables)
-     * Like here : [#NAME, (#ADDRESS)]
-     */
-    protected $loopVariables = array();
-
-    /**
      * External modifiers, like in smarty
      */
     protected $modifiers = array();
+
+    /**
+     * Line counter
+     * @var integer
+     */
+    public $lines = 0;
 
     /**
      * Criteria actions
@@ -440,86 +439,180 @@ class MiniSkel
     }
 
     /**
+     * Builds a tree of variables out of a string entry.
+     * It's quite the same as parsing HTML actually.
+     *
+     * @param array $parent Parent variable tag
+     */
+    private function _buildVariablesTree(&$splitted_text, &$parent = [])
+    {
+        $i = 0;
+        $nodes = [];
+
+        while (($token = array_shift($splitted_text)) !== null)
+        {
+            $this->lines += substr_count($token, "\n");
+
+            // Not a tag, not a bracket, just a text node
+            if (($i % 2) == 0)
+            {
+                // Don't store empty text nodes
+                if ($token !== '')
+                {
+                    $nodes[] = $token;
+                }
+            }
+            // Opening bracket, we don't know yet if it will be linked to a tag or not
+            elseif ($token == '[')
+            {
+                $tag = ['name' => false, 'post' => []];
+                $tag['pre'] = $this->_buildVariablesTree($splitted_text, $tag);
+
+                // If the tag name is empty it means we met a matching closing bracket
+                // before the actual variable name and modifiers (just something between brackets)
+                if ($tag['name'] === false)
+                {
+                    $nodes[] = $token;
+                    $nodes = array_merge($nodes, $tag['pre']);
+                    $nodes[] = ']';
+                }
+                // It is an actual tag, we continue
+                else
+                {
+                    $tag['post'] = $this->_buildVariablesTree($splitted_text, $tag);
+                    $nodes[] = $tag;
+                }
+            }
+            // Closing bracket, end of tag (or not)
+            elseif ($token == ']')
+            {
+                // We are in a tag, close it
+                if (isset($parent['name']))
+                {
+                    return $nodes;
+                }
+                // We are not in a tag, this is just a text node
+                else
+                {
+                    $nodes[] = $token;
+                }
+            }
+            // Single tag
+            else if (preg_match('/^#[A-Z_]+$/S', $token))
+            {
+                $nodes[] = [
+                    'applyDefault'  =>  true,
+                    'name'          =>  strtolower(substr($token, 1)),
+                ];
+            }
+            // Extended tag
+            else if (preg_match('/^\(#([A-Z_]+)(\*)?(?:\|([^\)]+)*)*\)$/S', $token, $match))
+            {
+                // There was an opening bracket before, so it's a valid extended tag
+                if (isset($parent['name']))
+                {
+                    $parent['name'] = strtolower($match[1]);
+                    $parent['applyDefault'] = empty($match[2]) ? true : false;
+
+                    if (!empty($match[3]))
+                    {
+                        // Parse modifiers
+                        $parent['modifiers'] = explode('|', $match[3]);
+                        foreach ($parent['modifiers'] as &$modifier)
+                        {
+                            preg_match('/^([0-9a-z_><!=?-]+)(?:\{(.*)\})?$/i', $modifier, $match_mod);
+
+                            if (!isset($match_mod[1]))
+                            {
+                                throw new MiniSkelMarkupException("Invalid modifier syntax: ".$modifier);
+                            }
+
+                            $modifier = ['name' => $match_mod[1], 'arguments' => []];
+
+                            if (isset($match_mod[2]))
+                            {
+                                preg_match_all('/["\']?([^"\',]+)["\']?/', $match_mod[2], $match_args, PREG_SET_ORDER);
+                                foreach ($match_args as $arg)
+                                {
+                                    $arg = trim($arg[1]);
+                                    $modifier['arguments'][] = $arg ? $this->parseVariables($arg, self::CONTEXT_IN_ARG) : $arg;
+                                }
+                            }
+                        }
+
+                    }
+
+                    return $nodes;
+                }
+                // Not a valid tag, treat it as simple text node
+                else
+                {
+                    $nodes[] = $token;
+                }
+            }
+
+            $i++;
+        }
+
+        return $nodes;
+    }
+
+    /**
+     * Returns a text string out of supplied nodes
+     * @param  array  $nodes Array of nodes
+     * @return string        Output of variables
+     */
+    protected function outputVariables($nodes, $context)
+    {
+        $out = '';
+
+        foreach ($nodes as $node)
+        {
+            if (is_array($node))
+            {
+                // Not a tag, just something between brackets
+                if ($node['name'] === false)
+                {
+                    $out .= '[';
+                    $out .= isset($node['pre']) ? $this->outputVariables($node['pre'], $context) : '';
+                    $out .= isset($node['post']) ? $this->outputVariables($node['post'], $context) : '';
+                    $out .= ']';
+                }
+                // [(#REM) Comments] comments are ignored
+                elseif ($node['name'] != 'rem')
+                {
+                    $out .= $this->processVariable($node['name'],
+                        $node['applyDefault'],
+                        isset($node['modifiers']) ? $node['modifiers'] : [],
+                        isset($node['pre']) ? $this->outputVariables($node['pre'], $context) : '',
+                        isset($node['post']) ? $this->outputVariables($node['post'], $context) : '',
+                        $context);
+                }
+            }
+            else
+            {
+                $out .= $node;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
      * Internal parsing of variables
      * You can't extend this method
      *
      * @param string $content
-     * @param array $variables
      * @param int $context (Constant)
      */
-    protected function parseVariables($content, $variables=false, $context=self::CONTEXT_IN_LOOP)
+    protected function parseVariables($content, $context = self::CONTEXT_GLOBAL)
     {
-        // This is used for parsing variables in pre or post-content of variables
-        if (!$variables && $context != self::CONTEXT_IN_LOOP && !empty($this->loopVariables))
-        {
-            $variables = $this->loopVariables;
-        }
+        $variables_split_text = preg_split('/((?<!\\\\)[\[\]]|\(#[A-Z_]+\*?(?:\|(?:[^\)]+)*)*\)|(?<!\\\\)#(?:[A-Z_]+))/S', $content, null, PREG_SPLIT_DELIM_CAPTURE);
 
-        preg_match_all(
-            '!(\[([^\[\]]*)\(#([A-Z_]+)(\*)?(\|([^\)]+)*)*\)([^\[\]]*)\]|#([A-Z_-]+))!', $content, $match, PREG_SET_ORDER);
+        $nodes = $this->_buildVariablesTree($variables_split_text);
+        unset($variables_split_text);
 
-        foreach ($match as $item)
-        {
-            $tagName = !empty($item[3]) ? strtolower($item[3]) : strtolower($item[8]);
-
-            if ($tagName == 'rem')
-            {
-                // discard comments
-                $content = $this->replaceFirst($item[0], '', $content);
-                continue;
-            }
-
-            if ($variables && !array_key_exists($tagName, $variables))
-            {
-                //throw new MiniSkelMarkupException("Unknow tag '".$tagName."' in loop '".$this->currentLoop."'.");
-            }
-
-            $value = isset($variables[$tagName]) ? $variables[$tagName] : false;
-            $applyDefault = empty($item[4]) ? true : false;
-            $modifiers = array();
-
-            if (!empty($item[3]))
-            {
-                $pre = trim($item[2]) ? $this->parseVariables($item[2], $variables, self::CONTEXT_IN_PRE) : $item[2];
-                $post = trim($item[7]) ? $this->parseVariables($item[7], $variables, self::CONTEXT_IN_PRE) : $item[7];
-            }
-            else
-            {
-                $pre = $post = false;
-            }
-
-            if (!empty($item[6]))
-            {
-                $modifiers = explode('|', $item[6]);
-                foreach ($modifiers as &$modifier)
-                {
-                    preg_match('/^([0-9a-z_><!=?-]+)(\{(.*)\})?$/i', $modifier, $match_mod);
-
-                    if (!isset($match_mod[1]))
-                    {
-                        throw new MiniSkelMarkupException("Invalid modifier syntax: ".$modifier);
-                    }
-
-                    $modifier = array('name' => $match_mod[1], 'arguments' => array());
-
-                    if (isset($match_mod[3]))
-                    {
-                        preg_match_all('/["\']?([^"\',]+)["\']?/', $match_mod[3], $match_args, PREG_SET_ORDER);
-                        foreach ($match_args as $arg)
-                        {
-                            $arg = trim($arg[1]);
-                            $modifier['arguments'][] = $arg ? $this->parseVariables($arg, $variables, self::CONTEXT_IN_ARG) : $arg;
-                        }
-                    }
-                }
-            }
-
-            $content = $this->replaceFirst($item[0], $this->processVariable($tagName, $value, $applyDefault, $modifiers, $pre, $post, $context), $content);
-
-            unset($modifiers, $item, $match_mod, $match_args, $tagName, $applyDefault, $pre, $post, $value);
-        }
-
-        return $content;
+        return $this->outputVariables($nodes, $context);
     }
 
     protected function parseIncludes($content)
@@ -638,14 +731,13 @@ class MiniSkel
      * You're encouraged to extend this method to suit your needs
      *
      * @param string $name
-     * @param string $value
      * @param bool $applyDefault Apply the default modifier ?
      * @param array $modifiers Modifiers to apply
      * @param string $pre Optional pre-content
      * @param string $post Optional $post-content
      * @param bool $context Variable context (may be self::CONTEXT_GLOBAL or self::CONTEXT_IN_LOOP)
      */
-    protected function processVariable($name, $value, $applyDefault, $modifiers, $pre, $post, $context)
+    protected function processVariable($name, $applyDefault, $modifiers, $pre, $post, $context)
     {
         // If $value == false it seems it's not set in the variables array used in the loop,
         // so maybe it's a global variable that we want (but you can change this)
@@ -677,13 +769,13 @@ class MiniSkel
 
         // Getting pre-content
         if ($pre)
-            $out .= $this->parseVariables($pre, false, $context);
+            $out .= $this->parseVariables($pre, $context);
 
         $out .= $value;
 
         // Getting post-content
         if ($post)
-            $out .= $this->parseVariables($post, false, $context);
+            $out .= $this->parseVariables($post, $context);
 
         return $out;
     }
