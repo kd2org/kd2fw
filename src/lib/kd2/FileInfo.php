@@ -51,6 +51,7 @@ class FileInfo
 			["\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1", 546 => 'bjbj']
 		],
 		'application/x-msoffice'	=>	["\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"],
+		'application/vnd.openxmlformats-officedocument'	=>	["PK\x03\x04\x14\x00\x06\x00"],
 		'application/pdf'			=>	['%PDF-'],
 		'application/postscript'	=>	[["\004%"], ['%!PS-Adobe-']],
 		'application/epub+zip'		=>	["PK\003\004", 30 => 'mimetypeapplication/epub+zip'],
@@ -107,6 +108,8 @@ class FileInfo
 		// Others
 		'application/zip'		=>	["PK\003\004"],
 		'application/x-tar'		=>	[257 => "ustar\0\x06"],
+		'application/x-xz'		=>	["\xFD7zXZ\x00"],
+		'application/x-7z-compressed'	=>	["7z\xBC\xAF\x27\x1C"],
 
 		'application/x-gzip'	=>	["\x1f\x8b"],
 		'application/x-bzip'	=>	['BZ0'],
@@ -136,6 +139,7 @@ class FileInfo
 
 		// Office documents
 		'application/msword'		=>	'doc',
+		'application/vnd.openxmlformats-officedocument'	=>	'docx',
 		'application/pdf'			=>	'pdf',
 		'application/postscript'	=>	'ps',
 		'application/epub+zip'		=>	'epub',
@@ -177,6 +181,8 @@ class FileInfo
 		// Others
 		'application/zip'		=>	'zip',
 		'application/x-tar'		=>	'tar',
+		'application/x-xz'		=>	'xz',
+		'application/x-7z-compressed'	=>	'7z',
 		'application/x-gzip'	=>	'gz',
 		'application/x-bzip'	=>	'bz',
 		'application/x-bzip2'	=>	'bz2',
