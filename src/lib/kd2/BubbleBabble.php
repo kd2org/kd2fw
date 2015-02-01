@@ -147,12 +147,12 @@ class BubbleBabble
 
     public static function Decode($src)
     {
-        $src = (string) $src;
+        $src = trim((string) $src);
 
         $c = 1; // checksum
 
         // Integrity checks
-        if ($src[0] != 'x')
+        if (substr($src, 0, 1) != 'x')
             throw new BubbleBabble_Exception("Corrupt string at offset 0: must begin with a 'x'");
 
         if (substr($src, -1) != 'x')
@@ -215,5 +215,3 @@ class BubbleBabble
         return true;
     }
 }
-
-?>
