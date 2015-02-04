@@ -76,7 +76,7 @@ class XML_RPC_Server
 	 * @param  string $binary Input binary string
 	 * @return object         XML-RPC object
 	 */
-	public function base64($binary)
+	static public function base64($binary)
 	{
 		if (xmlrpc_set_type($binary, 'base64'))
 		{
@@ -91,7 +91,7 @@ class XML_RPC_Server
 	 * @param  string $timestamp 	Input UNIX timestamp
 	 * @return object         		XML-RPC object
 	 */
-	public function datetime($timestamp)
+	static public function datetime($timestamp)
 	{
 		$timestamp = date('c', $timestamp);
 
