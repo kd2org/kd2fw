@@ -669,18 +669,16 @@ class Image
     static public function getImageStreamFormat($bytes)
     {
         $b = substr($bytes, 0, 4);
+        unset($bytes);
 
-        switch ($b)
-        {
-            case 'GIF8':
-                return 'GIF';
-            case pack('H*', 'ffd8ffe0'):
-                return 'JPEG';
-            case pack('H*', '89504e47'):
-                return 'PNG';
-            default:
-                return false;
-        }
+        if ($b == 'GIF8')
+            return 'GIF';
+        elseif ($b == "\x89PNG")
+            return 'PNG';
+        elseif (substr($b, 0, 3) == "\xff\xd8\xff")
+            return 'JPEG';
+
+        return false;
     }
 }
 

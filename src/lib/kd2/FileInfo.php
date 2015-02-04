@@ -39,7 +39,7 @@ class FileInfo
 		// Images
 		'image/gif'	=>	[['GIF87a'], ['GIF89a']],
 		'image/png'	=>	["\x89PNG"],
-		'image/jpeg'=>	["\xff\xd8\xff\xe0"],
+		'image/jpeg'=>	["\xff\xd8\xff"],
 		'image/tiff'=>	[["\x49\x49\x2A\x00"], ["\x4D\x4D\x00\x2A"]],
 		'image/bmp'	=>	['BM'],
 		'image/vnd.adobe.photoshop'	=>	['8BPS'],
