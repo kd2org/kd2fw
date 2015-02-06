@@ -1,0 +1,20 @@
+This is simple upload helper in JS, making things easier:
+
+* Single file upload
+* Multiple file upload (AJAX)
+* File hash check before upload (Files matching a hash won't be uploade),
+    this allows to avoid uploading a file that was already uploaded before
+* Progress bar related to file upload
+
+Requires those JS APIs:
+* FormData (IE10+, FF4.0+, Chrome7+, Opera 12+, Safari 5+)
+* FileReader (IE10+, FF3.6+, Chrome6+, Opera 11.5+, Safari 6+)
+* File (IE10+, FF7+, Chrome13+, Opera 11.5+, Safari 6+)
+* querySelector (IE9+, FF3.5+, Chrome4+, Opera 10+, Safari 3.1+)
+* JSON (IE8+, FF3.5+, Chrome4+, Opera 11.5+, Safari 4+)
+
+So it should work with: IE10+, FF7+, Chrome13+, Opera 12+, Safari 6+.
+
+HTML5 progress element support is not mandatory.
+
+Uses the Rusha library (embedded). https://github.com/srijs/rusha
