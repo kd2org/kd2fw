@@ -22,6 +22,7 @@ uploadHelper = null;
 		var hash_queue = [];
 		var upload_queue = false;
 		var progress_status = false;
+		var progress_bar = false;
 
 		// Get the maximum file size, the standard way
 		if (i = form.querySelector('input[name=MAX_FILE_SIZE]'))
@@ -107,50 +108,58 @@ uploadHelper = null;
 			progress_status.name = 'uploadHelper_status';
 			form.appendChild(progress_status);
 
+			progress_bar = document.createElement('progress');
+			progress_bar.className = 'uploadHelper_progress';
+			element.parentNode.insertBefore(progress_bar, element.nextSibling);
+
 			if (hash_check)
 			{
 				var http = new XMLHttpRequest();
 				var data = new FormData();
+				var count = 0;
 
 				for (var i = 0; i < upload_queue.length; i++)
 				{
 					if (upload_queue[i].hash)
 					{
 						data.append('uploadHelper_hashCheck[]', upload_queue[i].hash);
+						count++;
 					}
 				}
 
-				http.onreadystatechange = function ()
+				if (count > 0)
 				{
-					if (http.readyState != 4) return;
-
-					if (http.status == 200)
+					http.onreadystatechange = function ()
 					{
-						var result = http.responseText;
-						result = window.JSON.parse(result);
+						if (http.readyState != 4) return;
 
-						upload_queue = upload_queue.filter(function (file) {
-							if (!file.hash) return true;
-							return (file.hash in result) ? false : true;
-						});
-
-						if (upload_queue.length == 0 && result.redirect)
+						if (http.status == 200)
 						{
-							location.href = result.redirect;
-							return false;
+							var result = http.responseText;
+							result = window.JSON.parse(result);
+
+							upload_queue = upload_queue.filter(function (file) {
+								if (!file.hash) return true;
+								return (file.hash in result) ? false : true;
+							});
+
+							if (upload_queue.length == 0 && result.redirect)
+							{
+								location.href = result.redirect;
+								return false;
+							}
 						}
-					}
 
-					runUploadQueue();
-				};
+						runUploadQueue();
+					};
 
-				http.open('POST', form.action, true);
-				http.send(data);
+					http.open('POST', form.action, true);
+					http.send(data);
+					return false;
+				}
 			}
-			else
-			{
-				runUploadQueue();
-			}
+
+			runUploadQueue();
 
 			return false;
 		}, false);
@@ -190,6 +199,20 @@ uploadHelper = null;
 			var http = new XMLHttpRequest();
 			var data = new FormData(form);
 			data.append(element.getAttribute('name'), file);
+
+			http.onprogress = function (e) {
+				progress_bar.max = e.total;
+
+  				if (e.lengthComputable)
+  				{
+    				progress_bar.value = e.loaded;
+    				progress_bar.innerHTML = Math.round(e.loaded / e.total) + '%';
+    			}
+  				else
+  				{
+  					progress_bar.innerHTML = e.loaded;
+  				}
+  			};
 
 			http.onreadystatechange = function ()
 			{
