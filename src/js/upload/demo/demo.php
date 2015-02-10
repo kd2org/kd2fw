@@ -48,7 +48,19 @@ class FileManager
 			return $file['error'];
 		}
 
-		$path = STORAGE_DIR . '/upload_' . sha1_file($file['tmp_name']);
+		if (count($this->files) == 1 
+			&& !empty($_POST['uploadHelper_fileHash'])
+			&& preg_match('/^[a-f0-9]+$/', $_POST['uploadHelper_fileHash']))
+		{
+			// Original file hash was found by Javascript
+			$hash = $_POST['uploadHelper_fileHash'];
+		}
+		else
+		{
+			$hash = sha1_file($file['tmp_name']);
+		}
+
+		$path = STORAGE_DIR . '/upload_' . $hash;
 		
 		if (file_exists($path))
 			return true;
@@ -59,6 +71,9 @@ class FileManager
 	public function storeAll()
 	{
 		$i = 0;
+
+		if (empty($this->files))
+			return 0;
 
 		foreach ($this->files['myFile'] as $file)
 		{
@@ -172,7 +187,7 @@ if (!empty($_POST))
 </form>
 
 <script>
-uploadHelper(document.forms[0].myFile);
+uploadHelper(document.forms[0].myFile, {width: 200, height: 200, resize: true});
 </script>
 
 </body>
