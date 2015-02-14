@@ -4,7 +4,6 @@ namespace KD2;
 
 class DB extends \PDO
 {
-	static protected $instance = null;
 	static protected $driver = null;
 	static protected $user = null;
 	static protected $password = null;
@@ -33,7 +32,7 @@ class DB extends \PDO
 				throw new \BadMethodCallException('No password parameter passed.');
 			}
 
-			if (empty($params(['charset']))
+			if (empty($params['charset']))
 			{
 				$params['charset'] = 'UTF8';
 			}
@@ -51,16 +50,6 @@ class DB extends \PDO
 
 			self::$driver = 'sqlite:' . $params['file'];
 		}
-	}
-
-	static public function getInstance()
-	{
-		if (is_null(self::$instance))
-		{
-			self::$instance = new DB;
-		}
-
-		return self::$instance;
 	}
 
 	public function __construct()
@@ -108,6 +97,11 @@ class DB extends \PDO
 		}
 	}
 
+	public function querySingle($query, $all_columns = false)
+	{
+		return $this->simpleQuerySingle($query, $all_columns);
+	}
+
 	public function simpleInsert($table, $fields)
 	{
 		$query = 'INSERT INTO ' . $table . ' (' . implode(', ', array_keys($fields)) 
@@ -122,7 +116,7 @@ class DB extends \PDO
 			}
 		}
 		
-		$st = DB::getInstance()->prepare($query);
+		$st = $this->prepare($query);
 		return $st->execute($fields);
 	}
 
@@ -145,7 +139,7 @@ class DB extends \PDO
 
 		$query = substr($query, 0, -2) . ' WHERE ' . $where;
 		
-		$st = DB::getInstance()->prepare($query);
+		$st = $this->prepare($query);
 		return $st->execute($fields);
 	}
 
