@@ -1,24 +1,22 @@
-uploadHelper = null;
-
 (function () {
 	// Required JS objects
 	if (!FileReader || !File || !document.querySelector || !FormData || !XMLHttpRequest || !JSON)
 		return false;
 
-	function getByteSize(size)
+	function getByteSize(size, bytes)
 	{
 		if (size < 1024)
-			return size + ' octets';
+			return size + ' ' + bytes;
 		else if (size < 1024*1024)
-			return Math.round(size / 1024) + ' Ko';
+			return Math.round(size / 1024) + ' K' + bytes;
 		else
-			return (Math.round(size / 1024 / 1024 * 100) / 100) + ' Mo';
+			return (Math.round(size / 1024 / 1024 * 100) / 100) + ' M' + bytes;
 	}
 
-	uploadHelper = function (element, options) {
-		var form = element.form;
+	window.uploadHelper = function (element, options) {
 		var rusha = new Rusha();
 
+		var form = element.form;
 		var hash_check = element.hasAttribute('data-hash-check');
 		
 		var upload_queue = false;
@@ -30,11 +28,11 @@ uploadHelper = null;
 		var options = options || {};
 
 		options.width = options.width || false;
-		options.height = options.height || false;
-		options.resize = (options.width && options.height && options.resize) ? true : false;
-
-		var canvas = document.createElement("canvas");
-		var canvasContext = canvas.getContext("2d");
+		options.height = options.height || null;
+		options.resize = (options.width && options.resize) ? true : false;
+		options.bytes = options.bytes || 'B';
+		options.size_error_msg = options.size_error_msg 
+			|| 'The file %file has a size of %size, more than the allowed %max_size allowed.';
 
 		var max_size = null;
 
@@ -59,7 +57,7 @@ uploadHelper = null;
 			if (!this.multiple && files.length > 1)
 			{
 				this.value = '';
-				return !alert("Vous ne pouvez sélectionner qu'un seul fichier.");
+				return false;
 			}
 
 			var l = files.length;
@@ -71,8 +69,15 @@ uploadHelper = null;
 				if (file.size > max_size && (!options.resize || !file.type.match(/^image\//)))
 				{
 					this.value = '';
-					return !alert("Le fichier \"" + (file.name) + "\" de " + getByteSize(file.size) 
-						+ " dépasse la taille autorisée de " + getByteSize(max_size) + ".\nEnvoi impossible !");
+					var args = {
+						name: file.name, 
+						size: getByteSize(file.size, options.bytes), 
+						max_size: getByteSize(max_size, options.bytes)
+					};
+					var msg = options.size_error_msg.replace(/%([a-z_]+)/g, function (match, name) {
+						return args[name];
+					});
+					return !alert(msg);
 				}
 
 				hash_queue.push(file);
@@ -83,6 +88,12 @@ uploadHelper = null;
 		}, false);
 
 		form.addEventListener('submit', function (e) {
+			// No files to upload, just send the form
+			if (!element.files || element.files.length == 0)
+			{
+				return true;
+			}
+
 			e.preventDefault();
 
 			// Someone clicked the submit button, but the upload queue is already running
@@ -91,7 +102,7 @@ uploadHelper = null;
 				return false;
 			}
 
-			// Nothing to upload, just send the form
+			// Nothing left to upload, just send the form
 			if (upload_queue.length == 0)
 			{
 				return true;
@@ -113,14 +124,13 @@ uploadHelper = null;
 				}
 			}
 
-			progress_status = document.createElement('input');
-			progress_status.type = 'hidden';
-			progress_status.name = 'uploadHelper_status';
-			form.appendChild(progress_status);
-
+			var progress_container = document.createElement('div');
+			progress_container.className = 'uploadHelper_progress';
+			
 			progress_bar = document.createElement('progress');
-			progress_bar.className = 'uploadHelper_progress';
-			element.parentNode.insertBefore(progress_bar, element.nextSibling);
+			
+			progress_container.appendChild(progress_bar);
+			element.parentNode.insertBefore(progress_container, element.nextSibling);
 
 			if (hash_check)
 			{
@@ -154,12 +164,6 @@ uploadHelper = null;
 								if (file.hash in result) file.noUpload = true;
 								return true;
 							});
-
-							if (upload_queue.length == 0 && result.redirect)
-							{
-								location.href = result.redirect;
-								return false;
-							}
 						}
 
 						runUploadQueue();
@@ -206,9 +210,9 @@ uploadHelper = null;
 			}
 
 			var file = upload_queue.shift();
-			progress_status.value = upload_queue.length;
+			progress_status = upload_queue.length;
 
-			if (options.resize && file.type.match(/^image\//))
+			if (options.resize && file.type.match(/^image\//) && !file.noUpload)
 			{
 				progress_bar.removeAttribute('max');
 				progress_bar.removeAttribute('value');
@@ -229,16 +233,14 @@ uploadHelper = null;
 
 			if (file.noUpload)
 			{
-				console.log('no upload', file);
+				data.append(element.getAttribute('name'), file.name);
 			}
 			else if (resizedBlob)
 			{
-				console.log('resize upload', file, resizedBlob);
 				data.append(element.getAttribute('name'), resizedBlob, file.name);
 			}
 			else
 			{
-				console.log('classic upload', file);
 				data.append(element.getAttribute('name'), file);
 			}
 
@@ -246,6 +248,8 @@ uploadHelper = null;
 			{
 				data.append('uploadHelper_fileHash', file.hash);
 			}
+
+			data.append('uploadHelper_status', progress_status);
 
 			http.onprogress = function (e) {
 				progress_bar.max = e.total;
@@ -267,25 +271,30 @@ uploadHelper = null;
 
 				if (http.status == 200)
 				{
-					var result = http.responseText;
-					result = window.JSON.parse(result);
+					try {
+						var result = window.JSON.parse(http.responseText);
 
-					if (result.redirect)
-					{
-						location.href = result.redirect;
-						return false;
+						if (result.redirect)
+						{
+							location.href = result.redirect;
+							return false;
+						}
+						else if (result.next)
+						{
+							runUploadQueue();
+							return false;
+						}
 					}
-					else if (result.next)
-					{
-						runUploadQueue();
-						return false;
-					}
-					else if (result.error)
-					{
-						// FIXME
-						alert(result.error);
+					catch (e) {
+						var result = {error: 'Server replied with invalid JSON'};
 					}
 				}
+				else
+				{
+					var result = {error: 'Server response error. HTTP code: ' + http.status};
+				}
+
+				alert(result.error);
 
 				abortUpload();
 				delete http;
@@ -314,53 +323,69 @@ uploadHelper = null;
 			var list = form.elements;
 			for (var i = 0; i < list.length; i++)
 			{
-				if (list[i].type != 'hidden' && list[i].getAttribute('name') != element.getAttribute('name'))
+				if (list[i].type != 'hidden')
 				{
 					list[i].disabled = false;
+					list[i].readOnly = false;
 				}
 			}
 
 			progress_status = 'error';
-			upload_queue = true;
+			progress_bar.parentNode.parentNode.removeChild(progress_bar.parentNode);
+
+			upload_queue = false;
 		}
 
-		function resize(file, width, height, callback)
+		function resize(file, max_width, max_height, callback)
 		{
 			var img = new Image;
 			img.src = (window.URL || window.webkitURL).createObjectURL(file);
 			
 			img.onload = function() {
-				if (height == null && width < 0)
+				var width = max_width, height = max_height;
+
+				if (max_height == null && max_width < 0)
 				{
-					var max_mp = Math.abs(width) * Math.abs(width);
+					var max_mp = Math.abs(max_width) * Math.abs(max_width);
 					var img_mp = img.width * img.height;
 
 					if (img_mp > max_mp)
 					{
-						var ratio = img_mp / max_mp;
-						height = round(img.height / ratio);
-						width = round(img.width / ratio);
+						var ratio = Math.sqrt(img_mp) / Math.abs(max_width);
+						height = Math.round(img.height / ratio);
+						width = Math.round(img.width / ratio);
 					}
 					else
 					{
 						width = img.width;
 						height = img.height;
 					}
+
+					if (width > Math.abs(max_width)*10)
+					{
+						width = Math.abs(max_width)*10;
+						height = Math.round(img.height * width / img.width)
+					}
+					else if (height > Math.abs(max_width)*10)
+					{
+						height = Math.abs(max_width)*10;
+						width = Math.round(img.width * height / img.height)
+					}
 				}
-				else if (height == null)
+				else if (max_height == null)
 				{
 					if (img.width > img.height)
 					{
-						height = round(img.height * width / img.width)
+						height = Math.round(img.height * max_width / img.width)
 					}
 					else if (img.width == img.height)
 					{
-						height = width;
+						height = max_width;
 					}
 					else
 					{
-						height = width;
-						width = round(img.width * height / img.height);
+						height = max_width;
+						width = Math.round(img.width * height / img.height);
 					}
 
 					if (img.width < width && img.height < height)
@@ -372,26 +397,51 @@ uploadHelper = null;
 				width = Math.abs(width);
 				height = Math.abs(height);
 
+				var canvas2 = false, ctx = false;
+
+				// Two-step downscaling for better quality
+				if (width < img.width || height < img.height)
+				{
+					canvas2 = document.createElement("canvas");
+
+					canvas2.width = width*2;
+					canvas2.height = height*2;
+					canvas2.getContext("2d").drawImage(
+						img, // original image
+						0, // starting x point
+						0, // starting y point
+						img.width, // image width
+						img.height, // image height
+						0, // destination x point
+						0, // destination y point
+						width*2, // destination width
+						height*2 // destination height
+					);
+				}
+
+				var canvas = document.createElement("canvas");
+
 				canvas.width = width;
 				canvas.height = height;
-				canvasContext.drawImage(
-					img, // original image
+				canvas.getContext("2d").drawImage(
+					canvas2 ? canvas2 : img, // original image
 					0, // starting x point
 					0, // starting y point
-					img.width, // image width
-					img.height, // image height
+					canvas2.width, // image width
+					canvas2.height, // image height
 					0, // destination x point
 					0, // destination y point
 					width, // destination width
 					height // destination height
 				);
 
-				canvas.toBlob(callback, 'image/jpeg', 0.85);
+				delete canvas2;
 
-				canvasContext.clearRect(0, 0, canvas.width, canvas.height);
+				canvas.toBlob(callback, 'image/jpeg', 0.85);
 
 				(window.URL || window.webkitURL).revokeObjectURL(img.src);
 				delete img;
+				delete canvas;
 			};
 		}
 	};

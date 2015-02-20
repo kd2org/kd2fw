@@ -125,8 +125,6 @@ if (!empty($_POST['uploadHelper_hashCheck']) && is_array($_POST['uploadHelper_ha
 		}
 	}
 
-	$exist['redirect'] = './demo.php?already_ok';
-
 	echo json_encode($exist);
 	exit;
 }
@@ -137,7 +135,7 @@ if (!empty($_POST))
 	{
 		$status = (int) $_POST['uploadHelper_status'];
 
-		if (!$fm->storeAll())
+		if ($fm->storeAll() === false)
 		{
 			$return = ['error' => 'Storage error.'];
 		}
@@ -165,7 +163,7 @@ if (!empty($_POST))
 <head>
 	<meta charset="utf-8" />
 	<title>Upload.js demo</title>
-	<script type="text/javascript" src="../lib.upload.js"></script>
+	<script type="text/javascript" src="../upload_helper.js"></script>
 </head>
 
 <body>
@@ -187,7 +185,13 @@ if (!empty($_POST))
 </form>
 
 <script>
-uploadHelper(document.forms[0].myFile, {width: 200, height: 200, resize: true});
+window.uploadHelper(document.forms[0].myFile, {
+	width: -200,
+	height: null,
+	resize: true,
+	bytes: 'o',
+	size_error_msg: 'Le fichier %file fait %size, soit plus que la taille maximale autorisée de %max_size.'
+});
 </script>
 
 </body>

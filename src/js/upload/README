@@ -1,10 +1,12 @@
 This is simple upload helper in JS, making things easier:
 
 * Single file upload
-* Multiple file upload (AJAX)
+* Multiple file upload
+* File size check before upload
 * File hash check before upload (Files matching a hash won't be uploade),
     this allows to avoid uploading a file that was already uploaded before
 * Progress bar related to file upload
+* Image resize (client side) before upload
 
 Requires those JS APIs:
 * FormData (IE10+, FF4.0+, Chrome7+, Opera 12+, Safari 5+)
@@ -18,3 +20,60 @@ So it should work with: IE10+, FF7+, Chrome13+, Opera 12+, Safari 6+.
 HTML5 progress element support is not mandatory.
 
 Uses the Rusha library (embedded). https://github.com/srijs/rusha
+
+== How does it work? ==
+
+* When a file is selected, its size is checked against the MAX_FILE_SIZE hidden input
+* (Optional) hash check before upload
+* (Optional) image is resized before upload
+* Each file is sent separately via a XHR POST request
+* For the first file uploaded, the other form inputs are sent too
+* For the subsequent files, only the file is sent
+* For every file sent a field named uploadHelper_status is sent too, containing the number of files left to upload
+* At each upload the server may reply with a JSON object containing one of those keys:
+	* 'next' means the upload was successful, and the script may proceed to upload the next file
+	* 'redirect' means to stop the upload and redirect to the specified URL
+	* 'error' means the upload process was aborted, the script will show the error message supplied to the user and allow him to correct the form and submit it again. Example: {"error":"Storage error."}
+
+== Use ==
+
+See demo/demo.php.
+
+== Image resize ==
+
+Note that image resize may crash the client browser with a large number of images.
+
+To enable image resize before upload, use the options argument to the uploadHelper object:
+
+```
+var options = {
+	resize: true,
+	width: 640,
+	height: 480;
+}
+```
+
+If width and height are set to a number, then the image will be resized exactly to these dimensions, discarding the aspect ratio of the original image.
+
+If width is set to a number and height is null, then the image will be resized to have its width and height smaller than the given number, keeping aspect ratio.
+
+If height is set to null and width is a negative number, then the resize algorithm will use width*width as the maximum image pixel count. eg. if width is set to 500, then the maximum image pixel count will be 500*500 = 250,000. So the resulting image may be resized to 500x500 or 1000x250, or even 5000x5. This is helpful with pictures that have a weird aspect ratio. In this mode the height or width of the image can not be more than 10 times the given width to avoid very large images.
+
+Warning : even images which are smaller than the maximum width or height will be resized and re-compressed client-side before upload. This is useful to have smaller files, but may lead to a loss of quality with JPEG files.
+
+== Graceful fallback ==
+
+If any of the required JS features are not present in the browser, the form will be sent as if javascript was disabled altogether. You can know if the form was sent by javascript or not by checking for the presence of the 'uploadHelper_status' field in the POST request. If it's not there, the upload helper script was not used to upload the file.
+
+== Hash check ==
+
+This script can send the file hash (SHA1) before upload, so that you can check server side that the file wasn't already uploaded. To enable this feature you have to add the 'data-hash-check' attribute to the file input. Example:
+
+    <input type="file" name="myFile" data-hash-check />
+
+Here is how it works:
+
+* when a file is selected, its hash is calculated
+* when the form is submitted the script sends the list of file hashes to the form URL (via POST), as an array named uploadHelper_checkHash (and nothing else)
+* the server must reply with a JSON object containing a list of found hashes (like: {"e3c9e0a29ed39e079d694a948bf6d9454a65b40d":true})
+* the file won't be sent to the server, but a POST request will be made, and the file input will be replaced by a text value containing the file name (this way you can store the file name)
