@@ -248,7 +248,7 @@ class Karto
 	 * @param  float $lon Decimal longitude
 	 * @return string Latitude / Longitude in DMS notation, eg. 45 5 56 S 174 11 37 E
 	 */
-	function notationDecToDMS($lat, $lon)
+	static function notationDecToDMS($lat, $lon)
 	{
 		$convert = function ($dec)
 		{
