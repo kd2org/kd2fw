@@ -292,4 +292,15 @@ class FileInfo
 
     	return false;
     }
+
+    static public function getMimeTypeFromFileExtension($extension)
+    {
+    	foreach (self::$mime_extensions as $mime=>$ext)
+    	{
+    		if ($extension === $ext)
+    			return $mime;
+    	}
+
+    	return false;
+    }
 }
