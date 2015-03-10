@@ -254,7 +254,7 @@ class SkrivLite
 			$args = null;
 		}
 
-		return call_user_func($this->_extensions[$name], $args, $content);
+		return call_user_func($this->_extensions[$name], $args, $content, $this);
 	}
 
 	protected function _escape($text)
