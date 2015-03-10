@@ -385,7 +385,7 @@ class Image
             $jpeg_quality = (int) $options['jpeg_quality'];
 
             if (empty($jpeg_quality))
-                $jpeg_quality = self::$default_jpeg_quality;
+                $jpeg_quality = 85;
 
             imlib_image_set_format($dst, 'jpeg');
             $res = imlib_save_image($dst, $dst_file, $err, (int)$jpeg_quality);
