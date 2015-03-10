@@ -217,6 +217,24 @@
 				progress_bar.removeAttribute('max');
 				progress_bar.removeAttribute('value');
 				resize(file, options.width, options.height, function (resizedBlob) {
+					// Check file size
+					if (resizedBlob.size > max_size)
+					{
+						this.value = '';
+						var args = {
+							name: file.name, 
+							size: getByteSize(resizedBlob.size, options.bytes), 
+							max_size: getByteSize(max_size, options.bytes)
+						};
+
+						var msg = options.size_error_msg.replace(/%([a-z_]+)/g, function (match, name) {
+							return args[name];
+						});
+
+						abortUpload();
+						return !alert(msg);
+					}
+
 					uploadFile(file, resizedBlob);
 				});
 			}
@@ -273,8 +291,18 @@
 				{
 					try {
 						var result = window.JSON.parse(http.responseText);
+					}
+					catch (e)
+					{
+						var result = {error: 'Server replied with invalid JSON ('+e.message+'): ' + http.responseText};
+					}
 
-						if (result.redirect)
+					try {
+						if (result.callback && window[result.callback](result))
+						{
+							return false;
+						}
+						else if (result.redirect)
 						{
 							location.href = result.redirect;
 							return false;
@@ -286,7 +314,7 @@
 						}
 					}
 					catch (e) {
-						var result = {error: 'Server replied with invalid JSON'};
+						var result = {error: 'Server error: ' + e.message};
 					}
 				}
 				else
