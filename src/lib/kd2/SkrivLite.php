@@ -174,7 +174,7 @@ class SkrivLite
 		$id = $this->footnotes_prefix . $id;
 
 		return '<sup class="footnote-ref"><a href="#cite_note-' . $id 
-			. '" id="cite_ref-' . $id . '">' . $this->_escape($label) . '</a></sup>';
+			. '" id="cite_ref-' . $id . '">' . $this->escape($label) . '</a></sup>';
 	}
 
 	public function getFootnotes($raw = false)
@@ -194,7 +194,7 @@ class SkrivLite
 
 			$footnotes .= '<p class="footnote"><a href="#cite_ref-' . $id 
 				. '" id="cite_note-' . $id . '">';
-			$footnotes .= $this->_escape($label) . '</a>. ' . $this->_renderInline($text) . '</p>';
+			$footnotes .= $this->escape($label) . '</a>. ' . $this->_renderInline($text) . '</p>';
 		}
 		
 		return "\n" . '<div class="footnotes">' . $footnotes . '</div>';
@@ -257,7 +257,7 @@ class SkrivLite
 		return call_user_func($this->_extensions[$name], $args, $content, $this);
 	}
 
-	protected function _escape($text)
+	public function escape($text)
 	{
 		return htmlspecialchars($text, ENT_QUOTES, 'UTF-8', true);
 	}
@@ -277,7 +277,7 @@ class SkrivLite
 			if (preg_match('/^([\w\d ]+)\|/', $match[1], $submatch))
 			{
 				$label = trim($submatch[1]);
-				$content = trim(substr($match[1], count($submatch[1])));
+				$content = trim(substr($match[1], strlen($submatch[1])+1));
 			}
 			else
 			{
@@ -296,7 +296,7 @@ class SkrivLite
 		// Abbreviations: ??W3C|World Wide Web Consortium??
 		elseif ($tag == '??' && preg_match('/^(.+)\|(.+)\?\?/U', $text, $match))
 		{
-			$out = '<abbr title="' . $this->_escape(trim($match[2])) . '">' . trim($match[1]) . '</abbr>';
+			$out = '<abbr title="' . $this->escape(trim($match[2])) . '">' . trim($match[1]) . '</abbr>';
 		}
 		// Links: [[http://example.tld/]] or [[Example|http://example.tld/]]
 		elseif ($tag == '[[' && preg_match('/(.+?)\]\]/', $text, $match))
@@ -310,7 +310,7 @@ class SkrivLite
 			else
 			{
 				$text = $url = trim($match[1]);
-				$text = $this->_escape($text);
+				$text = $this->escape($text);
 			}
 
 			if (filter_var($url, FILTER_VALIDATE_EMAIL))
@@ -335,7 +335,7 @@ class SkrivLite
 			}
 
 			$out = '<img src="' . call_user_func($this->_callback[self::CALLBACK_URL_ESCAPING], $url) . '" '
-				. 'alt="' . $this->_escape($text) . '" />';
+				. 'alt="' . $this->escape($text) . '" />';
 		}
 		else
 		{
@@ -363,7 +363,7 @@ class SkrivLite
 
 				if (!$this->allow_html || $escape)
 				{
-					$out .= $this->_escape(substr($text, 0, $pos));
+					$out .= $this->escape(substr($text, 0, $pos));
 				}
 				else
 				{
@@ -381,7 +381,7 @@ class SkrivLite
 			{
 				if (!$this->allow_html || $escape)
 				{
-					$out .= $this->_escape($text);
+					$out .= $this->escape($text);
 				}
 				else
 				{
@@ -445,7 +445,7 @@ class SkrivLite
 			}
 			else
 			{
-				return $this->allow_html ? $line : $this->_escape($line);
+				return $this->allow_html ? $line : $this->escape($line);
 			}
 		}
 		elseif ($this->_extension && strpos($line, '>>') !== 0)
@@ -465,7 +465,7 @@ class SkrivLite
 			if (trim(substr($line, 3)) !== '')
 			{
 				$language = strtolower(trim(substr($line, 3)));
-				$before .= '<code class="language-' . $this->_escape($language) . '">';
+				$before .= '<code class="language-' . $this->escape($language) . '">';
 				$this->_stack[] = 'code';
 				$this->_code = $language;
 			}
@@ -488,13 +488,9 @@ class SkrivLite
 			$this->_verbatim = false;
 		}
 		// Opening of extension block
-		elseif (strpos($line, '<<') === 0)
+		// This regex avoids to match '<<ext|param>> some text <<ext2|other>>' as a block extension
+		elseif (strpos($line, '<<') === 0 && preg_match('/^<<<?([a-z_]+)((?:(?!>>>?).)*?)(>>>?$|$)/i', trim($line), $match))
 		{
-			if (!preg_match('/^<<<?([a-z_]+)(.*?)(>>)?$/i', $line, $match))
-			{
-				return $this->parseError('Invalid extension tag: ' . $line);
-			}
-
 			if (!empty($match[3]))
 			{
 				$line = $this->_callExtension($match, null);

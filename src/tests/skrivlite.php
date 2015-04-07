@@ -330,3 +330,13 @@ $target = '<p>&lt;b&gt;Escaped html&lt;/b&gt;
 
 test($skriv->render($orig) == $target, 'block html extension rendering error');
 
+$orig = 'Multiple extensions: <<lipsum|5>> <<lipsum|5>> **some text** <<lipsum|5>> --other text--';
+$target = '<p>Multiple extensions: Lorem Lorem <strong>some text</strong> Lorem <s>other text</s></p>';
+
+test($skriv->render($orig) == $target, 'multiple inline extension rendering error');
+
+
+$orig = '<<lipsum|5>> <<lipsum|5>> **some text** <<lipsum|5>> --other text--';
+$target = '<p>Lorem Lorem <strong>some text</strong> Lorem <s>other text</s></p>';
+
+test($skriv->render($orig) == $target, 'multiple inline extension 2 rendering error');
