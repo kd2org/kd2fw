@@ -66,7 +66,7 @@
 				var file = files[i];
 
 				// Check file size
-				if (file.size > max_size && (!options.resize || !file.type.match(/^image\//)))
+				if (file.size > max_size && (!options.resize || !file.type.match(/^image\/jpe?g/)))
 				{
 					this.value = '';
 					var args = {
@@ -212,7 +212,7 @@
 			var file = upload_queue.shift();
 			progress_status = upload_queue.length;
 
-			if (options.resize && file.type.match(/^image\//) && !file.noUpload)
+			if (options.resize && file.type.match(/^image\/jpe?g/) && !file.noUpload)
 			{
 				progress_bar.removeAttribute('max');
 				progress_bar.removeAttribute('value');
@@ -452,11 +452,11 @@
 				canvas.width = width;
 				canvas.height = height;
 				canvas.getContext("2d").drawImage(
-					canvas2 ? canvas2 : img, // original image
+					(canvas2 || img), // original image
 					0, // starting x point
 					0, // starting y point
-					canvas2.width, // image width
-					canvas2.height, // image height
+					(canvas2 || img).width, // image width
+					(canvas2 || img).height, // image height
 					0, // destination x point
 					0, // destination y point
 					width, // destination width
