@@ -972,12 +972,25 @@ class SkrivLite_Helper
         if (!trim($text))
             return '-';
 
+        $translit = false;
+
+        // Use a proper transliterator if available
         if (function_exists('transliterator_transliterate'))
         {
-        	// Use a proper transliterator if available
-        	$text = transliterator_transliterate('Any-Latin; Latin-ASCII', $text);
+        	ini_set('intl.use_exceptions', 1);
+
+        	try {
+        		$text = transliterator_transliterate('Any-Latin; Latin-ASCII', $text);
+        		$translit = true;
+        	}
+        	catch (IntlException $e)
+        	{
+        		$translit = false;
+        	}
         }
-        else
+
+
+        if (!$translit)
         {
 			// conversion of accented characters
 			// see http://www.weirdog.com/blog/php/supprimer-les-accents-des-caracteres-accentues.html
