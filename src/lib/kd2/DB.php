@@ -4,12 +4,14 @@ namespace KD2;
 
 class DB extends \PDO
 {
-	static protected $driver = null;
-	static protected $user = null;
-	static protected $password = null;
-
-	static public function setDriver($name, $params = [])
+	static public function getDriver($name, $params = [])
 	{
+		$driver = [
+			'url'	=>	null,
+			'user'	=>	null,
+			'password'	=>	null
+		];
+
 		if ($name == 'mysql')
 		{
 			if (empty($params['database']))
@@ -37,9 +39,9 @@ class DB extends \PDO
 				$params['charset'] = 'UTF8';
 			}
 
-			self::$driver = 'mysql:dbname='.$params['database'].';charset=UTF8;host='.$params['host'];
-			self::$user = $params['user'];
-			self::$password = $params['password'];
+			$driver['url'] = 'mysql:dbname='.$params['database'].';charset=UTF8;host='.$params['host'];
+			$driver['user'] = $params['user'];
+			$driver['password'] = $params['password'];
 		}
 		else if ($name == 'sqlite')
 		{
@@ -48,18 +50,24 @@ class DB extends \PDO
 				throw new \BadMethodCallException('No file parameter passed.');
 			}
 
-			self::$driver = 'sqlite:' . $params['file'];
+			$driver['url'] = 'sqlite:' . $params['file'];
 		}
+		else
+		{
+			throw new \BadMethodCallException('Invalid driver name.');
+		}
+
+		return $driver;
 	}
 
-	public function __construct()
+	public function __construct($driver)
 	{
-		if (empty(self::$driver))
+		if (empty($driver['url']))
 		{
 			throw new \LogicException('No PDO driver is set.');
 		}
 
-		parent::__construct(self::$driver, self::$user, self::$password);
+		parent::__construct($driver['url'], $driver['user'], $driver['password']);
         $this->setAttribute(self::ATTR_ERRMODE, self::ERRMODE_EXCEPTION);
 	}
 
@@ -160,5 +168,35 @@ class DB extends \PDO
 
 		$st = $this->prepare($query);
 		return $st->execute($args) ? $st : false;
+	}
+
+	public function simpleQueryFetch($query, $fetchMode = self::FETCH_ASSOC)
+	{
+		if (func_num_args() < 3)
+		{
+			$args = [];
+		}
+		else if (func_num_args() == 3 && is_array(func_get_arg(2)))
+		{
+			$args = func_get_arg(2);
+		}
+		else
+		{
+			$args = array_slice(func_get_args(), 2);
+		}
+
+		return $this->fetch($this->simpleQuery($query, $args), $fetchMode);
+	}
+
+	public function fetch($result)
+	{
+		$rows = [];
+
+		while ($row = $result->fetch($fetchMode))
+		{
+			$rows[] = $row;
+		}
+
+		return $rows;
 	}
 }
