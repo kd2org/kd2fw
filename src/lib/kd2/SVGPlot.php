@@ -62,6 +62,11 @@ class SVGPlot
 		echo $this->output();
 	}
 
+	protected function encodeText($str)
+	{
+		return htmlspecialchars($str, ENT_XML1, 'UTF-8');
+	}
+
 	public function output()
 	{
 		$out = '<?xml version="1.0" encoding="utf-8" standalone="no"?>' . PHP_EOL;
@@ -72,9 +77,9 @@ class SVGPlot
 		{
 			$out .= '<text x="'.round($this->width/2).'" y="'.($this->height * 0.07).'" font-size="'.($this->height * 0.05).'" fill="white" '
 				.	'stroke="white" stroke-width="'.($this->height * 0.01).'" stroke-linejoin="round" stroke-linecap="round" '
-				.	'text-anchor="middle" style="font-family: Verdana, Arial, sans-serif; font-weight: bold;">'.$this->title.'</text>' . PHP_EOL;
+				.	'text-anchor="middle" style="font-family: Verdana, Arial, sans-serif; font-weight: bold;">'.$this->encodeText($this->title).'</text>' . PHP_EOL;
 			$out .= '<text x="'.round($this->width/2).'" y="'.($this->height * 0.07).'" font-size="'.($this->height * 0.05).'" fill="black" '
-				.	'text-anchor="middle" style="font-family: Verdana, Arial, sans-serif; font-weight: bold;">'.$this->title.'</text>' . PHP_EOL;
+				.	'text-anchor="middle" style="font-family: Verdana, Arial, sans-serif; font-weight: bold;">'.$this->encodeText($this->title).'</text>' . PHP_EOL;
 		}
 
 		$out .= $this->_renderLinegraph();
@@ -94,10 +99,10 @@ class SVGPlot
 						.	'font-size="'.($this->height * 0.05).'" fill="white" stroke="white" '
 						.	'stroke-width="'.($this->height * 0.01).'" stroke-linejoin="round" '
 						.	'stroke-linecap="round" text-anchor="end" style="font-family: Verdana, Arial, '
-						.	'sans-serif;">'.$row->title.'</text>' . PHP_EOL;
+						.	'sans-serif;">'.$this->encodeText($row->title).'</text>' . PHP_EOL;
 					$out .= '<text x="'.($x-($this->width * 0.02)).'" y="'.($y+($this->height * 0.025)).'" '
 						.	'font-size="'.($this->height * 0.05).'" fill="black" text-anchor="end" '
-						.	'style="font-family: Verdana, Arial, sans-serif;">'.$row->title.'</text>' . PHP_EOL;
+						.	'style="font-family: Verdana, Arial, sans-serif;">'.$this->encodeText($row->title).'</text>' . PHP_EOL;
 				}
 
 				$y += ($this->height * 0.07);
@@ -193,7 +198,7 @@ class SVGPlot
 					$out .= '<g><text x="'.$x.'" y="'.($y+($this->height * 0.06)).'" '
 						.	'font-size="'.($this->height * 0.04).'" fill="gray" text-anchor="middle" '
 						.	'style="font-family: Verdana, Arial, sans-serif;">'
-						.	($this->labels[$i]).'</text></g>' . PHP_EOL;
+						.	$this->encodeText($this->labels[$i]).'</text></g>' . PHP_EOL;
 				}
 			}
 		}
@@ -249,5 +254,3 @@ class SVGPlot_Data
 		return $this->data;
 	}
 }
-
-?>

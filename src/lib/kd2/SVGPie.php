@@ -55,6 +55,11 @@ class SVGPie
 		echo $this->output();
 	}
 
+	protected function encodeText($str)
+	{
+		return htmlspecialchars($str, ENT_XML1, 'UTF-8');
+	}
+
 	public function output()
 	{
 		$out = '<?xml version="1.0" encoding="utf-8" standalone="no"?>' . PHP_EOL;
@@ -110,9 +115,9 @@ class SVGPie
 		{
 			$out .= '<text x="'.($this->width * 0.98).'" y="'.($this->height * 0.07).'" font-size="'.($this->height * 0.05).'" fill="white" '
 				.	'stroke="white" stroke-width="'.($this->height * 0.01).'" stroke-linejoin="round" stroke-linecap="round" '
-				.	'text-anchor="end" style="font-family: Verdana, Arial, sans-serif; font-weight: bold;">'.$this->title.'</text>' . PHP_EOL;
+				.	'text-anchor="end" style="font-family: Verdana, Arial, sans-serif; font-weight: bold;">'.$this->encodeText($this->title).'</text>' . PHP_EOL;
 			$out .= '<text x="'.($this->width * 0.98).'" y="'.($this->height * 0.07).'" font-size="'.($this->height * 0.05).'" fill="black" '
-				.	'text-anchor="end" style="font-family: Verdana, Arial, sans-serif; font-weight: bold;">'.$this->title.'</text>' . PHP_EOL;
+				.	'text-anchor="end" style="font-family: Verdana, Arial, sans-serif; font-weight: bold;">'.$this->encodeText($this->title).'</text>' . PHP_EOL;
 		}
 
 		if ($this->legend)
@@ -130,10 +135,10 @@ class SVGPie
 						.	'font-size="'.($this->height * 0.05).'" fill="white" stroke="white" '
 						.	'stroke-width="'.($this->height * 0.01).'" stroke-linejoin="round" '
 						.	'stroke-linecap="round" text-anchor="end" style="font-family: Verdana, '
-						.	'Arial, sans-serif;">'.$row->label.'</text>' . PHP_EOL;
+						.	'Arial, sans-serif;">'.$this->encodeText($row->label).'</text>' . PHP_EOL;
 					$out .= '<text x="'.($x-($this->width * 0.02)).'" y="'.($y+($this->height * 0.025)).'" '
 						.	'font-size="'.($this->height * 0.05).'" fill="black" text-anchor="end" '
-						.	'style="font-family: Verdana, Arial, sans-serif;">'.$row->label.'</text>' . PHP_EOL;
+						.	'style="font-family: Verdana, Arial, sans-serif;">'.$this->encodeText($row->label).'</text>' . PHP_EOL;
 				}
 
 				$y += ($this->height * 0.05);
