@@ -291,7 +291,7 @@ class SkrivLite
 		elseif (array_key_exists($tag, $this->inline_tags) 
 			&& preg_match('/^(.*?)' . preg_quote($tag, '/') . '/', $text, $match))
 		{
-			$out = '<' . $this->inline_tags[$tag] . '>' . $match[1] . '</' . $this->inline_tags[$tag] . '>';
+			$out = '<' . $this->inline_tags[$tag] . '>' . $this->_renderInline($match[1]) . '</' . $this->inline_tags[$tag] . '>';
 		}
 		// Abbreviations: ??W3C|World Wide Web Consortium??
 		elseif ($tag == '??' && preg_match('/^(.+)\|(.+)\?\?/U', $text, $match))
