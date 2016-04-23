@@ -42,6 +42,44 @@ class SkrivLite
 	public $footnotes_prefix = 'skriv-notes-';
 
 	/**
+	 * Enable <kbd> tags:
+	 * [Ctrl] + [F2] [neat yeah] = <kbd>Ctrl</kbd> + <kbd>F2</kbd> [neat yeah]
+	 * @var boolean
+	 */
+	public $enable_kbd = true;
+
+	/**
+	 * How many whitespace characters are required at the beginning of a line to make it
+	 * render as a <pre> block?
+	 * Default is 4 (only 1 in SkrivML original implementation)
+	 * Warning: setting it to 1 or 2 may cause unexpected results for people who
+	 * put a whitespace at the beginning of a line by mistake.
+	 * Set it to 0 to disable <pre> parsing using whitespaces.
+	 * This option doesn't affect the rendering as <pre> for lines starting with a tabulation.
+	 * @var int
+	 */
+	public $pre_whitespace_size = 4;
+
+	/**
+	 * Ignore metadata at the beginning of the parsed string?
+	 * Metadata is at the beginning of the text, using a simple syntax of key: value
+	 * Inspired by https://github.com/fletcher/MultiMarkdown/wiki/MultiMarkdown-Syntax-Guide
+	 * Default is false.
+	 * @var boolean
+	 */
+	public $ignore_metadata = false;
+
+	/**
+	 * Enable basic inline HTML tags?
+	 * Only allowed attributes: class, title
+	 * Tags are: ins, del, samp, kbd, code, big, small, b, i, u,
+	 * strong, em, tt, cite, dfn, time, var, br, span, sub, sup, q
+	 * FIXME
+	 * @var boolean
+	 */
+	public $enable_basic_html = true;
+
+	/**
 	 * Simple inline tags
 	 * @var array
 	 */
@@ -351,6 +389,17 @@ class SkrivLite
 		return $out;
 	}
 
+	/**
+	 * <kbd> Rendering, inspired by http://markdown2.github.io/site/syntax/
+	 * [Enter] = <kbd>Enter</kbd>
+	 * @param  string $text Input text
+	 * @return string       Output text
+	 */
+	protected function _renderInlineKbd($text)
+	{
+		return preg_replace('/\[((?:(?:Ctrl|Alt|Shift|Command|Windows|Tab|Backspace|Insert|Delete|Enter|Entrée|Return|F\d{1,2})(?:\s+\w)?)|\w)\]/ui', '<kbd>$1</kbd>', $text);
+	}
+
 	protected function _renderInline($text, $escape = false)
 	{
 		$out = '';
@@ -381,12 +430,35 @@ class SkrivLite
 			{
 				if (!$this->allow_html || $escape)
 				{
-					$out .= $this->escape($text);
+					$text = $this->escape($text);
 				}
-				else
+
+				if ($this->enable_kbd)
 				{
-					$out .= substr($text);
+					$text = $this->_renderInlineKbd($text);
 				}
+
+				if ($this->enable_basic_html)
+				{
+					if (!$this->allow_html || $escape)
+					{
+						$start = '&lt;';
+						$end = '&gt;';
+					}
+					else
+					{
+						$start = '<';
+						$end = '>';
+					}
+
+					$text = preg_replace('!' . $start 
+						. '([biqus]|ins|del|samp|kbd|code|big|small|strong|em|tt|cite|time|var|span|sub|sup)'
+						. '((?:\s+(?:class|title)\s*=\s*(?:["\']|&quot;).*?(?:["\']|&quot;))*)'
+						. $end . '(.*?)' . $start . '/\\1' . $end . '!i',
+						'<\\1\\2>\\3</\\1>', $text);
+				}
+
+				$out .= $text;
 
 				$text = '';
 			}
@@ -611,7 +683,9 @@ class SkrivLite
 			$line = $before . $line . $after;
 		}
 		// Preformatted text
-		elseif (isset($line[0]) && $line[0] == ' ')
+		elseif (preg_match('/^(?<!\\\\)\t+/', $line)
+			|| ($this->pre_whitespace_size > 0 
+				&& preg_match('/^(?<!\\\\)[ ]{' . (int) $this->pre_whitespace_size . ',}/', $line)))
 		{
 			$before = '';
 
@@ -798,11 +872,61 @@ class SkrivLite
 	}
 
 	/**
+	 * Parse metadata headers at the beginning of a Skriv text
+	 * and removes it from the start of $text
+	 * Inspired by https://github.com/fletcher/MultiMarkdown/wiki/MultiMarkdown-Syntax-Guide
+	 * @param  string $text  Input text
+	 * @return array         Metadata
+	 */
+	public function parseMetadata(&$text)
+	{
+		$text = ltrim($text);
+		$text = str_replace("\r", '', $text);
+		$text = preg_split("/\n/", $text);
+
+		$metadata = [];
+		$current_meta = null;
+		$in_meta = false;
+
+		foreach ($text as $k=>$line)
+		{
+			// Match "Key: Value"
+			if (preg_match('/^([\w\d_-\s]+)\s*(?<!\\\\):\s*(.*?)$/u', trim($line), $match))
+			{
+				$current_meta = trim($match[1]);
+
+				if (array_key_exists($current_meta, $metadata))
+				{
+					$metadata[$current_meta] .= "\n" . trim($match[2]);
+				}
+				else
+				{
+					$metadata[$current_meta] = trim($match[2]);
+				}
+			}
+			// Match "Key: Value\nValue second line"
+			else if (trim($line) !== "" && $current_meta)
+			{
+				$metadata[$current_meta] .= "\n" . trim($line);
+			}
+			// Line is empty or doesn't match, means no meta headers or end of the headers
+			else
+			{
+				break;
+			}
+		}
+
+		$text = array_slice($text, $k);
+		$text = implode("\n", $text);
+		return $metadata;
+	}
+
+	/**
 	 * Parse a text string and convert it from SkrivML to HTML
 	 * @param  string $text SrivML formatted text string
 	 * @return string 		HTML formatted text string
 	 */	
-	public function render($text)
+	public function render($text, &$metadata = null)
 	{
 		// Reset internal storage of footnotes and TOC
 		$this->_footnotes = array();
@@ -812,6 +936,11 @@ class SkrivLite
 		$text = str_replace("\r", '', $text);
 		$text = preg_replace("/\n{3,}/", "\n\n", $text);
 		$text = preg_replace("/^\n+|\n+$/", '', $text); // Remove line breaks at beginning and end of text
+
+		if (!$this->ignore_metadata)
+		{
+			$metadata = $this->parseMetadata($text);
+		}
 
 		$text = explode("\n", $text);
 		$max = count($text);
@@ -1014,5 +1143,3 @@ class SkrivLite_Helper
 	}
 
 }
-
-?>
