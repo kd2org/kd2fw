@@ -893,7 +893,7 @@ class SkrivLite
 			// Match "Key: Value"
 			if (preg_match('/^([\w\d_-\s]+)\s*(?<!\\\\):\s*(.*?)$/u', trim($line), $match))
 			{
-				$current_meta = trim($match[1]);
+				$current_meta = strtolower(trim($match[1]));
 
 				if (array_key_exists($current_meta, $metadata))
 				{
