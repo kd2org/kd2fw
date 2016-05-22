@@ -134,10 +134,6 @@ class CacheCookie
         {
             $this->setDomain($domain);
         }
-        else
-        {
-            $this->setDomain(!empty($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : $_SERVER['SERVER_NAME']);
-        }
 
         if (!is_null($secure))
         {
@@ -197,7 +193,7 @@ class CacheCookie
         }
 
         $cookie = null;
-        $this->content = [];
+        $this->content = new \stdClass;
 
         if (!empty($_COOKIE[$this->name]))
         {
@@ -215,11 +211,11 @@ class CacheCookie
             {
                 if (substr($data, 0, 1) == '{')
                 {
-                    $this->content = json_decode($data, true);
+                    $this->content = (object) json_decode($data, true);
                 }
                 elseif (function_exists('msgpack_unpack'))
                 {
-                    $this->content = msgpack_unpack($data);
+                    $this->content = (object) msgpack_unpack($data);
                 }
 
                 // If the cookie will expire soon we try to renew it first
@@ -310,11 +306,11 @@ class CacheCookie
 
         if (is_null($value))
         {
-            unset($this->content[$key]);
+            unset($this->content->$key);
         }
         else
         {
-            $this->content[$key] = $value;
+            $this->content->$key = $value;
         }
 
         return true;
@@ -340,7 +336,7 @@ class CacheCookie
         }
         else
         {
-            return $content[$key];
+            return $content->$key;
         }
     }
 
