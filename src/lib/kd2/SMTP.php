@@ -289,8 +289,8 @@ class SMTP
 		$content = preg_replace("#(?<!\r)\n#si", self::EOL, $content);
 		$content = wordwrap($content, 998, self::EOL, true);
 
-		// Take the first sender address for the smtp
-		list($from) = self::extractEmailAddresses($headers['From']);
+		// SMTP Sender
+		$from = 'mail@'.$this->servername;
 
 		// Extract and filter recipients addresses
 		$to = self::extractEmailAddresses($to);
