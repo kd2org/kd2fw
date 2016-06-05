@@ -876,38 +876,39 @@ class SkrivLite
 	 * and removes it from the start of $text
 	 * Inspired by https://github.com/fletcher/MultiMarkdown/wiki/MultiMarkdown-Syntax-Guide
 	 * @param  string $text  Input text
+	 * @param  boolean $obj  Return metadata in a stdClass object instead of an array
 	 * @return array         Metadata
 	 */
-	public function parseMetadata(&$text)
+	public function parseMetadata(&$text, $obj = false)
 	{
 		$text = ltrim($text);
 		$text = str_replace("\r", '', $text);
 		$text = preg_split("/\n/", $text);
 
-		$metadata = [];
+		$metadata = $obj ? new \stdClass : [];
 		$current_meta = null;
 		$in_meta = false;
 
 		foreach ($text as $k=>$line)
 		{
 			// Match "Key: Value"
-			if (preg_match('/^([\w\d_-\s]+)\s*(?<!\\\\):\s*(.*?)$/u', trim($line), $match))
+			if (preg_match('/^([\w\d_\s-]+)\s*(?<!\\\\):\s*(.*?)$/u', trim($line), $match))
 			{
 				$current_meta = strtolower(trim($match[1]));
 
 				if (array_key_exists($current_meta, $metadata))
 				{
-					$metadata[$current_meta] .= "\n" . trim($match[2]);
+					$metadata->{$current_meta} .= "\n" . trim($match[2]);
 				}
 				else
 				{
-					$metadata[$current_meta] = trim($match[2]);
+					$metadata->{$current_meta} = trim($match[2]);
 				}
 			}
 			// Match "Key: Value\nValue second line"
 			else if (trim($line) !== "" && $current_meta)
 			{
-				$metadata[$current_meta] .= "\n" . trim($line);
+				$metadata->{$current_meta} .= "\n" . trim($line);
 			}
 			// Line is empty or doesn't match, means no meta headers or end of the headers
 			else
