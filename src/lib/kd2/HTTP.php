@@ -16,6 +16,11 @@ class HTTP
 	];
 
 	/**
+	 * User agent
+	 * @var string
+	 */
+	public $user_agent = null;
+	/**
 	 * Default HTTP headers sent with every request
 	 * @var array
 	 */
@@ -26,11 +31,13 @@ class HTTP
 
 	/**
 	 * Options for the SSL stream wrapper
+	 * Be warned that by default we allow self signed certificates
 	 * See http://php.net/manual/en/context.ssl.php
 	 * @var array
 	 */
 	public $ssl_options = [
-		'verify_peer'		=>	false,
+		'verify_peer'		=>	true,
+		'verify_peer_name'	=>	true,
 		'allow_self_signed'	=>	true,
 		'SNI_enabled'		=>	true,
 	];
@@ -40,10 +47,10 @@ class HTTP
 	 * See http://php.net/manual/en/context.http.php
 	 * @var array
 	 */
-	public $htt_options = [
+	public $http_options = [
 		'max_redirects'		=>	10,
 		'timeout'			=>	10,
-		'ignore_errors'		=>	false,
+		'ignore_errors'		=>	true,
 	];
 
 	/**
@@ -54,12 +61,32 @@ class HTTP
 	public $cookies = [];
 
 	/**
+	 * Prepend this string to every request URL
+	 * (helpful for API calls)
+	 * @var string
+	 */
+	public $url_prefix = '';
+
+	/**
 	 * Class construct
 	 */
 	public function __construct()
 	{
 		// Random user agent
-		$this->headers['User-Agent'] = $this->uas[array_rand($this->uas)];
+		$this->user_agent = $this->uas[array_rand($this->uas)];
+	}
+
+	/**
+	 * Enable or disable SSL security,
+	 * this includes disabling or enabling self signed certificates
+	 * which are allowed by default
+	 * @param boolean $enable TRUE to enable certificate check, FALSE to disable
+	 */
+	public function setSecure($enable = true)
+	{
+		$this->ssl_options['verify_peer'] = $enable;
+		$this->ssl_options['verify_peer_name'] = $enable;
+		$this->ssl_options['allow_self_signed'] = !$enable;
 	}
 
 	/**
@@ -86,14 +113,14 @@ class HTTP
 		if ($type == 'form')
 		{
 			$data = http_build_query($data, null, '&');
-			$headers['Content-Length'] = strlen($data);
-			$headers['Content-Type'] = 'application/x-www-form-urlencoded';
+			$additional_headers['Content-Length'] = strlen($data);
+			$additional_headers['Content-Type'] = 'application/x-www-form-urlencoded';
 		}
 		elseif ($type == 'json')
 		{
 			$data = json_encode($data);
-			$headers['Content-Length'] = strlen($data);
-			$headers['Content-Type'] = 'application/json; charset=UTF-8';
+			$additional_headers['Content-Length'] = strlen($data);
+			$additional_headers['Content-Type'] = 'application/json; charset=UTF-8';
 		}
 
 		return $this->request('POST', $url, $data, $additional_headers);
@@ -109,8 +136,9 @@ class HTTP
 	 */
 	public function request($method, $url, $data = null, $additional_headers = null)
 	{
+		$url = $this->url_prefix . $url;
+
 		$headers = $this->headers;
-		$data = '';
 
 		if (!is_null($additional_headers))
 		{
@@ -136,8 +164,10 @@ class HTTP
 		}
 
 		$http_options = [
-			'header'=> $request,
-			'data'	=>	$data,
+			'method' 	=> 	$method,
+			'header'	=>	$request,
+			'content'	=>	$data,
+			'user_agent'=> 	$this->user_agent,
 		];
 
 		$http_options = array_merge($this->http_options, $http_options);
@@ -147,19 +177,25 @@ class HTTP
 			'ssl'	=>	$this->ssl_options,
 		]);
 
-		$r = new stdObj;
+		$request = $method . ' ' . $url . "\r\n" . $request . "\r\n" . $data;
+
+		$r = new \stdClass;
 		$r->url = $url;
 		$r->headers = [];
 		$r->body = null;
 		$r->fail = true;
 		$r->cookies = [];
 		$r->status = null;
-		$r->sent_request = $request;
+		$r->request = $request;
+		$r->size = 0;
 
 		$r->body = file_get_contents($url, false, $context);
 
 		if ($r->body === false && empty($http_response_header))
 			return $r;
+
+		$r->fail = false;
+		$r->size = strlen($r->body);
 
 		foreach ($http_response_header as $line)
 		{
