@@ -397,7 +397,7 @@ class SkrivLite
 	 */
 	protected function _renderInlineKbd($text)
 	{
-		return preg_replace('/\[((?:(?:Ctrl|Alt|Shift|Command|Windows|Tab|Backspace|Insert|Delete|Enter|Entrée|Return|F\d{1,2})(?:\s+\w)?)|\w)\]/ui', '<kbd>$1</kbd>', $text);
+		return preg_replace('/\[((?:(?:Ctrl|Alt|Shift|Command|Option|Meta|Windows|Tab|Backspace|Insert|Delete|Enter|Entrée|Return|F\d{1,2}|Fn|Home|End|(?:Pg|Page)(?:Up|Dn|Down))(?:\s+\w)?)|\w)\]/ui', '<kbd>$1</kbd>', $text);
 	}
 
 	protected function _renderInline($text, $escape = false)
