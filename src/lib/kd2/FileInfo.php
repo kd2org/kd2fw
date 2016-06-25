@@ -5,7 +5,7 @@ namespace KD2;
 /**
  * Various tools to get informations on files
  * Part of KD2fw
- * Copyleft (C) 2013 BohwaZ <http://bohwaz.net/>
+ * Copyleft (C) 2013-2016 BohwaZ <http://bohwaz.net/>
  */
 
 /*
@@ -44,6 +44,8 @@ class FileInfo
 		'image/bmp'	=>	['BM'],
 		'image/vnd.adobe.photoshop'	=>	['8BPS'],
 		'image/x-icon'	=>	["\000\000\001\000"],
+		'image/xcf' => 	['gimp xcf'],
+		'image/svg+xml' => 	'/^\s*<\?xml.*?\?>\s*<svg/is',
 
 		// Office documents
 		'application/msword'		=>	[
@@ -136,6 +138,8 @@ class FileInfo
 		'image/bmp'	=>	'bmp',
 		'image/vnd.adobe.photoshop'	=>	'psd',
 		'image/x-icon'	=>	'ico',
+		'image/xcf'	=>	'xcf',
+		'image/svg+xml'	=>	'svg',
 
 		// Office documents
 		'application/msword'		=>	'doc',
