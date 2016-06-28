@@ -4,7 +4,7 @@
     "description": "Set of simple and lightweight libraries/micro framework",
     "keywords": ["framework","kd2", "micro", "lightweight", "database", "sqlite", "http", "smtp"],
     "homepage": "http://dev.kd2.org/kd2fw/",
-    "license": "AGPL-3.0",
+    "license": "BSD-2-Clause",
 	"support": {
         "wiki": "http://fossil.kd2.org/kd2fw/",
         "issues": "http://fossil.kd2.org/kd2fw/"
