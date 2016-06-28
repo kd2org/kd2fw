@@ -28,14 +28,37 @@
 
 namespace KD2;
 
-class DB extends \PDO
+use PDO;
+use PDOException;
+
+class DB extends PDO
 {
 	/**
 	 * Default fetch mode
+	 * FIXME: could probably use PDO attribute instead!
 	 * @var integer
 	 */
-	public $default_fetch_mode = \PDO::FETCH_ASSOC;
+	public $default_fetch_mode = self::FETCH_ASSOC;
 
+	/**
+	 * Current driver
+	 * @var null
+	 */
+	protected $driver = null;
+
+	/**
+	 * Are we connected?
+	 * Useful for lazy connect: will only connect when needed
+	 * @var null
+	 */
+	protected $connected = null;
+
+	/**
+	 * Returns a driver configuration after check
+	 * @param  string $name   Driver name: mysql or sqlite
+	 * @param  array  $params Driver configuration
+	 * @return array          Driver array
+	 */
 	static public function getDriver($name, $params = [])
 	{
 		$driver = [
@@ -93,6 +116,10 @@ class DB extends \PDO
 		return $driver;
 	}
 
+	/**
+	 * Class construct, expects a driver configuration
+	 * @param array $driver Driver configurtaion
+	 */
 	public function __construct($driver)
 	{
 		if (empty($driver['url']))
@@ -100,14 +127,107 @@ class DB extends \PDO
 			throw new \LogicException('No PDO driver is set.');
 		}
 
-		parent::__construct($driver['url'], $driver['user'], $driver['password']);
 		$this->setAttribute(self::ATTR_ERRMODE, self::ERRMODE_EXCEPTION);
+		$this->setAttribute(self::ATTR_DEFAULT_FETCH_MODE, $this->default_fetch_mode);
+
+		$this->driver = $driver;
 
 		// Enhance SQLite default
 		if ($driver['type'] == 'sqlite')
 		{
 			$this->sqliteCreateFunction('rank', [$this, 'sqlite_rank']);
 		}
+	}
+
+	/**
+	 * Connect to the currently defined driver if needed
+	 * @return void
+	 */
+	public function connect()
+	{
+		if ($this->connected)
+			return true;
+
+		try {
+			parent::__construct($this->driver['url'], $this->driver['user'], $this->driver['password']);
+			$this->connected = true;
+		}
+		catch (PDOException $e)
+		{
+			// Catch exception to avoid showing password in backtrace
+			throw new PDOException('Unable to connect to database. Check username and password.');
+		}
+		
+		$this->driver['password'] = '******';
+	}
+
+	/**
+	 * Redefine PDO methods to do lazy connect
+	 */
+	public function query($statement)
+	{
+		$this->connect();
+		return parent::query($statement);
+	}
+
+	public function exec($statement)
+	{
+		$this->connect();
+		return parent::query($statement);
+	}
+
+	public function prepare($statement, $driver_options = [])
+	{
+		$this->connect();
+		return parent::prepare($statement, $driver_options);
+	}
+
+	public function beginTransaction()
+	{
+		$this->connect();
+		return parent::beginTransaction();
+	}
+
+	public function inTransaction()
+	{
+		$this->connect();
+		return parent::inTransaction();
+	}
+
+	public function commit()
+	{
+		$this->connect();
+		return parent::commit();
+	}
+
+	public function errorCode()
+	{
+		$this->connect();
+		return parent::errorCode();
+	}
+
+	public function errorInfo()
+	{
+		$this->connect();
+		return parent::errorInfo();
+	}
+
+	public function getAttribute($attribute)
+	{
+		$this->connect();
+		return parent::getAttribute($attribute);
+	}
+
+	public function lastInsertId($name = null)
+	{
+		$this->connect();
+		return parent::lastInsertId($name);
+	}
+
+	public function quote($value, $parameter_type = self::PARAM_STR)
+	{
+		$this->connect();
+		return parent::quote($value, $parameter_type);
 	}
 
 	/**
@@ -222,7 +342,12 @@ class DB extends \PDO
 		}
 	}
 
-
+	/**
+	 * Simple query returning a single row
+	 * @param  string  $query       SQL query
+	 * @param  boolean $all_columns true if you want to get all the columns, false will return only the first column
+	 * @return mixed                A single value if $all_columns = false, an array or object otherwise
+	 */
 	public function simpleQuerySingle($query, $all_columns = false)
 	{
 		if (func_num_args() < 3)
@@ -260,34 +385,60 @@ class DB extends \PDO
 		return $this->simpleQuerySingle($query, $all_columns);
 	}
 
-	public function simpleInsert($table, $fields)
+	public function simpleInsert($table, array $changes)
 	{
-		$query = 'INSERT INTO ' . $table . ' (' . implode(', ', array_keys($fields)) 
-			. ') VALUES (:' . implode(', :', array_keys($fields)) . ');';
+		$query = 'INSERT INTO ' . $table . ' (' . implode(', ', array_keys($changes)) 
+			. ') VALUES (:' . implode(', :', array_keys($changes)) . ');';
 
-		foreach ($fields as $key=>$value)
+		foreach ($changes as $key=>$value)
 		{
 			if ($value == 'NOW()')
 			{
 				$query = str_replace(':' . $key, $value, $query);
-				unset($fields[$key]);
+				unset($changes[$key]);
 			}
 		}
 		
 		$st = $this->prepare($query);
-		return $st->execute($fields);
+		return $st->execute($changes);
 	}
 
-	public function simpleUpdate($table, $fields, $where)
+	public function whereArray(array $criterias)
+	{
+		$out = [];
+
+		foreach ($criterias as $key=>$value)
+		{
+			if (!preg_match('/^[a-z_][\d\w_]+/', '', $key))
+				throw new PDOException('Invalid column name: ' . $key);
+
+			if (is_string($value))
+				$value = '= ' . $this->quote($value);
+			else if (is_bool($value))
+				$value = $value ? '= TRUE' : '= FALSE';
+			else if (is_null($value))
+				$value = 'IS NULL';
+			else if (is_int($value))
+				$value = '= ' . (int) $value;
+			else
+				throw new PDOException('Invalid WHERE value type: ' . gettype($value));
+
+			$out[] = $key . ' ' . $value;
+		}
+
+		return implode(' AND ', $out);
+	}
+
+	public function simpleUpdate($table, array $changes, $where)
 	{
 		$query = 'UPDATE ' . $table . ' SET ';
 
-		foreach ($fields as $key=>$value)
+		foreach ($changes as $key=>$value)
 		{
 			if ($value == 'NOW()')
 			{
 				$query .= $key . ' = ' . $value . ', ';
-				unset($fields[$key]);
+				unset($changes[$key]);
 			}
 			else
 			{
@@ -295,10 +446,23 @@ class DB extends \PDO
 			}
 		}
 
+		if (is_array($where))
+		{
+			$where = $this->whereArray($where);
+		}
+
 		$query = substr($query, 0, -2) . ' WHERE ' . $where;
 		
 		$st = $this->prepare($query);
-		return $st->execute($fields);
+		return $st->execute($changes);
+	}
+
+	public function simpleDelete($table, array $where)
+	{
+		$query = 'DELETE FROM ' . $table . ' WHERE ' . $this->whereArray($where);
+		
+		$st = $this->prepare($query);
+		return $st->execute($changes);
 	}
 
 	public function simpleQuery($query)
