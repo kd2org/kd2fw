@@ -37,75 +37,48 @@ class ErrorManager
 	const RED_FAINT = '[1m';
 	const YELLOW = '[33m';
 
+	/**
+	 * true = catch exceptions, false = do nothing
+	 * @var null
+	 */
 	static protected $enabled = null;
 
+	/**
+	 * HTML template used for displaying production errors
+	 * @var string
+	 */
 	static protected $production_error_template = '';
 
+	/**
+	 * E-Mail address where to send errors
+	 * @var boolean
+	 */
 	static protected $email_errors = false;
 
+	/**
+	 * Custom exception handlers
+	 * @var array
+	 */
 	static protected $custom_handlers = [];
 
-	static protected $term_color = false;
-
-	static protected $catching = false;
+	/**
+	 * Additional debug environment information that should be included in logs
+	 * @var array
+	 */
+	static protected $debug_env = [];
 
 	/**
-	 * Enable error manager
-	 * @param  integer $type Type of error management (ErrorManager::PRODUCTION or ErrorManager::DEVELOPMENT)
-	 * @return void
+	 * Does the terminal support ANSI colors
+	 * @var boolean
 	 */
-	static public function enable($type = self::DEVELOPMENT)
-	{
-		self::$enabled = $type;
+	static protected $term_color = false;
 
-		self::$term_color = function_exists('posix_isatty') && @posix_isatty(STDOUT);
-
-		ini_set('display_errors', $type == self::DEVELOPMENT);
-		ini_set('log_errors', false);
-		ini_set('html_errors', false);
-		ini_set('error_reporting', $type == self::DEVELOPMENT ? -1 : E_ALL & ~E_DEPRECATED & ~E_STRICT);
-
-		if ($type == self::DEVELOPMENT && PHP_SAPI != 'cli')
-		{
-			self::setHtmlHeader('<!DOCTYPE html><meta charset="utf-8" /><style type="text/css">
-			body { font-family: sans-serif; } * { margin: 0; padding: 0; }
-			u, code b, i, h3 { font-style: normal; font-weight: normal; text-decoration: none; }
-			#icn { color: #fff; font-size: 2em; float: right; margin: 1em; padding: 1em; background: #900; border-radius: 50%; }
-			section header { background: #fdd; padding: 1em; }
-			section article { margin: 1em; }
-			section article h3 { font-size: 1em; }
-			code { border: 1px dotted #ccc; display: block; }
-			code b { margin-right: 1em; color: #999; }
-			code u { display: block; background: #fcc; }
-			</style>
-			<pre id="icn"> \__/<br /> (xx)<br />//||\\\\</pre>');
-		}
-
-		// For PHP7 we don't need to throw ErrorException as all errors are thrown as Error
-		// see https://secure.php.net/manual/en/language.errors.php7.php
-		if (!class_exists('\Error'))
-		{
-			set_error_handler([__CLASS__, 'errorHandler']);
-		}
-
-		register_shutdown_function([__CLASS__, 'shutdownHandler']);
-
-		return set_exception_handler([__CLASS__, 'exceptionHandler']);
-	}
-
-	static public function disable()
-	{
-		self::$enabled = false;
-
-		ini_set('error_prepend_string', null);
-		ini_set('error_append_string', null);
-		ini_set('log_errors', false);
-		ini_set('display_errors', false);
-		ini_set('error_reporting', E_ALL & ~E_DEPRECATED & ~E_STRICT);
-
-		restore_error_handler();
-		return restore_exception_handler();
-	}
+	/**
+	 * Will be set to true when catching an exception to avoid double catching
+	 * with the shutdown function
+	 * @var boolean
+	 */
+	static protected $catching = false;
 
 	/**
 	 * Handles PHP shutdown on fatal error to be able to catch the error
@@ -125,6 +98,10 @@ class ErrorManager
 		}
 	}
 
+	/**
+	 * Internal error handler to throw them as exceptions
+	 * (private use)
+	 */
 	static public function errorHandler($severity, $message, $file, $line)
 	{
 		if (!(error_reporting() & $severity)) {
@@ -135,27 +112,13 @@ class ErrorManager
 		throw new \ErrorException($message, 0, $severity, $file, $line);
 	}
 
-	static public function setLogFile($file)
-	{
-		ini_set('log_errors', true);
-		return ini_set('error_log', $file);
-	}
-
-	static public function setEmail($email)
-	{
-		if (!filter_var($email, FILTER_VALIDATE_EMAIL))
-		{
-			throw new \InvalidArgumentException('Invalid email address: ' . $email);
-		}
-
-		self::$email_errors = $email;
-	}
-
-	static public function setExtraDebugEnv($env)
-	{
-		self::$debug_env = $env;
-	}
-
+	/**
+	 * Print to terminal with colors if available
+	 * @param  string $message Message to print
+	 * @param  const  $pipe    UNIX pipe to outpit to (STDOUT, STDERR...)
+	 * @param  string $color   One of self::COLOR constants
+	 * @return void
+	 */
 	static public function termPrint($message, $pipe = STDOUT, $color = null)
 	{
 		if ($color)
@@ -166,6 +129,12 @@ class ErrorManager
 		fwrite($pipe, $message . PHP_EOL);
 	}
 
+	/**
+	 * Main exception handler
+	 * @param  object  $e    Exception or Error (PHP 7) object
+	 * @param  boolean $exit Exit the script at the end
+	 * @return void
+	 */
 	static public function exceptionHandler($e, $exit = true)
 	{
 		self::$catching = true;
@@ -228,29 +197,43 @@ class ErrorManager
 		}
 	}
 
-	static public function setHtmlHeader($html)
-	{
-		ini_set('error_prepend_string', $html);
-	}
-
-	static public function setHtmlFooter($html)
-	{
-		ini_set('error_append_string', $html);
-	}
-
-	static public function setProductionErrorTemplate($html)
-	{
-		$this->production_error_template = $html;
-	}
-
-	static public function setCustomExceptionHandler($class, Callable $callback)
-	{
-		$this->custom_handlers[$class] = $callback;
-	}
-
 	static public function exceptionAsLog($e, &$ref)
 	{
 		$out = '';
+
+		if (!empty($_SERVER['HTTP_HOST']) && !empty($_SERVER['REQUEST_URI']))
+			$out .= 'http://'.$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI']."\n\n";
+
+		while ($e)
+		{
+			$out .= get_class($e) 
+				. ' [Code ' . $e->getCode() . '] '
+				. $e->getMessage() . "\n"
+				. str_replace($_SERVER['DOCUMENT_ROOT'], '', $e->getFile())
+				 . ':' . $e->getLine() . "\n\n";
+
+			$out .= $e->getTraceAsString();
+			$out .= "\n\n";
+
+			$e = $e->getPrevious();
+		}
+
+		foreach (self::$debug_env as $key=>$value)
+		{
+			$out .= $key . ': ' . $value . "\n";
+		}
+
+		$out .= 'PHP version: ' . phpversion() . "\n";
+
+		foreach ($_SERVER as $key=>$value)
+		{
+			if (is_array($value))
+				$value = json_encode($value);
+
+			$out .= $key . ': ' . $value . "\n";
+		}
+
+		$out = str_replace("\r", '', $out);
 
 		$ref = base_convert(substr(sha1($out), 0, 10), 16, 36);
 		$out = '----- Bug report ref #' . $ref . " -----\n" . $out;
@@ -265,7 +248,23 @@ class ErrorManager
 
 		foreach ($e->getTrace() as $i=>$t)
 		{
+			$nb_args = count($t['args']);
+
 			echo '<article><h3>' . htmlspecialchars(dirname($t['file'])) . '/<b>' . htmlspecialchars(basename($t['file'])) . '</b>:<i>' . (int) $t['line'] . '</i> &rarr; <u>' . $t['function'] . '</u></h3>';
+			echo '<h4>' . htmlspecialchars($t['function']) . ' <i>(' . (int) $nb_args . ' arg.)</i></h4>';
+
+			if ($nb_args)
+			{
+				echo '<table>';
+
+				foreach ($t['args'] as $name => $value)
+				{
+					echo '<tr><th>' . htmlspecialchars($name) . '</th><td>' . htmlspecialchars(print_r($value, true)) . '</td>';
+				}
+
+				echo '</table>';
+			}
+
 			echo self::htmlSource($t['file'], $t['line']);
 			echo '</article>';
 		}
@@ -299,5 +298,121 @@ class ErrorManager
 		}
 
 		return '<pre><code>' . $out . '</code></pre>';
+	}
+
+	/**
+	 * Enable error manager
+	 * @param  integer $type Type of error management (ErrorManager::PRODUCTION or ErrorManager::DEVELOPMENT)
+	 * @return void
+	 */
+	static public function enable($type = self::DEVELOPMENT)
+	{
+		if (self::$enabled)
+			return true;
+
+		self::$enabled = $type;
+
+		self::$term_color = function_exists('posix_isatty') && @posix_isatty(STDOUT);
+
+		ini_set('display_errors', $type == self::DEVELOPMENT);
+		ini_set('log_errors', false);
+		ini_set('html_errors', false);
+		ini_set('error_reporting', $type == self::DEVELOPMENT ? -1 : E_ALL & ~E_DEPRECATED & ~E_STRICT);
+
+		if ($type == self::DEVELOPMENT && PHP_SAPI != 'cli')
+		{
+			self::setHtmlHeader('<!DOCTYPE html><meta charset="utf-8" /><style type="text/css">
+			body { font-family: sans-serif; } * { margin: 0; padding: 0; }
+			u, code b, i, h3 { font-style: normal; font-weight: normal; text-decoration: none; }
+			#icn { color: #fff; font-size: 2em; float: right; margin: 1em; padding: 1em; background: #900; border-radius: 50%; }
+			section header { background: #fdd; padding: 1em; }
+			section article { margin: 1em; }
+			section article h3 { font-size: 1em; }
+			code { border: 1px dotted #ccc; display: block; }
+			code b { margin-right: 1em; color: #999; }
+			code u { display: block; background: #fcc; }
+			table { border-collapse: collapse; margin: 1em; } td, th { border: 1px solid #ccc; padding: .2em .5em; }
+			</style>
+			<pre id="icn"> \__/<br /> (xx)<br />//||\\\\</pre>');
+		}
+
+		// For PHP7 we don't need to throw ErrorException as all errors are thrown as Error
+		// see https://secure.php.net/manual/en/language.errors.php7.php
+		if (!class_exists('\Error'))
+		{
+			set_error_handler([__CLASS__, 'errorHandler']);
+		}
+
+		register_shutdown_function([__CLASS__, 'shutdownHandler']);
+
+		return set_exception_handler([__CLASS__, 'exceptionHandler']);
+	}
+
+	/**
+	 * Reset error management to PHP defaults
+	 * @return boolean
+	 */
+	static public function disable()
+	{
+		self::$enabled = false;
+
+		ini_set('error_prepend_string', null);
+		ini_set('error_append_string', null);
+		ini_set('log_errors', false);
+		ini_set('display_errors', false);
+		ini_set('error_reporting', E_ALL & ~E_DEPRECATED & ~E_STRICT);
+
+		restore_error_handler();
+		return restore_exception_handler();
+	}
+
+	/**
+	 * Sets a log file to record errors
+	 * @param string $file Error log file
+	 */
+	static public function setLogFile($file)
+	{
+		ini_set('log_errors', true);
+		return ini_set('error_log', $file);
+	}
+
+	/**
+	 * Sets an email address that should receive the logs
+	 * Set to FALSE to disable email sending (default)
+	 * @param string $email Email address
+	 */
+	static public function setEmail($email)
+	{
+		if (!filter_var($email, FILTER_VALIDATE_EMAIL))
+		{
+			throw new \InvalidArgumentException('Invalid email address: ' . $email);
+		}
+
+		self::$email_errors = $email;
+	}
+
+	static public function setExtraDebugEnv($env)
+	{
+		self::$debug_env = $env;
+	}
+
+	static public function setHtmlHeader($html)
+	{
+		ini_set('error_prepend_string', $html);
+	}
+
+	static public function setHtmlFooter($html)
+	{
+		ini_set('error_append_string', $html);
+	}
+
+	static public function setProductionErrorTemplate($html)
+	{
+		$this->production_error_template = $html;
+	}
+
+	static public function setCustomExceptionHandler($class, Callable $callback)
+	{
+		$this->custom_handlers[$class] = $callback;
 	}
 }
