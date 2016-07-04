@@ -546,28 +546,47 @@ class ErrorManager
 		self::$email_errors = $email;
 	}
 
+	/**
+	 * Add an extra variable to debug environment reported by errors
+	 * @param mixed $env Variable content, could be application version, or an array of information...
+	 */
 	static public function setExtraDebugEnv($env)
 	{
 		self::$debug_env = $env;
 	}
 
+	/**
+	 * Set the HTML header used by the debug error page
+	 * @param string $html HTML header
+	 */
 	static public function setHtmlHeader($html)
 	{
 		ini_set('error_prepend_string', $html);
 	}
 
+	/**
+	 * Set the HTML footer used by the debug error page
+	 * @param string $html HTML footer
+	 */
 	static public function setHtmlFooter($html)
 	{
 		ini_set('error_append_string', $html);
 	}
 
+	/**
+	 * Set the content of the HTML template used to display an error in production
+	 * {$ref} will be replaced by the error reference if log or email is enabled
+	 * <if(email)>...</if> block will be removed if email reporting is disabled
+	 * <if(log)>...</if> block will be removed if log reporting is disabled
+	 * @param string $html HTML template
+	 */
 	static public function setProductionErrorTemplate($html)
 	{
-		$this->production_error_template = $html;
+		self::$production_error_template = $html;
 	}
 
 	static public function setCustomExceptionHandler($class, Callable $callback)
 	{
-		$this->custom_handlers[$class] = $callback;
+		self::$custom_handlers[$class] = $callback;
 	}
 }
