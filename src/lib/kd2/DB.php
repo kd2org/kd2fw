@@ -136,6 +136,7 @@ class DB extends PDO
 		if ($driver['type'] == 'sqlite')
 		{
 			$this->sqliteCreateFunction('rank', [$this, 'sqlite_rank']);
+			$this->sqliteCreateFunction('haversine_distance', [$this, 'sqlite_haversine']);
 		}
 	}
 
@@ -321,6 +322,20 @@ class DB extends PDO
 		}
 
 		return $score;
+	}
+
+	/**
+	 * Haversine distance between two points
+	 * @return double Distance in kilometres
+	 */
+	public function sqlite_haversine()
+	{
+		if (count($geo = array_map('deg2rad', array_filter(func_get_args(), 'is_numeric'))) != 4)
+		{
+			throw new \InvalidArgumentException('4 arguments expected for haversine_distance');
+		}
+    	
+    	return round(acos(sin($geo[0]) * sin($geo[2]) + cos($geo[0]) * cos($geo[2]) * cos($geo[1] - $geo[3])) * 6372.8, 3);
 	}
 
 	/**
