@@ -28,11 +28,34 @@
 
 namespace KD2;
 
+/**
+ * Simple error and exception handler
+ *
+ * When enabled (with ErrorManager::enable(ErrorManager::DEVELOPMENT)) it will
+ * catch any error, warning or exception and display it along with useful debug
+ * information. If enabled it will also log the errors to a file and/or send
+ * every error by email.
+ *
+ * In production mode no details are given, but a unique reference to the log
+ * or email is displayed.
+ * 
+ * This is similar in a way to http://tracy.nette.org/
+ *
+ * @author  bohwaz <http://bohwaz.net/>
+ * @package KD2fw
+ * @license BSD
+ */
 class ErrorManager
 {
+	/**
+	 * Prod/dev modes
+	 */
 	const PRODUCTION = 1;
 	const DEVELOPMENT = 2;
 
+	/**
+	 * Term colors
+	 */
 	const RED = '[1;41m';
 	const RED_FAINT = '[1m';
 	const YELLOW = '[33m';
@@ -90,6 +113,12 @@ class ErrorManager
 	 * @var boolean
 	 */
 	static protected $catching = false;
+
+	/**
+	 * Used to store timers and memory consumption
+	 * @var array
+	 */
+	static protected $run_trace = [];
 
 	/**
 	 * Handles PHP shutdown on fatal error to be able to catch the error
@@ -216,6 +245,10 @@ class ErrorManager
 					self::htmlException($e);
 					$e = $e->getPrevious();
 				}
+
+				self::htmlEnvironment();
+
+				echo ini_get('error_append_string');
 			}
 		}
 
@@ -381,6 +414,15 @@ class ErrorManager
 	}
 
 	/**
+	 * Display environment information
+	 * @return void
+	 */
+	static public function htmlEnvironment()
+	{
+
+	}
+
+	/**
 	 * Source code display
 	 * @param  string $file File location
 	 * @param  integer $line Line to highlight
@@ -492,6 +534,9 @@ class ErrorManager
 			<pre id="icn"> \__/<br /> (xx)<br />//||\\\\</pre>');
 		}
 
+		if ($type == self::DEVELOPMENT)
+			self::setTimer('_global');
+
 		// For PHP7 we don't need to throw ErrorException as all errors are thrown as Error
 		// see https://secure.php.net/manual/en/language.errors.php7.php
 		if (!class_exists('\Error'))
@@ -520,6 +565,26 @@ class ErrorManager
 
 		restore_error_handler();
 		return restore_exception_handler();
+	}
+
+	/**
+	 * Sets a microsecond timer to track time and memory usage
+	 * @param string $name Timer name
+	 */
+	static public function startTimer($name)
+	{
+		self::$run_trace[$name] = [microtime(true), memory_get_usage()];
+	}
+
+	/**
+	 * Stops a timer and return time spent and memory used
+	 * @param string $name Timer name
+	 */
+	static public function stopTimer($name)
+	{
+		self::$run_trace[$name][0] = microtime(true) - self::$run_trace[$name][0];
+		self::$run_trace[$name][1] = memory_get_usage() - self::$run_trace[$name][1];
+		return self::$run_trace[$name];
 	}
 
 	/**
