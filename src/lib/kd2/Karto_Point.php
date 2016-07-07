@@ -29,59 +29,88 @@
 /**
  * Karto: an independent PHP library providing basic mapping tools
  *
- * Copyleft (C) 2010-2016 BohwaZ
+ * @author	bohwaz	http://bohwaz.net/
+ * @license	BSD
+ * @version	0.3
  */
 
 namespace KD2;
 
-class Karto_Point implements \ArrayAccess
-{
-	const PIXELS_OFFSET = 268435456;
-	// You might wonder where did number 268435456 come from? 
-	// It is half of the earth circumference in pixels at zoom level 21. 
-	// You can visualize it by thinking of full map. 
-	// Full map size is 536870912 × 536870912 pixels. 
-	// Center of the map in pixel coordinates is 268435456,268435456 
-	// which in latitude and longitude would be 0,0.
-	const PIXELS_RADIUS = 85445659.4471; /* PIXELS_OFFSET / pi() */
+use ArrayAccess;
 
+class Karto_Point implements ArrayAccess
+{
+	/**
+	 * Half of the earth circumference in pixels at zoom level 21
+	 *
+	 * Full map size is 536870912 × 536870912 pixels.
+	 * Center of the map in pixel coordinates is 268435456,268435456 
+	 * which in latitude and longitude would be 0,0.
+	 */
+	const PIXELS_OFFSET = 268435456;
+
+	/**
+	 * PIXELS_OFFSET / pi()
+	 */
+	const PIXELS_RADIUS = 85445659.4471;
+
+	/**
+	 * Latitude value
+	 * @var float
+	 */
 	protected $lat = null;
+
+	/**
+	 * Longitude value
+	 * @var float
+	 */	
 	protected $lon = null;
 
+	/**
+	 * "Magic" constructor  will accept either float coordinates or an array or a Karto_Point object
+	 * @param	float	$lat	Latitude
+	 * @param	float	$lon	Longitude
+	 */
 	public function __construct($lat = null, $lon = null)
 	{
 		$self = __CLASS__;
 
 		if (is_object($lat) && $lat instanceof $self)
 		{
-			$this->lat = $lat->lat;
-			$this->lon = $lat->lon;
+			$this->lat = (float) $lat->lat;
+			$this->lon = (float) $lat->lon;
 		}
 		elseif (is_array($lat) && is_null($lon) && array_key_exists('lat', $lat))
 		{
-			$this->lat = $lat['lat'];
-			$this->lon = $lat['lon'];
+			$this->lat = (float) $lat['lat'];
+			$this->lon = (float) $lat['lon'];
 		}
 		elseif (is_array($lat) && is_null($lon) && array_key_exists(1, $lat))
 		{
-			$this->lat = $lat[0];
-			$this->lon = $lat[1];
+			$this->lat = (float) $lat[0];
+			$this->lon = (float) $lat[1];
 		}
 		else
 		{
 			if (!is_null($lat))
-				$this->lat = $lat;
+				$this->lat = (float) $lat;
 			
 			if (!is_null($lon))
-				$this->lon = $lon;
+				$this->lon = (float) $lon;
 		}
 	}
 
+	/**
+	 * Returns current coordinates as a string
+	 */
 	public function __toString()
 	{
 		return $this->lat . ',' . $this->lon;
 	}
 
+	/**
+	 * Setter
+	 */
 	public function __set($key, $value)
 	{
 		if ($key == 'lng')
@@ -111,6 +140,9 @@ class Karto_Point implements \ArrayAccess
 		$this->$key = (double) $value;
 	}
 
+	/**
+	 * Getter
+	 */
 	public function __get($key)
 	{
 		if ($key == 'lng')
@@ -124,27 +156,39 @@ class Karto_Point implements \ArrayAccess
 		return $this->$key;
 	}
 
+	/**
+	 * ArrayAccess getter
+	 */
 	public function offsetSet($key, $value)
 	{
 		$this->__set($key, $value);
 	}
 
+	/**
+	 * ArrayAccess exists
+	 */
 	public function offsetExists($offset) {
 		return isset($this->$offset);
 	}
 
+	/**
+	 * ArrayAccess unset
+	 */
 	public function offsetUnset($offset) {
 		$this->__set($offset, null);
 	}
 
+	/**
+	 * ArrayAccess setter
+	 */
 	public function offsetGet($offset) {
 		return $this->__get($offset);
 	}
 
 	/**
 	 * Gets distance between this point and another
-	 * @param  object Karto_Point $point Distant point
-	 * @return double Distance in KM
+	 * @param	Karto_Point	$point	Distant point
+	 * @return	float				Distance in KM
 	 */
 	public function distanceTo(Karto_Point $point)
 	{
@@ -163,24 +207,32 @@ class Karto_Point implements \ArrayAccess
 
 	/**
 	 * Distance in pixels between two points at a specific zoom level
-	 * @param  float $lat1 Latitude of starting point (decimal)
-	 * @param  float $lon1 Longitude of starting point (decimal)
-	 * @param  float $lat2 Latitude of destination (decimal)
-	 * @param  float $lon2 Longitude of destination (decimal)
-	 * @param  integer $zoom Zoom level
-	 * @return int Distance in pixels
+	 * @param	Karto_Point	$point	Distant point
+	 * @param	integer		$zoom	Zoom level
+	 * @param	mixed		$restrict	Restrict direction (x or y, or false to have the diagonal)
+	 * @return	int					Distance in pixels
 	 */
-	public function pixelDistanceTo(Karto_Point $point, $zoom)
+	public function pixelDistanceTo(Karto_Point $point, $zoom, $restrict = false)
 	{
 		list($x1, $y1) = $this->XY();
 		list($x2, $y2) = $point->XY();
+
+		// Restrict direction
+		if ($restrict == 'x')
+		{
+			$y1 = $y2;
+		}
+		else if ($restrict == 'y')
+		{
+			$x1 = $x2;
+		}
 			
 		return sqrt(pow(($x1-$x2),2) + pow(($y1-$y2),2)) >> (21 - $zoom);
 	}
 
 	/**
 	 * Get position in pixels for map
-	 * @return array [int X, int Y] position on map in pixels
+	 * @return	array	[int X, int Y] position on map in pixels at zoom 21
 	 */
 	public function XY()
 	{
@@ -191,10 +243,9 @@ class Karto_Point implements \ArrayAccess
 		return [$x, $y];
 	}
 
-
 	/**
 	 * Converts a latitude and longitude from decimal to DMS notation
-	 * @return array Latitude / Longitude in DMS notation, eg. [45 5 56 S, 174 11 37 E]
+	 * @return	array	Latitude / Longitude in DMS notation, eg. [45 5 56 S, 174 11 37 E]
 	 */
 	static function toDMS()
 	{
@@ -221,8 +272,8 @@ class Karto_Point implements \ArrayAccess
 
 	/**
 	 * Is this latitude/longitude contained inside the given set bounds?
-	 * @param  object  Karto_Point_Set $set Set of points
-	 * @return boolean             true if point is inside the boundaries, false if it is outside
+	 * @param	Karto_Point_Set	$set	Set of points
+	 * @return	boolean					true if point is inside the boundaries, false if it is outside
 	 */
 	public function isContainedIn(Karto_Point_Set $set)
 	{
@@ -238,5 +289,4 @@ class Karto_Point implements \ArrayAccess
 
 		return false;
 	}
-
 }

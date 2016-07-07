@@ -29,7 +29,9 @@
 /**
  * Karto: an independent PHP library providing basic mapping tools
  *
- * Copyleft (C) 2010-2013 BohwaZ
+ * @author	bohwaz	http://bohwaz.net/
+ * @license	BSD
+ * @version	0.3
  */
 
 namespace KD2;
@@ -38,9 +40,17 @@ use KD2\Karto_Point;
 
 class Karto_Point_Set
 {
+	/**
+	 * Internal storage of set of points
+	 * @var array
+	 */
 	protected $points = [];
 
-	public function __construct($points)
+	/**
+	 * Contructor
+	 * @param array $points List of points to add to the set
+	 */
+	public function __construct(array $points = [])
 	{
 		foreach ($points as $point)
 		{
@@ -48,21 +58,37 @@ class Karto_Point_Set
 		}
 	}
 
+	/**
+	 * Add a new point to the set
+	 * @param mixed $point Could be a Karto_Point object, or an array like [85, 180] or [lat => 85, lon => 180]
+	 */
 	public function add($point)
 	{
 		$this->points[] = new Karto_Point($point);
 	}
 
+	/**
+	 * Returns all the points of the set
+	 * @return array list of Karto_Point points
+	 */
 	public function getPoints()
 	{
 		return $this->points;
 	}
 
+	/**
+	 * Returns the number of points in the current set
+	 * @return integer Number of points
+	 */
 	public function count()
 	{
 		return count($this->points);
 	}
 
+	/**
+	 * Returns the bounding box of the current set of coordinates
+	 * @return stdClass {float minLat, float maxLat, float minLon, float maxLon, Karto_Point northEast, Karto_Point southWest}
+	 */
 	public function getBBox()
 	{
 		if (count($this->points) < 1)
@@ -197,30 +223,65 @@ class Karto_Point_Set
 	}
 
 	/**
-	 * Returns mercator suitable zoom level according to the set of points
-	 * @param float $padding Extra padding around the bounding box (< 1 = reduce padding, 1 = no padding, > 1 = add padding)
-	 * @return integer Zoom level between 1 and 21
+	 * Encode the current set of coordinates as a polyline
+	 * @link	https://developers.google.com/maps/documentation/utilities/polylinealgorithm Polyline algorithm
+	 * @return	string	A polyline encoded string
 	 */
-	public function getZoomLevel($padding = 1)
+	static public function toPolyline()
+	{
+		// Flatten array
+		$points = new RecursiveIteratorIterator(new RecursiveArrayIterator($this->points));
+
+		$precision = 5;
+		$encodedString = '';
+		$index = 0;
+		$previous = [0, 0];
+
+		foreach ($points as $number)
+		{
+			$number = (float) $number;
+			
+			$number = round($number * pow(10, $precision));
+			$diff = $number - $previous[$index % 2];
+			$previous[$index % 2] = $number;
+			$number = $diff;
+			$index++;
+			$number = ($number < 0) ? ~($number << 1) : ($number << 1);
+			$chunk = '';
+			
+			while ($number >= 0x20)
+			{
+				$chunk .= chr((0x20 | ($number & 0x1f)) + 63);
+				$number >>= 5;
+			}
+
+			$chunk .= chr($number + 63);
+			$encodedString .= $chunk;
+		}
+
+		return $encodedString;
+	}
+
+	/**
+	 * Returns mercator suitable zoom level according to the set of points
+	 * @param	integer	$mapWidth	Target map width in pixels
+	 * @param	integer	$mapHeight	Target map height in pixels
+	 * @return	integer			Zoom level between 0 and 21
+	 * @link http://stackoverflow.com/a/15397775
+	 */
+	public function getZoomLevel($mapWidth, $mapHeight)
 	{
 		$bbox = $this->getBBox();
-		$latDiff = ($bbox->maxLat - $bbox->minLat) * $padding;
-		$lngDiff = ($bbox->maxLon - $bbox->minLon) * $padding;
 
-		$maxDiff = ($lngDiff > $latDiff) ? $lngDiff : $latDiff;
-		
-		if ($maxDiff < 360 / pow(2, 20))
+		for ($zoom = 21; $zoom >= 0; --$zoom)
 		{
-			$zoomLevel = 21;
-		}
-		else
-		{
-			$zoomLevel = (int) (-1*( (log($maxDiff)/log(2)) - (log(360)/log(2))));
-	
-			if ($zoomLevel < 1)
-				$zoomLevel = 1;
+			$distance_w = $bbox->northEast->pixelDistanceTo($bbox->southWest, $zoom, 'x');
+			$distance_h = $bbox->northEast->pixelDistanceTo($bbox->southWest, $zoom, 'y');
+
+			if ($distance_w <= $mapWidth && $distance_h <= $mapHeight)
+				return $zoom;
 		}
 
-		return $zoomLevel;
+		return 0;
 	}
 }
