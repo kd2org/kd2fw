@@ -37,6 +37,7 @@
 namespace KD2;
 
 use ArrayAccess;
+use \KD2\Karto_Point_Set;
 
 class Karto_Point implements ArrayAccess
 {
