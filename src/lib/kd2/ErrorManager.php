@@ -534,19 +534,21 @@ class ErrorManager
 			<pre id="icn"> \__/<br /> (xx)<br />//||\\\\</pre>');
 		}
 
-		if ($type == self::DEVELOPMENT)
-			self::setTimer('_global');
-
 		// For PHP7 we don't need to throw ErrorException as all errors are thrown as Error
 		// see https://secure.php.net/manual/en/language.errors.php7.php
-		if (!class_exists('\Error'))
+		if (!class_exists('\Error', false))
 		{
 			set_error_handler([__CLASS__, 'errorHandler']);
 		}
 
 		register_shutdown_function([__CLASS__, 'shutdownHandler']);
 
-		return set_exception_handler([__CLASS__, 'exceptionHandler']);
+		set_exception_handler([__CLASS__, 'exceptionHandler']);
+
+		if ($type == self::DEVELOPMENT)
+		{
+			self::startTimer('_global');
+		}
 	}
 
 	/**
@@ -593,6 +595,7 @@ class ErrorManager
 	 */
 	static public function setLogFile($file)
 	{
+		ini_set('log_errors', true);
 		return ini_set('error_log', $file);
 	}
 
