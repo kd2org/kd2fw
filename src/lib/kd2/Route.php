@@ -40,7 +40,11 @@ class RouteException extends \RuntimeException {}
 
 class Route
 {
-	static public $http_methods = [
+	/**
+	 * Known HTTP request methods
+	 * @var array
+	 */
+	static protected $http_methods = [
 		// RFC 2616
 		'GET', 'POST', 'HEAD', 'PUT', 'DELETE', 'TRACE', 'OPTIONS', 'CONNECT',
 		'PATCH',
@@ -56,6 +60,10 @@ class Route
 		'ACL',
 	];
 
+	/**
+	 * Returns HTTP request method
+	 * @return string HTTP request method (eg. GET, POST...)
+	 */
 	static public function requestMethod()
 	{
 		if (empty($_SERVER['REQUEST_METHOD']))
@@ -64,6 +72,14 @@ class Route
 		return strtoupper($_SERVER['REQUEST_METHOD']);
 	}
 
+	/**
+	 * Returns the URI requested by the HTTP requests
+	 * @param  boolean $relative If TRUE will send the request URI relative
+	 * to the document root (useful if your app is not in the root directory
+	 * of the virtual host).
+	 * If FALSE will just return the raw request URI.
+	 * @return string            Request URI
+	 */
 	static public function requestURI($relative = false)
 	{
 		if (empty($_SERVER['REQUEST_URI']))
@@ -90,6 +106,12 @@ class Route
 		return $uri;
 	}
 
+	/**
+	 * Magic call for HTTP methods, eg. GET(...) post(...)
+	 * @param  string $name      method name
+	 * @param  array $arguments  Method arguments
+	 * @return mixed
+	 */
 	static public function __callStatic($name, $arguments)
 	{
 		$method = strtoupper($name);
@@ -108,6 +130,12 @@ class Route
 		throw new \BadMethodCallException('Unknown method name: ' . $name);
 	}
 
+	/**
+	 * HTTP router, with optional method
+	 * @param string   $pattern  Regexp pattern for matching the request URI
+	 * @param Callable $callback Callback to use when the regexp match (any matching pattern will be passed as argument)
+	 * @param string   $method   HTTP request method
+	 */
 	static public function HTTP($pattern, Callable $callback, $method = null)
 	{
 		if (!is_null($method) && $method != self::requestMethod())
@@ -115,10 +143,32 @@ class Route
 			throw new RouteException('Method Not Allowed', 405);
 		}
 
-		return self::route($pattern, $callback);
+		return self::route(self::requestURI(true), $pattern, $callback);
 	}
 
-	static public function route($pattern, Callable $callback)
+	/**
+	 * Simple command line router
+	 * @param string   $pattern  Regexp pattern to match in the arguments
+	 * @param Callable $callback Callack to use if regexp is matching
+	 */
+	static public function CLI($pattern, Callable $callback)
+	{
+		$args = $_SERVER['argv'];
+		array_shift($args);
+		$args = implode(' ', $args);
+		
+		return self::route($args, $pattern, $callback);
+	}
+
+	/**
+	 * Main routing logic
+	 * @param  string   $path     	Path to match/route against
+	 * @param  string   $pattern  	Regular expression to match to execute this route
+	 * @param  Callable $callback 	Route callback, called if $pattern is matching $path
+	 * Any capturing pattern will be passed to callback: $callback(capture1, capture2...)
+	 * @return mixed				TRUE if the route matched, FALSE if not
+	 */
+	static public function route($path, $pattern, Callable $callback)
 	{
 		// Allow for {id}, {id_bis?}, {id:\d+}, {login?:(?i:\w+\.\w+\d+)}
 		$name_pattern = '(\w+(?:_\w+)*)(\?)?(?:\:(.+?))?';
@@ -136,7 +186,8 @@ class Route
 		if (preg_match($pattern, self::requestURI(true), $match))
 		{
 			unset($match[0]);
-			return call_user_func_array($callback, $match);
+			call_user_func_array($callback, $match);
+			return true;
 		}
 
 		return false;
