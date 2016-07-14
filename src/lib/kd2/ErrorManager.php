@@ -151,7 +151,17 @@ class ErrorManager
 
 		$message = self::errorTypeName($severity) . ': ' . $message;
 
+		// Catch ASSERT_BAIL errors differently because throwing an exception
+		// in this case results in an execution shutdown, and shutdown handler
+		// isn't even called. See https://bugs.php.net/bug.php?id=53619
+		if (assert_options(ASSERT_ACTIVE) && assert_options(ASSERT_BAIL) && substr($message, 0, 18) == 'Warning: assert():')
+		{
+			$message .= ' (ASSERT_BAIL detected)';
+			return self::exceptionHandler(new \ErrorException($message, 0, $severity, $file, $line));
+		}
+
 		throw new \ErrorException($message, 0, $severity, $file, $line);
+		return true;
 	}
 
 	/**
@@ -515,7 +525,7 @@ class ErrorManager
 		ini_set('display_errors', false);
 		ini_set('log_errors', false);
 		ini_set('html_errors', false);
-		ini_set('error_reporting', $type == self::DEVELOPMENT ? -1 : E_ALL & ~E_DEPRECATED & ~E_STRICT);
+		error_reporting($type == self::DEVELOPMENT ? -1 : E_ALL & ~E_DEPRECATED & ~E_STRICT);
 
 		if ($type == self::DEVELOPMENT && PHP_SAPI != 'cli')
 		{
@@ -534,16 +544,15 @@ class ErrorManager
 			<pre id="icn"> \__/<br /> (xx)<br />//||\\\\</pre>');
 		}
 
+		register_shutdown_function([__CLASS__, 'shutdownHandler']);
+		set_exception_handler([__CLASS__, 'exceptionHandler']);
+
 		// For PHP7 we don't need to throw ErrorException as all errors are thrown as Error
 		// see https://secure.php.net/manual/en/language.errors.php7.php
 		if (!class_exists('\Error', false))
 		{
 			set_error_handler([__CLASS__, 'errorHandler']);
 		}
-
-		register_shutdown_function([__CLASS__, 'shutdownHandler']);
-
-		set_exception_handler([__CLASS__, 'exceptionHandler']);
 
 		if ($type == self::DEVELOPMENT)
 		{
