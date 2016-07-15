@@ -12,3 +12,4 @@ Magic variable: {$object.array.key1}
 Object variable: {$this.template_path}
 Object static variable: {$this::$cache_path}
 Local variable from include: {$local}
+Constant from class: {$testclass.TEST_CONSTANT}

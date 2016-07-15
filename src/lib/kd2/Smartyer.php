@@ -573,10 +573,26 @@ class Smartyer
 		{
 			if (is_object($var))
 			{
+				// Test for constants
+				if (defined(get_class($var) . '::' . $key))
+				{
+					return constant(get_class($var) . '::' . $key);
+				}
+
+				if (!property_exists($var, $key))
+				{
+					return null;
+				}
+				
 				$var = $var->$key;
 			}
 			elseif (is_array($var))
 			{
+				if (!array_key_exists($key, $var))
+				{
+					return null;
+				}
+
 				$var = $var[$key];
 			}
 		}

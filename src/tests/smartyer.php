@@ -4,6 +4,11 @@ use KD2\Smartyer;
 
 require __DIR__ . '/_assert.php';
 
+class TestClass
+{
+	const TEST_CONSTANT = 42;
+}
+
 Smartyer::setCachePath('/tmp');
 Smartyer::setTemplatesPath(__DIR__ . '/data/smartyer');
 
@@ -11,6 +16,8 @@ $tpl = new Smartyer('all.tpl');
 
 $tpl->assign('loop', [2 => 'a', 'b', 'c']);
 $tpl->assign('empty_loop', []);
+
+$tpl->assign('testclass', new TestClass);
 
 $tpl->assign('simple', 'Hello world!');
 $tpl->assign('html', '<big>Hello</big> world!');
