@@ -1,5 +1,7 @@
 {if true}
 	TRUE
+{else}
+	FALSE
 {/if}
 
 {if false}

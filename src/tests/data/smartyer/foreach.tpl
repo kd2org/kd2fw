@@ -1,4 +1,4 @@
-{foreach $loop as $k=>$v}
+{foreach ($loop as $k=>$v)}
 	{$k} = {$v} (iteration {$iteration})
 {/foreach}
 
@@ -14,4 +14,4 @@
 	{$v}
 {foreachelse}
 	Empty loop
-{/if}
+{/foreach}

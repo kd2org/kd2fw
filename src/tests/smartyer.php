@@ -31,7 +31,7 @@ $tpl->register_modifier('link', function ($str, $url) {
 });
 
 $tpl->register_function('lorem', function ($args) {
-	return str_repeat('lorem ipsum ' . $args['bis'], $args['ipsum']);
+	return str_repeat('lorem ipsum ' . $args['bis'] . $args['ter'], $args['ipsum']);
 });
 
 $tpl->register_block('rot13', function ($content, $params) {
