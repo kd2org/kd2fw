@@ -227,6 +227,12 @@ class ErrorManager
 				error_log($log, 1, self::$email_errors, implode("\r\n", $headers));
 			}
 
+			// Disable any output if it was buffering
+			if (ob_get_level())
+			{
+				ob_end_clean();
+			}
+
 			if (PHP_SAPI == 'cli')
 			{
 				self::termPrint(get_class($e) . ' [Code: ' . $e->getCode() . ']', STDERR, self::RED);
