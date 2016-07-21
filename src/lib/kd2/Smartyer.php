@@ -106,7 +106,7 @@ class Smartyer
 
 	/**
 	 * Modifier functions registered to the template
-	 * @var [type]
+	 * @var array
 	 */
 	protected $modifiers = [
 		'nl2br' => 'nl2br',
@@ -118,6 +118,12 @@ class Smartyer
 		'regex_replace' => [__CLASS__, 'replaceRegExp'],
 		'date_format' => [__CLASS__, 'dateFormat'],
 	];
+
+	/**
+	 * Auto-escaping type (any type accepted by self::escape())
+	 * @var string
+	 */
+	protected $escape_type = null;
 
 	/**
 	 * List of native PHP tags that don't require any argument
@@ -193,7 +199,7 @@ class Smartyer
 	 * @param Smartyer|null $parent   Parent template object, useful to have a global
 	 * template object with lots of assigns that will be used with all templates
 	 */
-	public function __construct($template = null, Smartyer $parent = null)
+	public function __construct($template = null, Smartyer &$parent = null)
 	{
 		if (is_null(self::$cache_path))
 		{
@@ -203,9 +209,10 @@ class Smartyer
 		$this->delimiter_start = preg_quote($this->delimiter_start, '#');
 		$this->delimiter_end = preg_quote($this->delimiter_end, '#');
 
-		$this->template_path = self::$templates_path . DIRECTORY_SEPARATOR . $template;
+		$this->template_path = !is_null($template) ? self::$templates_path . DIRECTORY_SEPARATOR . $template : null;
 		$this->compiled_template_path = self::$cache_path . DIRECTORY_SEPARATOR . sha1($template) . '.phptpl';
 
+		// Register parent functions and variables locally
 		if ($parent instanceof Smartyer)
 		{
 			foreach ($parent->modifiers as $key=>$value)
@@ -227,7 +234,22 @@ class Smartyer
 			{
 				$this->assign($key, $value);
 			}
+
+			$this->setEscapeType($parent->escape_type);
 		}
+	}
+
+	/**
+	 * Returns Smartyer object built from a template string instead of a file path
+	 * @param  string $string Template contents
+	 * @return Smartyer
+	 */
+	static public function fromString($string, Smartyer &$parent = null)
+	{
+		$s = new Smartyer(null, $parent);
+		$s->source = $string;
+		$s->compiled_template_path = self::$cache_path . DIRECTORY_SEPARATOR . sha1($string) . '.phptpl';
+		return $s;
 	}
 
 	/**
@@ -258,7 +280,7 @@ class Smartyer
 
 		$time = @filemtime($this->compiled_template_path);
 
-		if (!$time || (self::$cache_check_changes && filemtime($this->template_path) > $time))
+		if (!$time || (!is_null($this->template_path) && filemtime($this->template_path) > $time))
 		{
 			return $this->compile();
 		}
@@ -273,6 +295,16 @@ class Smartyer
 	}
 
 	/**
+	 * Sets the auto-escaping type for the current template
+	 * @param string $type Escape type supported by self::escape()
+	 */
+	public function setEscapeType($type)
+	{
+		$this->escape_type = $type;
+		return $this;
+	}
+
+	/**
 	 * Assign a variable to the template
 	 * @param  mixed  $name  Variable name or associative array of multiple variables
 	 * @param  mixed  $value Variable value if variable name is a string
@@ -282,7 +314,7 @@ class Smartyer
 	{
 		if (is_array($name))
 		{
-			foreach ($name as $k=>$v)
+			foreach ($name as $k=>&$v)
 			{
 				$this->assign($k, $v);
 			}
@@ -290,6 +322,18 @@ class Smartyer
 			return $this;
 		}
 
+		$this->variables[$name] = $value;
+		return $this;
+	}
+
+	/**
+	 * Assign a variable by reference to the template
+	 * @param  mixed  $name  Variable name or associative array of multiple variables
+	 * @param  mixed  &$value Reference
+	 * @return Smartyer
+	 */
+	public function assign_by_ref($name, &$value)
+	{
 		$this->variables[$name] = $value;
 		return $this;
 	}
@@ -304,7 +348,7 @@ class Smartyer
 	{
 		if (is_array($name))
 		{
-			foreach ($name as $k=>$v)
+			foreach ($name as $k=>&$v)
 			{
 				$this->register_modifier($k, $v);
 			}
@@ -326,7 +370,7 @@ class Smartyer
 	{
 		if (is_array($name))
 		{
-			foreach ($name as $k=>$v)
+			foreach ($name as $k=>&$v)
 			{
 				$this->register_function($k, $v);
 			}
@@ -348,7 +392,7 @@ class Smartyer
 	{
 		if (is_array($name))
 		{
-			foreach ($name as $k=>$v)
+			foreach ($name as $k=>&$v)
 			{
 				$this->register_block($k, $v);
 			}
@@ -371,14 +415,14 @@ class Smartyer
 		}
 
 		$this->source = str_replace("\r", "", $this->source);
-		
+
 		$compiled = $this->parse($this->source);
 
 		// Force new lines (this is to avoid PHP eating new lines after its closing tag)
 		$compiled = preg_replace("/\?>\n/", "$0\n", $compiled);
 
 		$compiled = '<?php /* Compiled from ' . $this->template_path . ' - ' . gmdate('Y-m-d H:i:s') . ' UTC */ '
-			. 'if (!isset($_i)) { $_i = []; } if (!isset($_blocks)) { $_blocks = []; }  ?>'
+			. 'if (!isset($_i)) { $_i = []; } if (!isset($_blocks)) { $_blocks = []; } ?>'
 			. $compiled;
 
 		// Write to temporary file
@@ -426,6 +470,8 @@ class Smartyer
 		@unlink($this->compiled_template_path);
 		rename($this->compiled_template_path . '.tmp', $this->compiled_template_path);
 
+		unset($source, $compiled);
+
 		return $out;
 	}
 
@@ -434,23 +480,23 @@ class Smartyer
 	 */
 	protected function parse($source)
 	{
-		$pos_variation = 0;
 		$anti = $this->delimiter_start . $this->delimiter_end;
 		$pattern = '#' . $this->delimiter_start . '((?:[^' . $anti . ']|(?R))*?)' . $this->delimiter_end . '#i';
 
 		$source = preg_split($pattern, $source, 0, PREG_SPLIT_OFFSET_CAPTURE | PREG_SPLIT_DELIM_CAPTURE);
 
+		unset($anti, $pattern);
+
 		$compiled = '';
-		$i = 0;
 		$literal = false;
 
-		foreach ($source as $block)
+		foreach ($source as $i=>$block)
 		{
 			$pos = $block[1];
 			$block = $block[0];
 			$tblock = trim($block);
 
-			if ($i++ % 2 == 0)
+			if ($i % 2 == 0)
 			{
 				$compiled .= $block;
 				continue;
@@ -498,6 +544,8 @@ class Smartyer
 			}
 		}
 
+		unset($literal, $source, $i, $block, $tblock, $pos);
+
 		return $compiled;
 	}
 
@@ -506,15 +554,17 @@ class Smartyer
 	 */
 	protected function parseBlock($pos, $block)
 	{
+		// This is not a valid Smarty block, just assume it is PHP and reject any problem on the user
 		if (!preg_match('/^(else if|\w+[\w\d_]*)(?:\s+(.+?))?$/s', $block, $match))
 		{
 			return '<?php ' . $block . '; ?>';
-			$this->parseError($pos, 'Invalid block name: {' . $block . '}');
 		}
 
 		$name = trim(strtolower($match[1]));
 		$raw_args = !empty($match[2]) ? trim($match[2]) : null;
 		$code = '';
+
+		unset($match);
 
 		// alias
 		if ($name == 'else if')
@@ -631,7 +681,7 @@ class Smartyer
 
 		$code = '<?php ' . $code . ' //#' . $pos . '?>';
 
-		unset($args, $name, $pos, $raw_args, $args, $block);
+		unset($args, $name, $pos, $raw_args, $args, $block, $file);
 
 		return $code;
 	}
@@ -717,6 +767,12 @@ class Smartyer
 		throw new Smartyer_Exception($message, $this->template_path, $line, $previous);
 	}
 
+	/**
+	 * Parse block arguments, this is similar to parsing HTML arguments
+	 * @param  string $str List of arguments
+	 * @param  integer $pos Caret position in source code
+	 * @return array
+	 */
 	protected function parseArguments($str, $pos = null)
 	{
 		$args = [];
@@ -735,14 +791,14 @@ class Smartyer
 			{
 				if ($value != '=')
 				{
-					return false;
+					$this->parseError($pos, 'Expecting \'=\' after \'' . $last_value . '\'');
 				}
 			}
 			elseif ($state == 2)
 			{
 				if ($value == '=')
 				{
-					return false;
+					$this->parseError($pos, 'Unexpected \'=\' after \'' . $last_value . '\'');
 				}
 
 				$args[$name] = $this->parseSingleVariable($value, $pos, false);
@@ -753,6 +809,8 @@ class Smartyer
 			$last_value = $value;
 			$state++;
 		}
+
+		unset($state, $last_value, $name, $str, $match);
 
 		return $args;
 	}
@@ -790,7 +848,7 @@ class Smartyer
 
 			if ($escape)
 			{
-				return 'htmlspecialchars(' . $str . ', ENT_QUOTES, \'UTF-8\')';
+				return 'self::escape(' . $str . ', $this->escape_type)';
 			}
 			else
 			{
@@ -861,7 +919,7 @@ class Smartyer
 		// auto escape
 		if ($escape)
 		{
-			$var = 'htmlspecialchars(' . $var . ', ENT_QUOTES, \'UTF-8\')';
+			$var = 'self::escape(' . $var . ', $this->escape_type)';
 		}
 
 		return $var;
@@ -965,6 +1023,7 @@ class Smartyer
 		switch ($type)
 		{
 			case 'html':
+			case null:
 				return htmlspecialchars($str, ENT_QUOTES, 'UTF-8');
 			case 'xml':
 				return htmlspecialchars($str, ENT_XML1, 'UTF-8');
@@ -984,6 +1043,8 @@ class Smartyer
 				}, $str);
 			case 'mail':
 				return str_replace('.', '[dot]', $str);
+			case 'json':
+				return json_encode($str);
 			case 'js':
 			case 'javascript':
 				return strtr($str, [
