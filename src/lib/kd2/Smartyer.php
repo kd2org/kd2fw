@@ -159,7 +159,7 @@ class Smartyer
 	 * Sets the path where compiled templates will be stored
 	 * @param string $path
 	 */
-	static public function setCachePath($path)
+	static public function setCompileDir($path)
 	{
 		if (!is_dir($path))
 		{
@@ -178,7 +178,7 @@ class Smartyer
 	 * Sets the parent path containing all templates
 	 * @param string $path
 	 */
-	static public function setTemplatesPath($path)
+	static public function setTemplateDir($path)
 	{
 		if (!is_dir($path))
 		{
