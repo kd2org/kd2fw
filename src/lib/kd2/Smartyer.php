@@ -120,6 +120,12 @@ class Smartyer
 	];
 
 	/**
+	 * Compile function for unknown blocks
+	 * @var array
+	 */
+	protected $compile_functions = [];
+
+	/**
 	 * Auto-escaping type (any type accepted by self::escape())
 	 * @var string
 	 */
@@ -215,27 +221,12 @@ class Smartyer
 		// Register parent functions and variables locally
 		if ($parent instanceof Smartyer)
 		{
-			foreach ($parent->modifiers as $key=>$value)
-			{
-				$this->register_modifier($key, $value);
-			}
+			$copy = ['modifiers', 'blocks', 'functions', 'variables', 'escape_type', 'compile_functions'];
 
-			foreach ($parent->blocks as $key=>$value)
+			foreach ($copy as $key)
 			{
-				$this->register_block($key, $value);
+				$this->{$key} = $parent->{$key};
 			}
-
-			foreach ($parent->functions as $key=>$value)
-			{
-				$this->register_function($key, $value);
-			}
-
-			foreach ($parent->variables as $key=>$value)
-			{
-				$this->assign($key, $value);
-			}
-
-			$this->setEscapeType($parent->escape_type);
 		}
 	}
 
@@ -405,6 +396,21 @@ class Smartyer
 	}
 
 	/**
+	 * Register a compile function that will be called for unknown blocks
+	 *
+	 * This offers a good way to extend the template language
+	 *
+	 * @param  string  $name     Function name
+	 * @param  Callable|null $callback Valid callback
+	 * @return Smartyer
+	 */
+	public function register_compile_function($name, Callable $callback)
+	{
+		$this->compile_functions[$name] = $callback->bindTo($this, $this);
+		return $this;
+	}
+
+	/**
 	 * Compiles the current template to PHP code
 	 */
 	protected function compile()
@@ -555,7 +561,7 @@ class Smartyer
 	protected function parseBlock($pos, $block)
 	{
 		// This is not a valid Smarty block, just assume it is PHP and reject any problem on the user
-		if (!preg_match('/^(else if|\w+[\w\d_]*)(?:\s+(.+?))?$/s', $block, $match))
+		if (!preg_match('/^(else if|.*?)(?:\s+(.+?))?$/s', $block, $match))
 		{
 			return '<?php ' . $block . '; ?>';
 		}
@@ -657,19 +663,35 @@ class Smartyer
 		}
 		else
 		{
-			$args = $this->parseArguments($raw_args);
-
 			if (array_key_exists($name, $this->blocks))
 			{
+				$args = $this->parseArguments($raw_args);
 				$code = 'ob_start(); $_blocks[] = [' . var_export($name, true) . ', ' . $this->exportArguments($args) . '];'; // FIXME
 			}
 			elseif (array_key_exists($name, $this->functions))
 			{
+				$args = $this->parseArguments($raw_args);
 				$code = 'echo $this->functions[' . var_export($name, true) . '](' . $this->exportArguments($args) . ');';
 			}
 			else
 			{
-				$this->parseError($pos, 'Unknown function or block: ' . $name);
+				// Let's try the user-defined compile callbacks
+				// and if none of them return something, we are out
+				
+				foreach ($this->compile_functions as $name=>$closure)
+				{
+					$code = call_user_func($closure, $pos, $block, $name, $raw_args);
+
+					if ($code)
+					{
+						break;
+					}
+				}
+			
+				if (!$code)
+				{
+					$this->parseError($pos, 'Unknown function or block: ' . $name);
+				}
 			}
 		}
 
@@ -1122,7 +1144,7 @@ class Smartyer_Exception extends \Exception
 	public function __construct($message, $file, $line, $previous)
 	{
 		parent::__construct($message, 0, $previous);
-		$this->file = $file;
+		$this->file = is_null($file) ? '::fromString() template' : $file;
 		$this->line = $line;
 	}
 }
