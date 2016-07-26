@@ -413,7 +413,7 @@ class ErrorManager
 						$name = '$' . $params[$name]->name;
 					}
 
-					echo '<tr><th>' . htmlspecialchars($name) . '</th><td>' . htmlspecialchars(print_r($value, true)) . '</td>';
+					echo '<tr><th>' . htmlspecialchars($name) . '</th><td><pre>' . htmlspecialchars(self::dump($value)) . '</pre></td>';
 				}
 
 				echo '</table>';
@@ -541,11 +541,12 @@ class ErrorManager
 			#icn { color: #fff; font-size: 2em; float: right; margin: 1em; padding: 1em; background: #900; border-radius: 50%; }
 			section header { background: #fdd; padding: 1em; }
 			section article { margin: 1em; }
-			section article h3 { font-size: 1em; }
+			section article h3, section article h4 { font-size: 1em; font-family: mono; }
 			code { border: 1px dotted #ccc; display: block; }
 			code b { margin-right: 1em; color: #999; }
 			code u { display: block; background: #fcc; }
-			table { border-collapse: collapse; margin: 1em; } td, th { border: 1px solid #ccc; padding: .2em .5em; text-align: left; }
+			table { border-collapse: collapse; margin: 1em; } td, th { border: 1px solid #ccc; padding: .2em .5em; text-align: left; 
+			vertical-align: top; }
 			</style>
 			<pre id="icn"> \__/<br /> (xx)<br />//||\\\\</pre>');
 		}
@@ -671,5 +672,54 @@ class ErrorManager
 	static public function setCustomExceptionHandler($class, Callable $callback)
 	{
 		self::$custom_handlers[$class] = $callback;
+	}
+
+	/**
+	 * Copy of var_dump but returns a string instead of a variable
+	 * @param  mixed  $var   variable to dump
+	 * @param  integer $level Indentation level (internal use)
+	 * @return string
+	 */
+	static public function dump($var, $level = 0)
+	{
+		switch (gettype($var))
+		{
+			case 'boolean':
+				return 'bool(' . ($var ? 'true' : 'false') . ')';
+			case 'integer':
+				return 'int(' . $var . ')';
+			case 'double':
+				return 'float(' . $var . ')';
+			case 'string':
+				return 'string(' . strlen($var) . ') "' . $var . '"';
+			case 'NULL':
+				return 'NULL';
+			case 'resource':
+				return 'resource(' . (int)$var . ') of type (' . get_resource_type($var) . ')';
+			case 'array':
+			case 'object':
+				if (is_object($var))
+				{
+					$out = 'object(' . get_class($var) . ') (' . count((array) $var) . ') {' . PHP_EOL;
+				}
+				else
+				{
+					$out = 'array(' . count((array) $var) . ') {' . PHP_EOL;
+				}
+
+				$level++;
+
+				foreach ($var as $key=>$value)
+				{
+					$out .= str_repeat(' ', $level * 2);
+					$out .= is_string($key) ? '["' . $key . '"]' : '[' . $key . ']';
+					$out .= '=> ' . self::dump($value, $level) . PHP_EOL;
+				}
+
+				$out .= str_repeat(' ', --$level * 2) . '}';
+				return $out;
+			default:
+				return gettype($var);
+		}
 	}
 }
