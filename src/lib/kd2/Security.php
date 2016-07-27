@@ -52,6 +52,34 @@ class Security
 		'sip'   =>  ':',
 	];
 
+	/**
+	 * Timing attack safe string comparison (shim, works with PHP < 5.6)
+	 *
+	 * Compares two strings using the same time whether they're equal or not.
+	 * This function should be used to mitigate timing attacks.
+	 * 
+	 * @link https://secure.php.net/manual/en/function.hash-equals.php
+	 * 
+	 * @param  string $known_string The string of known length to compare against
+	 * @param  string $user_string  The user-supplied string
+	 * @return boolean              
+	 */
+	static public function hash_equals($known_string, $user_string)
+	{
+		$known_string = (string) $known_string;
+		$user_string = (string) $user_string;
+		
+		// For PHP 5.6/PHP 7 use the native function
+		if (function_exists('hash_equals'))
+		{
+			return hash_equals($known_string, $user_string);
+		}
+
+		$ret = strlen($known_string) ^ strlen($user_string);
+		$ret |= array_sum(unpack("C*", $known_string^$user_string));
+		return !$ret;
+	}
+
 	static public function tokenSetSecret($secret)
 	{
 		
