@@ -311,10 +311,59 @@ class Security
 		for ($i = 0; $i < (int)$length; $i++)
 		{
 			$pos = self::random_int(0, strlen($alphabet) - 1);
-			$string .= $alphabet[$pos];
+			$password .= $alphabet[$pos];
 		}
 
 		return $password;
+	}
+
+	/**
+	 * Returns a random passphrase of $words length
+	 *
+	 * You can use any dictionary from /usr/share/dict, or any text file with one word per line
+	 * 
+	 * @param  string  $dictionary      Path to dictionary file
+	 * @param  integer $words           Number of words to include
+	 * @param  boolean $character_match Regexp (unicode) character class to match, eg.
+	 * if you want only words in lowercase: \pL
+	 * @param  boolean $add_entropy     If TRUE will replace one character from each word randomly with a number or special character
+	 * @return string Passphrase
+	 */
+	static public function getRandomPassphrase($dictionary = '/usr/share/dict/words', $words = 4, $character_match = false, $add_entropy = false)
+	{
+		if (empty($dictionary) || !is_readable($dictionary))
+		{
+			throw new \InvalidArgumentException('Invalid dictionary file: cannot open or read from file \'' . $dictionary . '\'');
+		}
+
+		$file = file($dictionary);
+		
+		$selection = [];
+		$max = 1000;
+		$i = 0;
+
+		while (count($selection) < (int) $words)
+		{
+			if ($i++ > $max)
+			{
+				throw new \Exception('Could not find a suitable combination of words.');
+			}
+
+			$rand = self::random_int(0, count($file) - 1);
+			$w = trim($file[$rand]);
+
+			if (!$character_match || preg_match('/^[' . $character_match . ']+$/U', $w))
+			{
+				if ($add_entropy)
+				{
+					$w[self::random_int(0, strlen($w) - 1)] = self::getRandomPassword(1, '23456789=/:!?-._');
+				}
+
+				$selection[] = $w;
+			}
+		}
+
+		return implode(' ', $selection);
 	}
 
 	/**
