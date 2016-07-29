@@ -31,6 +31,130 @@ namespace KD2;
 class Translate
 {
 	/**
+	 * Returns the preferred language of the client from its HTTP Accept-Language header
+	 * @param  boolean $full_locale Set to TRUE to get the real locale ('en_AU' for example), false will return only the lang ('en')
+	 * @return string               Locale or language
+	 */
+	static public function getHttpLang($full_locale = false)
+	{
+		if (empty($_SERVER['HTTP_ACCEPT_LANGUAGE']))
+		{
+			return false;
+		}
+
+		// Convenient PECL Intl function
+		if (function_exists('locale_accept_from_http'))
+		{
+			$locale = locale_accept_from_http($_SERVER['HTTP_ACCEPT_LANGUAGE']);
+		}
+		// Let's do the same thing by hand
+		else
+		{
+			$http_langs = explode(',', $_SERVER['HTTP_ACCEPT_LANGUAGE']);
+			$locale = null;
+			$locale_priority = 0;
+
+			// For each locale extract its priority
+			foreach ($http_langs as $lang)
+			{
+				if (preg_match('/;q=([0-9.,]+)/', $item, $match))
+				{
+					$q = (int) $match[1] * 10;
+					$lang = str_replace($match[0], '', $lang);
+				}
+				else
+				{
+					$q = 10;
+				}
+
+				$lang = strtolower(trim($lang));
+
+				if (strlen($lang) > 2)
+				{
+					$lang = explode('-', $lang);
+					$lang = array_slice($lang, 0, 2);
+					$lang = $lang[0] . '_' . strtoupper($lang[1]);
+				}
+
+				// Higher priority than the previous one?
+				// Let's use it then!
+				if ($q > $locale_priority)
+				{
+					$locale = $lang;
+				}
+			}
+		}
+
+		if (is_null($locale))
+		{
+			return false;
+		}
+
+		return $full_locale ? $locale : substr($locale, 0, 2);
+	}
+
+	/**
+	 * Parses a gettext compiled .mo file and returns an array
+	 * @link http://include-once.org/upgradephp-17.tgz Source
+	 * @param  string $path .mo file path
+	 * @return array        array of translations
+	 */
+	static public function parseGettextMOFile($path)
+	{
+		$fp = fopen($path, 'rb');
+
+		// Read header
+		$header = fread($fp, 20);
+		$header = unpack('L1magic/L1version/L1count/L1o_msg/L1o_trn', $header);
+		extract($header);
+
+		if ((dechex($magic) != "950412de") || ($version != 0))
+		{
+			return false;
+		}
+
+		// Read the rest of the file
+		$data = fread($fp, 1<<20);
+		fclose($fp);
+
+		if (!$data)
+		{
+			return false;
+		}
+
+		$translations = [];
+
+		// fetch all entries
+		for ($n = 0; $n < $count; $n++)
+		{
+			// msgid
+			$r = unpack('L1len/L1offs', substr($data, $o_msg + $n * 8, 8));
+			$msgid = substr($data, $r['offs'], $r['len']);
+	
+			if (strpos($msgid, "\000")) {
+				list($msgid, $msgid_plural) = explode("\000", $msgid);
+			}
+	
+			// translation(s)
+			$r = unpack('L1len/L1offs', substr($data, $o_trn + $n * 8, 8));
+			$msgstr = substr($data, $r["offs"], $r["len"]);
+		
+			if (strpos($msgstr, "\000")) {
+				$msgstr = explode("\000", $msgstr);
+			}
+
+			$translations[$msgid] = $msgstr;
+	
+			if (isset($msgid_plural))
+			{
+				$translations[$msgid_plural] =& $translations[$msgid];
+			}
+		}
+
+		return $translations;
+	}
+
+	/**
 	 * Register a new template block in Smartyer to call KD2\Intl::gettext()
 	 * @param  Smartyer &$tpl Smartyer instance
 	 * @return Smartyer
