@@ -80,42 +80,242 @@ class Security
 		return !$ret;
 	}
 
+	/**
+	 * Generates a random number between $min and $max
+	 *
+	 * The number will be crypto secure unless you set $insecure_fallback to TRUE,
+	 * then it can provide a insecure number if no crypto source is available.
+	 *
+	 * @link https://codeascraft.com/2012/07/19/better-random-numbers-in-php-using-devurandom/
+	 * @param  integer $min               Minimum number
+	 * @param  integer $max               Maximum number
+	 * @param  boolean $insecure_fallback Set to true to fallback to mt_rand()
+	 * @return integer                    A random number
+	 * @throws Exception If no secure random source is found and $insecure_fallback is set to false
+	 */
+	static public function random_int($min = 0, $max = PHP_INT_MAX, $insecure_fallback = false)
+	{
+		// Only one possible value, not random
+		if ($max == $min)
+		{
+			return $min;
+		}
+
+		if ($min > $max)
+		{
+			throw new \Exception('Minimum value must be less than or equal to to the maximum value');
+		}
+
+		// Use the native PHP function for PHP 7+
+		if (function_exists('random_int'))
+		{
+			return random_int($min, $max);
+		}
+
+		try {
+			// Get some random bytes
+			$bytes = self::random_bytes(PHP_INT_SIZE);
+		}
+		catch (\Exception $e)
+		{
+			// No crypto random found
+
+			// For trivial stuff we can just use mt_rand() instead
+			if ($insecure_fallback)
+			{
+				return mt_rand($min, min($max, mt_getrandmax()));
+			}
+
+			// But for crypto stuff you should expect this to fail
+			throw $e;
+		}
+
+		// 64-bits
+		if (PHP_INT_SIZE == 8)
+		{
+			list($higher, $lower) = array_values(unpack('N2', $bytes));
+			$value = $higher << 32 | $lower;
+		}
+		// 32 bits
+		else
+		{
+			list($value) = array_values(unpack('Nint', $bytes));
+		}
+
+		$value = $value & PHP_INT_MAX;
+		$value = (float) $value / PHP_INT_MAX; // convert to [0,1]
+		return (int) (round($value * ($max - $min)) + $min);
+	}
+
+	/**
+	 * Returns a specified number of cryptographically secure random bytes
+	 * @param  integer $length Number of bytes to return
+	 * @return string Random bytes
+	 * @throws Exception If an appropriate source of randomness cannot be found, an Exception will be thrown.
+	 */
+	static public function random_bytes($length)
+	{
+		$length = (int) $length;
+
+		if (function_exists('random_bytes'))
+		{
+			return random_bytes($length);
+		}
+
+		if (function_exists('mcrypt_create_iv'))
+		{
+			return mcrypt_create_iv($length, MCRYPT_DEV_URANDOM);
+		} 
+
+		if (file_exists('/dev/urandom') && is_readable('/dev/urandom'))
+		{
+			return file_get_contents('/dev/urandom', false, null, 0, $length);
+		}
+
+		if (function_exists('openssl_random_pseudo_bytes'))
+		{
+			return openssl_random_pseudo_bytes($length);
+		}
+
+		throw new \Exception('An appropriate source of randomness cannot be found.');
+	}
+
+	/**
+	 * Sets the secret key used to hash and check the CSRF tokens
+	 * @param  string $secret Whatever secret you may like, must be the same for all the user session
+	 * @return boolean true
+	 */
 	static public function tokenSetSecret($secret)
 	{
-		
+		self::$token_secret = $secret;
+		return true;
 	}
 
 	/**
 	 * Generate a single use token and return the value
 	 * The token will be HMAC signed and you can use it directly in a HTML form
-	 * @param  string $action An action description
+	 * @param  string $action An action description, if NULL then REQUEST_URI will be used
+	 * @param  integer $expire Number of hours before the hash will expire
 	 * @return string         HMAC signed token
 	 */
-	static public function tokenGenerate($action = null)
+	static public function tokenGenerate($action = null, $expire = 5)
 	{
+		if (is_null(self::$token_secret))
+		{
+			throw new \RuntimeException('No CSRF token secret has been set.');
+		}
 
+		// Default action, will work as long as the check is on the same URI as the generation
+		if (is_null($action) && !empty($_SERVER['REQUEST_URI']))
+		{
+			$url = parse_url($_SERVER['REQUEST_URI']);
+
+			if (!empty($url['path']))
+			{
+				$action = $url['path'];
+			}
+		}
+
+		$random = self::random_int();
+		$expire = floor(time() / 3600) + $expire;
+		$value = $expire . $random . $action;
+
+		$hash = hash_hmac('sha256', $expire . $random . $action, self::$token_secret);
+
+		return $hash . '/' . dechex($expire) . '/' . dechex($random);
 	}
 
+	/**
+	 * Checks a CSRF token
+	 * @param  string $action An action description, if NULL then REQUEST_URI will be used
+	 * @param  string $value  User supplied value, if NULL then $_POST[automatic name] will be used
+	 * @return boolean
+	 */
 	static public function tokenCheck($action = null, $value = null)
 	{
+		if (is_null($value))
+		{
+			$name = 'ct_' . sha1($action . $_SERVER['DOCUMENT_ROOT'] . $_SERVER['SERVER_NAME']);
+			
+			if (empty($_POST[$name]))
+			{
+				return false;
+			}
 
+			$value = $_POST[$name];
+		}
+
+		$value = explode('/', $value, 3);
+
+		if (count($value) != 3)
+		{
+			return false;
+		}
+
+		$user_hash = $value[0];
+		$expire = hexdec($value[1]);
+		$random = hexdec($value[2]);
+
+		// Expired token
+		if ($expire > ceil(time() / 3600))
+		{
+			return false;
+		}
+
+		$hash = hash_hmac('sha256', $expire . $random . $action, self::$token_secret);
+
+		return self::hash_equals($hash, $user_hash);
 	}
 
+	/**
+	 * Returns HTML code to embed a CSRF token in a form
+	 * @param  string $action An action description, if NULL then REQUEST_URI will be used
+	 * @return string HTML <input type="hidden" /> element
+	 */
 	static public function tokenHTML($action = null)
 	{
-
+		$name = 'ct_' . sha1($action . $_SERVER['DOCUMENT_ROOT'] . $_SERVER['SERVER_NAME']);
+		return '<input type="hidden" name="' . $name . '" value="' . self::tokenGenerate($action) . '" />';
 	}
 
+	/**
+	 * Check an email address validity
+	 * @param  string $email Email address
+	 * @return boolean TRUE if valid
+	 */
 	static public function checkEmailAddress($email)
 	{
 		return (bool) filter_var($email, FILTER_VALIDATE_EMAIL);
 	}
 
+	/**
+	 * Check an URL validity (scheme and host are required, '//domain.com/uri' will be invalid for example)
+	 * @param  string $url URL to check
+	 * @return boolean TRUE if valid
+	 */
 	static public function checkURL($url)
 	{
 		return (bool) filter_var($url, FILTER_VALIDATE_URL, FILTER_FLAG_SCHEME_REQUIRED | FILTER_FLAG_HOST_REQUIRED);
 	}
 
+	/**
+	 * Returns a random password of $length characters, picked from $alphabet
+	 * @param  integer $length  Length of password
+	 * @param  string $alphabet Alphabet used for password generation
+	 * @return string
+	 */
+	static public function getRandomPassword($length = 12, $alphabet = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ123456789=/:!?-_')
+	{
+		$password = '';
+
+		for ($i = 0; $i < (int)$length; $i++)
+		{
+			$pos = self::random_int(0, strlen($alphabet) - 1);
+			$string .= $alphabet[$pos];
+		}
+
+		return $password;
+	}
 
 	/**
 	 * Protects a URL/URI given as an image/link target against XSS attacks
