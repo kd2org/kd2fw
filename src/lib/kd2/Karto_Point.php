@@ -28,6 +28,7 @@
 
 /**
  * Karto: an independent PHP library providing basic mapping tools
+ * Copyleft (C) 2010-2016 BohwaZ
  *
  * @author	bohwaz	http://bohwaz.net/
  * @license	BSD
@@ -68,7 +69,7 @@ class Karto_Point implements ArrayAccess
 	protected $lon = null;
 
 	/**
-	 * "Magic" constructor  will accept either float coordinates or an array or a Karto_Point object
+	 * "Magic" constructor  will accept either float coordinates, an array, a Karto_Point object, or a string
 	 * @param	float	$lat	Latitude
 	 * @param	float	$lon	Longitude
 	 */
@@ -78,26 +79,39 @@ class Karto_Point implements ArrayAccess
 
 		if (is_object($lat) && $lat instanceof $self)
 		{
-			$this->lat = (float) $lat->lat;
-			$this->lon = (float) $lat->lon;
+			$this->__set('lat', (float) $lat->lat);
+			$this->__set('lon', (float) $lat->lon);
 		}
 		elseif (is_array($lat) && is_null($lon) && array_key_exists('lat', $lat))
 		{
-			$this->lat = (float) $lat['lat'];
-			$this->lon = (float) $lat['lon'];
+			$this->__set('lat', (float) $lat['lat']);
+			$this->__set('lon', (float) $lat['lon']);
 		}
+		// Numeric indexed array
 		elseif (is_array($lat) && is_null($lon) && array_key_exists(1, $lat))
 		{
-			$this->lat = (float) $lat[0];
-			$this->lon = (float) $lat[1];
+			$this->__set('lat', (float) $lat[0]);
+			$this->__set('lon', (float) $lat[1]);
 		}
-		else
+		elseif (is_string($lat) && is_null($lon) && preg_match('/^(-?\d+\.\d+)[\s,]+(-?\d+\.\d+)$/', $lat, $match))
 		{
-			if (!is_null($lat))
-				$this->lat = (float) $lat;
-			
-			if (!is_null($lon))
-				$this->lon = (float) $lon;
+			$this->__set('lat', (float) $match[1]);
+			$this->__set('lon', (float) $match[2]);
+		}
+		elseif (!is_null($lat) && !is_null($lon))
+		{
+			if (!is_numeric($lat))
+			{
+				throw new \InvalidArgumentException('Latitude is not a valid number.');
+			}
+
+			if (!is_numeric($lon))
+			{
+				throw new \InvalidArgumentException('Longitude is not a valid number.');
+			}
+
+			$this->__set('lat', (float) $lat);
+			$this->__set('lon', (float) $lon);
 		}
 	}
 
