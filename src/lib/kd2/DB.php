@@ -127,17 +127,7 @@ class DB extends PDO
 			throw new \LogicException('No PDO driver is set.');
 		}
 
-		$this->setAttribute(self::ATTR_ERRMODE, self::ERRMODE_EXCEPTION);
-		$this->setAttribute(self::ATTR_DEFAULT_FETCH_MODE, $this->default_fetch_mode);
-
 		$this->driver = $driver;
-
-		// Enhance SQLite default
-		if ($driver['type'] == 'sqlite')
-		{
-			$this->sqliteCreateFunction('rank', [$this, 'sqlite_rank']);
-			$this->sqliteCreateFunction('haversine_distance', [$this, 'sqlite_haversine']);
-		}
 	}
 
 	/**
@@ -152,13 +142,22 @@ class DB extends PDO
 		try {
 			parent::__construct($this->driver['url'], $this->driver['user'], $this->driver['password']);
 			$this->connected = true;
+			$this->setAttribute(self::ATTR_ERRMODE, self::ERRMODE_EXCEPTION);
+			$this->setAttribute(self::ATTR_DEFAULT_FETCH_MODE, $this->default_fetch_mode);
 		}
 		catch (PDOException $e)
 		{
 			// Catch exception to avoid showing password in backtrace
 			throw new PDOException('Unable to connect to database. Check username and password.');
 		}
-		
+
+		// Enhance SQLite default
+		if ($this->driver['type'] == 'sqlite')
+		{
+			$this->sqliteCreateFunction('rank', [$this, 'sqlite_rank']);
+			$this->sqliteCreateFunction('haversine_distance', [$this, 'sqlite_haversine']);
+		}
+
 		$this->driver['password'] = '******';
 	}
 
