@@ -28,49 +28,59 @@
 
 namespace KD2;
 
-abstract class MemCache
+/**
+ * Cache user data with files, since PHP 5.5 will use OpCache and will be faster than MemCache!
+ * (and so it is still a memory cache)
+ *
+ */
+class MemCache_File extends MemCache
 {
-	protected $prefix = null;
-	protected $default_ttl = null;
-	protected $options = [];
-
-	public function __construct($prefix = null, $default_ttl = 0, $options = [])
+	public function checkSetup()
 	{
-		if (!$this->checkSetup())
+		if (empty($this->options['cache_dir']))
 		{
-			throw new \RuntimeException('Required extension is not installed: ' . get_class($this));
+			throw new \Exception('options.cache_dir is not set.');
 		}
 
-		$this->prefix = (string) $prefix;
-		$this->default_ttl = (int) $default_ttl;
-		$this->options = $options;
+		if (!is_writeable($this->options['cache_dir']))
+		{
+			throw new \Exception($this->options['cache_dir'] . ' directory does not exists or is not writable');
+		}
 	}
 
-	abstract public function checkSetup();
-	abstract public function get($key);
-	abstract public function set($key, $value, $ttl = 0);
-	abstract public function delete($key);
-	abstract public function exists($key);
-	abstract public function inc($key, $step = 1);
-	abstract public function dec($key, $step = 1);
-
-	final public function __unset($key)
+	protected function getPath($key)
 	{
-		return $this->delete($key);
+		return $this->options['cache_dir'] . DIRECTORY_SEPARATOR . sha1($this->prefix . $key);
 	}
 
-	final public function __isset($key)
+	public function exists($key)
 	{
-		return $this->test($key);
+		return file_exists($this->getPath($key));
 	}
 
-	final public function __get($key)
+	public function get($key)
 	{
-		return $this->get($key);
+		include file_exists($this->getPath($key));
+		return $data;
 	}
-	
-	final public function __set($key, $value)
+
+	public function set($key, $value, $ttl = 0)
 	{
-		return $this->set($key, $value);
+		return file_put_contents($this->getPath($key), '<?php $data = ' . var_export($value) . ';');
+	}
+
+	public function inc($key, $step = 1)
+	{
+		return $this->set($key, $this->get($key) + $step);
+	}
+
+	public function dec($key, $step = 1)
+	{
+		return $this->set($key, $this->get($key) - $step);
+	}
+
+	public function delete($key)
+	{
+		unlink($this->getPath($key));
 	}
 }
