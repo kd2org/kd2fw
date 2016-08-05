@@ -896,7 +896,7 @@ class SkrivLite
 		$text = str_replace("\r", '', $text);
 		$text = preg_split("/\n/", $text);
 
-		$metadata = $obj ? new \stdClass : [];
+		$metadata = [];
 		$current_meta = null;
 		$in_meta = false;
 
@@ -909,17 +909,17 @@ class SkrivLite
 
 				if (array_key_exists($current_meta, $metadata))
 				{
-					$metadata->{$current_meta} .= "\n" . trim($match[2]);
+					$metadata[$current_meta] .= "\n" . trim($match[2]);
 				}
 				else
 				{
-					$metadata->{$current_meta} = trim($match[2]);
+					$metadata[$current_meta] = trim($match[2]);
 				}
 			}
 			// Match "Key: Value\nValue second line"
 			else if (trim($line) !== "" && $current_meta)
 			{
-				$metadata->{$current_meta} .= "\n" . trim($line);
+				$metadata[$current_meta] .= "\n" . trim($line);
 			}
 			// Line is empty or doesn't match, means no meta headers or end of the headers
 			else
@@ -930,7 +930,7 @@ class SkrivLite
 
 		$text = array_slice($text, $k);
 		$text = implode("\n", $text);
-		return $metadata;
+		return $obj ? (object) $metadata : $metadata;
 	}
 
 	/**
