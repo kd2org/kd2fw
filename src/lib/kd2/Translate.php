@@ -303,19 +303,19 @@ class Translate
 			case 'fr':
 			case 'pt_BR':
 				return (int) $n > 1;
-			// Finno-Ugric family: Hungarian
-			// Asian family: Japanese, Korean
-			// Turkic/Altaic family: Turkish
-			case 'hu':
+			// Asian family: Japanese, Vietnamese, Korean 
+			// Tai-Kadai family: Thai 
 			case 'ja':
+			case 'th':
 			case 'ko':
-			case 'tr':
+			case 'vi':
 				return 0;
-			// Slavic family: Croatian, Czech, Russian, Ukrainian
+			// Slavic family: Russian, Ukrainian, Belarusian, Serbian, Croatian
 			case 'ru':
-			case 'hr':
-			case 'cs':
 			case 'uk':
+			case 'be':
+			case 'sr':
+			case 'hr':
 				return ($n % 100 / 10 == 1) ? 2 : (($n % 10) == 1 ? 0 : (($n + 9) % 10 > 3 ? 2 : 1));
 			// Irish (Gaeilge)
 			case 'ga':
@@ -335,16 +335,22 @@ class Translate
 			case 'sl':
 				return ($n % 100 == 1) ? 0 : ($n % 100 == 2 ? 1 : (($n % 100 == 3 || $n % 100 == 4) ? 2 : 3));
 				break;
-			// Slovak
+			// Slovak, Czech
 			case 'sk':
+			case 'cs':
 				return ($n == 1) ? 1 : ($n >= 2 && $n <= 4) ? 2 : 0;
 				break;
+			// Arabic: 6 forms
+			case 'ar':
+				return ($n == 0) ? 0 : (($n == 1) ? 1 : (($n == 2) ? 2 : (($n % 100 >= 3 && $n %100 <= 10) ? 3 : (($n % 100 >= 11) ? 4 : 5))));
+
 			// Germanic family: Danish, Dutch, English, German, Norwegian, Swedish
 			// Finno-Ugric family: Estonian, Finnish
 			// Latin/Greek family: Greek
 			// Semitic family: Hebrew
 			// Romance family: Italian, Portuguese, Spanish
 			// Artificial: Esperanto
+			// Turkic/Altaic family: Turkish
    			default:
 				return (int) $n != 1;
 		}
