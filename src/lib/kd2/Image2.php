@@ -81,10 +81,38 @@ class Image2
 	 */
 	public function __construct()
 	{
-		$this->exact = (extension_loaded('exactimage') && function_exists('newImage'));
-		$this->imlib = (extension_loaded('imlib') && function_exists('imlib_load_image'));
-		$this->imagick = (extension_loaded('imagick') && class_exists('Imagick'));
-		$this->gd = (extension_loaded('gd') && function_exists('imagecreatefromjpeg'));
+		// ExactImage is disabled because of inability to save images
+		// see https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=833703
+		//$this->exact = ($this->checkOrLoadLib('ExactImage') && function_exists('newImage'));
+
+		$this->imlib = ($this->checkOrLoadLib('imlib') && function_exists('imlib_load_image'));
+		$this->imagick = ($this->checkOrLoadLib('imagick') && class_exists('Imagick'));
+
+		// Don't try to load GD is ExactImage is loaded, as they have function names that collide!
+		$this->gd = ($this->checkOrLoadLib('gd', $this->exact ? false : true) && function_exists('imagecreatefromjpeg'));
+	}
+
+	protected function checkOrLoadLib($name, $use_dl = true)
+	{
+		if (!extension_loaded($name))
+		{
+			if (!$use_dl || !ini_get('enable_dl') || ini_get('safe_mode'))
+			{
+				return false;
+			}
+
+			 $prefix = (PHP_SHLIB_SUFFIX === 'dll') ? 'php_' : '';
+
+			 echo $name;
+
+			// Try to dynamically load extension
+			if (!@dl($prefix . $name . '.' . PHP_SHLIB_SUFFIX))
+			{
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	public function queryLibraries()
@@ -398,7 +426,7 @@ class Image2
 		if ($this->info !== null)
 			return $this->info;
 
-		if (!$this->gd)
+		if (!function_exists('getimagesize') || !function_exists('getimagesizefromstring'))
 		{
 			throw new \RuntimeException('Can not get image info: GD extension not installed but required to call getimagesize()');
 		}
@@ -432,7 +460,7 @@ class Image2
 			throw new \RuntimeException('PHP EXIF extension is not installed.');
 		}
 
-		$this->exif = exif_read_data($this->source, null, false, true);
+		$this->exif = exif_read_data($this->source, null, true, true);
 		return $this->exif;
 	}
 
@@ -518,17 +546,19 @@ class Image2
 	 * @param  [type] $new_height  [description]
 	 * @return [type]              [description]
 	 */
-	public function crop($new_width, $new_height = null)
+	public function crop($new_width = null, $new_height = null)
 	{
+		if (!$new_width)
+		{
+			$new_width = $new_height = min($this->width, $this->height);
+		}
+
 		if (!$new_height)
 		{
 			$new_height = $new_width;
 		}
 
-		$new_height = (int) $new_height;
-		$new_width = (int) $new_width;
-
-		$this->{$this->pointer_lib . '_crop'}($new_width, $new_height);
+		$this->{$this->pointer_lib . '_crop'}((int) $new_width, (int) $new_height);
 		$this->{$this->pointer_lib . '_size'}();
 
 		return $this;
@@ -560,6 +590,12 @@ class Image2
 		$this->{$this->pointer_lib . '_rotate'}($angle);
 		$this->{$this->pointer_lib . '_size'}();
 
+		if ($this->exif !== null)
+		{
+			$this->exif = null;
+			$this->getExif();
+		}
+
 		return $this;
 	}
 
@@ -575,14 +611,32 @@ class Image2
 			$new_height = $new_width;
 		}
 
-		$crop = min($new_width, $new_height);
-		return $this->crop($crop)->resize($new_width, $new_height);
+		$source_aspect_ratio = $this->width / $this->height;
+		$desired_aspect_ratio = $new_width / $new_height;
+
+		if ($source_aspect_ratio > $desired_aspect_ratio)
+		{
+			$temp_height = $new_height;
+			$temp_width = (int) ($new_height * $source_aspect_ratio);
+		}
+		else
+		{
+			$temp_width = $new_width;
+			$temp_height = (int) ($new_width / $source_aspect_ratio);
+		}
+
+		return $this->resize($temp_width, $temp_height)->crop($new_width, $new_height);
 	}
 
 	public function save($destination, $format = null)
 	{
 		if (is_null($format))
 		{
+			if ($this->pointer_lib == 'exact')
+			{
+				throw new \InvalidArgumentException('ExactImage requires to specify an output format.');
+			}
+
 			$format = $this->format;
 		}
 
@@ -605,17 +659,17 @@ class Image2
 		$proportion_dst = $new_width / $new_height;
 
 		$x = $y = 0;
-		$out_w = $w;
-		$out_h = $h;
+		$out_w = $new_width;
+		$out_h = $new_height;
 
 		if ($proportion_src > $proportion_dst)
 		{
-			$out_w = $h * $proportion_dst;
+			$out_w = $out_h * $proportion_dst;
 			$x = round(($w - $out_w) / 2);
 		}
 		else
 		{
-			$out_h = $w / $proportion_dst;
+			$out_h = $out_h / $proportion_dst;
 			$y = round(($h - $out_h) / 2);
 		}
 
@@ -670,7 +724,7 @@ class Image2
 
 	protected function exact_save($destination, $format)
 	{
-		return file_put_contents($destination, $this->exact_output($format));
+		return file_put_contents($destination, $this->exact_output($format, true));
 	}
 
 	protected function exact_output($format, $return)
@@ -682,6 +736,39 @@ class Image2
 
 		echo $im;
 		return true;
+	}
+
+	protected function exact_rotate($angle)
+	{
+		imageRotate($this->pointer, $angle);
+	}
+
+	protected function exact_crop($new_width, $new_height)
+	{
+		list($x, $y, $w, $h) = $this->getCropGeometry($this->width, $this->height, $new_width, $new_height);
+
+		imageCrop($this->pointer, $x, $y, $new_width, $new_height);
+	}
+
+	protected function exact_resize($new_width, $new_height, $ignore_aspect_ratio = false)
+	{
+		if (!$ignore_aspect_ratio)
+		{
+			list($w, $h) = $this->getSize();
+			$in_ratio = $w / $h;
+			$out_ratio = $new_width / $new_height;
+
+			if ($in_ratio >= $out_ratio)
+			{
+				$new_height = $new_width / $in_ratio;
+			}
+			else
+			{
+				$new_width = $new_height * $in_ratio;
+			}
+		}
+
+		imageResize($this->pointer, $new_width, $new_height);
 	}
 
 	// ImLib methods //////////////////////////////////////////////////////////
@@ -767,9 +854,10 @@ class Image2
 		return $res;
 	}
 
-	protected function imlib_crop($new_width, $new_height = null)
+	protected function imlib_crop($new_width, $new_height)
 	{
-		list($x, $y, $w, $h) = $this->getCropGeometry($this->width, $this->height, $new_width, $new_height);
+		$x = floor(($this->width - $new_width) / 2);
+		$y = floor(($this->height - $new_height) / 2);
 
 		$this->pointer = imlib_create_cropped_image($this->pointer, $x, $y, $new_width, $new_height);
 	}
@@ -788,13 +876,29 @@ class Image2
 
 		if (!$this->pointer)
 		{
-			throw new \RuntimeException('Image crop failed using imlib');
+			throw new \RuntimeException('Image resize failed using imlib');
 		}
 	}
 
 	protected function imlib_rotate($angle)
 	{
+		// Switch width/height for portrait/landscape change
+		if (abs($angle) == 90 || abs($angle) == 270)
+		{
+			list($h, $w) = $this->getSize();
+		}
+		else
+		{
+			list($w, $h) = $this->getSize();
+		}
+
 		$this->pointer = imlib_create_rotated_image($this->pointer, $angle);
+		// imlib_create_rotated_image will create a new larger image so we need to crop it back to original size
+		// see https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=176953
+		$this->width = imlib_image_get_width($this->pointer);
+		$this->height = imlib_image_get_height($this->pointer);
+
+		$this->imlib_crop($w, $h);
 	}
 
 	// Imagick methods ////////////////////////////////////////////////////////
@@ -957,9 +1061,9 @@ class Image2
 	protected function gd_open()
 	{
 		$info = $this->getInfo();
-		$this->format = image_type_to_extension($info[2]);
+		$this->format = substr(image_type_to_extension($info[2]), 1);
 
-		if (!$this->format || !array_key_exists($this->format, $this->gd_supported_types) || !$this->gd_supported_types[$this->format])
+		if (!$this->format || !in_array($this->format, $this->gd_formats()))
 		{
 			throw new \RuntimeException('Image type is not supported by GD.');
 		}
@@ -1001,13 +1105,8 @@ class Image2
 
 	protected function gd_size()
 	{
-		$info = $this->getInfo();
-		
-		if (!$info)
-			return false;
-		
-		$this->width = $info[0];
-		$this->height = $info[1];
+		$this->width = imagesx($this->pointer);
+		$this->height = imagesy($this->pointer);
 	}
 
 	protected function gd_close()
@@ -1017,11 +1116,6 @@ class Image2
 
 	protected function gd_save($destination, $format)
 	{
-		if (!array_key_exists($format, $this->gd_supported_types) || !$this->gd_supported_types[$format])
-		{
-			throw new \InvalidArgumentException('Image format ' . $format . ' is not supported by GD.');
-		}
-
 		if ($format == 'jpeg')
 		{
 			imageinterlace($this->pointer, (int)$this->progressive_jpeg);
@@ -1059,7 +1153,7 @@ class Image2
 
 	protected function gd_create($w, $h)
 	{
-		$new = imagecreatetruecolor($new_width, $new_height);
+		$new = imagecreatetruecolor($w, $h);
 
         if ($this->format == 'png' || $this->format == 'gif')
         {
@@ -1073,28 +1167,32 @@ class Image2
 
 	protected function gd_crop($new_width, $new_height)
 	{
-		list($src_x, $src_y, $src_w, $src_h) = $this->getCropGeometry($this->width, $this->height, $new_width, $new_height);
-
 		$new = $this->gd_create($new_width, $new_height);
 
-		imagecopy($new, $this->pointer, 0, 0, $src_x, $src_y, $src_w, $src_h);
+		$src_x = floor(($this->width - $new_width) / 2);
+		$src_y = floor(($this->height - $new_height) / 2);
+
+		imagecopy($new, $this->pointer, 0, 0, $src_x, $src_y, $new_width, $new_height);
 		imagedestroy($this->pointer);
 		$this->pointer = $new;
 	}
 
 	protected function gd_resize($new_width, $new_height, $ignore_aspect_ratio)
 	{
-		// Nothing to do
-		$in_ratio = $w / $h;
-		$out_ratio = $new_width / $new_height;
+		if (!$ignore_aspect_ratio)
+		{
+			$in_ratio = $this->width / $this->height;
 
-		if ($in_ratio >= $out_ratio)
-		{
-			$new_height = $new_width / $in_ratio;
-		}
-		else
-		{
-			$new_width = $new_height * $in_ratio;
+			$out_ratio = $new_width / $new_height;
+
+			if ($in_ratio >= $out_ratio)
+			{
+				$new_height = $new_width / $in_ratio;
+			}
+			else
+			{
+				$new_width = $new_height * $in_ratio;
+			}
 		}
 
 		$new = $this->gd_create($new_width, $new_height);
@@ -1115,9 +1213,9 @@ class Image2
 	protected function gd_rotate($angle)
 	{
 		// GD is using counterclockwise
-		$angle = 360 - $angle;
+		$angle = -($angle);
 
-		$this->pointer = imagerotate($this->pointer, $angle, -1);
+		$this->pointer = imagerotate($this->pointer, $angle, 0);
 	}
 
 	protected function gd_fastimagecopyresampled(&$dst_image, $src_image, $dst_x, $dst_y, $src_x, $src_y, $dst_w, $dst_h, $src_w, $src_h, $quality = 3)
