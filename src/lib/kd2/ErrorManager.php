@@ -359,7 +359,9 @@ class ErrorManager
 		echo '<section>';
 		echo '<header><h1>' . $class . '</h1><h2>' . htmlspecialchars($e->getMessage()) . '</h2>';
 		echo '<h3>' . htmlspecialchars($file) . ':' . $e->getLine() . '</h3>';
-		echo '</header>';
+		echo '</header><article>';
+		echo self::htmlSource($e->getFile(), $e->getLine());
+		echo '</article>';
 
 		foreach ($e->getTrace() as $i=>$t)
 		{
@@ -722,4 +724,6 @@ class ErrorManager
 				return gettype($var);
 		}
 	}
+
+
 }
