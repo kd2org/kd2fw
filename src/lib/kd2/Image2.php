@@ -753,7 +753,7 @@ class Image2
 	protected function epeg_open()
 	{
 		$this->pointer = new \Epeg($this->source);
-		$this->format = 'JPEG';
+		$this->format = 'jpeg';
 	}
 
 	protected function epeg_formats()
@@ -798,7 +798,7 @@ class Image2
 		return true;
 	}
 
-	protected function epeg_resize($new_width, $new_height = null, $ignore_aspect_ratio = false)
+	protected function epeg_resize($new_width, $new_height, $ignore_aspect_ratio = false)
 	{
 		$this->pointer->setDecodeSize($new_width, $new_height, !$ignore_aspect_ratio);
 	}
