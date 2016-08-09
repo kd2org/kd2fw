@@ -35,12 +35,19 @@ namespace KD2;
 
 class Image2
 {
-	protected $exact = false;
-	protected $imlib = false;
-	protected $imagick = false;
-	protected $gd = false;
+	const INSTALLED = 0b0001;
+	const ENABLED = 0b0010;
 
-	protected $libraries = ['exact', 'imlib', 'imagick', 'gd'];
+	protected $libraries = [
+	 	// Disable ExactImage: buggy, inability to save images
+	 	// see https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=833703
+		'exact'	=>	false,
+		// Disable EPEG: only supports resize, not cropping or rotating
+		'epeg'	=>	false,
+		'imagick'=> self::ENABLED,
+		'imlib' => 	self::ENABLED,
+		'gd'	=>	self::ENABLED,
+	];
 
 	protected $source = null;
 	protected $width = null;
@@ -81,29 +88,33 @@ class Image2
 	 */
 	public function __construct()
 	{
-		// ExactImage is disabled because of inability to save images
-		// see https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=833703
-		//$this->exact = ($this->checkOrLoadLib('ExactImage') && function_exists('newImage'));
-
-		$this->imlib = ($this->checkOrLoadLib('imlib') && function_exists('imlib_load_image'));
-		$this->imagick = ($this->checkOrLoadLib('imagick') && class_exists('Imagick'));
+		$this->libraries['exact'] |= ($this->checkOrLoadLib('ExactImage') && function_exists('newImage')) ? self::INSTALLED : 0;
+		$this->libraries['epeg']  |= ($this->checkOrLoadLib('epeg') && function_exists('epeg_open')) ? self::INSTALLED : 0;
+		$this->libraries['imlib'] |= ($this->checkOrLoadLib('imlib') && function_exists('imlib_load_image')) ? self::INSTALLED : 0;
+		$this->libraries['imagick'] |= ($this->checkOrLoadLib('imagick') && class_exists('Imagick')) ? self::INSTALLED : 0;
 
 		// Don't try to load GD is ExactImage is loaded, as they have function names that collide!
-		$this->gd = ($this->checkOrLoadLib('gd', $this->exact ? false : true) && function_exists('imagecreatefromjpeg'));
+		$this->libraries['gd'] = ($this->checkOrLoadLib('gd', extension_loaded('ExactImage') ? false : true) && function_exists('imagecreatefromjpeg')) ? self::INSTALLED : 0;
 	}
 
+	/**
+	 * Checks if a library is loaded, and if possible, loads it into memory
+	 * @param  string  $name   Library module name
+	 * @param  boolean $use_dl If set to FALSE, won't try to load the module with dl()
+	 * @return boolean
+	 */
 	protected function checkOrLoadLib($name, $use_dl = true)
 	{
 		if (!extension_loaded($name))
 		{
-			if (!$use_dl || !ini_get('enable_dl') || ini_get('safe_mode'))
+			if (!$use_dl || !ini_get('enable_dl') || ini_get('safe_mode') || !function_exists('dl'))
 			{
 				return false;
 			}
 
-			 $prefix = (PHP_SHLIB_SUFFIX === 'dll') ? 'php_' : '';
+			$prefix = (PHP_SHLIB_SUFFIX === 'dll') ? 'php_' : '';
 
-			 echo $name;
+			echo $name;
 
 			// Try to dynamically load extension
 			if (!@dl($prefix . $name . '.' . PHP_SHLIB_SUFFIX))
@@ -115,23 +126,51 @@ class Image2
 		return true;
 	}
 
+	/**
+	 * Returns the list of enabled libraries and the list of image formats they support
+	 * @return array
+	 */
 	public function queryLibraries()
 	{
 		$out = [];
 
-		foreach ($this->libraries as $lib)
+		foreach ($this->libraries as $lib=>$flags)
 		{
-			$out[$lib] = $this->$lib ? $this->{$lib . '_formats'}() : false;
+			$out[$lib] = ($flags & self::ENABLED && $flags & self::INSTALLED) ? $this->{$lib . '_formats'}() : false;
 		}
 
 		return $out;
 	}
 
+	/**
+	 * Enable or disable a library in automatic selection
+	 * @param string $name    Library name: epeg, imagick, etc.
+	 * @param bool $enabled   Set to TRUE to enable the library, FALSE and it will never be used to open images
+	 */
+	public function setLibraryEnabled($name, $enabled)
+	{
+		$this->libraries[$name] = (($this->libraries[$name] & self::INSTALLED) ? self::INSTALLED : 0) | ($enabled ? self::ENABLED : 0);
+	}
+
+	/**
+	 * Set the library used to open/save images
+	 * @param string|null $library Name of the library to use, if NULL will use the first library that can handle the supplied file format
+	 */
 	protected function setLibrary($library = null)
 	{
-		if ($library && in_array($library, $this->libraries))
+		if ($this->pointer !== null)
 		{
-			if (!$this->$library)
+			throw new \RuntimeException('Cannot change the library while a pointer is open.');
+		}
+
+		if ($library)
+		{
+			if (!array_key_exists($library, $this->libraries))
+			{
+				throw new \RuntimeException('Library \'' . $library . '\' is not supported.');
+			}
+
+			if (!($this->libraries[$library] & self::INSTALLED))
 			{
 				throw new \RuntimeException('Library \'' . $library . '\' is not installed and can not be used.');
 			}
@@ -142,9 +181,9 @@ class Image2
 		{
 			$format = $this->getFormatFromType($this->type);
 
-			foreach ($this->libraries as $lib)
+			foreach ($this->libraries as $lib=>$flags)
 			{
-				if ($this->$lib && in_array($format, $this->{$lib . '_formats'}()))
+				if (($flags & self::ENABLED) && ($flags & self::INSTALLED) && in_array($format, $this->{$lib . '_formats'}()))
 				{
 					$this->pointer_lib = $lib;
 					break;
@@ -541,10 +580,9 @@ class Image2
 
 	/**
 	 * Crop the current image to this dimensions
-	 * @param  [type] $destination [description]
-	 * @param  [type] $new_width   [description]
-	 * @param  [type] $new_height  [description]
-	 * @return [type]              [description]
+	 * @param  integer $new_width  Width of the desired image
+	 * @param  integer $new_height Height of the desired image
+	 * @return Image2
 	 */
 	public function crop($new_width = null, $new_height = null)
 	{
@@ -558,7 +596,14 @@ class Image2
 			$new_height = $new_width;
 		}
 
-		$this->{$this->pointer_lib . '_crop'}((int) $new_width, (int) $new_height);
+		$method = $this->pointer_lib . '_crop';
+
+		if (!method_exists($this, $method))
+		{
+			throw new \RuntimeException('Crop is not supported by the current library: ' . $this->pointer_lib);
+		}
+
+		$this->$method((int) $new_width, (int) $new_height);
 		$this->{$this->pointer_lib . '_size'}();
 
 		return $this;
@@ -587,7 +632,14 @@ class Image2
 			return $this;
 		}
 
-		$this->{$this->pointer_lib . '_rotate'}($angle);
+		$method = $this->pointer_lib . '_rotate';
+
+		if (!method_exists($this, $method))
+		{
+			throw new \RuntimeException('Rotate is not supported by the current library: ' . $this->pointer_lib);
+		}
+
+		$this->$method($angle);
 		$this->{$this->pointer_lib . '_size'}();
 
 		if ($this->exif !== null)
@@ -676,10 +728,16 @@ class Image2
 		return [$x, $y, round($out_w), round($out_h)];
 	}
 
+	/**
+	 * Returns the format name from the MIME type
+	 * @param  string $type MIME type
+	 * @return Format: jpeg, gif, svg, etc.
+	 */
 	public function getFormatFromType($type)
 	{
 		switch ($type)
 		{
+			// Special cases
 			case 'image/svg+xml':	return 'svg';
 			case 'application/pdf':	return 'pdf';
 			case 'image/vnd.adobe.photoshop': return 'psd';
@@ -689,6 +747,60 @@ class Image2
 					return $match[1];
 				return false;
 		}
+	}
+
+	// EPEG methods //////////////////////////////////////////////////////////
+	protected function epeg_open()
+	{
+		$this->pointer = new \Epeg($this->source);
+		$this->format = 'JPEG';
+	}
+
+	protected function epeg_formats()
+	{
+		return ['jpeg'];
+	}
+
+	protected function epeg_blob($data)
+	{
+		$this->pointer = \Epeg::openBuffer($data);
+		$this->source = true;
+	}
+
+	protected function epeg_size()
+	{
+		$size = $this->pointer->getSize();
+		$this->width = $size[0];
+		$this->height = $size[1];
+	}
+
+	protected function epeg_close()
+	{
+		$this->pointer = null;
+	}
+
+	protected function epeg_save($destination, $format)
+	{
+		$this->pointer->setQuality($this->jpeg_quality);
+		return $this->pointer->encode($destination);
+	}
+
+	protected function epeg_output($format, $return)
+	{
+		$this->pointer->setQuality($this->jpeg_quality);
+		
+		if ($return)
+		{
+			return $this->pointer->encode();
+		}
+
+		echo $this->pointer->encode();
+		return true;
+	}
+
+	protected function epeg_resize($new_width, $new_height = null, $ignore_aspect_ratio = false)
+	{
+		$this->pointer->setDecodeSize($new_width, $new_height, !$ignore_aspect_ratio);
 	}
 
 	// ExactImage methods /////////////////////////////////////////////////////
