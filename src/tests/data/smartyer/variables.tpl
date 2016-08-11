@@ -12,6 +12,6 @@ Call to magic var in param: {$simple|replace:'Hello':$object.array.key1}
 String with modifier: {"Hello"|replace:"lo":"LLLAAAA\"''!"}
 Magic variable: {$object.array.key1}
 Object variable: {$this.template_path}
-Object static variable: {$this::$cache_path}
+Object static variable: {$this::$cache_dir}
 Local variable from include: {$local}
 Constant from class: {$testclass.TEST_CONSTANT}

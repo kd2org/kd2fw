@@ -153,13 +153,13 @@ class Smartyer
 	 * Global parent path to templates
 	 * @var string
 	 */
-	static protected $cache_path = null;
+	static protected $cache_dir = null;
 
 	/**
 	 * Directory used for storing the compiled templates
 	 * @var string
 	 */
-	static protected $templates_path = null;
+	static protected $templates_dir = null;
 
 	/**
 	 * Sets the path where compiled templates will be stored
@@ -177,7 +177,7 @@ class Smartyer
 			throw new \RuntimeException($path . ' is not writeable by ' . __CLASS__);
 		}
 
-		self::$cache_path = $path;
+		self::$cache_dir = $path;
 	}
 
 	/**
@@ -196,7 +196,7 @@ class Smartyer
 			throw new \RuntimeException($path . ' is not writeable by ' . __CLASS__);
 		}
 
-		self::$templates_path = $path;
+		self::$templates_dir = $path;
 	}
 
 	/**
@@ -207,7 +207,7 @@ class Smartyer
 	 */
 	public function __construct($template = null, Smartyer &$parent = null)
 	{
-		if (is_null(self::$cache_path))
+		if (is_null(self::$cache_dir))
 		{
 			throw new \LogicException('Cache path not set: call ' . __CLASS__ . '::setCachePath() first');
 		}
@@ -215,8 +215,8 @@ class Smartyer
 		$this->delimiter_start = preg_quote($this->delimiter_start, '#');
 		$this->delimiter_end = preg_quote($this->delimiter_end, '#');
 
-		$this->template_path = !is_null($template) ? self::$templates_path . DIRECTORY_SEPARATOR . $template : null;
-		$this->compiled_template_path = self::$cache_path . DIRECTORY_SEPARATOR . sha1($template) . '.phptpl';
+		$this->template_path = !is_null($template) ? self::$templates_dir . DIRECTORY_SEPARATOR . $template : null;
+		$this->compiled_template_path = self::$cache_dir . DIRECTORY_SEPARATOR . sha1($template) . '.phptpl';
 
 		// Register parent functions and variables locally
 		if ($parent instanceof Smartyer)
@@ -239,7 +239,7 @@ class Smartyer
 	{
 		$s = new Smartyer(null, $parent);
 		$s->source = $string;
-		$s->compiled_template_path = self::$cache_path . DIRECTORY_SEPARATOR . sha1($string) . '.phptpl';
+		$s->compiled_template_path = self::$cache_dir . DIRECTORY_SEPARATOR . sha1($string) . '.phptpl';
 		return $s;
 	}
 
@@ -283,6 +283,45 @@ class Smartyer
 		include $this->compiled_template_path;
 		
 		return ob_get_clean();
+	}
+
+	/**
+	 * Precompiles all templates, without any execution (so no error, unless invalid template syntax)
+	 * @param  string $path Path to templates dir
+	 * @return void
+	 */
+	public function precompileAll($templates_dir = null)
+	{
+		if (is_null($templates_dir))
+		{
+			$templates_dir = self::$templates_dir;
+
+			if (is_null($templates_dir))
+			{
+				throw new \Exception('No template directory specified.');
+			}
+		}
+
+		$dir = dir($templates_dir);
+
+		// Compile all templates
+		while ($file = $dir->read())
+		{
+			if ($file[0] == '.')
+			{
+				continue;
+			}
+
+			$file_path = $templates_dir . DIRECTORY_SEPARATOR . $file;
+
+			if (is_dir($file_path))
+			{
+				self::precompileAll($file_path);
+			}
+
+			$tpl = new Smartyer(substr($file_path, strpos($file_path, $templates_dir)), $this);
+			$tpl->compile();
+		}
 	}
 
 	/**
