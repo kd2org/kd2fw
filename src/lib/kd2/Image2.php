@@ -55,7 +55,6 @@ class Image2
 	protected $format = null;
 	protected $type = null;
 	protected $info = null;
-	protected $exif = null;
 
 	protected $pointer = null;
 	protected $pointer_lib = null;
@@ -294,7 +293,6 @@ class Image2
 		$this->width = null;
 		$this->height = null;
 		$this->info = null;
-		$this->exif = null;
 	}
 
 	public function __destruct()
@@ -486,98 +484,6 @@ class Image2
 		return $this->info;
 	}
 
-	public function getExif()
-	{
-		if ($this->type !== 'image/jpeg')
-			return false;
-
-		if ($this->exif !== null)
-			return $this->exif;
-
-		if (!function_exists('exif_read_data'))
-		{
-			throw new \RuntimeException('PHP EXIF extension is not installed.');
-		}
-
-		$this->exif = exif_read_data($this->source, null, true, true);
-		return $this->exif;
-	}
-
-	public function getExifThumbnail()
-	{
-		$exif = $this->getExif();
-
-		if (empty($exif['THUMBNAIL']['THUMBNAIL']))
-		{
-			return false;
-		}
-
-		return $exif['THUMBNAIL']['THUMBNAIL'];
-	}
-
-	public function getExifThumbnailDetails()
-	{
-		$exif = $this->getExif();
-
-		if (empty($exif['THUMBNAIL']))
-		{
-			return false;
-		}
-
-		unset($exif['THUMBNAIL']['THUMBNAIL']);
-		return $exif['THUMBNAIL'];
-	}
-
-	public function saveExifThumbnail($destination, $auto_rotate = false)
-	{
-		$exif = $this->getExif();
-
-		if (empty($exif['THUMBNAIL']['THUMBNAIL']))
-		{
-			return false;
-		}
-
-		// If we don't need to rotate the image then return it
-		if (!$auto_rotate || empty($exif['THUMBNAIL']['Orientation'])
-			|| !in_array($exif['THUMBNAIL']['Orientation'], [3, 6, 8]))
-		{
-			return file_put_contents($destination, $exif['THUMBNAIL']['THUMBNAIL']);
-		}
-
-		$im = new self();
-		$im->load($exif['THUMBNAIL']['THUMBNAIL']);
-		$im->rotate($exif['THUMBNAIL']['Orientation']);
-		return $im->save($destination);
-	}
-
-	public function getExifRotation($exif_orientation = null)
-	{
-		if (is_null($exif_orientation))
-		{
-			$exif = $this->getExif();
-
-			if (!$exif)
-				return false;
-
-			if (isset($exif['Orientation']))
-			{
-				$exif_orientation = $exif['Orientation'];
-			}
-		}
-
-		switch ($exif_orientation)
-		{
-			case 3:
-				return 180;
-			case 6:
-				return 90;
-			case 8:
-				return -90;
-		}
-
-		return 0;
-	}
-
 	/**
 	 * Crop the current image to this dimensions
 	 * @param  integer $new_width  Width of the desired image
@@ -642,18 +548,7 @@ class Image2
 		$this->$method($angle);
 		$this->{$this->pointer_lib . '_size'}();
 
-		if ($this->exif !== null)
-		{
-			$this->exif = null;
-			$this->getExif();
-		}
-
 		return $this;
-	}
-
-	public function rotateAuto()
-	{
-		return $this->rotate($this->getExifRotation());
 	}
 
 	public function cropResize($new_width, $new_height = null)
