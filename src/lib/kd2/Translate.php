@@ -426,9 +426,9 @@ class Translate
 	 */
 	static public function string($msgid, Array $args = [], $domain = null, $context = null)
 	{
-		if (is_array($id))
+		if (is_array($msgid))
 		{
-			if (count($id) !== 3)
+			if (count($msgid) !== 3)
 			{
 				throw new \InvalidArgumentException('Invalid plural msgid: array should be [msgid, msgid_plural, count]');
 			}
@@ -438,7 +438,7 @@ class Translate
 		}
 		else
 		{
-			$str = self::gettext($id, null, null, $domain, $context);
+			$str = self::gettext($msgid, null, null, $domain, $context);
 		}
 
 		return self::named_sprintf($str, $args);
@@ -803,9 +803,25 @@ class Translate
 	}
 }
 
-// Gettext compatible functions
-// Just prefix calls to gettext functions by \KD2\
-// eg _("Hi!") => \KD2\_("Hi!")
+/*
+	Gettext compatible functions
+	Just prefix calls to gettext functions by \KD2\
+	eg _("Hi!") => \KD2\_("Hi!")
+	Or add at the top of your files:
+
+	// PHP 5.6
+	use function \KD2\_;
+	use function \KD2\gettext;
+	use function \KD2\ngettext;
+	use function \KD2\dgettext;
+	use function \KD2\dngettext;
+	use function \KD2\bindtextdomain;
+	use function \KD2\textdomain;
+	use function \KD2\setlocale;
+
+	// PHP 7+
+	use function \KD2\{_, gettext, ngettext, dgettext, dngettext, bindtextdomain, textdomain, setlocale}
+*/
 
 function _($id, Array $args = [], $domain = null)
 {
