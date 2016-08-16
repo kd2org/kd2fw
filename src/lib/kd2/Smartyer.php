@@ -222,7 +222,7 @@ class Smartyer
 	{
 		if (is_null(self::$cache_dir))
 		{
-			throw new \LogicException('Cache path not set: call ' . __CLASS__ . '::setCachePath() first');
+			throw new \LogicException('Compile dir not set: call ' . __CLASS__ . '::setCompileDir() first');
 		}
 
 		$this->template_path = !is_null($template) ? self::$templates_dir . DIRECTORY_SEPARATOR . $template : null;
