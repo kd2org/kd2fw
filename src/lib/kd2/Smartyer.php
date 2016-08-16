@@ -300,7 +300,7 @@ class Smartyer
 	 * @param  string $path Path to templates dir
 	 * @return void
 	 */
-	public function precompileAll($templates_dir = null)
+	static public function precompileAll($templates_dir = null)
 	{
 		if (is_null($templates_dir))
 		{
