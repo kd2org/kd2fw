@@ -3,14 +3,6 @@
 use \KD2\Test;
 
 require __DIR__ . '/_assert.php';
-/*
-Test::equals('descendant-or-self::*', HTML_Document::cssSelectorToXPath(''));
-Test::equals('descendant-or-self::h1', HTML_Document::cssSelectorToXPath('h1'));
-Test::equals("descendant-or-self::h1[@id = 'foo']", HTML_Document::cssSelectorToXPath('h1#foo'));
-Test::equals("descendant-or-self::h1[@class and contains(concat(' ', normalize-space(@class), ' '), ' foo ')]", HTML_Document::cssSelectorToXPath('h1.foo'));
-Test::equals('descendant-or-self::foo:h1', HTML_Document::cssSelectorToXPath('foo|h1'));
-Test::equals('descendant-or-self::h1', HTML_Document::cssSelectorToXPath('H1'));*/
-//Test::equals(HTML_Document::cssSelectorToXPath('h1:'));
 
 $tests = [
 	'h1' => '//h1',
@@ -56,7 +48,7 @@ $tests = [
 
 foreach ($tests as $css=>$xpath)
 {
-	Test::equals($xpath, \KD2\HTML_Document::cssSelectorToXPath($css));
+	Test::equals($xpath, \KD2\HTMLDocument::cssSelectorToXPath($css));
 }
 
 $html = '<!DOCTYPE html>
@@ -107,7 +99,7 @@ $tests = [
 	'b:not(.main-bold-text)' => 'None',
 ];
 
-$doc = new \KD2\HTML_Document();
+$doc = new \KD2\HTMLDocument();
 $doc->loadHTML($html);
 
 // Test that querySelector returns an extended node that can also call querySelector
