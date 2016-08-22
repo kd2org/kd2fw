@@ -58,3 +58,62 @@ foreach ($tests as $css=>$xpath)
 {
 	Test::equals($xpath, \KD2\HTML_Document::cssSelectorToXPath($css));
 }
+
+$html = '<!DOCTYPE html>
+<html>
+<body>
+	<header>
+		<h1 class="main">Title</h1>
+		<h2 id="subtitle">Subtitle</h2>
+	</header>
+	<div>
+		<b class="main-bold-text">Bold</b>
+		<i class="main italic text">Italic</i>
+		<u></u>
+		<b class="none">None</b>
+	</div>
+</body>
+</html>';
+
+$tests = [
+	'h1' => 'Title',
+	'header h1' => 'Title',
+	'body > header > h1' => 'Title',
+	'b ~ u' => '',
+	'h1 + h2' => 'Subtitle',
+
+	'h1.main' => 'Title',
+	'.main' => 'Title',
+	'h2#subtitle' => 'Subtitle',
+	'#subtitle' => 'Subtitle',
+
+	'header *:nth-child(odd)' => 'Title',
+	'header *:nth-child(even)' => 'Subtitle',
+	'header *:nth-child(1)' => 'Title',
+	'header *:nth-child(2)' => 'Subtitle',
+
+	'h1[class]' => 'Title',
+	'h1[class="main"]' => 'Title',
+	'i[class~="italic"]' => 'Italic',
+	'b[class^="main"]' => 'Bold',
+	'*[class$="-text"]' => 'Bold',
+	'b[class*="-bold-"]' => 'Bold',
+
+	'h1:only-of-type' => 'Title',
+	'b:first-of-type' => 'Bold',
+	'b:last-of-type' => 'None',
+	'u:empty' => '',
+	'b:not([class^="main"])' => 'None',
+	'b:not(.main-bold-text)' => 'None',
+];
+
+$doc = new \KD2\HTML_Document();
+$doc->loadHTML($html);
+
+// Test that querySelector returns an extended node that can also call querySelector
+Test::equals('Title', $doc->querySelector('body')->querySelector('h1')->textContent);
+
+foreach ($tests as $selector => $expected)
+{
+	Test::equals($expected, $doc->querySelector($selector)->textContent);
+}
