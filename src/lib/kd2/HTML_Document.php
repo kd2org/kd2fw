@@ -49,7 +49,10 @@ class HTML_Document extends \DOMDocument
 		}
 
 		// http://plasmasturm.org/log/444/
-		preg_match_all('/\[\s*([^=\*\|~\]]+)(?:\s*([~*\|]?=)\s*(.*?))?\s*\]|\.\w+|#\w+|\w+|\s*>\s*|\s*\+\s*|\s+/i', strtolower($selector), $tokens, PREG_SET_ORDER);
+		// https://github.com/zendframework/zend-dom
+		// https://github.com/symfony/css-selector
+		// https://github.com/siuying/CSSSelectorConverter
+		preg_match_all('/\[\s*([^=\*\|~\]]+)(?:\s*([~*\|]?=)\s*(.*?))?\s*\]|:[a-z-]+(?:\((.*?)\))?|\.\w+|#\w+|\w+|\*|\s*~\s*|\s*>\s*|\s*\+\s*|\s+/i', $selector, $tokens, PREG_SET_ORDER);
 
 		$xpath = ['//'];
 
@@ -68,12 +71,54 @@ class HTML_Document extends \DOMDocument
 				// div > form
 				$xpath[] = '/';
 			}
+			elseif ($t == '~')
+			{
+				// div ~ form
+				$xpath[] = '/following-sibling::';
+			}
 			elseif ($t === '')
 			{
 				// div form
-				$xpath[] = '/descendant-or-self::*/';
+				$xpath[] = '//';
 			}
-			else if ($t[0] == '[')
+			elseif ($t == ':empty')
+			{
+				$xpath[] = '[not(node())]';
+			}
+			elseif ($t == ':first-of-type')
+			{
+				$xpath[] = '[position() = 1]';
+			}
+			elseif ($t == ':last-of-type')
+			{
+				$xpath[] = '[position() = last()]';
+			}
+			elseif ($t == ':only-of-type')
+			{
+				$xpath[] = '[last() = 1]';
+			}
+			elseif (substr($t, 0, 10) == ':nth-child')
+			{
+				$operation = $token[4];
+				
+				if ($operation == 'odd')
+				{
+					$xpath[] = '[(position() >= 1) and (((position()-1) mod 2) = 0)]';
+				}
+				elseif ($operation == 'even')
+				{
+					$xpath[] = '[(position() mod 2) = 0]';
+				}
+				elseif (is_numeric($operation))
+				{
+					$xpath[] = '[position() = ' . (int) $operation . ']';
+				}
+				else
+				{
+					throw new \InvalidArgumentException(':nth-child operation \'' . $operation . '\' is not supported.');
+				}
+			}
+			elseif ($t[0] == '[')
 			{
 				// Remove quotes if necessary
 				if (isset($token[3]) && ($token[3][0] == '"' || $token[3][0] == '\''))
@@ -99,7 +144,7 @@ class HTML_Document extends \DOMDocument
 				// div[name|="blob"]
 				elseif ($token[2] == '|=')
 				{
-					$xpath[] = sprintf('[@%s = %s or starts-with(@%1$s, "%2$s-"))', trim($token[1]), $token[3]);
+					$xpath[] = sprintf('[@%s="%s" or starts-with(@%1$s, "%2$s-")]', trim($token[1]), $token[3]);
 				}
 				elseif ($token[2] == '*=')
 				{
@@ -114,6 +159,10 @@ class HTML_Document extends \DOMDocument
 			elseif ($t[0] == '#')
 			{
 				$xpath[] = '[@id="' . substr($t, 1) . '"]';
+			}
+			elseif ($t[0] == ':')
+			{
+				throw new \InvalidArgumentException('CSS selector ' . $t . ' is not supported.');
 			}
 			// div
 			else
