@@ -298,7 +298,7 @@ trait HTML_Query_Selector
 /**
  * Extends DOMDocument by adding querySelector/querySelectorAll on Document and Node objects
  */
-class HTML_Document extends \DOMDocument
+class HTMLDocument extends \DOMDocument
 {
 	use HTML_Query_Selector;
 
@@ -310,8 +310,8 @@ class HTML_Document extends \DOMDocument
 	public function __construct($version = null, $encoding = null)
 	{
 		parent::__construct($version, $encoding);
-		$this->registerNodeClass('DOMNode', '\KD2\HTML_Node');
-		$this->registerNodeClass('DOMElement', '\KD2\HTML_Element');
+		$this->registerNodeClass('DOMNode', '\KD2\HTMLNode');
+		$this->registerNodeClass('DOMElement', '\KD2\HTMLElement');
 	}
 
 	/**
@@ -367,7 +367,7 @@ class HTML_Document extends \DOMDocument
 /**
  * Extends DOMNode with querySelector and querySelectorAll
  */
-class HTML_Node extends \DOMNode
+class HTMLNode extends \DOMNode
 {
 	use HTML_Query_Selector;
 }
@@ -375,7 +375,7 @@ class HTML_Node extends \DOMNode
 /**
  * Extends DOMNode with querySelector and querySelectorAll
  */
-class HTML_Element extends \DOMElement
+class HTMLElement extends \DOMElement
 {
 	use HTML_Query_Selector;
 }
