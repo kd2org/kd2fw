@@ -34,6 +34,11 @@ class HTTP
 	const JSON = 'application/json; charset=UTF-8';
 	const XML = 'text/xml';
 
+	const CLIENT_DEFAULT = 'default';
+	const CLIENT_CURL = 'curl';
+
+	public $client = self::CLIENT_DEFAULT;
+
 	/**
 	 * A list of common User-Agent strings, one of them is used
 	 * randomly every time an object has a new instance.
@@ -124,7 +129,7 @@ class HTTP
 	 * @param  array  $additional_headers Optional headers to send with request
 	 * @return object                     a stdClass object containing 'headers' and 'body'
 	 */
-	public function GET($url, $additional_headers = null)
+	public function GET($url, Array $additional_headers = null)
 	{
 		return $this->request('GET', $url, null, $additional_headers);
 	}
@@ -137,7 +142,7 @@ class HTTP
 	 * @param  array  $additional_headers Optional headers to send with request
 	 * @return HTTP_Response
 	 */
-	public function POST($url, $data = [], $type = self::FORM, $additional_headers = [])
+	public function POST($url, $data = [], $type = self::FORM, Array $additional_headers = [])
 	{
 		if ($type == self::FORM)
 		{
@@ -177,7 +182,7 @@ class HTTP
 	 * @param  [type] $additional_headers [description]
 	 * @return HTTP_Response
 	 */
-	public function request($method, $url, $data = null, $additional_headers = null)
+	public function request($method, $url, $data = null, Array $additional_headers = null)
 	{
 		$url = $this->url_prefix . $url;
 
@@ -199,14 +204,23 @@ class HTTP
 			}
 		}
 
-		$response = $this->httpClientRequest($method, $url, $data, $headers);
+		$method = $this->client . 'ClientRequest';
+		$response = $this->$method($method, $url, $data, $headers);
 
 		$this->cookies = array_merge($this->cookies, $response->cookies);
 
 		return $response;
 	}
 
-	protected function httpClientRequest($method, $url, $data, $headers)
+	/**
+	 * HTTP request using PHP stream and file_get_contents
+	 * @param  string $method
+	 * @param  string $url
+	 * @param  string $data
+	 * @param  array $headers
+	 * @return HTTP_Response
+	 */
+	protected function defaultClientRequest($method, $url, $data, Array $headers)
 	{
 		$request = '';
 
@@ -302,6 +316,132 @@ class HTTP
 				}
 			}
 		}
+
+		return $r;
+	}
+
+	/**
+	 * HTTP request using CURL
+	 * @param  string $method
+	 * @param  string $url
+	 * @param  string $data
+	 * @param  array $headers
+	 * @return HTTP_Response
+	 */
+	protected function curlClientRequest($method, $url, $data, Array $headers)
+	{
+		// Sets headers in the right format
+		foreach ($headers as $key=>&$header)
+		{
+			$header = $key . ': ' . $header;
+		}
+
+		// Concatenates cookies
+		$cookies = [];
+
+		foreach ($this->cookies as $key=>$value)
+		{
+			$cookies[] = $key . '=' . $value;
+		}
+
+		$cookies = implode('; ', $cookies);
+
+		$r = new HTTP_Response;
+
+		$c = curl_init();
+
+		curl_setopt_array($c, [
+			CURLOPT_URL            =>	$url,
+			CURLOPT_HTTPHEADER     => $headers,
+			CURLOPT_RETURNTRANSFER => true,
+			CURLOPT_COOKIESESSION  => true,
+			CURLOPT_FOLLOWLOCATION => !empty($this->http_options['max_redirects']),
+			CURLOPT_MAXREDIRS      => !empty($this->http_options['max_redirects']) ? (int) $this->http_options['max_redirects'] : 0,
+			CURLOPT_SSL_VERIFYPEER => !empty($this->ssl_options['verify_peer']),
+			CURLOPT_SSL_VERIFYHOST => !empty($this->ssl_options['verify_peer_name']) ? 2 : 0,
+			CURLOPT_CUSTOMREQUEST  => $method,
+			CURLOPT_COOKIE         => $cookies,
+			CURLOPT_TIMEOUT        => !empty($this->http_options['timeout']) ? (int) $this->http_options['timeout'] : 30,
+			CURLOPT_USERAGENT      => $this->user_agent,
+			CURLOPT_POST           => $method == 'POST' ? true : false,
+			CURLOPT_SAFE_UPLOAD    => true, // Disable file upload with values beginning with @
+			CURLOPT_POSTFIELDS     => $data,
+			CURLINFO_HEADER_OUT    => true,
+		]);
+
+		curl_setopt($c, CURLOPT_HEADERFUNCTION, function ($c, $header) use (&$r) {
+			$r->raw_headers .= $header;
+
+			$name = trim(strtok(trim($header), ':'));
+			$value = strtok('');
+
+			if ($name === '')
+			{
+				return strlen($header);
+			}
+			elseif ($value === false)
+			{
+				$r->headers[] = $name;
+			}
+			else
+			{
+				$name = strtolower($name);
+				$value = trim($value);
+
+				if ($name == 'set-cookie')
+				{
+					$cookie_key = strtok($value, '=');
+					$cookie_value = strtok(';');
+					$r->cookies[$cookie_key] = $cookie_value;
+				}
+
+				// Multiple headers with the same name
+				if (array_key_exists($name, $r->headers))
+				{
+					if (!is_array($r->headers[$name]))
+					{
+						$r->headers[$name] = [$r->headers[$name]];
+					}
+
+					$r->headers[$name][] = $value;
+				}
+				else
+				{
+					$r->headers[$name] = $value;
+				}
+			}
+
+			return strlen($header);
+		});
+
+		$request = curl_getinfo($c, CURLINFO_HEADER_OUT) . $data;
+
+		$r->url = $url;
+		$r->request = $request;
+
+		$r->body = curl_exec($c);
+
+		if ($error = curl_error($c))
+		{
+			if (!empty($this->http_options['ignore_errors']))
+			{
+				$r->body = $error;
+				return $r;
+			}
+
+			throw new \RuntimeException('cURL error: ' . $error);
+		}
+
+		if ($r->body === false)
+		{
+			return $r;
+		}
+
+		$r->fail = false;
+		$r->size = strlen($r->body);
+		$r->status = curl_getinfo($c, CURLINFO_HTTP_CODE);
+
+		curl_close($c);
 
 		return $r;
 	}
