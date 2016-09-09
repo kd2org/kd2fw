@@ -30,6 +30,10 @@ namespace KD2;
 
 class HTTP
 {
+	const FORM = 'application/x-www-form-urlencoded';
+	const JSON = 'application/json; charset=UTF-8';
+	const XML = 'text/xml';
+
 	/**
 	 * A list of common User-Agent strings, one of them is used
 	 * randomly every time an object has a new instance.
@@ -46,13 +50,12 @@ class HTTP
 	 * @var string
 	 */
 	public $user_agent = null;
+
 	/**
 	 * Default HTTP headers sent with every request
 	 * @var array
 	 */
 	public $headers = [
-		'Accept-Language' => 'fr,en',
-		'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
 	];
 
 	/**
@@ -132,22 +135,36 @@ class HTTP
 	 * @param  array  $data 			  Data to send with POST request
 	 * @param  string $type 			  Type of data: 'form' for HTML form or 'json' to encode array in JSON
 	 * @param  array  $additional_headers Optional headers to send with request
-	 * @return object                     a stdClass object containing 'headers' and 'body'
+	 * @return HTTP_Response
 	 */
-	public function POST($url, $data = [], $type = 'form', $additional_headers = null)
+	public function POST($url, $data = [], $type = self::FORM, $additional_headers = [])
 	{
-		if ($type == 'form')
+		if ($type == self::FORM)
 		{
 			$data = http_build_query($data, null, '&');
-			$additional_headers['Content-Length'] = strlen($data);
-			$additional_headers['Content-Type'] = 'application/x-www-form-urlencoded';
 		}
-		elseif ($type == 'json')
+		elseif ($type == self::JSON)
 		{
 			$data = json_encode($data);
-			$additional_headers['Content-Length'] = strlen($data);
-			$additional_headers['Content-Type'] = 'application/json; charset=UTF-8';
 		}
+		elseif ($type == self::XML)
+		{
+			if ($data instanceof \SimpleXMLElement)
+			{
+				$data = $data->asXML();
+			}
+			elseif ($data instanceof \DOMDocument)
+			{
+				$data = $data->saveXML();
+			}
+			elseif (!is_string($data))
+			{
+				throw new \InvalidArgumentException('Data is not a valid XML object or string.');
+			}
+		}
+
+		$additional_headers['Content-Length'] = strlen($data);
+		$additional_headers['Content-Type'] = $type;
 
 		return $this->request('POST', $url, $data, $additional_headers);
 	}
@@ -158,7 +175,7 @@ class HTTP
 	 * @param  string $url                URL to request
 	 * @param  string $content            Data to send with request
 	 * @param  [type] $additional_headers [description]
-	 * @return [type]                     [description]
+	 * @return HTTP_Response
 	 */
 	public function request($method, $url, $data = null, $additional_headers = null)
 	{
@@ -182,6 +199,15 @@ class HTTP
 			}
 		}
 
+		$response = $this->httpClientRequest($method, $url, $data, $headers);
+
+		$this->cookies = array_merge($this->cookies, $response->cookies);
+
+		return $response;
+	}
+
+	protected function httpClientRequest($method, $url, $data, $headers)
+	{
 		$request = '';
 
 		foreach ($headers as $key=>$value)
@@ -205,17 +231,23 @@ class HTTP
 
 		$request = $method . ' ' . $url . "\r\n" . $request . "\r\n" . $data;
 
-		$r = new \stdClass;
+		$r = new HTTP_Response;
 		$r->url = $url;
-		$r->headers = [];
-		$r->body = null;
-		$r->fail = true;
-		$r->cookies = [];
-		$r->status = null;
 		$r->request = $request;
-		$r->size = 0;
 
-		$r->body = file_get_contents($url, false, $context);
+		try {
+			$r->body = file_get_contents($url, false, $context);
+		}
+		catch (\Exception $e)
+		{
+			if (!empty($this->http_options['ignore_errors']))
+			{
+				$r->body = $e->getMessage();
+				return $r;
+			}
+
+			throw $e;
+		}
 
 		if ($r->body === false && empty($http_response_header))
 			return $r;
@@ -223,44 +255,73 @@ class HTTP
 		$r->fail = false;
 		$r->size = strlen($r->body);
 
+		$r->raw_headers = implode("\r\n", $http_response_header);
+
 		foreach ($http_response_header as $line)
 		{
-			if (preg_match('!^([a-z0-9_-]+): (.*)$!i', $line, $match))
-			{
-				$key = $match[1];
+			$header = strtok($line, ':');
+			$value = strtok(':');
 
-				if (strtolower($key) == 'set-cookie' && preg_match('!^([^=]+)=([^;]*)!', $match[2], $c_match))
-				{
-					$r->cookies[$c_match[1]] = urldecode($c_match[2]);
-				}
-
-				if (array_key_exists($key, $r->headers))
-				{
-					if (!is_array($r->headers[$key]))
-					{
-						$r->headers[$key] = array($r->headers[$key]);
-					}
-
-					$r->headers[$key][] = $match[2];
-				}
-				else
-				{
-					$r->headers[$key] = $match[2];
-				}
-			}
-			else
+			if ($value === false)
 			{
 				if (preg_match('!^HTTP/1\.[01] ([0-9]{3}) !', $line, $match))
 				{
 					$r->status = $match[1];
 				}
+				else
+				{
+					$r->headers[] = $line;
+				}
+			}
+			else
+			{
+				$header = strtolower($header);
+				$value = trim($value);
 
-				$r->headers[] = $line;
+				// Add to cookies array
+				if (strtolower($header) == 'set-cookie')
+				{
+					$cookie_key = strtok($value, '=');
+					$cookie_value = strtok(';');
+					$r->cookies[$cookie_key] = $cookie_value;
+				}
+				
+				// Multiple headers with the same name
+				if (array_key_exists($header, $r->headers))
+				{
+					if (!is_array($r->headers[$header]))
+					{
+						$r->headers[$header] = [$r->headers[$header]];
+					}
+
+					$r->headers[$header][] = $value;
+				}
+				else
+				{
+					$r->headers[$header] = $value;
+				}
 			}
 		}
 
-		$this->cookies = array_merge($this->cookies, $r->cookies);
-
 		return $r;
+	}
+}
+
+class HTTP_Response
+{
+	public $code = null;
+	public $url = null;
+	public $headers = [];
+	public $body = null;
+	public $fail = true;
+	public $cookies = [];
+	public $status = null;
+	public $request = null;
+	public $size = 0;
+	public $raw_headers = null;
+
+	public function __toString()
+	{
+		return $this->body;
 	}
 }
