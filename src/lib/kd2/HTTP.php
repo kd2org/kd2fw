@@ -204,8 +204,8 @@ class HTTP
 			}
 		}
 
-		$method = $this->client . 'ClientRequest';
-		$response = $this->$method($method, $url, $data, $headers);
+		$client = $this->client . 'ClientRequest';
+		$response = $this->$client($method, $url, $data, $headers);
 
 		$this->cookies = array_merge($this->cookies, $response->cookies);
 
