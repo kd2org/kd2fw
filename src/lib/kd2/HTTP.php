@@ -351,7 +351,7 @@ class HTTP
 		$c = curl_init();
 
 		curl_setopt_array($c, [
-			CURLOPT_URL            =>	$url,
+			CURLOPT_URL            => $url,
 			CURLOPT_HTTPHEADER     => $headers,
 			CURLOPT_RETURNTRANSFER => true,
 			CURLOPT_COOKIESESSION  => true,
@@ -414,12 +414,10 @@ class HTTP
 			return strlen($header);
 		});
 
-		$request = curl_getinfo($c, CURLINFO_HEADER_OUT) . $data;
-
 		$r->url = $url;
-		$r->request = $request;
 
 		$r->body = curl_exec($c);
+		$r->request = curl_getinfo($c, CURLINFO_HEADER_OUT) . $data;
 
 		if ($error = curl_error($c))
 		{
@@ -449,7 +447,6 @@ class HTTP
 
 class HTTP_Response
 {
-	public $code = null;
 	public $url = null;
 	public $headers = [];
 	public $body = null;
