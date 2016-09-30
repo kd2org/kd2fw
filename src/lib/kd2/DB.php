@@ -30,15 +30,18 @@ namespace KD2;
 
 use PDO;
 use PDOException;
+use PDOStatement;
 
 class DB extends PDO
 {
 	/**
-	 * Default fetch mode
-	 * FIXME: could probably use PDO attribute instead!
-	 * @var integer
+	 * Attributes for PDO instance
+	 * @var array
 	 */
-	public $default_fetch_mode = self::FETCH_ASSOC;
+	protected $attributes = [
+		PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+		PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+	];
 
 	/**
 	 * Current driver
@@ -47,17 +50,16 @@ class DB extends PDO
 	protected $driver = null;
 
 	/**
-	 * Are we connected?
-	 * Useful for lazy connect: will only connect when needed
-	 * @var null
-	 */
-	protected $connected = null;
-
-	/**
-	 * List of SQLite functions to register
+	 * List of lazy callbacks to register on connect
 	 * @var array
 	 */
-	protected $sqlite_functions = [];
+	protected $lazy_callbacks = [];
+
+	/**
+	 * Store PDO object
+	 * @var null
+	 */
+	protected $pdo = null;
 
 	/**
 	 * Returns a driver configuration after check
@@ -142,14 +144,19 @@ class DB extends PDO
 	 */
 	public function connect()
 	{
-		if ($this->connected)
+		if ($this->pdo)
+		{
 			return true;
+		}
 
 		try {
-			parent::__construct($this->driver['url'], $this->driver['user'], $this->driver['password']);
-			$this->connected = true;
-			$this->setAttribute(self::ATTR_ERRMODE, self::ERRMODE_EXCEPTION);
-			$this->setAttribute(self::ATTR_DEFAULT_FETCH_MODE, $this->default_fetch_mode);
+			$this->pdo = new PDO($this->driver['url'], $this->driver['user'], $this->driver['password']);
+
+			// Set attributes
+			foreach ($this->attributes as $attr => $value)
+			{
+				$this->pdo->setAttribute($attr, $value);
+			}
 		}
 		catch (PDOException $e)
 		{
@@ -157,32 +164,51 @@ class DB extends PDO
 			throw new PDOException('Unable to connect to database. Check username and password.');
 		}
 
-		// Enhance SQLite default
+		// Enhance SQLite with default functions
 		if ($this->driver['type'] == 'sqlite')
 		{
-			parent::sqliteCreateFunction('rank', [$this, 'sqlite_rank']);
-			parent::sqliteCreateFunction('haversine_distance', [$this, 'sqlite_haversine']);
+			$this->pdo->sqliteCreateFunction('rank', [$this, 'sqlite_rank']);
+			$this->pdo->sqliteCreateFunction('haversine_distance', [$this, 'sqlite_haversine']);
+		}
 
-			foreach ($this->sqlite_functions as $name => $callback)
+		// Register callbacks like sqliteCreateFunction etc.
+		foreach ($this->lazy_callbacks as $function => $callbacks)
+		{
+			foreach ($callbacks as $name => $callback)
 			{
-				parent::sqliteCreateFunction($name, $callback);
+				$this->pdo->{$function}($name, $callback);
 			}
 		}
 
 		$this->driver['password'] = '******';
 	}
 
+	public function disconnect()
+	{
+		$this->pdo = null;
+	}
+
 	/**
-	 * Store sqlite functions for later, as we use lazy loading,
-	 * and if the connection is not established the method sqliteCreateFunction
-	 * is not defined (weird).
+	 * Store DB-specific callbacks to be registered at connection
 	 * @param  string   $name     Function name
 	 * @param  Callable $callback PHP callback
 	 * @return boolean
 	 */
 	public function sqliteCreateFunction($name, Callable $callback)
 	{
-		$this->sqlite_functions[$name] = $callback;
+		$this->lazy_callbacks[__FUNCTION__][$name] = $callback;
+		return true;
+	}
+
+	public function sqliteCreateAggregate($name, Callable $callback)
+	{
+		$this->lazy_callbacks[__FUNCTION__][$name] = $callback;
+		return true;
+	}
+
+	public function sqliteCreateCollation($name, Callable $callback)
+	{
+		$this->lazy_callbacks[__FUNCTION__][$name] = $callback;
 		return true;
 	}
 
@@ -192,67 +218,78 @@ class DB extends PDO
 	public function query($statement)
 	{
 		$this->connect();
-		return parent::query($statement);
+		return $this->pdo->query($statement);
 	}
 
 	public function exec($statement)
 	{
 		$this->connect();
-		return parent::query($statement);
+		return $this->pdo->query($statement);
 	}
 
 	public function prepare($statement, $driver_options = [])
 	{
 		$this->connect();
-		return parent::prepare($statement, $driver_options);
+		return $this->pdo->prepare($statement, $driver_options);
 	}
 
 	public function beginTransaction()
 	{
 		$this->connect();
-		return parent::beginTransaction();
+		return $this->pdo->beginTransaction();
 	}
 
 	public function inTransaction()
 	{
 		$this->connect();
-		return parent::inTransaction();
+		return $this->pdo->inTransaction();
 	}
 
 	public function commit()
 	{
 		$this->connect();
-		return parent::commit();
+		return $this->pdo->commit();
 	}
 
 	public function errorCode()
 	{
 		$this->connect();
-		return parent::errorCode();
+		return $this->pdo->errorCode();
 	}
 
 	public function errorInfo()
 	{
 		$this->connect();
-		return parent::errorInfo();
+		return $this->pdo->errorInfo();
 	}
 
 	public function getAttribute($attribute)
 	{
-		$this->connect();
-		return parent::getAttribute($attribute);
+		return $this->attributes[$attribute];
+	}
+
+	public function setAttribute($attribute, $value)
+	{
+		$this->attributes[$attribute] = $value;
+
+		if ($this->pdo)
+		{
+			$this->pdo->setAttribute($attribute, $value);
+		}
+
+		return true;
 	}
 
 	public function lastInsertId($name = null)
 	{
 		$this->connect();
-		return parent::lastInsertId($name);
+		return $this->pdo->lastInsertId($name);
 	}
 
 	public function quote($value, $parameter_type = self::PARAM_STR)
 	{
 		$this->connect();
-		return parent::quote($value, $parameter_type);
+		return $this->pdo->quote($value, $parameter_type);
 	}
 
 	/**
