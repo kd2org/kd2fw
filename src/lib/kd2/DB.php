@@ -54,6 +54,12 @@ class DB extends PDO
 	protected $connected = null;
 
 	/**
+	 * List of SQLite functions to register
+	 * @var array
+	 */
+	protected $sqlite_functions = [];
+
+	/**
 	 * Returns a driver configuration after check
 	 * @param  string $name   Driver name: mysql or sqlite
 	 * @param  array  $params Driver configuration
@@ -154,11 +160,30 @@ class DB extends PDO
 		// Enhance SQLite default
 		if ($this->driver['type'] == 'sqlite')
 		{
-			$this->sqliteCreateFunction('rank', [$this, 'sqlite_rank']);
-			$this->sqliteCreateFunction('haversine_distance', [$this, 'sqlite_haversine']);
+			parent::sqliteCreateFunction('rank', [$this, 'sqlite_rank']);
+			parent::sqliteCreateFunction('haversine_distance', [$this, 'sqlite_haversine']);
+
+			foreach ($this->sqlite_functions as $name => $callback)
+			{
+				parent::sqliteCreateFunction($name, $callback);
+			}
 		}
 
 		$this->driver['password'] = '******';
+	}
+
+	/**
+	 * Store sqlite functions for later, as we use lazy loading,
+	 * and if the connection is not established the method sqliteCreateFunction
+	 * is not defined (weird).
+	 * @param  string   $name     Function name
+	 * @param  Callable $callback PHP callback
+	 * @return boolean
+	 */
+	public function sqliteCreateFunction($name, Callable $callback)
+	{
+		$this->sqlite_functions[$name] = $callback;
+		return true;
 	}
 
 	/**
