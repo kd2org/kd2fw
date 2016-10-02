@@ -39,6 +39,7 @@ namespace KD2;
  */
 
 use KD2\MemCache;
+use IntlDateFormatter;
 
 class Translate
 {
@@ -90,6 +91,8 @@ class Translate
 	 */
 	static public function setLocale($locale)
 	{
+		\setlocale(LC_ALL, $locale);
+
 		$locale = strtok($locale, '@.-+=%:; ');
 
 		self::$locale = $locale;
@@ -705,12 +708,93 @@ class Translate
 	}
 
 	/**
-	 * Register a new template block in Smartyer to call KD2\Intl::gettext()
+	 * Locale-formatted strftime using IntlDateFormatter as a shim if the locale
+	 * is not installed
+	 * @param  string $format Date format
+	 * @param  integer $timestamp Timestamp
+	 * @return string
+	 */
+	static public function strftime($format)
+	{
+		// Use IntlDateFormatter to get locale time strings
+		// This is better than strftime because this doesn't depend on having
+		// the actual locale installed on the system
+		static $strftime_to_intl_format = [
+			'%a' => 'EEE',	// An abbreviated textual representation of the day	Sun through Sat
+			'%A' => 'EEEE',	// A full textual representation of the day	Sunday through Saturday
+			'%b' => 'MMM',	// Abbreviated month name, based on the locale	Jan through Dec
+			'%B' => 'MMMM',	// Full month name, based on the locale	January through December
+			'%h' => 'MMM',	// Abbreviated month name, based on the locale (an alias of %b)	Jan through Dec
+			'%p' => 'aa',	// UPPER-CASE 'AM' or 'PM' based on the given time	Example: AM for 00:31, PM for 22:23
+			'%P' => 'aa',	// lower-case 'am' or 'pm' based on the given time	Example: am for 00:31, pm for 22:23
+		];
+
+		if (func_num_args() == 2)
+		{
+			$timestamp = func_get_arg(1);
+		}
+		elseif (func_num_args() == 1)
+		{
+			$timestamp = time();
+		}
+
+		// Windows support shims
+		$format = str_replace('%e', date('j', $timestamp), $format);
+		$format = str_replace('%z', date('O', $timestamp), $format);
+		$format = str_replace('%Z', date('T', $timestamp), $format);
+
+		// get current locale
+		$locale = self::$locale ?: \setlocale(LC_TIME, 0);
+		$locale = substr(strtolower($locale), 0, 4);
+
+		$system_locale = substr(strtolower(\setlocale(LC_TIME, 0), 0, 4));
+
+		// Intl extension not loaded/installed: just use strftime and pray that the locale is installed
+		// Will fallback to strftime if current locale is set correctly/installed, too
+		if (!class_exists('IntlDateFormatter') || $system_locale == $locale)
+		{
+			return \strftime($format, $timestamp);
+		}
+
+		// helpful for conversion to ISO format
+		$format = str_replace('%r', '%I:%M:%S %p', $format);
+		
+		// %c = Preferred date and time stamp based on locale
+		// Example: Tue Feb 5 00:45:10 2009 for February 5, 2009 at 12:45:10 AM
+		$format = preg_replace_callback('/(?<!%)%c/', function ($match) use ($locale, $timestamp) {
+			$dateFormat = new IntlDateFormatter($locale, IntlDateFormatter::LONG, IntlDateFormatter::SHORT, date_default_timezone_get());
+			return $dateFormat->format($timestamp);
+		}, $format);
+
+		// %x = Preferred date representation based on locale, without the time
+		// Example: 02/05/09 for February 5, 2009
+		$format = preg_replace_callback('/(?<!%)%x/', function ($match) use ($locale, $timestamp) {
+			$dateFormat = new IntlDateFormatter($locale, IntlDateFormatter::SHORT, IntlDateFormatter::NONE, date_default_timezone_get());
+			return $dateFormat->format($timestamp);
+		}, $format);
+
+		// Other locale-specific formats
+		$format = preg_replace_callback('/(?<!%)(%[aAbBhpP])/', function ($match) use ($locale, $timestamp, $strftime_to_intl_format) {
+			$dateFormat = new IntlDateFormatter($locale, IntlDateFormatter::FULL, IntlDateFormatter::FULL, 
+				IntlDateFormatter::GREGORIAN, date_default_timezone_get(), $strftime_to_intl_format[$match[1]]);
+			return $dateFormat->format($timestamp);
+		}, $format);
+
+		// Use strftime to replace other strings
+		return \strftime($format, $timestamp);
+	}
+
+	/**
+	 * Register a new template block in Smartyer to call KD2Intl::gettext()
 	 * @param  Smartyer &$tpl Smartyer instance
 	 * @return Smartyer
 	 */
-	static public function registerSmartyerBlock(Smartyer &$tpl)
+	static public function extendSmartyer(Smartyer &$tpl)
 	{
+		$tpl->register_modifier('date_format', function ($timestamp, $format = '%c') {
+			return \KD2\Translate::strftime($format, $timestamp);
+		});
+
 		return (new Translate)->_registerSmartyerBlock($tpl);
 	}
 
