@@ -127,6 +127,18 @@ class Translate
 		return true;
 	}
 
+	static public function unregisterDomain($domain)
+	{
+		unset(self::$translations[$domain], self::$domains[$domain]);
+
+		if (self::$default_domain === $domain)
+		{
+			self::$default_domain = null;
+		}
+
+		return true;
+	}
+
 	/**
 	 * Sets the default domain used for translating text
 	 * @param  string $domain Domain
@@ -212,7 +224,7 @@ class Translate
 
 		// File path is domain_directory/locale/LC_MESSAGES/domain.mo
 		// example: myApp/fr_BE/LC_MESSAGES/errors.mo
-		$file = implode(DIRECTORY_SEPARATOR, [$dir, $locale, 'LC_MESSAGES', $domain]);
+		$file = implode(DIRECTORY_SEPARATOR, [$dir, 'LC_MESSAGES', $domain]);
 
 		if (file_exists($file . '.mo'))
 		{
@@ -390,7 +402,7 @@ class Translate
 
 		if (isset(self::$translations[$domain][self::$locale][$id]))
 		{
-			$str = self::$translations[$domain][$locale][$id];
+			$str = self::$translations[$domain][self::$locale][$id];
 		}
 		elseif (isset(self::$translations[$domain][$locale_short][$id]))
 		{
@@ -504,18 +516,17 @@ class Translate
 		$fp = fopen($path, 'rb');
 
 		// Read header
-		$header = fread($fp, 20);
-		$header = unpack('L1magic/L1version/L1count/L1o_msg/L1o_trn', $header);
+		$data = fread($fp, 20);
+		$header = unpack('L1magic/L1version/L1count/L1o_msg/L1o_trn', $data);
 		extract($header);
 
-		if ((dechex($magic) != "950412de") || ($version != 0))
+		if ((dechex($magic) != '950412de') || ($version != 0))
 		{
 			return false;
 		}
 
 		// Read the rest of the file
-		$data = fread($fp, 1<<20);
-		fclose($fp);
+		$data .= fread($fp, 1<<20);
 
 		if (!$data)
 		{
@@ -528,21 +539,17 @@ class Translate
 		for ($n = 0; $n < $count; $n++)
 		{
 			// msgid
-			$r = unpack('L1len/L1offs', substr($data, $o_msg + $n * 8, 8));
-			$msgid = substr($data, $r['offs'], $r['len']);
+			$r = unpack('L1length/L1offset', substr($data, $o_msg + $n * 8, 8));
+			$msgid = substr($data, $r['offset'], $r['length']);
 	
 			if (strpos($msgid, "\000")) {
 				list($msgid, $msgid_plural) = explode("\000", $msgid);
 			}
 	
 			// translation(s)
-			$r = unpack('L1len/L1offs', substr($data, $o_trn + $n * 8, 8));
-			$msgstr = substr($data, $r["offs"], $r["len"]);
+			$r = unpack('L1length/L1offset', substr($data, $o_trn + $n * 8, 8));
+			$msgstr = explode(chr(0), substr($data, $r['offset'], $r['length']));
 		
-			if (strpos($msgstr, "\000")) {
-				$msgstr = explode("\000", $msgstr);
-			}
-
 			$translations[$msgid] = $msgstr;
 	
 			if (isset($msgid_plural) && !$one_msgid_only)
@@ -578,7 +585,7 @@ class Translate
 			$space = strpos($line, " ");
 
 			// Ignore comments
-			if ($line[0] == "#")
+			if (substr($line, 0, 1) == "#")
 			{
 				continue;
 			}
@@ -598,16 +605,26 @@ class Translate
 				$msgctxt = trim(substr($line, $space + 1), '"');
 			}
 			// continued (could be _id or _str)
-			elseif ($line[0] == '"')
+			elseif (substr($line, 0, 1) == '"')
 			{
 				$line = trim($line, '"');
 
 				if ($i = count($msgstr))
 				{
+					if (!isset($msgstr[$i]))
+					{
+						$msgstr[$i] = '';
+					}
+
 					$msgstr[$i] .= $line;
 				}
 				elseif ($i = count($msgid))
 				{
+					if (!isset($msgid[$i]))
+					{
+						$msgid[$i] = '';
+					}
+
 					$msgid[$i] .= $line;
 				}
 				elseif ($msgctxt !== null)
@@ -617,7 +634,7 @@ class Translate
 			}
 
 			// Complete dataset: append to translations
-			if (count($msgid) && count($msgstr) && (empty($line) || ($line[0] == "#") || feof($f)) )
+			if (count($msgid) && count($msgstr) && (empty($line) || ($line[0] == "#") || feof($fp)))
 			{
 				$msgid[0] = strtr($msgid[0], $c_esc);
 
@@ -646,7 +663,7 @@ class Translate
 			}
 		} while (!feof($fp));
 
-		fclose($f);
+		fclose($fp);
 
 		return $translations;
 	}
