@@ -109,7 +109,7 @@ class Translate
 	 * @param  string $directory Directory where translations will be stored
 	 * @return boolean
 	 */
-	static public function registerDomain($domain, $directory)
+	static public function registerDomain($domain, $directory = null)
 	{
 		if (!is_null($directory) && !is_readable($directory))
 		{
@@ -162,13 +162,11 @@ class Translate
 		}
 
 		// Already loaded
-		if (isset(self::$translations[$domain][$locale]))
+		if (isset(self::$translations[$domain][$locale]) || isset(self::$translations[$domain][$locale_short]))
 		{
-			return true;
+			return $domain;
 		}
 
-		self::$translations[$domain][$locale] = [];
-		
 		// If this domain exists
 		if (isset(self::$domains[$domain]))
 		{
@@ -185,6 +183,8 @@ class Translate
 			throw new \InvalidArgumentException('Unknown gettext domain: ' . $domain);
 		}
 
+		self::$translations[$domain][$locale] = [];
+		
 		$cache_key = 'gettext_' . $domain . '_' . $locale;
 
 		// Try to fetch from cache
@@ -207,7 +207,7 @@ class Translate
 		else
 		{
 			// No directory found, don't fail, just fallback to msgids
-			return true;
+			return $domain;
 		}
 
 		// File path is domain_directory/locale/LC_MESSAGES/domain.mo
@@ -223,7 +223,7 @@ class Translate
 			self::$translations[$domain][$locale] = self::parseGettextPOFile($file . '.po', true);
 		}
 
-		return true;
+		return $domain;
 	}
 
 	/**
@@ -300,7 +300,7 @@ class Translate
 			$locale = substr($locale, 0, 2);
 		}
 
-		switch ($lang)
+		switch ($locale)
 		{
 			// Romanic family: french, brazilian portugese 
 			case 'fr':
@@ -370,28 +370,30 @@ class Translate
 	 */
 	static public function gettext($msgid1, $msgid2 = null, $n = null, $domain = null, $context = null)
 	{
-		self::_loadTranslations($domain);
-
-		if (!is_null($msgid2) && !is_null($n))
-		{
-			// Try to guess the plural form
-			if (($key = self::$_guessGettextPlural($rule, $n)) === false)
-			{
-				// Fallback to english
-				$key = ($n != 1) ? 1 : 0;
-			}
-		}
+		$domain = self::_loadTranslations($domain);
 
 		$id = $msgid1;
 
 		// Append context of the msgid
 		if (!is_null($context))
 		{
-			$id .= chr(4) . $context;
+			$id = $context . chr(4) . $id;
+		}
+
+		$locale_short = strtok(self::$locale, '_');
+		$str = null;
+
+		if (isset(self::$translations[$domain][self::$locale][$id]))
+		{
+			$str = self::$translations[$domain][$locale][$id];
+		}
+		elseif (isset(self::$translations[$domain][$locale_short][$id]))
+		{
+			$str = self::$translations[$domain][$locale_short][$id];
 		}
 
 		// No translations for this id
-		if (!isset(self::$translations[$domain][self::$locale][$id]))
+		if ($str === null)
 		{
 			if ($msgid2 !== null && $n !== null)
 			{
@@ -402,21 +404,21 @@ class Translate
 			return $msgid1;
 		}
 
-		$plural = !is_null($n) && !is_null($msgid2) ? self::guessPluralForm(self::$locale, $n) : 0;
+		$plural = !is_null($n) && !is_null($msgid2) ? self::_guessPlural(self::$locale, $n) : 0;
 
-		if (!isset(self::$translations[$domain][self::$locale][$id][$plural]))
+		if (!isset($str[$plural]))
 		{
 			// No translation for this plural form: fallback to first form
 			$plural = 0;
 		}
 
-		if (!isset(self::$translations[$domain][self::$locale][$id][$plural]))
+		if (!isset($str[$plural]))
 		{
 			// No translation for plural form, even after fallback, return msgid
 			return $plural ? $msgid2 : $msgid1;
 		}
 
-		return self::$translations[$domain][self::$locale][$id][$plural];
+		return $str[$plural];
 	}
 
 	/**
@@ -618,7 +620,7 @@ class Translate
 				// see https://secure.php.net/manual/fr/book.gettext.php#89975
 				if ($msgctxt !== null)
 				{
-					$msgid[0] .= chr(4) . $msgctxt;
+					$msgid[0] = $msgctxt . chr(4) . $msgid[0];
 				}
 
 				$translations[$msgid[0]] = [];
@@ -712,9 +714,10 @@ class Translate
 	 * is not installed
 	 * @param  string $format Date format
 	 * @param  integer $timestamp Timestamp
+	 * @param  string|DateTimeZone $timezone Timezone
 	 * @return string
 	 */
-	static public function strftime($format)
+	static public function strftime($format, $timestamp = null, $timezone = null)
 	{
 		// Use IntlDateFormatter to get locale time strings
 		// This is better than strftime because this doesn't depend on having
@@ -729,13 +732,34 @@ class Translate
 			'%P' => 'aa',	// lower-case 'am' or 'pm' based on the given time	Example: am for 00:31, pm for 22:23
 		];
 
-		if (func_num_args() == 2)
-		{
-			$timestamp = func_get_arg(1);
-		}
-		elseif (func_num_args() == 1)
+		if (null === $timestamp)
 		{
 			$timestamp = time();
+		}
+
+		if (!is_numeric($timestamp))
+		{
+			$timestamp = strtotime($timestamp);
+
+			if (false === $timestamp)
+			{
+				throw new \InvalidArgumentException('Timestamp argument is neither a valid UNIX timestamp or a valid date-time string.');
+			}
+		}
+
+		if (null === $timezone)
+		{
+			$timezone = date_default_timezone_get();
+		}
+
+		if (is_object($timezone) && $timezone instanceof \DateTimeZone)
+		{
+			$timezone = $timezone->getName();
+		}
+
+		if (!is_string($timezone))
+		{
+			throw new \InvalidArgumentException('Timezone argument is neither a string or DateTimeZone object.');
 		}
 
 		// Windows support shims
@@ -747,41 +771,67 @@ class Translate
 		$locale = self::$locale ?: \setlocale(LC_TIME, 0);
 		$locale = substr(strtolower($locale), 0, 4);
 
-		$system_locale = substr(strtolower(\setlocale(LC_TIME, 0), 0, 4));
+		$system_locale = substr(strtolower(\setlocale(LC_TIME, 0)), 0, 4);
 
-		// Intl extension not loaded/installed: just use strftime and pray that the locale is installed
-		// Will fallback to strftime if current locale is set correctly/installed, too
-		if (!class_exists('IntlDateFormatter') || $system_locale == $locale)
+		$reset_timezone = null;
+
+		if (date_default_timezone_get() != $timezone)
 		{
-			return \strftime($format, $timestamp);
+			$reset_timezone = date_default_timezone_get();
+			date_default_timezone_set($timezone);
 		}
 
-		// helpful for conversion to ISO format
-		$format = str_replace('%r', '%I:%M:%S %p', $format);
-		
-		// %c = Preferred date and time stamp based on locale
-		// Example: Tue Feb 5 00:45:10 2009 for February 5, 2009 at 12:45:10 AM
-		$format = preg_replace_callback('/(?<!%)%c/', function ($match) use ($locale, $timestamp) {
-			$dateFormat = new IntlDateFormatter($locale, IntlDateFormatter::LONG, IntlDateFormatter::SHORT, date_default_timezone_get());
-			return $dateFormat->format($timestamp);
-		}, $format);
+		// Fallback to IntlDateFormatter if the date locale is not installed/correctly set
+		// (and if Intl extension is installed)
+		if (class_exists('IntlDateFormatter') && $system_locale != $locale)
+		{
+			// helpful for conversion to ISO format
+			$format = str_replace('%r', '%I:%M:%S %p', $format);
+			
+			// %c = Preferred date and time stamp based on locale
+			// Example: Tue Feb 5 00:45:10 2009 for February 5, 2009 at 12:45:10 AM
+			$format = preg_replace_callback('/(?<!%)%c/', 
+				function ($match) use ($locale, $timestamp, $timezone) {
+					$dateFormat = new IntlDateFormatter($locale, 
+						IntlDateFormatter::LONG,
+						IntlDateFormatter::SHORT,
+						$timezone);
+					return $dateFormat->format($timestamp);
+				}, $format);
 
-		// %x = Preferred date representation based on locale, without the time
-		// Example: 02/05/09 for February 5, 2009
-		$format = preg_replace_callback('/(?<!%)%x/', function ($match) use ($locale, $timestamp) {
-			$dateFormat = new IntlDateFormatter($locale, IntlDateFormatter::SHORT, IntlDateFormatter::NONE, date_default_timezone_get());
-			return $dateFormat->format($timestamp);
-		}, $format);
+			// %x = Preferred date representation based on locale, without the time
+			// Example: 02/05/09 for February 5, 2009
+			$format = preg_replace_callback('/(?<!%)%x/',
+				function ($match) use ($locale, $timestamp, $timezone) {
+					$dateFormat = new IntlDateFormatter($locale, 
+						IntlDateFormatter::SHORT,
+						IntlDateFormatter::NONE,
+						$timezone);
+					return $dateFormat->format($timestamp);
+				}, $format);
 
-		// Other locale-specific formats
-		$format = preg_replace_callback('/(?<!%)(%[aAbBhpP])/', function ($match) use ($locale, $timestamp, $strftime_to_intl_format) {
-			$dateFormat = new IntlDateFormatter($locale, IntlDateFormatter::FULL, IntlDateFormatter::FULL, 
-				IntlDateFormatter::GREGORIAN, date_default_timezone_get(), $strftime_to_intl_format[$match[1]]);
-			return $dateFormat->format($timestamp);
-		}, $format);
+			// Other locale-specific formats
+			$format = preg_replace_callback('/(?<!%)(%[aAbBhpP])/',
+				function ($match) use ($locale, $timestamp, $timezone, $strftime_to_intl_format) {
+					$dateFormat = new IntlDateFormatter($locale,
+						IntlDateFormatter::FULL,
+						IntlDateFormatter::FULL,
+						$timezone,
+						IntlDateFormatter::GREGORIAN,
+						$strftime_to_intl_format[$match[1]]);
+					return $dateFormat->format($timestamp);
+				}, $format);
+		}
 
-		// Use strftime to replace other strings
-		return \strftime($format, $timestamp);
+		// Use strftime
+		$out = \strftime($format, $timestamp);
+
+		if (null !== $reset_timezone)
+		{
+			date_default_timezone_set($reset_timezone);
+		}
+
+		return $out;
 	}
 
 	/**
@@ -845,21 +895,26 @@ class Translate
 
 			$args = $this->parseArguments($raw_args);
 
-			if ($nb_strings > 1 && empty($args['count']))
-			{
-				$this->parseError($pos, 'Multiple strings in translation block, but no \'count\' argument.');
-			}
-
-			$code = '';
+			$code = sprintf('\KD2\Translate::gettext(%s, ', var_export($strings[0], true));
 
 			if ($nb_strings > 1)
 			{
-				$code = '\KD2\ngettext(' . var_export($strings[0], true) . ', ' . var_export($strings[1], true) . ', (int) ' . $args['count'] . ')';
+				if (!isset($args['n']))
+				{
+					$this->parseError($pos, 'Multiple strings in translation block, but no \'n\' argument.');
+				}
+
+				$code .= sprintf('%s, (int) %s, ', var_export($strings[1], true), $args['n']);
 			}
 			else
 			{
-				$code = '\KD2\gettext(' . var_export($strings[0], true) . ')';
+				$code .= 'null, null, ';
 			}
+
+			// Add domain and context
+			$code .= sprintf('%s, %s)', 
+				isset($args['domain']) ? $args['domain'] : 'null',
+				isset($args['context']) ? $args['context'] : 'null');
 
 			$escape = $this->escape_type;
 
@@ -868,18 +923,18 @@ class Translate
 				$escape = strtolower($args['escape']);
 			}
 
-			unset($args['escape']);
+			unset($args['escape'], $args['domain'], $args['context']);
 
 			// Use named arguments: %name, %nb_apples...
 			// This will cause weird bugs if you use %s, or %d etc. before or between named arguments
 			if (!empty($args))
 			{
-				$code = '\KD2\Translate::named_vsprintf(' . $code . ', ' . $this->exportArguments($args) .')';
+				$code = sprintf('\KD2\Translate::named_sprintf(%s, %s)', $code, $this->exportArguments($args));
 			}
 
 			if ($escape != 'false' && $escape != 'off' && $escape !== '')
 			{
-				$code = 'self::escape(' . $code . ', ' . var_export($escape, true) . ')';
+				$code = sprintf('self::escape(%s, %s)', $code, var_export($escape, true));
 			}
 
 			return 'echo ' . $code . ';';
