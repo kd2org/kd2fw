@@ -732,7 +732,7 @@ class Smartyer
 				// Let's try the user-defined compile callbacks
 				// and if none of them return something, we are out
 				
-				foreach ($this->compile_functions as $name=>$closure)
+				foreach ($this->compile_functions as $closure)
 				{
 					$code = call_user_func($closure, $pos, $block, $name, $raw_args);
 
