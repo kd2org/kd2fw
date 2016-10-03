@@ -8,6 +8,9 @@ require __DIR__ . '/_assert.php';
 
 test_strftime();
 test_smartyer_block();
+test_gettext();
+test_gettext_ext('momo'); // .mo files
+test_gettext_ext('popo'); // .po files
 
 function test_strftime()
 {
@@ -63,8 +66,10 @@ function test_smartyer_block()
 {
 	Smartyer::setCompileDir(sys_get_temp_dir());
 
+	Translate::unregisterDomain('global');
+
 	Translate::setLocale('fr_CH');
-	Translate::registerDomain('global');
+
 	Translate::importTranslations('global', 'fr', [
 		'Translate this string.' => ['Traduit cette chaîne.'],
 		"Other\004Translate this string." => ['Traduit cette chaîne, mais autrement.'],
@@ -114,4 +119,90 @@ function test_smartyer_block()
 	$expected = 'Je m\'appelles Atchoum et mon chien c\'est Arthur.';
 
 	Test::equals($expected, $get($code), 'Using global variable as argument');
+}
+
+function test_gettext()
+{
+	Translate::setLocale('fr_CH');
+
+	Translate::unregisterDomain('global');
+
+	Translate::importTranslations('global', 'fr', [
+		'Translate this string.' => ['Traduit cette chaîne.'],
+		"Other\004Translate this string." => ['Traduit cette chaîne, mais autrement.'],
+		'One apple.' => ['%d pomme.', '%d pommes.'],
+		'My name is %name and I have a dog named %s.' => ['Je m\'appelles %name et mon chien c\'est %dog.']
+	]);
+
+	$string = 'Translate this string.';
+	$expected = 'Traduit cette chaîne.';
+	$output = \KD2\gettext($string);
+
+	Test::equals($expected, $output, 'Simple string');
+
+	$expected = 'Traduit cette chaîne, mais autrement.';
+	$output = \KD2\pgettext('Other', $string);
+
+	Test::equals($expected, $output, 'Simple string with different context');
+
+	$output = \KD2\ngettext('One apple.', '%d apples.', 0);
+	$expected = '%d pomme.';
+
+	Test::equals($expected, $output, 'Plural for zero');
+
+	$output = \KD2\ngettext('One apple.', '%d apples.', 1);
+	$expected = '%d pomme.';
+
+	Test::equals($expected, $output, 'Plural for one');
+
+	$output = \KD2\ngettext('One apple.', '%d apples.', 2);
+	$expected = '%d pommes.';
+
+	Test::equals($expected, $output, 'Plural for two');
+
+	Translate::importTranslations('blog', 'fr', [
+		'New post' => ['Nouvel article'],
+	]);
+
+	$output = \KD2\dgettext('blog', 'New post');
+	$expected = 'Nouvel article';
+
+	Test::equals($expected, $output, 'Different domain');
+
+	$output = \KD2\gettext('New post');
+	$expected = 'New post';
+
+	Test::equals($expected, $output, 'Different domain should not change default domain');
+}
+
+function test_gettext_ext($domain)
+{
+	Translate::setLocale('fr_BE');
+	Translate::unregisterDomain('global');
+	Translate::registerDomain($domain, __DIR__ . '/data/locales');
+
+	$expected = 'Dieu est-il un chien ?';
+	$output = \KD2\_('Is god a dog?');
+
+	Test::equals($expected, $output, 'Simple string');
+
+	$expected = 'Dieu est-il un chat ?';
+	$output = \KD2\pgettext('Cat', 'Is god a dog?');
+
+	Test::equals($expected, $output, 'Simple string with different context');
+
+	$output = \KD2\ngettext('One death adder.', '%d death adders.', 0);
+	$expected = '%d vipère de la mort.';
+
+	Test::equals($expected, $output, 'Plural for zero');
+
+	$output = \KD2\ngettext('One death adder.', '%d death adders.', 1);
+	$expected = '%d vipère de la mort.';
+
+	Test::equals($expected, $output, 'Plural for one');
+
+	$output = \KD2\ngettext('One death adder.', '%d death adders.', 2);
+	$expected = '%d vipères de la mort.';
+
+	Test::equals($expected, $output, 'Plural for two');
 }
