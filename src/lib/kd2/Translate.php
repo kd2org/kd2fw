@@ -235,6 +235,11 @@ class Translate
 	 */
 	static public function importTranslations($domain, $locale, Array $translations)
 	{
+		if (!array_key_exists($domain, self::$translations))
+		{
+			self::registerDomain($domain);
+		}
+
 		self::$translations[$domain][$locale] = $translations;
 	}
 
