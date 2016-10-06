@@ -32,18 +32,106 @@ use KD2\ErrorManager as EM;
 
 class Test
 {
-	static public function equals($expected, $result, $message = '')
+	static public function assert($test, $message = 'Assertion failed')
 	{
-		if ($expected != $result)
+		if (!$test)
 		{
-			throw new TestException(
-				'[FAIL] Equals condition failed: ' . $message . PHP_EOL
-				. '--- ' . EM::dump($expected)
-				. PHP_EOL . '+++ ' . EM::dump($result)
-			);
+			throw new TestException('[FAIL] ' . $message);
 		}
 
 		echo '.';
+	}
+
+	static public function equals($expected, $result, $message = '')
+	{
+		self::assert($expected == $result, 
+			sprintf("Equals condition failed: %s\n--- %s\n+++ %s", 
+				$message, EM::dump($expected), EM::dump($result)
+			)
+		);
+	}
+
+	static public function isObject($object, $message = '')
+	{
+		self::assert(is_object($object), 
+			sprintf("Not an object: %s\n%s",
+				$message, EM::dump($object)
+			)
+		);
+	}
+
+	static public function isArray($array, $message = '')
+	{
+		self::assert(is_array($array),
+			sprintf("Not an array: %s\n%s",
+				$message, EM::dump($object)
+			)
+		);
+	}
+
+	static public function isInstanceOf($expected, $result, $message = '')
+	{
+		self::isObject($result, $message);
+
+		$result_name = get_class($result);
+		$expected_name = is_object($expected) ? get_class($expected_name) : $expected;
+
+		self::assert($result instanceof $expected,
+			sprintf("'%s' is not an instance of '%s': %s\n%s",
+				$result_name, $expected_name, $message, EM::dump($result)
+			)
+		);
+	}
+
+	static public function hasKey($key, Array $array, $message = '')
+	{
+		self::assert(array_key_exists($key, $array),
+			sprintf("Array have no key '%s': %s\n%s",
+				$key, $message, EM::dump($array)
+			)
+		);
+	}
+
+	static public function hasProperty($property, $class, $message = '')
+	{
+		$name = is_object($class) ? get_class($class) : $class;
+
+		self::assert(property_exists($class, $property), 
+			sprintf("Class '%s' have no property '%s': %s\n%s",
+				$name, $property, $message, EM::dump($class)
+			)
+		);
+	}
+
+	static public function runMethods($class)
+	{
+		$reflection = new \ReflectionClass($class);
+
+		if (is_object($class))
+		{
+			$filter = \ReflectionMethod::IS_PUBLIC;
+		}
+		elseif (is_string($class))
+		{
+			$filter = \ReflectionMethod::IS_PUBLIC | \ReflectionMethod::IS_STATIC;
+		}
+		else
+		{
+			throw new \InvalidArgumentException('Class argument must be an object or a string.');
+		}
+		
+		$args = array_slice(func_get_args(), 1);
+
+		foreach ($reflection->getMethods($filter) as $method)
+		{
+			// Skip special methods
+			if (substr($method->name, 0, 4) != 'test')
+			{
+				continue;
+			}
+
+			call_user_func_array([$class, $method->name], $args);
+		}
 	}
 }
 
