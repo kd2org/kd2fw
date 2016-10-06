@@ -193,15 +193,9 @@ class HTTP
 			$headers = array_merge($headers, $additional_headers);
 		}
 
-		if (!empty($this->cookies))
+		if ($this->user_agent && !isset($headers['User-Agent']))
 		{
-			$headers['Cookie'] = '';
-
-			foreach ($this->cookies as $key=>$value)
-			{
-				if (!empty($headers['Cookie'])) $headers['Cookie'] .= '; ';
-				$headers['Cookie'] .= $key . '=' . $value;
-			}
+			$headers['User-Agent'] = $this->user_agent;
 		}
 
 		$client = $this->client . 'ClientRequest';
@@ -224,6 +218,18 @@ class HTTP
 	{
 		$request = '';
 
+		//Add cookies
+		if (count($this->cookies) > 0)
+		{
+			$headers['Cookie'] = '';
+
+			foreach ($this->cookies as $key=>$value)
+			{
+				if (!empty($headers['Cookie'])) $headers['Cookie'] .= '; ';
+				$headers['Cookie'] .= $key . '=' . $value;
+			}
+		}
+
 		foreach ($headers as $key=>$value)
 		{
 			$request .= $key . ': ' . $value . "\r\n";
@@ -233,7 +239,6 @@ class HTTP
 			'method' 	=> 	$method,
 			'header'	=>	$request,
 			'content'	=>	$data,
-			'user_agent'=> 	$this->user_agent,
 		];
 
 		$http_options = array_merge($this->http_options, $http_options);
@@ -256,7 +261,7 @@ class HTTP
 		{
 			if (!empty($this->http_options['ignore_errors']))
 			{
-				$r->body = $e->getMessage();
+				$r->error = $e->getMessage();
 				return $r;
 			}
 
@@ -280,7 +285,7 @@ class HTTP
 			{
 				if (preg_match('!^HTTP/1\.[01] ([0-9]{3}) !', $line, $match))
 				{
-					$r->status = $match[1];
+					$r->status = (int) $match[1];
 				}
 				else
 				{
@@ -336,16 +341,6 @@ class HTTP
 			$header = $key . ': ' . $header;
 		}
 
-		// Concatenates cookies
-		$cookies = [];
-
-		foreach ($this->cookies as $key=>$value)
-		{
-			$cookies[] = $key . '=' . $value;
-		}
-
-		$cookies = implode('; ', $cookies);
-
 		$r = new HTTP_Response;
 
 		$c = curl_init();
@@ -354,20 +349,32 @@ class HTTP
 			CURLOPT_URL            => $url,
 			CURLOPT_HTTPHEADER     => $headers,
 			CURLOPT_RETURNTRANSFER => true,
-			CURLOPT_COOKIESESSION  => true,
 			CURLOPT_FOLLOWLOCATION => !empty($this->http_options['max_redirects']),
 			CURLOPT_MAXREDIRS      => !empty($this->http_options['max_redirects']) ? (int) $this->http_options['max_redirects'] : 0,
 			CURLOPT_SSL_VERIFYPEER => !empty($this->ssl_options['verify_peer']),
 			CURLOPT_SSL_VERIFYHOST => !empty($this->ssl_options['verify_peer_name']) ? 2 : 0,
 			CURLOPT_CUSTOMREQUEST  => $method,
-			CURLOPT_COOKIE         => $cookies,
 			CURLOPT_TIMEOUT        => !empty($this->http_options['timeout']) ? (int) $this->http_options['timeout'] : 30,
-			CURLOPT_USERAGENT      => $this->user_agent,
 			CURLOPT_POST           => $method == 'POST' ? true : false,
 			CURLOPT_SAFE_UPLOAD    => true, // Disable file upload with values beginning with @
 			CURLOPT_POSTFIELDS     => $data,
 			CURLINFO_HEADER_OUT    => true,
 		]);
+
+		if (count($this->cookies) > 0)
+		{
+			// Concatenates cookies
+			$cookies = [];
+
+			foreach ($this->cookies as $key=>$value)
+			{
+				$cookies[] = $key . '=' . $value;
+			}
+
+			$cookies = implode('; ', $cookies);
+
+			curl_setopt($c, CURLOPT_COOKIE, $cookies);
+		}
 
 		curl_setopt($c, CURLOPT_HEADERFUNCTION, function ($c, $header) use (&$r) {
 			$r->raw_headers .= $header;
@@ -423,7 +430,7 @@ class HTTP
 		{
 			if (!empty($this->http_options['ignore_errors']))
 			{
-				$r->body = $error;
+				$r->error = $error;
 				return $r;
 			}
 
@@ -456,6 +463,7 @@ class HTTP_Response
 	public $request = null;
 	public $size = 0;
 	public $raw_headers = null;
+	public $error = null;
 
 	public function __toString()
 	{
