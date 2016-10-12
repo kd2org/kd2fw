@@ -184,6 +184,8 @@ class HTTP
 	 */
 	public function request($method, $url, $data = null, Array $additional_headers = null)
 	{
+		static $redirect_codes = [301, 302, 303, 307, 308];
+
 		$url = $this->url_prefix . $url;
 
 		$headers = $this->headers;
@@ -198,12 +200,98 @@ class HTTP
 			$headers['User-Agent'] = $this->user_agent;
 		}
 
-		$client = $this->client . 'ClientRequest';
-		$response = $this->$client($method, $url, $data, $headers);
+		// Manual management of redirects
+		if (isset($this->http_options['max_redirects']))
+		{
+			$max_redirects = (int) $this->http_options['max_redirects'];
+		}
+		else
+		{
+			$max_redirects = 10;
+		}
 
-		$this->cookies = array_merge($this->cookies, $response->cookies);
+		$previous = null;
+
+		// Follow redirect until we reach maximum
+		for ($i = 0; $i <= $max_redirects; $i++)
+		{
+			// Make request
+			$client = $this->client . 'ClientRequest';
+			$response = $this->$client($method, $url, $data, $headers);
+			$response->previous = $previous;
+
+			// Apply cookies to current client for next request
+			$this->cookies = array_merge($this->cookies, $response->cookies);
+
+			// Request failed, or not a redirect, stop here
+			if (!$response->status || !in_array($response->status, $redirect_codes) || empty($response->headers['location']))
+			{
+				break;
+			}
+
+			// Change method to GET
+			if ($response->status == 303)
+			{
+				$method = 'GET';
+			}
+
+			// Get new URL
+			$location = $response->headers['location'];
+
+			if (is_array($location))
+			{
+				$location = end($location);
+			}
+
+			$location = parse_url($location);
+
+			if (!$location)
+			{
+				throw new \RuntimeException('Invalid HTTP redirect: Location is not a valid URL.');
+			}
+
+			$url = array_merge(parse_url($url), $location);
+			$url = $this->glueURL($url);
+			$previous = $response;
+		}
 
 		return $response;
+	}
+
+	/**
+	 * Transforms a parse_url array back into a string
+	 * @param  Array  $url
+	 * @return string
+	 */
+	protected function glueURL(Array $url)
+	{
+		static $parts = [
+			'scheme'   => '%s://',
+			'host'     => '%s',
+			'port'     => ':%d',
+			'user'     => '%s',
+			'pass'     => ':%s',
+			'path'     => '%s',
+			'query'    => '?%s',
+			'fragment' => '#%s',
+		];
+
+		$out = [];
+
+		foreach ($parts as $name => $str)
+		{
+			if (isset($url[$name]))
+			{
+				$out[] = sprintf($str, $url[$name]);
+			}
+
+			if ($name == 'pass' && isset($url['user']) || isset($url['pass']))
+			{
+				$out[] = '@';
+			}
+		}
+
+		return implode('', $out);
 	}
 
 	/**
@@ -236,9 +324,11 @@ class HTTP
 		}
 
 		$http_options = [
-			'method' 	=> 	$method,
-			'header'	=>	$request,
-			'content'	=>	$data,
+			'method'          => $method,
+			'header'          => $request,
+			'content'         => $data,
+			'max_redirects'   => 0,
+			'follow_location' => false,
 		];
 
 		$http_options = array_merge($this->http_options, $http_options);
@@ -279,7 +369,7 @@ class HTTP
 		foreach ($http_response_header as $line)
 		{
 			$header = strtok($line, ':');
-			$value = strtok(':');
+			$value = strtok('');
 
 			if ($value === false)
 			{
@@ -294,7 +384,7 @@ class HTTP
 			}
 			else
 			{
-				$header = strtolower($header);
+				$header = trim($header);
 				$value = trim($value);
 
 				// Add to cookies array
@@ -304,21 +394,8 @@ class HTTP
 					$cookie_value = strtok(';');
 					$r->cookies[$cookie_key] = $cookie_value;
 				}
-				
-				// Multiple headers with the same name
-				if (array_key_exists($header, $r->headers))
-				{
-					if (!is_array($r->headers[$header]))
-					{
-						$r->headers[$header] = [$r->headers[$header]];
-					}
 
-					$r->headers[$header][] = $value;
-				}
-				else
-				{
-					$r->headers[$header] = $value;
-				}
+				$r->headers[$header] = $value;
 			}
 		}
 
@@ -349,8 +426,8 @@ class HTTP
 			CURLOPT_URL            => $url,
 			CURLOPT_HTTPHEADER     => $headers,
 			CURLOPT_RETURNTRANSFER => true,
-			CURLOPT_FOLLOWLOCATION => !empty($this->http_options['max_redirects']),
-			CURLOPT_MAXREDIRS      => !empty($this->http_options['max_redirects']) ? (int) $this->http_options['max_redirects'] : 0,
+			CURLOPT_FOLLOWLOCATION => false,
+			CURLOPT_MAXREDIRS      => 1,
 			CURLOPT_SSL_VERIFYPEER => !empty($this->ssl_options['verify_peer']),
 			CURLOPT_SSL_VERIFYHOST => !empty($this->ssl_options['verify_peer_name']) ? 2 : 0,
 			CURLOPT_CUSTOMREQUEST  => $method,
@@ -379,9 +456,10 @@ class HTTP
 		curl_setopt($c, CURLOPT_HEADERFUNCTION, function ($c, $header) use (&$r) {
 			$r->raw_headers .= $header;
 
-			$name = trim(strtok(trim($header), ':'));
+			$name = trim(strtok($header, ':'));
 			$value = strtok('');
 
+			// End of headers, stop here
 			if ($name === '')
 			{
 				return strlen($header);
@@ -402,20 +480,7 @@ class HTTP
 					$r->cookies[$cookie_key] = $cookie_value;
 				}
 
-				// Multiple headers with the same name
-				if (array_key_exists($name, $r->headers))
-				{
-					if (!is_array($r->headers[$name]))
-					{
-						$r->headers[$name] = [$r->headers[$name]];
-					}
-
-					$r->headers[$name][] = $value;
-				}
-				else
-				{
-					$r->headers[$name] = $value;
-				}
+				$r->headers[$name] = $value;
 			}
 
 			return strlen($header);
@@ -464,9 +529,72 @@ class HTTP_Response
 	public $size = 0;
 	public $raw_headers = null;
 	public $error = null;
+	public $previous = null;
+
+	public function __construct()
+	{
+		$this->headers = new HTTP_Headers;
+	}
 
 	public function __toString()
 	{
 		return $this->body;
+	}
+}
+
+class HTTP_Headers implements \ArrayAccess
+{
+	protected $headers = [];
+
+	public function __get($key)
+	{
+		$key = strtolower($key);
+
+		if (array_key_exists($key, $this->headers))
+		{
+			return $this->headers[$key][1];
+		}
+
+		return null;
+	}
+
+	public function __set($key, $value)
+	{
+		$key = trim($key);
+		$this->headers[strtolower($key)] = [$key, $value];
+	}
+
+	public function offsetGet($key)
+	{
+		return $this->__get($key);
+	}
+
+	public function offsetExists($key)
+	{
+		$key = strtolower($key);
+
+		return array_key_exists($key, $this->headers);
+	}
+
+	public function offsetSet($key, $value)
+	{
+		return $this->__set($key, $value);
+	}
+
+	public function offsetUnset($key)
+	{
+		unset($this->headers[strtolower($key)]);
+	}
+
+	public function __toString()
+	{
+		$out = '';
+
+		foreach ($this->headers as $header)
+		{
+			$out .= $header[0] . ': ' . $header[1] . "\r\n";
+		}
+
+		return $out;
 	}
 }

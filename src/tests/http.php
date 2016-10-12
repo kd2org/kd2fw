@@ -31,11 +31,15 @@ function test_http($client = HTTP::CLIENT_DEFAULT)
 	Test::hasProperty('size', $response);
 	Test::hasProperty('raw_headers', $response);
 	Test::hasProperty('error', $response);
+
+	Test::isObject($response->headers);
+	Test::isInstanceOf('\KD2\HTTP_Headers', $response->headers);
 	
 	Test::assert($response->fail === false, 'Request failed: ' . $response->body);
 
 	Test::equals(200, $response->status);
 
+	// Check if header has been received by server
 	Test::assert(preg_match('/Test:\s*OK' . $time . '/i', $response->body));
 
 	$response = $http->GET('http://kd2.org/404.not.found');
@@ -51,6 +55,7 @@ function test_http($client = HTTP::CLIENT_DEFAULT)
 	Test::hasKey('majeur_et_vaccine', $response->cookies);
 
 	// Test cookies, we should now have access to this page
+	$http->http_options['max_redirects'] = 10;
 	$response = $http->GET('http://polyamour.info/discussion/-bgv-/Polyamour-libertinage-et-matrice-heteronormative/');
 
 	Test::equals(200, $response->status);
@@ -65,4 +70,20 @@ function test_http($client = HTTP::CLIENT_DEFAULT)
 
 	// Check that the error message is there
 	Test::assert(strlen($response->error) > 1);
+
+	// Test redirect
+	$http->http_options['max_redirects'] = 0;
+	$response = $http->GET('http://kd2.org/ip');
+
+	Test::equals(301, $response->status);
+	Test::equals(null, $response->previous);
+
+	$http->http_options['max_redirects'] = 1;
+	$response = $http->GET('http://kd2.org/ip');
+
+	Test::equals(200, $response->status, $response->error);
+	Test::equals('http://kd2.org/ip/', $response->url);
+	Test::equals('http://kd2.org/ip/', $response->previous->headers['location']);
+	Test::isInstanceOf('KD2\HTTP_Response', $response->previous);
+	Test::equals(301, $response->previous->status);
 }
