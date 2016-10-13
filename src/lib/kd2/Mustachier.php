@@ -43,6 +43,12 @@ class Mustachier
 	protected $delimiter_end = '}}';
 
 	/**
+	 * Internal loop stack to check closing tags match opening tags
+	 * @var array
+	 */
+	protected $_loop_stack = [];
+
+	/**
 	 * Internal variable stack for running a template
 	 * @var array
 	 */
@@ -56,13 +62,13 @@ class Mustachier
 
 	/**
 	 * Current object template path
-	 * @var null
+	 * @var string
 	 */
 	protected $templates_dir = null;
 
 	/**
 	 * Templates compile dir
-	 * @var null
+	 * @var string
 	 */
 	protected $compile_dir = null;
 
@@ -78,9 +84,9 @@ class Mustachier
 		{
 			$this->templates_dir = realpath(rtrim($templates_dir, DIRECTORY_SEPARATOR));
 
-			if (!is_readable($this->templates_dir) || !is_dir($this->templates_dir))
+			if (!$this->templates_dir || !is_readable($this->templates_dir) || !is_dir($this->templates_dir))
 			{
-				throw new \InvalidArgumentException('Cannot read directory: ' . $this->templates_dir);
+				throw new \InvalidArgumentException('Cannot read directory: ' . $templates_dir);
 			}
 		}
 
@@ -88,9 +94,9 @@ class Mustachier
 		{
 			$this->compile_dir = realpath(rtrim($compile_dir, DIRECTORY_SEPARATOR));
 
-			if (!is_writeable($this->compile_dir) || !is_dir($this->compile_dir))
+			if (!$this->compile_dir || !is_writeable($this->compile_dir) || !is_dir($this->compile_dir))
 			{
-				throw new \InvalidArgumentException('Cannot write directory: ' . $this->compile_dir);
+				throw new \InvalidArgumentException('Cannot write directory: ' . $compile_dir);
 			}
 		}
 	}
@@ -126,7 +132,6 @@ class Mustachier
 		assert(is_string($template));
 
 		$template = ($this->templates_dir ? ($this->templates_dir . DIRECTORY_SEPARATOR) : '') . $template;
-		$template = realpath($template);
 
 		if (!is_readable($template))
 		{
@@ -141,7 +146,7 @@ class Mustachier
 			// Compile template
 			if (filemtime($template) > @filemtime($compiled_template))
 			{
-				$code = $this->compile(file_get_contents($template));
+				$code = $this->compile(file_get_contents($template), $template);
 				file_put_contents($compiled_template, $code);
 			}
 
@@ -159,11 +164,12 @@ class Mustachier
 			}
 			catch (\Exception $e)
 			{
+				throw $e;
 			}
 
 			if (!$eval && ($error = error_get_last()))
 			{
-				throw new MustachierException($error['line'], $error['message'], $compiled_template);
+				throw new MustachierException($error['line'], 'Error in compiled template: '. $error['message'], $compiled_template);
 			}
 
 			$this->_pop();
@@ -176,7 +182,7 @@ class Mustachier
 		// No compile_dir: fully dynamic on-the-fly compiling and execution
 		else
 		{
-			return $this->run(file_get_contents($template), $variables, $return);
+			return $this->run(file_get_contents($template), $variables, $return, $template);
 		}
 	}
 
@@ -187,9 +193,9 @@ class Mustachier
 	 * @param  boolean $return    Set to TRUE to return as string instead of echoing the template
 	 * @return void|string
 	 */
-	public function run($str, Array $variables = [], $return = false)
+	public function run($str, Array $variables = [], $return = false, $template = null)
 	{
-		$code = $this->compile($str);
+		$code = $this->compile($str, $template);
 
 		if ($return)
 		{
@@ -204,7 +210,7 @@ class Mustachier
 
 		if (!$eval && ($error = error_get_last()))
 		{
-			throw new MustachierException($error['line'], $error['message'], $code);
+			throw new MustachierException($error['line'], 'Error in compiled template: '. $error['message'], $code);
 		}
 
 		if ($return)
@@ -284,7 +290,7 @@ class Mustachier
 		$this->display($name);
 	}
 
-	public function compile($str)
+	public function compile($code, $template = null)
 	{
 		// Don't allow PHP tags
 		$php_replace = [
@@ -293,23 +299,26 @@ class Mustachier
 			'?>'    => '<?=\'?>\'?>'
 		];
 
-		$str = strtr($str, $php_replace);
+		$str = strtr($code, $php_replace);
 
 		$pattern = sprintf('/(?<!\\\\)%s([#^>&{\/!]?\s*[\w.]+?)\s*\}?(?<!\\\\)%s/', preg_quote($this->delimiter_start, '/'), preg_quote($this->delimiter_end, '/'));
-		$str = preg_split($pattern, $str, 0, PREG_SPLIT_OFFSET_CAPTURE | PREG_SPLIT_DELIM_CAPTURE);
+		$str = preg_split($pattern, $str, 0, PREG_SPLIT_DELIM_CAPTURE);
 
 		$out = '';
+		$line = 1;
 
 		foreach ($str as $i=>$split)
 		{
+			$line += substr_count($split, "\n");
+
 			if ($i % 2 == 0)
 			{
-				$out .= $split[0];
+				$out .= $split;
 				continue;
 			}
 
-			$tag = trim($split[0]);
-			$pos = (int) $split[1];
+			$tag = trim($split);
+			$pos = (int) $split;
 
 			// first character of tag
 			$a = substr($tag, 0, 1);
@@ -326,10 +335,16 @@ class Mustachier
 			if ($a == '#')
 			{
 				$out .= sprintf('<?php if (!$this->_empty(%s)): foreach ($this->_loop(%1$s) as $loop): $this->_append($loop); ?>', $b);
+				$this->_loop_stack[] = $b;
 			}
 			// end of condition
 			elseif ($a == '/')
 			{
+				if (array_pop($this->_loop_stack) != $b)
+				{
+					throw new MustachierException($line, 'Unexpected closing tag for section: ' . $b, $template ?: $code);
+				}
+
 				// how do you know if you are closing a loop or a condition?
 				// you don't! that's why we treat conditions as one-iteration loop!
 				$out .= '<?php $this->_pop(); endforeach; endif; ?>';
@@ -338,6 +353,7 @@ class Mustachier
 			elseif ($a == '^')
 			{
 				$out .= sprintf('<?php if ($this->_empty(%s)): foreach ([0] as $ignore): $this->_append(false); ?>', $b);
+				$this->_loop_stack[] = $b;
 			}
 			// include (= partials)
 			elseif ($a == '>')
@@ -357,6 +373,11 @@ class Mustachier
 			}
 		}
 
+		if (count($this->_loop_stack) > 0)
+		{
+			throw new MustachierException($line, 'Missing closing tag for section: ' . array_pop($this->_loop_stack), $template ?: $str);
+		}
+
 		return $out;
 	}
 
@@ -370,7 +391,7 @@ class MustachierException extends \Exception
 {
 	public function __construct($line, $message, $code)
 	{
-		parent::__construct('Error in compiled template: '. $message);
+		parent::__construct($message);
 		$this->line = $line;
 		$this->file = $code;
 	}

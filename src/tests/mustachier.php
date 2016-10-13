@@ -2,14 +2,15 @@
 
 use KD2\Test;
 use KD2\Mustachier;
+use KD2\MustachierException;
 
 require __DIR__ . '/_assert.php';
 
-test_templates();
 test_php();
 test_tag();
-test_loop();
 test_assign();
+test_loop();
+test_templates();
 
 function test_php()
 {
@@ -77,6 +78,24 @@ function test_loop()
 	
 	// Nested nested with sub-tags
 	Test::equals('.#!!#.', $m->run('{{#test}}.{{#bla}}#{{#ok}}{{42}}{{/ok}}#{{/bla}}.{{/test}}', ['test' => ['bla' => ['ok' => [42 => '!!']]]], true));
+
+	// Invalid loop
+	try {
+		Test::equals('', $m->run('{{#test}}.{{/plop}}', [], true));
+	}
+	catch (MustachierException $e)
+	{
+		Test::equals('Unexpected closing tag for section: \'plop\'', $e->getMessage());
+	}
+
+	// Invalid non closed loop
+	try {
+		Test::equals('', $m->run('{{#test}}.', [], true));
+	}
+	catch (MustachierException $e)
+	{
+		Test::equals('Missing closing tag for section: \'test\'', $e->getMessage());
+	}
 }
 
 function test_templates()

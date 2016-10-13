@@ -14,7 +14,10 @@ function __autoload($class)
 	require_once $path;
 }
 
-@unlink(__DIR__ . '/error.log');
+if (file_exists(__DIR__ . '/error.log'))
+{
+	unlink(__DIR__ . '/error.log');
+}
 
 EM::setLogFile(__DIR__ . '/error.log');
 EM::enable();
