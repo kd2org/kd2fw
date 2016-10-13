@@ -48,29 +48,164 @@ class Mustachier
 	 */
 	protected $_variables = [];
 
+	/**
+	 * List of callbacks (lambdas)
+	 * @var array
+	 */
+	protected $_callbacks = [];
+
+	/**
+	 * Current object template path
+	 * @var null
+	 */
+	protected $templates_dir = null;
+
+	/**
+	 * Templates compile dir
+	 * @var null
+	 */
+	protected $compile_dir = null;
+
+	/**
+	 * Mustachier constructor
+	 * @param string $templates_dir Path to directory where templates are stored (must exist)
+	 * @param string $compile_dir   Path to directory where compiled templates should be stored,
+	 * if set to NULL then templates will be re-compiled every time they are called
+	 */
+	public function __construct($templates_dir = null, $compile_dir = null)
+	{
+		if (!is_null($templates_dir))
+		{
+			$this->templates_dir = realpath(rtrim($templates_dir, DIRECTORY_SEPARATOR));
+
+			if (!is_readable($this->templates_dir) || !is_dir($this->templates_dir))
+			{
+				throw new \InvalidArgumentException('Cannot read directory: ' . $this->templates_dir);
+			}
+		}
+
+		if (!is_null($compile_dir))
+		{
+			$this->compile_dir = realpath(rtrim($compile_dir, DIRECTORY_SEPARATOR));
+
+			if (!is_writeable($this->compile_dir) || !is_dir($this->compile_dir))
+			{
+				throw new \InvalidArgumentException('Cannot write directory: ' . $this->compile_dir);
+			}
+		}
+	}
+
+	public function assign($key, $value = null)
+	{
+		// Last element of variables
+		$pos = max(0, count($this->_variables) - 1);
+
+		if (is_array($key))
+		{
+			$this->_variables[$pos] = array_merge($this->_variables[$pos], $key);
+			return true;
+		}
+
+		$this->_variables[$pos][$key] = $value;
+		return true;
+	}
+
+	public function registerCallback($name, Callable $callback)
+	{
+		$this->_callbacks[$name] = $callback;
+		return true;
+	}
+
 	public function fetch($template, Array $variables = [])
 	{
-		return $this->run(file_get_contents($template), $variables, true);
+		return $this->display($template, $variables, true);
 	}
 
-	public function display($template, Array $variables = [])
+	public function display($template, Array $variables = [], $return = false)
 	{
-		$this->run(file_get_contents($template), $variables);
+		assert(is_string($template));
+
+		$template = ($this->templates_dir ? ($this->templates_dir . DIRECTORY_SEPARATOR) : '') . $template;
+		$template = realpath($template);
+
+		if (!is_readable($template))
+		{
+			throw new \InvalidArgumentException('Cannot open file: ' . $template);
+		}
+
+		// If compile_dir is set, we will store the compiled template and include it instead of using eval()
+		if ($this->compile_dir)
+		{
+			$compiled_template = $this->compile_dir . DIRECTORY_SEPARATOR . md5($template);
+
+			// Compile template
+			if (filemtime($template) > @filemtime($compiled_template))
+			{
+				$code = $this->compile(file_get_contents($template));
+				file_put_contents($compiled_template, $code);
+			}
+
+			// Execute template by including it
+
+			if ($return)
+			{
+				ob_start();
+			}
+
+			$this->_append($variables);
+
+			try {
+				$eval = @include $compiled_template;
+			}
+			catch (\Exception $e)
+			{
+			}
+
+			if (!$eval && ($error = error_get_last()))
+			{
+				throw new MustachierException($error['line'], $error['message'], $compiled_template);
+			}
+
+			$this->_pop();
+
+			if ($return)
+			{
+				return ob_get_clean();
+			}
+		}
+		// No compile_dir: fully dynamic on-the-fly compiling and execution
+		else
+		{
+			return $this->run(file_get_contents($template), $variables, $return);
+		}
 	}
 
+	/**
+	 * Compiles and runs a template code
+	 * @param  string  $str       Mustache template code
+	 * @param  Array   $variables Variables to pass to the template for the duration of its execution
+	 * @param  boolean $return    Set to TRUE to return as string instead of echoing the template
+	 * @return void|string
+	 */
 	public function run($str, Array $variables = [], $return = false)
 	{
 		$code = $this->compile($str);
-		var_dump($code);
-
-		$this->_variables = [$variables];
 
 		if ($return)
 		{
 			ob_start();
 		}
 
-		eval('?>' . $code);
+		$this->_append($variables);
+
+		$eval = @eval('?>' . $code);
+
+		$this->_pop();
+
+		if (!$eval && ($error = error_get_last()))
+		{
+			throw new MustachierException($error['line'], $error['message'], $code);
+		}
 
 		if ($return)
 		{
@@ -111,6 +246,11 @@ class Mustachier
 
 	protected function _append($variables)
 	{
+		if (!is_array($variables))
+		{
+			return;
+		}
+
 		array_unshift($this->_variables, $variables);
 	}
 
@@ -121,17 +261,27 @@ class Mustachier
 
 	protected function _loop($key)
 	{
+		if (isset($this->_callbacks[$key]))
+		{
+
+		}
+
 		foreach ($this->_variables as $vars)
 		{
 			if (isset($vars[$key]) && is_array($vars[$key]))
 			{
-				return $vars[$key];
+				return $vars;
 			}
 		}
 
-		// Return an array with only one item, at this point we know
-		// it's not empty
+		// Return an array with only one item
+		// this is for conditional tags that are not loops
 		return [0];
+	}
+
+	protected function _include($name)
+	{
+		$this->display($name);
 	}
 
 	public function compile($str)
@@ -145,7 +295,7 @@ class Mustachier
 
 		$str = strtr($str, $php_replace);
 
-		$pattern = sprintf('/(?<!\\\\)%s([#^<&{\/!]?\s*\w+?)\s*\}?(?<!\\\\)%s/', preg_quote($this->delimiter_start, '/'), preg_quote($this->delimiter_end, '/'));
+		$pattern = sprintf('/(?<!\\\\)%s([#^>&{\/!]?\s*[\w.]+?)\s*\}?(?<!\\\\)%s/', preg_quote($this->delimiter_start, '/'), preg_quote($this->delimiter_end, '/'));
 		$str = preg_split($pattern, $str, 0, PREG_SPLIT_OFFSET_CAPTURE | PREG_SPLIT_DELIM_CAPTURE);
 
 		$out = '';
@@ -161,6 +311,7 @@ class Mustachier
 			$tag = trim($split[0]);
 			$pos = (int) $split[1];
 
+			// first character of tag
 			$a = substr($tag, 0, 1);
 			$b = trim(substr($tag, 1));
 			$b = var_export($b, true);
@@ -179,6 +330,8 @@ class Mustachier
 			// end of condition
 			elseif ($a == '/')
 			{
+				// how do you know if you are closing a loop or a condition?
+				// you don't! that's why we treat conditions as one-iteration loop!
 				$out .= '<?php $this->_pop(); endforeach; endif; ?>';
 			}
 			// inverted sections (negative condition)
@@ -210,5 +363,20 @@ class Mustachier
 	protected function escape($str)
 	{
 		return htmlspecialchars($str, ENT_QUOTES, 'UTF-8');
+	}
+}
+
+class MustachierException extends \Exception
+{
+	public function __construct($line, $message, $code)
+	{
+		parent::__construct('Error in compiled template: '. $message);
+		$this->line = $line;
+		$this->file = $code;
+	}
+
+	public function __toString()
+	{
+		return parent::__toString() . PHP_EOL . PHP_EOL . $this->compiled;
 	}
 }

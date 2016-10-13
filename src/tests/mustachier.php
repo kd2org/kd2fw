@@ -5,9 +5,11 @@ use KD2\Mustachier;
 
 require __DIR__ . '/_assert.php';
 
+test_templates();
 test_php();
 test_tag();
 test_loop();
+test_assign();
 
 function test_php()
 {
@@ -15,6 +17,20 @@ function test_php()
 	Test::equals('<?=\'<?=\'?>', $m->compile('<?='));
 	Test::equals('<?=\'<?php\'?>', $m->compile('<?php'));
 	Test::equals('<?=\'?>\'?>', $m->compile('?>'));
+}
+
+function test_assign()
+{
+	$m = new Mustachier;
+
+	$m->assign('ok', '42');
+	$m->assign(['plop' => 'plip']);
+	
+	// test overwrite
+	$m->assign(['plop' => 'plap']);
+
+	Test::equals('42', $m->run('{{ok}}', [], true));
+	Test::equals('plap', $m->run('{{plop}}', [], true));
 }
 
 function test_tag()
@@ -58,4 +74,15 @@ function test_loop()
 
 	// Nested loop
 	Test::equals('.#.', $m->run('{{#test}}.{{#bla}}#{{/bla}}.{{/test}}', ['test' => ['bla' => ['ok' => true]]], true));
+	
+	// Nested nested with sub-tags
+	Test::equals('.#!!#.', $m->run('{{#test}}.{{#bla}}#{{#ok}}{{42}}{{/ok}}#{{/bla}}.{{/test}}', ['test' => ['bla' => ['ok' => [42 => '!!']]]], true));
+}
+
+function test_templates()
+{
+	$m = new Mustachier(__DIR__ . '/data/mustache', '/tmp');
+
+	//Test::equals('ok', $m->fetch('simple.mu', ['ok' => 'ok']));
+	Test::equals('ok', $m->fetch('include.mu', ['ok' => 'ok']));
 }
