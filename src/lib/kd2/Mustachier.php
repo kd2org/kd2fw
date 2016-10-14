@@ -28,6 +28,13 @@
 
 namespace KD2;
 
+/**
+ * Mustachier, a lightweight implementation of Mustache templates
+ * 
+ * @author  bohwaz  http://bohwaz.net/
+ * @license BSD
+ * @version 0.1
+ */
 class Mustachier
 {
 	/**
@@ -53,12 +60,6 @@ class Mustachier
 	 * @var array
 	 */
 	protected $_variables = [];
-
-	/**
-	 * List of callbacks (lambdas)
-	 * @var array
-	 */
-	protected $_callbacks = [];
 
 	/**
 	 * Current object template path
@@ -101,6 +102,12 @@ class Mustachier
 		}
 	}
 
+	/**
+	 * Assign a variable to be used in templates
+	 * @param  string|array $key
+	 * @param  mixed|null $value
+	 * @return boolean
+	 */
 	public function assign($key, $value = null)
 	{
 		// Last element of variables
@@ -116,17 +123,27 @@ class Mustachier
 		return true;
 	}
 
-	public function registerCallback($name, Callable $callback)
-	{
-		$this->_callbacks[$name] = $callback;
-		return true;
-	}
-
+	/**
+	 * Returns a template output
+	 * @param  string $template  Template file name
+	 * @param  Array  $variables Variables to assign to this template
+	 * @return string
+	 * @throws MustacheException
+	 */
 	public function fetch($template, Array $variables = [])
 	{
 		return $this->display($template, $variables, true);
 	}
 
+	/**
+	 * Displays or returns a template output
+	 * @param  string  $template  Template file name
+	 * @param  Array   $variables Variables to assign to this template
+	 * @param  boolean $return    TRUE to get the output returned, FALSE to get it printed
+	 * @return string
+	 * @throws MustacheException
+	 * @throws InvalidArgumentException
+	 */
 	public function display($template, Array $variables = [], $return = false)
 	{
 		assert(is_string($template));
@@ -191,6 +208,7 @@ class Mustachier
 	 * @param  string  $str       Mustache template code
 	 * @param  Array   $variables Variables to pass to the template for the duration of its execution
 	 * @param  boolean $return    Set to TRUE to return as string instead of echoing the template
+	 * @param  string|null $template Path to template file
 	 * @return void|string
 	 */
 	public function run($str, Array $variables = [], $return = false, $template = null)
@@ -219,6 +237,11 @@ class Mustachier
 		}
 	}
 
+	/**
+	 * Used in templates to know if a variable is empty or not
+	 * @param  string $key
+	 * @return boolean
+	 */
 	protected function _empty($key)
 	{
 		foreach ($this->_variables as $vars)
@@ -237,20 +260,40 @@ class Mustachier
 		return true;
 	}
 
+	/**
+	 * Used in templates to return the value of a variable
+	 * @param  string $key
+	 * @return mixed
+	 */
 	protected function _get($key)
 	{
 		foreach ($this->_variables as $vars)
 		{
 			if (isset($vars[$key]))
 			{
-				return $vars[$key];
+				return (string) $vars[$key];
 			}
 		}
 
 		return '';
 	}
 
-	protected function _append($variables)
+	/**
+	 * Escapes a variable value
+	 * @param  string $str
+	 * @return string
+	 */
+	protected function _escape($str)
+	{
+		return htmlspecialchars($str, ENT_QUOTES, 'UTF-8');
+	}
+
+	/**
+	 * Append variables to the stack for the current context (loop/condition/include)
+	 * @param  array $variables
+	 * @return boolean
+	 */
+	protected function _append(Array $variables)
 	{
 		if (!is_array($variables))
 		{
@@ -260,18 +303,22 @@ class Mustachier
 		array_unshift($this->_variables, $variables);
 	}
 
+	/**
+	 * Remove last context variables from variables stack
+	 * @return void
+	 */
 	protected function _pop()
 	{
 		array_shift($this->_variables);
 	}
 
+	/**
+	 * Returns an array from variables for a loop
+	 * @param  string $key
+	 * @return array
+	 */
 	protected function _loop($key)
 	{
-		if (isset($this->_callbacks[$key]))
-		{
-
-		}
-
 		foreach ($this->_variables as $vars)
 		{
 			if (isset($vars[$key]) && is_array($vars[$key]))
@@ -285,11 +332,22 @@ class Mustachier
 		return [0];
 	}
 
+	/**
+	 * Includes a template
+	 * @param  string $name
+	 * @return void
+	 */
 	protected function _include($name)
 	{
-		$this->display($name);
+		$this->display($name . '.mustache');
 	}
 
+	/**
+	 * Compiles a given Mustache code into PHP code
+	 * @param  string $code     Mustache template code
+	 * @param  string|null $template Path to template file
+	 * @return string PHP code
+	 */
 	public function compile($code, $template = null)
 	{
 		// Don't allow PHP tags
@@ -301,7 +359,7 @@ class Mustachier
 
 		$str = strtr($code, $php_replace);
 
-		$pattern = sprintf('/(?<!\\\\)%s([#^>&{\/!]?\s*[\w.]+?)\s*\}?(?<!\\\\)%s/', preg_quote($this->delimiter_start, '/'), preg_quote($this->delimiter_end, '/'));
+		$pattern = sprintf('/(?<!\\\\)%s([#^>&{\/!]?\s*\w+?)\s*\}?(?<!\\\\)%s/', preg_quote($this->delimiter_start, '/'), preg_quote($this->delimiter_end, '/'));
 		$str = preg_split($pattern, $str, 0, PREG_SPLIT_DELIM_CAPTURE);
 
 		$out = '';
@@ -369,7 +427,7 @@ class Mustachier
 			// Escaped variable
 			else
 			{
-				$out .= sprintf('<?=$this->escape($this->_get(%s))?>', var_export($tag, true));
+				$out .= sprintf('<?=$this->_escape($this->_get(%s))?>', var_export($tag, true));
 			}
 		}
 
@@ -380,24 +438,20 @@ class Mustachier
 
 		return $out;
 	}
-
-	protected function escape($str)
-	{
-		return htmlspecialchars($str, ENT_QUOTES, 'UTF-8');
-	}
 }
 
 class MustachierException extends \Exception
 {
+	/**
+	 * Creates a new Mustache template exception
+	 * @param integer $line   Line number in Mustache template
+	 * @param string $message Error message
+	 * @param string $code    Either path to Mustache template file or code used for run() method
+	 */
 	public function __construct($line, $message, $code)
 	{
 		parent::__construct($message);
 		$this->line = $line;
 		$this->file = $code;
-	}
-
-	public function __toString()
-	{
-		return parent::__toString() . PHP_EOL . PHP_EOL . $this->compiled;
 	}
 }

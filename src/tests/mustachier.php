@@ -102,6 +102,6 @@ function test_templates()
 {
 	$m = new Mustachier(__DIR__ . '/data/mustache', '/tmp');
 
-	//Test::equals('ok', $m->fetch('simple.mu', ['ok' => 'ok']));
-	Test::equals('ok', $m->fetch('include.mu', ['ok' => 'ok']));
+	Test::equals('ok', $m->fetch('simple.mustache', ['ok' => 'ok']));
+	Test::equals('ok', $m->fetch('include.mustache', ['ok' => 'ok']));
 }
