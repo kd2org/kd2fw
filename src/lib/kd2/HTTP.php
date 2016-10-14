@@ -243,15 +243,12 @@ class HTTP
 				$location = end($location);
 			}
 
-			$location = parse_url($location);
-
-			if (!$location)
+			if (!parse_url($location))
 			{
 				throw new \RuntimeException('Invalid HTTP redirect: Location is not a valid URL.');
 			}
 
-			$url = array_merge(parse_url($url), $location);
-			$url = $this->glueURL($url);
+			$url = self::mergeURLs($url, $location);
 			$previous = $response;
 		}
 
@@ -263,11 +260,11 @@ class HTTP
 	 * @param  Array  $url
 	 * @return string
 	 */
-	protected function glueURL(Array $url)
+	static public function glueURL(Array $url)
 	{
 		static $parts = [
-			'scheme'   => '%s://',
-			'host'     => '%s',
+			'scheme'   => '%s:',
+			'host'     => '//%s',
 			'port'     => ':%d',
 			'user'     => '%s',
 			'pass'     => ':%s',
@@ -292,6 +289,32 @@ class HTTP
 		}
 
 		return implode('', $out);
+	}
+
+	/**
+	 * Merge two URLs, managing relative $b URL
+	 * @param  string $a Primary URL
+	 * @param  string $b New URL
+	 * @return string
+	 */
+	static public function mergeURLs($a, $b)
+	{
+		$a = parse_url($a);
+		$b = parse_url($b);
+
+		// Relative URL
+		if (!isset($b['host']) && isset($b['path']) && substr(trim($b['path']), 0, 1) != '/')
+		{
+			$path = preg_replace('![^/]*$!', '', $a['path']);
+			$path.= preg_replace('!^\./!', '', $b['path']);
+			unset($a['path']);
+
+			// replace // or  '/./' or '/foo/../' with '/'
+			$b['path'] = preg_replace('#/(?!\.\.)[^/]+/\.\./|/\.?/#', '/', $path);
+		}
+
+		$url = array_merge($a, $b);
+		return self::glueURL($url);
 	}
 
 	/**

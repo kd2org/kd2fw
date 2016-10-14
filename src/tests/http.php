@@ -7,8 +7,21 @@ use KD2\ErrorManager as EM;
 
 require __DIR__ . '/_assert.php';
 
+test_urls();
 test_http();
 test_http(HTTP::CLIENT_CURL);
+
+function test_urls()
+{
+	Test::equals('/w/Wiki', HTTP::glueURL(['path' => '/w/Wiki']));
+	Test::equals('//wikipedia.org/w/Wiki', HTTP::glueURL(['host' => 'wikipedia.org', 'path' => '/w/Wiki']));
+	Test::equals('https://wikipedia.org/w/Wiki', HTTP::glueURL(['host' => 'wikipedia.org', 'scheme' => 'https', 'path' => '/w/Wiki']));
+	
+	// Merge
+	Test::equals('https://wikipedia.org:80/w/Wiki/Pedia', HTTP::mergeURLs('https://wikipedia.org:80/admin/', '../w/Wiki/Pedia'));
+	Test::equals('/w/Wiki', HTTP::mergeURLs('/w/', '../w/Wiki'));
+	Test::equals('https://wikipedia.org:80/w/Wiki', HTTP::mergeURLs('https://wikipedia.org:80/w/Pedia', './Wiki'));
+}
 
 function test_http($client = HTTP::CLIENT_DEFAULT)
 {
