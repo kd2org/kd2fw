@@ -44,6 +44,8 @@ class Test
 
 	static public function equals($expected, $result, $message = '')
 	{
+		assert(is_string($message));
+
 		self::assert($expected == $result, 
 			sprintf("Equals condition failed: %s\n--- %s\n+++ %s", 
 				$message, EM::dump($expected), EM::dump($result)
