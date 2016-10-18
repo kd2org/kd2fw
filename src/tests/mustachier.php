@@ -11,6 +11,7 @@ test_tag();
 test_assign();
 test_loop();
 test_templates();
+test_specs();
 
 function test_php()
 {
@@ -63,7 +64,7 @@ function test_loop()
 	Test::equals('', $m->run('{{#test}}.{{/test}}', [], true));
 
 	// Positive conditions
-	Test::equals('..', $m->run('{{#test}}..{{/test}}', ['test' => 'ok'], true));
+	Test::equals('..', $m->run('{{#test}}..{{/test}}', ['test' => 'Chewing gum'], true));
 	Test::equals('.ok.', $m->run('{{#test}}.{{test}}.{{/test}}', ['test' => 'ok'], true));
 
 	// Negative condition
@@ -77,7 +78,7 @@ function test_loop()
 	Test::equals('.#.', $m->run('{{#test}}.{{#bla}}#{{/bla}}.{{/test}}', ['test' => ['bla' => ['ok' => true]]], true));
 	
 	// Nested nested with sub-tags
-	Test::equals('.#!!#.', $m->run('{{#test}}.{{#bla}}#{{#ok}}{{42}}{{/ok}}#{{/bla}}.{{/test}}', ['test' => ['bla' => ['ok' => [42 => '!!']]]], true));
+	Test::equals('.#!!#.', $m->run('{{#test}}.{{#bla}}#{{#ok}}{{t42}}{{/ok}}#{{/bla}}.{{/test}}', ['test' => ['bla' => ['ok' => ['t42' => '!!']]]], true));
 
 	// Invalid loop
 	try {
@@ -104,4 +105,30 @@ function test_templates()
 
 	Test::equals('ok', $m->fetch('simple.mustache', ['ok' => 'ok']));
 	Test::equals('ok', $m->fetch('include.mustache', ['ok' => 'ok']));
+}
+
+function test_specs()
+{
+	$m = new Mustachier;
+	$path = __DIR__ . '/data/mustache/spec';
+	$dir = dir($path);
+
+	while ($file = $dir->read())
+	{
+		if ($file[0] == '.')
+		{
+			continue;
+		}
+
+		if ($file == 'sections.json') continue; // temp
+
+		$json = json_decode(file_get_contents($path . '/' . $file), true);
+		
+		foreach ($json['tests'] as $test)
+		{
+			$result = $m->run($test['template'], $test['data'], true);
+			Test::equals(trim($test['expected']), trim($result),
+				sprintf('%s: %s (%s)', $file, $test['name'], $test['desc']));
+		}
+	}
 }

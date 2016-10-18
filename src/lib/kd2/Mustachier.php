@@ -110,16 +110,18 @@ class Mustachier
 	 */
 	public function assign($key, $value = null)
 	{
-		// Last element of variables
-		$pos = max(0, count($this->_variables) - 1);
+		if (!isset($this->_variables[0]))
+		{
+			$this->_variables[0] = [];
+		}
 
 		if (is_array($key))
 		{
-			$this->_variables[$pos] = array_merge($this->_variables[$pos], $key);
+			$this->_variables[0] = array_merge($this->_variables[0], $key);
 			return true;
 		}
 
-		$this->_variables[$pos][$key] = $value;
+		$this->_variables[0][$key] = $value;
 		return true;
 	}
 
@@ -174,7 +176,12 @@ class Mustachier
 				ob_start();
 			}
 
-			$this->_append($variables);
+			// Set variables context for current template
+			if (count($variables) > 0)
+			{
+				$previous_variables = $this->_variables;
+				$this->assign($variables);
+			}
 
 			try {
 				$eval = @include $compiled_template;
@@ -184,12 +191,17 @@ class Mustachier
 				throw $e;
 			}
 
+			// Reset variables context
+			if (isset($previous_variables))
+			{
+				$this->_variables = $previous_variables;
+				unset($previous_variables);
+			}
+
 			if (!$eval && ($error = error_get_last()))
 			{
 				throw new MustachierException($error['line'], 'Error in compiled template: '. $error['message'], $compiled_template);
 			}
-
-			$this->_pop();
 
 			if ($return)
 			{
@@ -220,11 +232,21 @@ class Mustachier
 			ob_start();
 		}
 
-		$this->_append($variables);
+		// Set variables context for current template
+		if (count($variables) > 0)
+		{
+			$previous_variables = $this->_variables;
+			$this->assign($variables);
+		}
 
 		$eval = @eval('?>' . $code);
 
-		$this->_pop();
+		// Reset variables context
+		if (isset($previous_variables))
+		{
+			$this->_variables = $previous_variables;
+			unset($previous_variables);
+		}
 
 		if (!$eval && ($error = error_get_last()))
 		{
@@ -238,44 +260,77 @@ class Mustachier
 	}
 
 	/**
-	 * Used in templates to know if a variable is empty or not
-	 * @param  string $key
-	 * @return boolean
-	 */
-	protected function _empty($key)
-	{
-		foreach ($this->_variables as $vars)
-		{
-			if (isset($vars[$key]))
-			{
-				if (is_array($vars[$key]))
-				{
-					return count($vars[$key]) > 0 ? false : true;
-				}
-				
-				return empty($vars[$key]);
-			}
-		}
-
-		return true;
-	}
-
-	/**
 	 * Used in templates to return the value of a variable
 	 * @param  string $key
 	 * @return mixed
 	 */
 	protected function _get($key)
 	{
-		foreach ($this->_variables as $vars)
+		$key = explode('.', $key);
+		$vars = end($this->_variables);
+
+		if (!$vars)
 		{
-			if (isset($vars[$key]))
+			return null;
+		}
+
+		return $this->_magicVar($vars, $key);
+	}
+
+	/**
+	 * Used in templates to know if a variable is empty or not
+	 * @param  string $key
+	 * @return boolean
+	 */
+	protected function _empty($key)
+	{
+		$var = $this->_get($key);
+
+		if (is_array($var) || is_object($var))
+		{
+			return !count((array) $var);
+		}
+
+		return empty($var);
+	}
+
+	/**
+	 * Retrieve a magic variable like $object.key or $array.key.subkey
+	 * @param  mixed $var   Variable to look into (object or array)
+	 * @param  array $keys  List of keys to look for
+	 * @return mixed        NULL if the key doesn't exists, or the value associated to the key
+	 */
+	protected function _magicVar($var, array $keys)
+	{
+		while ($key = array_shift($keys))
+		{
+			if (is_object($var))
 			{
-				return (string) $vars[$key];
+				// Test for constants
+				if (defined(get_class($var) . '::' . $key))
+				{
+					return constant(get_class($var) . '::' . $key);
+				}
+
+				if (!property_exists($var, $key))
+				{
+					return null;
+				}
+				
+				$var = $var->$key;
+			}
+			elseif (is_array($var))
+			{
+				if (!array_key_exists($key, $var))
+				{
+					return null;
+				}
+
+				$var = $var[$key];
 			}
 		}
 
-		return '';
+		return $var;
 	}
 
 	/**
@@ -293,14 +348,19 @@ class Mustachier
 	 * @param  array $variables
 	 * @return boolean
 	 */
-	protected function _append(Array $variables)
+	protected function _append(Array $variables, $key = null)
 	{
+		if (is_string($key))
+		{
+			$variables = [$key => $variables];
+		}
+
 		if (!is_array($variables))
 		{
 			return;
 		}
 
-		array_unshift($this->_variables, $variables);
+		array_push($this->_variables, $variables);
 	}
 
 	/**
@@ -309,7 +369,7 @@ class Mustachier
 	 */
 	protected function _pop()
 	{
-		array_shift($this->_variables);
+		return array_pop($this->_variables);
 	}
 
 	/**
@@ -319,12 +379,11 @@ class Mustachier
 	 */
 	protected function _loop($key)
 	{
-		foreach ($this->_variables as $vars)
+		$var = $this->_get($key);
+
+		if (is_array($var) || is_object($var))
 		{
-			if (isset($vars[$key]) && is_array($vars[$key]))
-			{
-				return $vars;
-			}
+			return $var;
 		}
 
 		// Return an array with only one item
@@ -352,6 +411,7 @@ class Mustachier
 	{
 		// Don't allow PHP tags
 		$php_replace = [
+			"\r"    => '',
 			'<?='   => '<?=\'<?=\'?>',
 			'<?php' => '<?=\'<?php\'?>',
 			'?>'    => '<?=\'?>\'?>'
@@ -359,7 +419,7 @@ class Mustachier
 
 		$str = strtr($code, $php_replace);
 
-		$pattern = sprintf('/(?<!\\\\)%s([#^>&{\/!]?\s*\w+?)\s*\}?(?<!\\\\)%s/', preg_quote($this->delimiter_start, '/'), preg_quote($this->delimiter_end, '/'));
+		$pattern = sprintf('/(?<!\\\\)%s([#^>&{\/!]?\s*.+?)\s*\}?(?<!\\\\)%s/sm', preg_quote($this->delimiter_start, '/'), preg_quote($this->delimiter_end, '/'));
 		$str = preg_split($pattern, $str, 0, PREG_SPLIT_DELIM_CAPTURE);
 
 		$out = '';
@@ -376,7 +436,6 @@ class Mustachier
 			}
 
 			$tag = trim($split);
-			$pos = (int) $split;
 
 			// first character of tag
 			$a = substr($tag, 0, 1);
@@ -392,7 +451,7 @@ class Mustachier
 			// positive condition (section)
 			if ($a == '#')
 			{
-				$out .= sprintf('<?php if (!$this->_empty(%s)): foreach ($this->_loop(%1$s) as $loop): $this->_append($loop); ?>', $b);
+				$out .= sprintf('<?php if (!$this->_empty(%s)): foreach ($this->_loop(%1$s) as $key=>$loop): $this->_append($loop, $key); ?>', $b);
 				$this->_loop_stack[] = $b;
 			}
 			// end of condition
@@ -410,7 +469,7 @@ class Mustachier
 			// inverted sections (negative condition)
 			elseif ($a == '^')
 			{
-				$out .= sprintf('<?php if ($this->_empty(%s)): foreach ([0] as $ignore): $this->_append(false); ?>', $b);
+				$out .= sprintf('<?php if ($this->_empty(%s)): foreach ([0] as $ignore): $this->_append([false]); ?>', $b);
 				$this->_loop_stack[] = $b;
 			}
 			// include (= partials)
@@ -435,6 +494,9 @@ class Mustachier
 		{
 			throw new MustachierException($line, 'Missing closing tag for section: ' . array_pop($this->_loop_stack), $template ?: $str);
 		}
+
+		// Fix PHP eating newline
+		$out = preg_replace("/\?>(\r?\n)/", '$0$1', $out);
 
 		return $out;
 	}
