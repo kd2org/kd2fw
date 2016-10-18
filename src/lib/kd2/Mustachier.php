@@ -74,6 +74,12 @@ class Mustachier
 	protected $compile_dir = null;
 
 	/**
+	 * Strip comments (or not)
+	 * @var boolean
+	 */
+	protected $strip_comments = true;
+
+	/**
 	 * Mustachier constructor
 	 * @param string $templates_dir Path to directory where templates are stored (must exist)
 	 * @param string $compile_dir   Path to directory where compiled templates should be stored,
@@ -442,14 +448,13 @@ class Mustachier
 			$b = trim(substr($tag, 1));
 			$b = var_export($b, true);
 
-			// Comments: ignore
+			// Comments
 			if ($a == '!')
 			{
-				continue;
+				$out .= sprintf('<?php/* %s */?>', str_replace('*/', '* /', trim(substr($tag, 1))));
 			}
-
 			// positive condition (section)
-			if ($a == '#')
+			elseif ($a == '#')
 			{
 				$out .= sprintf('<?php if (!$this->_empty(%s)): foreach ($this->_loop(%1$s) as $key=>$loop): $this->_append($loop, $key); ?>', $b);
 				$this->_loop_stack[] = $b;
@@ -496,7 +501,20 @@ class Mustachier
 		}
 
 		// Fix PHP eating newline
-		$out = preg_replace("/\?>(\r?\n)/", '$0$1', $out);
+		$out = preg_replace("/\?>\n/", "$0\n", $out);
+		
+		// Fix standalone tags whitespaces/new lines
+		$out = preg_replace("/^\s*(<\?((?!\?>).)*\?>)\s*$/sm", '$1', $out);
+		
+		// Remove comments
+		if ($this->strip_comments)
+		{
+			// Remove comment lines
+			$out = preg_replace('#^\s*<\?php/\*((?!\*/).)*\*/\?>\s*\n*#sm', '', $out);
+
+			// remove in-line comments
+			$out = preg_replace('#<\?php/\*((?!\*/).)*\*/\?>#s', '', $out);
+		}
 
 		return $out;
 	}
