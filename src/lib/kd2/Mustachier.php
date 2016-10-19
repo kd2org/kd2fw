@@ -73,11 +73,15 @@ class Mustachier
 	 */
 	protected $compile_dir = null;
 
+	protected $_cache_closures = [];
+
+	protected $_cache_templates = [];
+
 	/**
-	 * Strip comments (or not)
-	 * @var boolean
+	 * Partials
+	 * @var array
 	 */
-	protected $strip_comments = true;
+	protected $_partials = [];
 
 	/**
 	 * Mustachier constructor
@@ -106,6 +110,15 @@ class Mustachier
 				throw new \InvalidArgumentException('Cannot write directory: ' . $compile_dir);
 			}
 		}
+	}
+
+	/**
+	 * Set partials to be used before including templates
+	 * @param Array $partials [name => template]
+	 */
+	public function setPartials(Array $partials)
+	{
+		$this->_partials = $partials;
 	}
 
 	/**
@@ -171,73 +184,51 @@ class Mustachier
 			// Compile template
 			if (filemtime($template) > @filemtime($compiled_template))
 			{
-				$code = $this->compile(file_get_contents($template), $template);
+				$str = file_get_contents($template);
+				$closure_name = sha1($str);
+
+				// Compile
+				$code = $this->compile($str, $template);
+
+				// Create closure
+				eval('$this->_cache_closures[$closure_name] = function () { ' . $code . '};');
+				$this->_cache_templates[$template] = $closure_name;
+
+				// Store closure
+				$code = sprintf('<?php $closure_name = %s; $this->_cache_closures[$closure_name] = function () { %s };',
+					var_export($closure_name, true), $code);
+
 				file_put_contents($compiled_template, $code);
 			}
-
-			// Execute template by including it
-
-			if ($return)
+			// Load from cache
+			elseif (!array_key_exists($template, $this->_cache_templates))
 			{
-				ob_start();
+				include $compiled_template;
+				$this->_cache_templates[$template] = $closure_name;
+			}
+			else
+			{
+				$closure_name = $this->_cache_templates[$template];
 			}
 
-			// Set variables context for current template
-			if (count($variables) > 0)
-			{
-				$previous_variables = $this->_variables;
-				$this->assign($variables);
-			}
-
-			try {
-				$eval = @include $compiled_template;
-			}
-			catch (\Exception $e)
-			{
-				throw $e;
-			}
-
-			// Reset variables context
-			if (isset($previous_variables))
-			{
-				$this->_variables = $previous_variables;
-				unset($previous_variables);
-			}
-
-			if (!$eval && ($error = error_get_last()))
-			{
-				throw new MustachierException($error['line'], 'Error in compiled template: '. $error['message'], $compiled_template);
-			}
-
-			if ($return)
-			{
-				return ob_get_clean();
-			}
+			return $this->run($closure_name, $variables, $return);
 		}
 		// No compile_dir: fully dynamic on-the-fly compiling and execution
 		else
 		{
-			return $this->run(file_get_contents($template), $variables, $return, $template);
+			return $this->render(file_get_contents($template), $variables, $return);
 		}
 	}
 
 	/**
-	 * Compiles and runs a template code
-	 * @param  string  $str       Mustache template code
-	 * @param  Array   $variables Variables to pass to the template for the duration of its execution
-	 * @param  boolean $return    Set to TRUE to return as string instead of echoing the template
-	 * @param  string|null $template Path to template file
-	 * @return void|string
+	 * Run a stored closure
+	 * @param  string  $closure_name Closure name
+	 * @param  Array   $variables Variables to assign to this template
+	 * @param  boolean $return    TRUE to get the output returned, FALSE to get it printed
+	 * @return string|void
 	 */
-	public function run($str, Array $variables = [], $return = false, $template = null)
+	protected function run($closure_name, Array $variables = [], $return = false)
 	{
-		$code = $this->compile($str, $template);
-
-		if ($return)
-		{
-			ob_start();
-		}
-
 		// Set variables context for current template
 		if (count($variables) > 0)
 		{
@@ -245,7 +236,7 @@ class Mustachier
 			$this->assign($variables);
 		}
 
-		$eval = @eval('?>' . $code);
+		$out = $this->_cache_closures[$closure_name]();
 
 		// Reset variables context
 		if (isset($previous_variables))
@@ -254,15 +245,37 @@ class Mustachier
 			unset($previous_variables);
 		}
 
-		if (!$eval && ($error = error_get_last()))
-		{
-			throw new MustachierException($error['line'], 'Error in compiled template: '. $error['message'], $code);
-		}
-
 		if ($return)
 		{
-			return ob_get_clean();
+			return $out;
 		}
+		else
+		{
+			echo $out;
+		}
+	}
+
+	/**
+	 * Compiles and runs a template code
+	 * @param  string  $str       Mustache template code
+	 * @param  Array   $variables Variables to pass to the template for the duration of its execution
+	 * @param  boolean $return    Set to TRUE to return as string instead of echoing the template
+	 * @param  string  $template  Template file path
+	 * @return void|string
+	 */
+	public function render($str, Array $variables = [], $return = false, $template = null)
+	{
+		$closure_name = sha1($str);
+
+		if (!array_key_exists($closure_name, $this->_cache_closures))
+		{
+			$code = $this->compile($str, $template);
+
+			// Create closure
+			eval('$this->_cache_closures[$closure_name] = function () { ' . $code . '};');
+		}
+
+		return $this->run($closure_name, $variables, $return);
 	}
 
 	/**
@@ -354,7 +367,7 @@ class Mustachier
 	 * @param  array $variables
 	 * @return boolean
 	 */
-	protected function _append(Array $variables, $key = null)
+	protected function _append($variables, $key = null)
 	{
 		if (is_string($key))
 		{
@@ -404,7 +417,16 @@ class Mustachier
 	 */
 	protected function _include($name)
 	{
-		$this->display($name . '.mustache');
+		if (array_key_exists($name, $this->_partials))
+		{
+			return $this->render($this->_partials[$name], [], true);
+		}
+		elseif (null !== $this->templates_dir)
+		{
+			return $this->fetch($name . '.mustache');
+		}
+
+		return '';
 	}
 
 	/**
@@ -415,48 +437,50 @@ class Mustachier
 	 */
 	public function compile($code, $template = null)
 	{
-		// Don't allow PHP tags
-		$php_replace = [
-			"\r"    => '',
-			'<?='   => '<?=\'<?=\'?>',
-			'<?php' => '<?=\'<?php\'?>',
-			'?>'    => '<?=\'?>\'?>'
-		];
+		$pattern = '/(?|^\s*((?<!\\\\)%s(?!=)(?:[#^>&{\/!]?\s*(?:(?!%2$s).)*?)\s*\}?(?<!\\\\)%2$s)\s*$\r?\n|((?1)))/sm';
+		$pattern = sprintf($pattern, preg_quote($this->delimiter_start, '/'), preg_quote($this->delimiter_end, '/'));
+		$str = preg_split($pattern, $code, 0, PREG_SPLIT_DELIM_CAPTURE);
 
-		$str = strtr($code, $php_replace);
-
-		$pattern = sprintf('/(?<!\\\\)%s([#^>&{\/!]?\s*.+?)\s*\}?(?<!\\\\)%s/sm', preg_quote($this->delimiter_start, '/'), preg_quote($this->delimiter_end, '/'));
-		$str = preg_split($pattern, $str, 0, PREG_SPLIT_DELIM_CAPTURE);
-
-		$out = '';
+		$out = '$o = \'\';' . PHP_EOL;
 		$line = 1;
 
 		foreach ($str as $i=>$split)
 		{
 			$line += substr_count($split, "\n");
 
+			// string, not a tag
 			if ($i % 2 == 0)
 			{
-				$out .= $split;
+				if ($split !== '')
+				{
+					$out .= '$o .= ' . var_export($split, true) . ';' . PHP_EOL;
+				}
+
 				continue;
 			}
 
-			$tag = trim($split);
+			$tag = substr($split, strlen($this->delimiter_start), -(strlen($this->delimiter_end)));
 
 			// first character of tag
 			$a = substr($tag, 0, 1);
-			$b = trim(substr($tag, 1));
-			$b = var_export($b, true);
+			$b = substr($tag, 1);
+
+			if ($a == '{')
+			{
+				$b = substr($b, 0, -1);
+			}
+
+			$b = var_export(trim($b), true);
 
 			// Comments
 			if ($a == '!')
 			{
-				$out .= sprintf('<?php/* %s */?>', str_replace('*/', '* /', trim(substr($tag, 1))));
+				$out .= sprintf('/* %s */', str_replace('*/', '* /', trim(substr($tag, 1))));
 			}
 			// positive condition (section)
 			elseif ($a == '#')
 			{
-				$out .= sprintf('<?php if (!$this->_empty(%s)): foreach ($this->_loop(%1$s) as $key=>$loop): $this->_append($loop, $key); ?>', $b);
+				$out .= sprintf('if (!$this->_empty(%s)): foreach ($this->_loop(%1$s) as $key=>$loop): $this->_append($loop, $key);', $b);
 				$this->_loop_stack[] = $b;
 			}
 			// end of condition
@@ -469,30 +493,32 @@ class Mustachier
 
 				// how do you know if you are closing a loop or a condition?
 				// you don't! that's why we treat conditions as one-iteration loop!
-				$out .= '<?php $this->_pop(); endforeach; endif; ?>';
+				$out .= '$this->_pop(); endforeach; endif;';
 			}
 			// inverted sections (negative condition)
 			elseif ($a == '^')
 			{
-				$out .= sprintf('<?php if ($this->_empty(%s)): foreach ([0] as $ignore): $this->_append([false]); ?>', $b);
+				$out .= sprintf('if ($this->_empty(%s)): foreach ([0] as $ignore): $this->_append([false]);', $b);
 				$this->_loop_stack[] = $b;
 			}
 			// include (= partials)
 			elseif ($a == '>')
 			{
-				$out .= sprintf('<?php $this->_include(%s); ?>', $b);
+				$out .= sprintf('$o .= $this->_include(%s);', $b);
 			}
-			// No escape {{&variable}}
 			// No escape {{{variable}}}
+			// No escape {{&variable}}
 			elseif ($a == '&' || $a == '{')
 			{
-				$out .= sprintf('<?=$this->_get(%s); ?>', $b);
+				$out .= sprintf('$o .= $this->_get(%s);', $b);
 			}
 			// Escaped variable
 			else
 			{
-				$out .= sprintf('<?=$this->_escape($this->_get(%s))?>', var_export($tag, true));
+				$out .= sprintf('$o .= $this->_escape($this->_get(%s));', var_export(trim($tag), true));
 			}
+
+			$out .= PHP_EOL;
 		}
 
 		if (count($this->_loop_stack) > 0)
@@ -500,21 +526,7 @@ class Mustachier
 			throw new MustachierException($line, 'Missing closing tag for section: ' . array_pop($this->_loop_stack), $template ?: $str);
 		}
 
-		// Fix PHP eating newline
-		$out = preg_replace("/\?>\n/", "$0\n", $out);
-		
-		// Fix standalone tags whitespaces/new lines
-		$out = preg_replace("/^\s*(<\?((?!\?>).)*\?>)\s*$/sm", '$1', $out);
-		
-		// Remove comments
-		if ($this->strip_comments)
-		{
-			// Remove comment lines
-			$out = preg_replace('#^\s*<\?php/\*((?!\*/).)*\*/\?>\s*\n*#sm', '', $out);
-
-			// remove in-line comments
-			$out = preg_replace('#<\?php/\*((?!\*/).)*\*/\?>#s', '', $out);
-		}
+		$out .= 'return $o;' . PHP_EOL;
 
 		return $out;
 	}
