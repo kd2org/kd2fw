@@ -199,10 +199,20 @@ class SMTP
 		}
 
 		$this->_write('RSET');
-		$this->_read();
+
+		$code = $this->_readCode();
+
+		if ($code != 250 && $code != 200)
+		{
+			throw new SMTP_Exception('SMTP RSET error: '.$this->last_line);
+		}
 
 		$this->_write('MAIL FROM: <'.$from.'>');
-		$this->_read();
+
+		if ($this->_readCode() != 250)
+		{
+			throw new SMTP_Exception('SMTP MAIL FROM error: '.$this->last_line);
+		}
 
 		if (is_string($to))
 		{
@@ -212,13 +222,24 @@ class SMTP
 		foreach ($to as $dest)
 		{
 			$this->_write('RCPT TO: <'.$dest.'>');
-			$this->_read();
+
+			$code = $this->_readCode();
+
+			if ($code != 250 && $code != 251)
+			{
+				throw new SMTP_Exception('SMTP RCPT TO error: '.$this->last_line);
+			}
 		}
 
 		$data = rtrim($data) . self::EOL;
 
 		$this->_write('DATA');
-		$this->_read();
+		
+		if ($this->_readCode() != 354)
+		{
+			throw new SMTP_Exception('SMTP DATA error: '.$this->last_line);
+		}
+
 		$this->_write($data . '.');
 
 		if ($this->_readCode() != 250)
@@ -320,34 +341,8 @@ class SMTP
 			$headers['Bcc'] = implode(', ', $headers['Bcc']);
 		}
 
-		if (is_null($this->conn))
-		{
-			$this->connect();
-			$this->authenticate();
-		}
-
-		$this->_write('RSET');
-		$this->_read();
-
-		$this->_write('MAIL FROM: <'.$from.'>');
-		$this->_read();
-
-		foreach ($to as $dest)
-		{
-			$this->_write('RCPT TO: <'.$dest.'>');
-			$this->_read();
-		}
-
-		$this->_write('DATA');
-		$this->_read();
-		$this->_write($content . '.');
-
-		if ($this->_readCode() != 250)
-		{
-			throw new SMTP_Exception('Can\'t send message. SMTP said: ' . $this->last_line);
-		}
-
-		return true;
+		// Send email
+		return $this->rawSend($from, $to, $content);
 	}
 
 	/**
@@ -398,5 +393,3 @@ class SMTP
 		return $out;
 	}
 }
-
-?>
