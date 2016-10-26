@@ -387,8 +387,6 @@ class HTTP
 		$r->fail = false;
 		$r->size = strlen($r->body);
 
-		$r->raw_headers = implode("\r\n", $http_response_header);
-
 		foreach ($http_response_header as $line)
 		{
 			$header = strtok($line, ':');
@@ -477,8 +475,6 @@ class HTTP
 		}
 
 		curl_setopt($c, CURLOPT_HEADERFUNCTION, function ($c, $header) use (&$r) {
-			$r->raw_headers .= $header;
-
 			$name = trim(strtok($header, ':'));
 			$value = strtok('');
 
@@ -493,10 +489,9 @@ class HTTP
 			}
 			else
 			{
-				$name = strtolower($name);
 				$value = trim($value);
 
-				if ($name == 'set-cookie')
+				if (strtolower($name) == 'set-cookie')
 				{
 					$cookie_key = strtok($value, '=');
 					$cookie_value = strtok(';');
@@ -550,7 +545,6 @@ class HTTP_Response
 	public $status = null;
 	public $request = null;
 	public $size = 0;
-	public $raw_headers = null;
 	public $error = null;
 	public $previous = null;
 
@@ -583,8 +577,15 @@ class HTTP_Headers implements \ArrayAccess
 
 	public function __set($key, $value)
 	{
-		$key = trim($key);
-		$this->headers[strtolower($key)] = [$key, $value];
+		if (is_null($key))
+		{
+			$this->headers[] = [null, $value];
+		}
+		else
+		{
+			$key = trim($key);
+			$this->headers[strtolower($key)] = [$key, $value];
+		}
 	}
 
 	public function offsetGet($key)
@@ -609,13 +610,18 @@ class HTTP_Headers implements \ArrayAccess
 		unset($this->headers[strtolower($key)]);
 	}
 
+	public function toArray()
+	{
+		return explode("\r\n", (string)$this);
+	}
+
 	public function __toString()
 	{
 		$out = '';
 
 		foreach ($this->headers as $header)
 		{
-			$out .= $header[0] . ': ' . $header[1] . "\r\n";
+			$out .= (!is_null($header[0]) ? $header[0] . ': ' : '') . $header[1] . "\r\n";
 		}
 
 		return $out;
