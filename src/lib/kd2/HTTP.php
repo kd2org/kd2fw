@@ -37,7 +37,7 @@ class HTTP
 	const CLIENT_DEFAULT = 'default';
 	const CLIENT_CURL = 'curl';
 
-	public $client = self::CLIENT_DEFAULT;
+	public $client = null;
 
 	/**
 	 * A list of common User-Agent strings, one of them is used
@@ -106,6 +106,9 @@ class HTTP
 	 */
 	public function __construct()
 	{
+		// Use faster client by default
+		$this->client = function_exists('curl_exec') ? self::CLIENT_CURL : self::CLIENT_DEFAULT;
+
 		// Random user agent
 		$this->user_agent = $this->uas[array_rand($this->uas)];
 	}
@@ -318,6 +321,59 @@ class HTTP
 	}
 
 	/**
+	 * RFC 6570 URI template replacement, supports level 1 and level 2
+	 * @param string $uri    URI with placeholders
+	 * @param Array  $params Parameters (placeholders)
+	 * @link  https://www.rfc-editor.org/rfc/rfc6570.txt
+	 * @return string
+	 */
+	static public function URITemplate($uri, Array $params = [])
+	{
+		static $var_name = '(?:[0-9a-zA-Z_]|%[0-9A-F]{2})+';
+
+		// Delimiters
+		static $delims = [
+			'%3A' => ':', '%2F' => '/', '%3F' => '?', '%23' => '#',
+			'%5B' => '[', '%5D' => ']', '%40' => '@', '%21' => '!',
+			'%24' => '$', '%26' => '&', '%27' => '\'', '%28' => '(',
+			'%29' => ')', '%2A' => '*', '%2B' => '+', '%2C' => ',',
+			'%3B' => ';', '%3D' => '=',
+		];
+
+		// Level 2: {#variable} => #/foo/bar
+		$uri = preg_replace_callback('/\{#(' . $var_name . ')\}/i', function ($match) use ($params, $delims) {
+			if (!isset($params[$match[1]]))
+			{
+				return '';
+			}
+
+			return '#' . strtr(rawurlencode($params[$match[1]]), $delims);
+		}, $uri);
+
+		// Level 2: {+variable} => /foo/bar
+		$uri = preg_replace_callback('/\{\+(' . $var_name . ')\}/i', function ($match) use ($params, $delims) {
+			if (!isset($params[$match[1]]))
+			{
+				return '';
+			}
+
+			return strtr(rawurlencode($params[$match[1]]), $delims);
+		}, $uri);
+
+		// Level 1: {variable} => %2Ffoo%2Fbar
+		$uri = preg_replace_callback('/\{(' . $var_name . ')\}/i', function ($match) use ($params) {
+			if (!isset($params[$match[1]]))
+			{
+				return '';
+			}
+
+			return rawurlencode($params[$match[1]]);
+		}, $uri);
+
+		return $uri;
+	}
+
+	/**
 	 * HTTP request using PHP stream and file_get_contents
 	 * @param  string $method
 	 * @param  string $url
@@ -455,9 +511,23 @@ class HTTP
 			CURLOPT_TIMEOUT        => !empty($this->http_options['timeout']) ? (int) $this->http_options['timeout'] : 30,
 			CURLOPT_POST           => $method == 'POST' ? true : false,
 			CURLOPT_SAFE_UPLOAD    => true, // Disable file upload with values beginning with @
-			CURLOPT_POSTFIELDS     => $data,
 			CURLINFO_HEADER_OUT    => true,
 		]);
+
+		if ($data !== null)
+		{
+			curl_setopt($c, CURLOPT_POSTFIELDS, $data);
+		}
+
+		if (!empty($this->ssl_options['cafile']))
+		{
+			curl_setopt($c, CURLOPT_CAINFO, $this->ssl_options['cafile']);
+		}
+
+		if (!empty($this->ssl_options['capath']))
+		{
+			curl_setopt($c, CURLOPT_CAPATH, $this->ssl_options['capath']);
+		}
 
 		if (count($this->cookies) > 0)
 		{
