@@ -1198,6 +1198,11 @@ class Smartyer
 			$date = strtotime($date);
 		}
 
+		if (strpos('DATE_', $format) === 0 && defined($format))
+		{
+			return date(constant($format), $date);
+		}
+
 		return strftime($format, $date);
 	}
 
@@ -1209,6 +1214,75 @@ class Smartyer
 	static protected function concatenate()
 	{
 		return implode('', func_get_args());
+	}
+
+	static protected function pagination($params)
+	{
+		extract($params);
+
+		if (!isset($count) || !isset($current) || !isset($per_page) || !isset($url))
+		{
+			throw new Smartyer_Exception('Missing parameter count, current or per_page.');
+		}
+
+		if (strpos($url, '%d') === false)
+		{
+			$url .= '%d';
+		}
+
+		$max_page = ceil($count / $per_page);
+
+		// No pagination
+		if ($max_page <= 1)
+		{
+			return '';
+		}
+
+		$links = '<ul class="pagination">';
+
+		if ($current > 1)
+		{
+			$links .= '<li class="prev"><a href="' . sprintf($url, $current - 1) . '">&larr;</a></li>';
+		}
+
+		if ($max_page > 10)
+		{
+			$start = max(1, $current - 4);
+			$end = max($max_page, $start + 9);
+
+			if ($start > 1)
+			{
+				$links .= '<li class="first"><a href="' . sprintf($url, 1) . $url . '">1</a></li>';
+				$links .= '<li class="etc">…</li>';
+			}
+
+			for ($i = $start; $i <= $end; $i++)
+			{
+				$links .= '<li' . ($current == $i ? ' class="current"' : '') . '><a href="' . sprintf($url, $i) . '">' . $i . '</a></li>';
+			}
+
+			if ($end < $max_page)
+			{
+				$links .= '<li class="etc">…</li>';
+				$links .= '<li class="last"><a href="' . sprintf($url, $max_page) . '">' . $max_page . '</a></li>';
+			}
+		}
+		else
+		{
+			for ($i = 1; $i <= $max_page; $i++)
+			{
+				$links .= '<li' . ($current == $i ? ' class="current"' : '') . '><a href="' . sprintf($url, $i) . '">' . $i . '</a></li>';
+			}
+		}
+
+		if ($current < $max_page)
+		{
+			$links .= '<li class="prev"><a href="' . sprintf($url, $current + 1) . '">&larr;</a></li>';
+		}
+
+		$links .= '</ul>';
+
+		return $links;
 	}
 }
 
