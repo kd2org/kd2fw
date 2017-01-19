@@ -486,8 +486,9 @@ class ErrorManager
 			'{$ref}' => $ref,
 		]);
 
-		$out = preg_replace_callback('!<if\((email|log)\)>(.*)</\1>!is', function ($match) {
-			return self::${$match[1]} ? $match[2] : '';
+		$out = preg_replace_callback('!<if\((email|log)\)>(.*?)</if>!is', function ($match) {
+			$criteria = ($match[1] == 'email') ? self::$email_errors : ini_get('error_log');
+			return (bool) $criteria ? $match[2] : '';
 		}, $out);
 
 		echo $out;
