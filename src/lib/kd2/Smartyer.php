@@ -458,7 +458,19 @@ class Smartyer
 	 */
 	public function register_compile_function($name, Callable $callback)
 	{
-		$this->compile_functions[$name] = $callback->bindTo($this, $this);
+		// Try to bind the closure to the current smartyer object if possible
+		$is_bindable = (new \ReflectionFunction(@\Closure::bind($callback, $this)))->getClosureThis() != null; 
+
+		if ($is_bindable)
+		{
+			$this->compile_functions[$name] = $callback->bindTo($this, $this);
+		}
+		// This is a static closure, so no way to bind it
+		else
+		{
+			$this->compile_functions[$name] = $callback;
+		}
+
 		return $this;
 	}
 
