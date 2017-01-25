@@ -211,6 +211,19 @@ class Security_OTP
 	}
 
 	/**
+	 * Returns a valid otpauth:// URL from a secret
+	 * Useful to generate QRcodes
+	 * @param  string $label Service label, eg 'Blog:james@alice.com'
+	 * @param  string $secret secret key
+	 * @param  string $type 'totp' or 'hotp'
+	 * @return string
+	 */
+	static public function getOTPAuthURL($label, $secret, $type = 'totp')
+	{
+		return 'otpauth://' . $type . '/' . rawurlencode($label) . '?secret=' . rawurlencode($secret);
+	}
+
+	/**
 	 * Base32 decode compatible with RFC 3548
 	 * @link https://codereview.stackexchange.com/questions/5236/base32-implementation-in-php
 	 * @param  string $str Base32 encoded string
@@ -254,7 +267,7 @@ class Security_OTP
 	 * @param  boolean $pad Enable padding? if true will pad string to the nearest multiple of 8 length with '='
 	 * @return string       Base32 encoded string
 	 */
-	function base32_encode($str, $pad = true)
+	static public function base32_encode($str, $pad = true)
 	{
 		static $alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 
