@@ -1,5 +1,7 @@
 <?php
 
+namespace KD2;
+
 /**
  * PHP QRCode generator, port of JS encoder by Marcel <http://www.codeministry.ch/>
  *
@@ -626,8 +628,14 @@ class QRCode
 			
 			for ($j = $i; $j > 0; $j--)
 			{
-				$this->genpoly[$j] = $this->genpoly[$j]
-				? $this->genpoly[$j - 1] ^ $this->gexp[$this->modnn($this->glog[$this->genpoly[$j]] + $i)] : $this->genpoly[$j - 1];
+				if ($this->genpoly[$j])
+				{
+					$this->genpoly[$j] = $this->genpoly[$j - 1] ^ $this->gexp[$this->modnn($this->glog[$this->genpoly[$j]] + $i)];
+				}
+				else
+				{
+					$this->genpoly[$j] = $this->genpoly[$j - 1];
+				}
 			}
 
 			$this->genpoly[0] = $this->gexp[$this->modnn($this->glog[$this->genpoly[0]] + $i)];
