@@ -227,32 +227,35 @@ class Security_OTP
 	}
 
 	/**
-	 * Returns UNIX timestamp from a TIME server (RFC 868)
-	 * @param  string  $host    Server host
-	 * @param  integer $port    Server port (usually 37)
-	 * @param  integer $timeout Timeout  in seconds
+	 * Returns UNIX timestamp from a NTP server (RFC 5905)
+	 *
+	 * @param  string  $host    Server host (default is pool.ntp.org)
+	 * @param  integer $timeout Timeout  in seconds (default is 10 seconds)
 	 * @return integer Number of seconds since January 1st 1970
 	 */
-	static public function getTimeFromServer($host = 'time4.nrc.ca', $port = 37, $timeout = 10)
+	static public function getTimeFromNTP($host = 'pool.ntp.org', $timeout = 10)
 	{
-		$socket = stream_socket_client('tcp://' . $host . ':' . (int) $port, $errno, $errstr, $timeout);
+		$socket = stream_socket_client('udp://' . $host . ':123', $errno, $errstr, (int)$timeout);
 
-		if (!$socket)
-		{
-			return false;
-		}
+		$msg = "\010" . str_repeat("\0", 47);
+		fwrite($socket, $msg);
 
-		fputs($socket, "\n");
-		$time = fread($socket, 49);
+		$response = fread($socket, 48);
 		fclose($socket);
 
-		$time = bin2hex($time);
-    	$time = abs(hexdec('7fffffff') - hexdec($time) - hexdec('7fffffff'));
+		// unpack to unsigned long
+		$data = unpack('N12', $response);
 
-    	// to UNIX timestamp
-    	$time -= 2208988800;
+		// 9 =  Receive Timestamp (rec): Time at the server when the request arrived
+   		// from the client, in NTP timestamp format.
+		$timestamp = sprintf('%u', $data[9]);
 
-    	return $time;
+		// NTP = number of seconds since January 1st, 1900
+		// Unix time = seconds since January 1st, 1970
+		// remove 70 years in seconds to get unix timestamp from NTP time
+		$timestamp -= 2208988800;
+
+		return $timestamp;
 	}
 
 	/**

@@ -3,6 +3,7 @@
 require __DIR__ . '/_assert.php';
 
 use KD2\Security_OTP as OTP;
+use KD2\Test;
 
 assert(
 	strlen($secret = OTP::getRandomSecret()) == 16 && (bool)$secret === true,
@@ -51,4 +52,9 @@ assert(
 assert(
 	OTP::TOTP($secret, $count + 1, $code) === false,
 	'HOTP validation code failure due to count'
+);
+
+assert(
+	OTP::getTimeFromNTP() > time() - 3600*24,
+	'NTP time is invalid'
 );
