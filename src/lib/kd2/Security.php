@@ -478,4 +478,54 @@ class Security
 		return $value;
 	}
 
+	/**
+	 * Check that GnuPG extension is installed and available to encrypt emails
+	 * @return boolean
+	 */
+	static public function canEncryptWithPublicKey()
+	{
+		return (extension_loaded('gnupg') && function_exists('\gnupg_init') && class_exists('\gnupg', false));
+	}
+
+	/**
+	 * Encrypt clear text data with GPG public key
+	 * @param  string  $key    Public key
+	 * @param  string  $data   Data to encrypt
+	 * @param  boolean $binary set to false to have the function return armored string instead of binary
+	 * @return string
+	 */
+	static public function encryptWithPublicKey($key, $data, $binary = false)
+	{
+		if (!self::canEncryptWithPublicKey())
+		{
+			throw new \RuntimeException('Cannot encrypt: gnupg extension not found.');
+		}
+
+		$tmpdir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . uniqid('gpg_', true);
+
+		// Create temporary home directory as required by gnupg
+		mkdir($tmpdir);
+
+		if (!is_dir($tmpdir))
+		{
+			throw new \RuntimeException('Cannot create temporary directory for GnuPG');
+		}
+
+		putenv('GNUPGHOME=' . $tmpdir);
+		
+		$gpg = new \gnupg;
+		$gpg->seterrormode(\gnupg::ERROR_EXCEPTION);
+		$gpg->setarmor((int)!$binary);
+
+		$info = $gpg->import($key);
+		$gpg->addencryptkey($info['fingerprint']);
+
+		$data = $gpg->encrypt($data);
+
+		// Remove files
+		array_map('unlink', glob($tmpdir . DIRECTORY_SEPARATOR . '*') ?: []);
+		rmdir($tmpdir);
+
+		return $data;
+	}
 }
