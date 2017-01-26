@@ -932,6 +932,27 @@ class QRCode
 	 */
 	public function toArray()
 	{
+		$out = [];
+		
+		for ($i = 0; $i < $this->width; $i++)
+		{
+			$out[$i] = [];
+
+			for ($j = 0; $j < $this->width; $j++)
+			{
+				$out[$i][$j] = $this->qrframe[$j * $this->width + $i];
+			}
+		}
+
+		return $out;
+	}
+
+	/**
+	 * Return raw QR frame
+	 * @return array
+	 */
+	public function raw()
+	{
 		return $this->qrframe;
 	}
 }
