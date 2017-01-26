@@ -227,6 +227,35 @@ class Security_OTP
 	}
 
 	/**
+	 * Returns UNIX timestamp from a TIME server (RFC 868)
+	 * @param  string  $host    Server host
+	 * @param  integer $port    Server port (usually 37)
+	 * @param  integer $timeout Timeout  in seconds
+	 * @return integer Number of seconds since January 1st 1970
+	 */
+	static public function getTimeFromServer($host = 'time4.nrc.ca', $port = 37, $timeout = 10)
+	{
+		$socket = stream_socket_client('tcp://' . $host . ':' . (int) $port, $errno, $errstr, $timeout);
+
+		if (!$socket)
+		{
+			return false;
+		}
+
+		fputs($socket, "\n");
+		$time = fread($socket, 49);
+		fclose($socket);
+
+		$time = bin2hex($time);
+    	$time = abs(hexdec('7fffffff') - hexdec($time) - hexdec('7fffffff'));
+
+    	// to UNIX timestamp
+    	$time -= 2208988800;
+
+    	return $time;
+	}
+
+	/**
 	 * Base32 decode compatible with RFC 3548
 	 * @link https://codereview.stackexchange.com/questions/5236/base32-implementation-in-php
 	 * @param  string $str Base32 encoded string
