@@ -213,6 +213,9 @@ class Security_OTP
 	/**
 	 * Returns a valid otpauth:// URL from a secret
 	 * Useful to generate QRcodes
+	 *
+	 * @link  https://github.com/google/google-authenticator/wiki/Key-Uri-Format URI format
+	 *
 	 * @param  string $label Service label, eg 'Blog:james@alice.com'
 	 * @param  string $secret secret key
 	 * @param  string $type 'totp' or 'hotp'
