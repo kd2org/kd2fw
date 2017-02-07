@@ -16,7 +16,7 @@ assert(
 	count(explode(' ', Security::getRandomPassphrase('/usr/share/dict/american-english', 10, '\w\'', true))) == 10
 );
 
-if (Security::canEncryptWithPublicKey())
+if (Security::canUseEncryption())
 {
 	$key = '-----BEGIN PGP PUBLIC KEY BLOCK-----
 	Version: GnuPG v1
@@ -49,9 +49,13 @@ if (Security::canEncryptWithPublicKey())
 	=q5jY
 	-----END PGP PUBLIC KEY BLOCK-----';
 
+	$fingerprint = Security::getEncryptionKeyFingerprint($key);
+
+	assert($fingerprint === '3FEA243C46A14FF604DF4912D46509B8C7A16C8E');
+
 	$data = Security::encryptWithPublicKey($key, 'Bla');
 
-	assert(strlen($data));
+	assert(strlen($data) > 0);
 }
 else
 {

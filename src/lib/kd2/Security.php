@@ -482,23 +482,23 @@ class Security
 	 * Check that GnuPG extension is installed and available to encrypt emails
 	 * @return boolean
 	 */
-	static public function canEncryptWithPublicKey()
+	static public function canUseEncryption()
 	{
 		return (extension_loaded('gnupg') && function_exists('\gnupg_init') && class_exists('\gnupg', false));
 	}
 
 	/**
-	 * Encrypt clear text data with GPG public key
-	 * @param  string  $key    Public key
-	 * @param  string  $data   Data to encrypt
-	 * @param  boolean $binary set to false to have the function return armored string instead of binary
-	 * @return string
+	 * Initializes gnupg environment and object
+	 * @param  string $key     Public encryption key
+	 * @param  string &$tmpdir Temporary directory used to store gnupg keys
+	 * @param  array  &$info   Informations about the imported key
+	 * @return \gnupg
 	 */
-	static public function encryptWithPublicKey($key, $data, $binary = false)
+	static protected function _initGnupgEnv($key, &$tmpdir, &$info)
 	{
-		if (!self::canEncryptWithPublicKey())
+		if (!self::canUseEncryption())
 		{
-			throw new \RuntimeException('Cannot encrypt: gnupg extension not found.');
+			throw new \RuntimeException('Cannot use encryption: gnupg extension not found.');
 		}
 
 		$tmpdir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . uniqid('gpg_', true);
@@ -515,16 +515,53 @@ class Security
 		
 		$gpg = new \gnupg;
 		$gpg->seterrormode(\gnupg::ERROR_EXCEPTION);
-		$gpg->setarmor((int)!$binary);
 
 		$info = $gpg->import($key);
-		$gpg->addencryptkey($info['fingerprint']);
 
-		$data = $gpg->encrypt($data);
+		return $gpg;
+	}
 
+	/**
+	 * Cleans gnupg environment
+	 * @param  string $tmpdir Temporary directory used to store gpg keys
+	 * @return void
+	 */
+	static protected function _cleanGnupgEnv($tmpdir)
+	{
 		// Remove files
 		array_map('unlink', glob($tmpdir . DIRECTORY_SEPARATOR . '*') ?: []);
 		rmdir($tmpdir);
+	}
+
+	/**
+	 * Returns pgp key fingerprint
+	 * @param  string $key Public key
+	 * @return string Fingerprint
+	 */
+	static public function getEncryptionKeyFingerprint($key)
+	{
+		self::_initGnupgEnv($key, $tmpdir, $info);
+		self::_cleanGnupgEnv($tmpdir);
+
+		return $info['fingerprint'];
+	}
+
+	/**
+	 * Encrypt clear text data with GPG public key
+	 * @param  string  $key    Public key
+	 * @param  string  $data   Data to encrypt
+	 * @param  boolean $binary set to false to have the function return armored string instead of binary
+	 * @return string
+	 */
+	static public function encryptWithPublicKey($key, $data, $binary = false)
+	{
+		$gpg = self::_initGnupgEnv($key, $tmpdir, $info);
+
+		$gpg->setarmor((int)!$binary);
+		$gpg->addencryptkey($info['fingerprint']);
+		$data = $gpg->encrypt($data);
+
+		self::_cleanGnupgEnv($tmpdir);
 
 		return $data;
 	}
