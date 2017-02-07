@@ -62,27 +62,16 @@ class Mail_Message
 
 	public function getMessageId()
 	{
-		foreach ($this->headers as $key=>$value)
+		$value = $this->getHeader('message-id');
+
+		if (preg_match('!<(.*?)>!', $value, $match))
 		{
-			if ($key == 'message-id')
-			{
-				if (is_array($value))
-				{
-					$value = current($value);
-				}
+			return $match[1];
+		}
 
-				if (preg_match('!<(.*?)>!', $value, $match))
-				{
-					return $match[1];
-				}
-
-				if (filter_var(trim($value), FILTER_VALIDATE_EMAIL))
-				{
-					return $value;
-				}
-
-				return false;
-			}
+		if (filter_var(trim($value), FILTER_VALIDATE_EMAIL))
+		{
+			return $value;
 		}
 
 		return false;
@@ -114,27 +103,16 @@ class Mail_Message
 
 	public function getInReplyTo()
 	{
-		foreach ($this->headers as $key=>$value)
+		$value = $this->getHeader('in-reply-to');
+
+		if (preg_match('!<(.*?)>!', $value, $match))
 		{
-			if ($key == 'in-reply-to')
-			{
-				if (is_array($value))
-				{
-					$value = current($value);
-				}
+			return $match[1];
+		}
 
-				if (preg_match('!<(.*?)>!', $value, $match))
-				{
-					return $match[1];
-				}
-
-				if (filter_var(trim($value), FILTER_VALIDATE_EMAIL))
-				{
-					return $value;
-				}
-
-				return false;
-			}
+		if (filter_var(trim($value), FILTER_VALIDATE_EMAIL))
+		{
+			return $value;
 		}
 
 		return false;
@@ -142,27 +120,16 @@ class Mail_Message
 
 	public function getReferences()
 	{
-		foreach ($this->headers as $key=>$value)
+		$value = $this->getHeader('references');
+
+		if (preg_match_all('!<(.*?)>!', $value, $match, PREG_PATTERN_ORDER))
 		{
-			if ($key == 'references')
-			{
-				if (is_array($value))
-				{
-					$value = current($value);
-				}
+			return $match[1];
+		}
 
-				if (preg_match_all('!<(.*?)>!', $value, $match, PREG_PATTERN_ORDER))
-				{
-					return $match[1];
-				}
-
-				if (filter_var(trim($value), FILTER_VALIDATE_EMAIL))
-				{
-					return [$value];
-				}
-
-				return false;
-			}
+		if (filter_var(trim($value), FILTER_VALIDATE_EMAIL))
+		{
+			return [$value];
 		}
 
 		return false;
@@ -178,10 +145,20 @@ class Mail_Message
 		return $this->getMultipleAddressHeader('to');
 	}
 
+	public function getCc()
+	{
+		return $this->getMultipleAddressHeader('cc');
+	}
+
 	public function getMultipleAddressHeader($header)
 	{
 		$header = $this->getHeader($header);
-		preg_match_all('/(?:"((?!").)*"\s*|[^"<>,]+)?<(.*?)>|[^<>",\s]+/', $header, $match, PREG_PATTERN_ORDER);
+		
+		// Remove grouping, see RFC 2822 § section 3.4
+		$header = preg_replace('/(?:[^:"<>,]+)\s*:\s*(.*?);/', '$1', $header);
+
+		// Extract addresses
+		preg_match_all('/(?:"((?!").)*"\s*|[^"<>,]+)?<(.*?)>|[^<>",\s]+/s', $header, $match, PREG_PATTERN_ORDER);
 		return $match[0];
 	}
 
