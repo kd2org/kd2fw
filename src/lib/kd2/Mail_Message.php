@@ -168,6 +168,22 @@ class Mail_Message
 		return false;
 	}
 
+	public function getFrom()
+	{
+		return $this->getMultipleAddressHeader('from');
+	}
+
+	public function getTo()
+	{
+		return $this->getMultipleAddressHeader('to');
+	}
+
+	public function getMultipleAddressHeader($header)
+	{
+		$header = $this->getHeader($header);
+		preg_match_all('/(?:"((?!").)*"\s*|[^"<>,]+)?<(.*?)>|[^<>",\s]+/', $header, $match, PREG_PATTERN_ORDER);
+		return $match[0];
+	}
 
 	public function setHeader($key, $value)
 	{
@@ -183,13 +199,35 @@ class Mail_Message
 
 	public function removeHeader($key)
 	{
-		unset($this->headers[$key]);
+		unset($this->headers[strtolower($key)]);
 	}
 
-	public function setDate($ts = null)
+	public function getDate()
 	{
-		$this->headers['date'] = is_null($ts) ? date(DATE_RFC2822) : date(DATE_RFC2822, $ts);
-		return true;
+		$date = $this->getHeader('date');
+		return $date ? new \DateTime($date) : null;
+	}
+
+	public function setDate($date = null)
+	{
+		if (is_null($date))
+		{
+			$date = date(\DATE_RFC2822);
+		}
+		elseif (is_object($date) && $date instanceof \DateTime)
+		{
+			$date = $date->format(\DATE_RFC2822);
+		}
+		elseif (is_numeric($date))
+		{
+			$date = date(\DATE_RFC2822, $date);
+		}
+		else
+		{
+			throw new \InvalidArgumentException('Argument is not a valid date: ' . (string)$date);
+		}
+
+		return $this->setHeader('date', $date);
 	}
 
 	public function appendHeaders($headers)
