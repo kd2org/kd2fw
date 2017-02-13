@@ -31,6 +31,12 @@ namespace KD2;
 class Security
 {
 	/**
+	 * Secret used for tokens
+	 * @var null
+	 */
+	static protected $token_secret = null;
+
+	/**
 	 * Allowed schemes/protocols in URLs
 	 * @var array
 	 */
@@ -257,7 +263,7 @@ class Security
 		$random = hexdec($value[2]);
 
 		// Expired token
-		if ($expire > ceil(time() / 3600))
+		if ($expire < ceil(time() / 3600))
 		{
 			return false;
 		}
