@@ -57,12 +57,6 @@ class CacheCookie
     protected $digest_method = 'md5';
 
     /**
-     * Default expiration delay of data (in minutes)
-     * @var integer
-     */
-    protected $data_expiration = 60;
-
-    /**
      * Delay before expiration when we should renew the cookie
      * before it expires (in minutes)
      * @var integer
@@ -82,7 +76,8 @@ class CacheCookie
     protected $domain = null;
 
     /**
-     * Default cookie duration
+     * Default cookie duration, in minutes
+     * Will also determine data validity
      * @var integer
      */
     protected $duration = 0;
@@ -109,7 +104,7 @@ class CacheCookie
      * Create a new CacheCookie instance and setup default parameters
      * @param string $name     Cookie name
      * @param string $secret   Secret random hash (should stay the same for at least the cookie duration)
-     * @param int    $duration Cookie duration in seconds, set to 0 (zero) to make the cookie lasts for the
+     * @param int    $duration Cookie duration, in minutes, set to 0 (zero) to make the cookie lasts for the
      * whole user agent session (cookie will be deleted when the browser is closed).
      * @param string $path     Cookie path
      * @param string $domain   Cookie domain, if left null the current HTTP_HOST or SERVER_NAME will be used
@@ -181,11 +176,6 @@ class CacheCookie
     public function setSecure($secure)
     {
         $this->secure = (bool)$secure;
-    }
-
-    public function setDataExpiration($expiration)
-    {
-        $this->data_expiration = (int) $expiration;
     }
 
     public function setAutoRenew($renew)
@@ -284,13 +274,13 @@ class CacheCookie
             }
 
             // Store expiration time in minutes
-            $data = round((time() - $this->start_timestamp + $this->data_expiration*60)/60) . '|' . $data;
+            $data = round((time() - $this->start_timestamp + $this->duration*60)/60) . '|' . $data;
 
             $cookie = hash_hmac($this->digest_method, $data, $this->secret) . '|' . $data;
 
-            $duration = $this->duration ? time() + $this->duration : 0;
+            $duration = $this->duration ? time() + $this->duration * 60 : 0;
 
-            if (strlen($cookie . $this->path . $this->duration . $this->domain . $this->name) > 4080)
+            if (strlen($cookie . $this->path . $duration . $this->domain . $this->name) > 4080)
             {
                 throw new \OverflowException('Cache cookie can not be saved as its size exceeds 4KB.');
             }
