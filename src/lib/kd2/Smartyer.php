@@ -862,7 +862,7 @@ class Smartyer
 	 */
 	protected function parseError($position, $message, $previous = null)
 	{
-		$line = substr_count(substr($this->source, 0, $position), "\n") + 1;
+		$line = substr_count($this->source, "\n", 0, $position) - 1;
 		throw new Smartyer_Exception($message, $this->template_path, $line, $previous);
 	}
 
