@@ -520,11 +520,11 @@ class Smartyer
 			}
 
 			// Finding the original template line number
-			$source = explode("\n", $compiled);
-			$source = array_slice($source, $e->getLine());
-			$source = implode("\n", $source);
+			$compiled = explode("\n", $compiled);
+			$compiled = array_slice($compiled, $e->getLine()-1);
+			$compiled = implode("\n", $compiled);
 			
-			if (preg_match('!//#(\d+)\?>!', $source, $match))
+			if (preg_match('!//#(\d+)\?>!', $compiled, $match))
 			{
 				$this->parseError($match[1], $e->getMessage(), $e);
 			}
@@ -862,7 +862,7 @@ class Smartyer
 	 */
 	protected function parseError($position, $message, $previous = null)
 	{
-		$line = substr_count($this->source, "\n", 0, $position) - 1;
+		$line = substr_count($this->source, "\n", 0, $position) + 1;
 		throw new Smartyer_Exception($message, $this->template_path, $line, $previous);
 	}
 
