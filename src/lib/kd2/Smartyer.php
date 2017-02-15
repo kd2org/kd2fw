@@ -207,9 +207,9 @@ class Smartyer
 			throw new \RuntimeException($path . ' is not a directory.');
 		}
 
-		if (!is_writable($path))
+		if (!is_readable($path))
 		{
-			throw new \RuntimeException($path . ' is not writeable by ' . __CLASS__);
+			throw new \RuntimeException($path . ' is not readable by ' . __CLASS__);
 		}
 
 		self::$templates_dir = $path;
