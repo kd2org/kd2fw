@@ -500,7 +500,7 @@ class Garbage2xhtml
         {
             $tag =& $this->allowed_tags[$tag];
         }
-        elseif (preg_match('!^[a-zA-Z0-9-]+:!', $tag, $match) && array_key_exists($match[0], $this->allowed_tags))
+        elseif (($prefix = strtok($tag, ':')) && array_key_exists($prefix, $this->allowed_tags))
         {
             $tag =& $this->allowed_tags[$match[0]];
         }
@@ -525,12 +525,12 @@ class Garbage2xhtml
                         $pass = true;
                     elseif (is_array($tag) && in_array($name, $tag))
                         $pass = true;
-                    elseif (preg_match('!^(data-|[a-z0-9-]+:)!', $name, $m))
+                    elseif (preg_match('!^(?:data-|[a-z0-9-]+:)!', $name, $m))
                     {
                         // Allow namespaces and data- (html5) attributes
-                        if ($tag && in_array($m[1], $this->core_attributes))
+                        if ($tag && in_array($m[0], $this->core_attributes))
                             $pass = true;
-                        elseif (is_array($tag) && in_array($m[1], $tag))
+                        elseif (is_array($tag) && in_array($m[0], $tag))
                             $pass = true;
                     }
 
@@ -591,7 +591,7 @@ class Garbage2xhtml
     private function protectAttribute($name, $value)
     {
         if (!$this->secure)
-            return $str;
+            return $value;
 
         if ($name == 'src' || $name == 'href')
         {
