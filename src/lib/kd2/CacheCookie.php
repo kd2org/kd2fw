@@ -54,7 +54,7 @@ class CacheCookie
      * Digest method for hash_hmac
      * @var string
      */
-    protected $digest_method = 'md5';
+    protected $digest_method = 'sha256';
 
     /**
      * Delay before expiration when we should renew the cookie
@@ -124,7 +124,7 @@ class CacheCookie
         else
         {
             // Default secret key
-            $this->setSecret(md5($_SERVER['DOCUMENT_ROOT']));
+            $this->setSecret(sha1(isset($_SERVER['DOCUMENT_ROOT']) ? $_SERVER['DOCUMENT_ROOT'] : ''));
         }
 
         if (!is_null($duration))

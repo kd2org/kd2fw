@@ -179,7 +179,7 @@ class Mustachier
 		// If compile_dir is set, we will store the compiled template and include it instead of using eval()
 		if ($this->compile_dir)
 		{
-			$compiled_template = $this->compile_dir . DIRECTORY_SEPARATOR . md5($template);
+			$compiled_template = $this->compile_dir . DIRECTORY_SEPARATOR . sha1($template);
 
 			// Compile template
 			if (filemtime($template) > @filemtime($compiled_template))
