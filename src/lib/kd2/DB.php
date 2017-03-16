@@ -167,8 +167,8 @@ class DB extends PDO
 		// Enhance SQLite with default functions
 		if ($this->driver['type'] == 'sqlite')
 		{
-			$this->pdo->sqliteCreateFunction('rank', [$this, 'sqlite_rank']);
-			$this->pdo->sqliteCreateFunction('haversine_distance', [$this, 'sqlite_haversine']);
+			$this->pdo->sqliteCreateFunction('rank', [__CLASS__, 'sqlite_rank']);
+			$this->pdo->sqliteCreateFunction('haversine_distance', [__CLASS__, 'sqlite_haversine']);
 		}
 
 		// Register callbacks like sqliteCreateFunction etc.
@@ -288,6 +288,14 @@ class DB extends PDO
 
 	public function quote($value, $parameter_type = self::PARAM_STR)
 	{
+		if ($this->driver['type'] == 'sqlite')
+		{
+			// PHP quote() is truncating strings on NUL bytes
+			// https://bugs.php.net/bug.php?id=63419
+			
+			$value = str_replace("\0", '\\0', $value);
+		}
+
 		$this->connect();
 		return $this->pdo->quote($value, $parameter_type);
 	}
@@ -332,7 +340,7 @@ class DB extends PDO
 	**     WHERE documents MATCH <query> 
 	**     ORDER BY rank(matchinfo(documents), 1.0, 0.5) DESC
 	 */
-	public function sqlite_rank($aMatchInfo)
+	static public function sqlite_rank($aMatchInfo)
 	{
 		$iSize = 4; // byte size
 		$iPhrase = (int) 0;                 // Current phrase //
@@ -389,7 +397,7 @@ class DB extends PDO
 	 * Haversine distance between two points
 	 * @return double Distance in kilometres
 	 */
-	public function sqlite_haversine()
+	static public function sqlite_haversine()
 	{
 		if (count($geo = array_map('deg2rad', array_filter(func_get_args(), 'is_numeric'))) != 4)
 		{
