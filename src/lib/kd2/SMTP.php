@@ -233,6 +233,11 @@ class SMTP
 
 		$data = rtrim($data) . self::EOL;
 
+		// if first character of a line is a period, then append another period
+		// to avoid confusion with "end of data marker"
+		// see https://tools.ietf.org/html/rfc5321#section-4.5.2
+		$data = preg_replace('/^\./m', '..', $data);
+
 		$this->_write('DATA');
 		
 		if ($this->_readCode() != 354)
