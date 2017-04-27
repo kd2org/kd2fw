@@ -34,6 +34,7 @@ class SMTP
 {
 	const NONE = 0;
 	const TLS = 1;
+	const STARTTLS = 1;
 	const SSL = 2;
 
 	const EOL = "\r\n";
