@@ -1115,7 +1115,7 @@ class Smartyer
 	 */
 	static protected function escape($str, $type = 'html')
 	{
-		if (is_array($str) || is_object($str))
+		if ($type != 'json' && (is_array($str) || is_object($str)))
 		{
 			throw new \InvalidArgumentException('Invalid argument type for escape modifier: ' . gettype($str));
 		}
