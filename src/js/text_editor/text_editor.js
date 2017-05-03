@@ -10,35 +10,22 @@
 		this.textarea = document.getElementById(id);
 		this.shortcuts = [];
 
-		this._key_map = {
-			8: 'backspace', 9: 'tab', 13: 'enter', 16: 'shift', 17: 'ctrl', 18: 'alt',
-			20: 'capslock', 27: 'esc', 32: 'space', 33: 'pageup', 34: 'pagedown',
-			35: 'end', 36: 'home', 37: 'left', 38: 'up', 39: 'right', 40: 'down', 
-			45: 'ins', 46: 'del', 91: 'meta', 93: 'meta', 224: 'meta',
-            106: false, 107: false, 109: false, 110: false, 111 : false, 186: false,
-			187: false, 188: false, 189: false, 190: false, 191: false, 192: false,
-			219: false, 220: false, 221: false, 222: false
-		};
-
-		// F1-F20 function keys
-		for (var i = 1; i < 20; ++i) {
-			this._key_map[111 + i] = 'f' + i;
-		}
-
-		// Numeric keypad
-		for (i = 0; i <= 9; ++i) {
-			this._key_map[i + 96] = i;
+		// Browser too old
+		if (!('selectionStart' in this.textarea))
+		{
+			return false;
 		}
 
 		this.preventKeyPress = false;
 
 		this.textarea.addEventListener('keydown', this.keyEvent.bind(this), true);
 		this.textarea.addEventListener('keypress', this.keyEvent.bind(this), true);
+
+		return true;
 	};
 
 	textEditor.prototype.keyEvent = function (e) {
 		var e = e || window.event;
-
 		// Event propagation cancellation between keydown/keypress
 		// Firefox/Gecko has a bug here where it's not stopping propagation
 		// to keypress when keydown asks cancellation
@@ -91,19 +78,13 @@
 
 	textEditor.prototype.matchKeyPress = function (key, e)
 	{
-		if (e.which == null)
-			var keyCode = e.keyCode;
-		else if (e.which != 0 && e.charCode != 0)
-			var keyCode = e.charCode;
-		else
-			return false;
+		if (e.defaultPrevented || !e.key) {
+			// Do nothing if the event was already processed
+			// or if KeyboardEvent is not supported
+			return;
+		}
 
-		if (this._key_map[keyCode] == key)
-			return true;
-		else if (key.toUpperCase() == String.fromCharCode(keyCode).toUpperCase())
-			return true;
-		else
-			return false;
+		return (e.key.toLowerCase() == key.toLowerCase());
 	};
 
 	textEditor.prototype.preventDefault = function (e) {
@@ -114,34 +95,12 @@
 		return false;
 	};
 
-	// Source: http://stackoverflow.com/questions/401593/textarea-selection
 	textEditor.prototype.getSelection = function ()
 	{
 		var e = this.textarea;
 
-		//Mozilla and DOM 3.0
-		if('selectionStart' in e)
-		{
-			var l = e.selectionEnd - e.selectionStart;
-			return { start: e.selectionStart, end: e.selectionEnd, length: l, text: e.value.substr(e.selectionStart, l) };
-		}
-		//IE
-		else if(document.selection)
-		{
-			e.focus();
-			var r = document.selection.createRange();
-			var tr = e.createTextRange();
-			var tr2 = tr.duplicate();
-			tr2.moveToBookmark(r.getBookmark());
-			tr.setEndPoint('EndToStart',tr2);
-			if (r == null || tr == null) return { start: e.value.length, end: e.value.length, length: 0, text: '' };
-			var text_part = r.text.replace(/[\r\n]/g,'.'); //for some reason IE doesn't always count the \n and \r in the length
-			var text_whole = e.value.replace(/[\r\n]/g,'.');
-			var the_start = text_whole.indexOf(text_part,tr.text.length);
-			return { start: the_start, end: the_start + text_part.length, length: text_part.length, text: r.text };
-		}
-		//Browser not supported
-		else return { start: e.value.length, end: e.value.length, length: 0, text: '' };
+		var l = e.selectionEnd - e.selectionStart;
+		return { start: e.selectionStart, end: e.selectionEnd, length: l, text: e.value.substr(e.selectionStart, l) };
 	};
 
 	textEditor.prototype.replaceSelection = function (selection, replace_str)
@@ -167,30 +126,10 @@
 	{
 		var e = this.textarea;
 
-		//Mozilla and DOM 3.0
-		if('selectionStart' in e)
-		{
-			e.focus();
-			e.selectionStart = start_pos;
-			e.selectionEnd = end_pos;
-		}
-		//IE
-		else if(document.selection)
-		{
-			e.focus();
-			var tr = e.createTextRange();
+		e.focus();
+		e.selectionStart = start_pos;
+		e.selectionEnd = end_pos;
 
-			//Fix IE from counting the newline characters as two seperate characters
-			var stop_it = start_pos;
-			for (i=0; i < stop_it; i++) if( e.value[i].search(/[\r\n]/) != -1 ) start_pos = start_pos - .5;
-			stop_it = end_pos;
-			for (i=0; i < stop_it; i++) if( e.value[i].search(/[\r\n]/) != -1 ) end_pos = end_pos - .5;
-
-			tr.moveEnd('textedit',-1);
-			tr.moveStart('character',start_pos);
-			tr.moveEnd('character',end_pos - start_pos);
-			tr.select();
-		}
 		return this.getSelection();
 	};
 

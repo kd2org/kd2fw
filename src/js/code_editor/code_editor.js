@@ -12,7 +12,12 @@
 
 	window.codeEditor = function (id)
 	{
-		textEditor.call(this, id);
+		var r = textEditor.call(this, id);
+
+		if (!r)
+		{
+			return false;
+		}
 
 		this.onlinechange = null;
 		this.onlinenumberchange = null;
@@ -56,8 +61,8 @@
 		this.shortcuts.push({key: '(', callback: this.insertBrackets});
 		this.shortcuts.push({key: 'F11', callback: this.toggleFullscreen});
 
-		this.textarea.addEventListener('keypress', this.keyEvent, true);
-		this.textarea.addEventListener('keydown', this.keyEvent, true);
+		this.textarea.addEventListener('keypress', this.keyEvent.bind(this), true);
+		this.textarea.addEventListener('keydown', this.keyEvent.bind(this), true);
 	};
 
 	// Extends textEditor
@@ -207,6 +212,30 @@
 		return false;
 	};
 
+	codeEditor.prototype.selectLines = function(selection)
+	{
+		for (var i = selection.start; i > 0; i--)
+		{
+			if (this.textarea.value.substr(i, 1) == "\n")
+			{
+				selection.start = i+1;
+				break;
+			}
+		}
+
+		for (var i = selection.end-1; i < this.textarea.length; i++)
+		{
+			if (this.textarea.value.substr(i, 1) == "\n")
+			{
+				selection.end = i-1;
+				break;
+			}
+		}
+
+		this.setSelection(selection.start, selection.end);
+		return selection;
+	};
+
 	codeEditor.prototype.goToLine = function (e)
 	{
 		var line = window.prompt(that.params.lang.goto);
@@ -252,6 +281,8 @@
 			this.insertAtPosition(s.start, insert);
 			return true;
 		}
+
+		s = this.selectLines(s);
 
 		var txt = this.textarea.value.substr(s.start, (s.end - s.start));
 		var lines = txt.split("\n");
