@@ -6,7 +6,6 @@ use KD2\Smartyer;
 require __DIR__ . '/_assert.php';
 
 Smartyer::setCompileDir(sys_get_temp_dir());
-Smartyer::setTemplateDir(__DIR__ . '/data/smartyer');
 
 test_variables();
 test_literals();
@@ -34,8 +33,8 @@ function test_variables()
 	Test::equals($expected, $output, 'PHP code');
 
 	// Comments
-	$code = '{*{Comment}*}';
-	$expected = '';
+	$code = 'ab{*{Comment}*}c';
+	$expected = 'abc';
 	$output = Smartyer::fromString($code)->fetch();
 
 	Test::equals($expected, $output, 'Comment');
@@ -163,6 +162,11 @@ function test_literals()
 	$expected = $js;
 	$output = $tpl->fetch();
 	Test::equals($expected, $output, 'Javascript literal');
+
+	$code = '{literal}{not a block{{/literal}test{literal}}still}not}a}block{/literal}';
+	$expected = '{not a block{test}still}not}a}block';
+	$output = Smartyer::fromString($code)->fetch();
+	Test::equals($expected, $output, 'Stuff that looks like a block but is not');
 }
 
 function test_foreach()

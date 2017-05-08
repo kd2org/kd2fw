@@ -550,6 +550,20 @@ class Smartyer
 	 */
 	protected function parse($source)
 	{
+		$literals = [];
+
+		$pattern = sprintf('/%s\*.*?\*%2$s|<\?(?:php|=).*?\?>|%1$sliteral%2$s.*?%1$s\/literal%2$s/',
+			preg_quote($this->delimiter_start), preg_quote($this->delimiter_end));
+
+		// Remove literal blocks, PHP blocks and comments, to avoid interference with block parsing
+		$source = preg_replace_callback($pattern, function ($match) use (&$literals) {
+			$nb = count($literals);
+			$literals[$nb] = $match[0];
+			$returns = substr_count($match[0], "\n");
+			return '<?php/*#LITERAL#' . $nb . '#' . str_repeat("\n", $returns) .'#*/?>';
+		}, $source);
+
+		// Create block matching pattern
 		$anti = preg_quote($this->delimiter_start . $this->delimiter_end, '#');
 		$pattern = '#' . preg_quote($this->delimiter_start, '#') . '((?:[^' . $anti . ']|(?R))*?)' . preg_quote($this->delimiter_end, '#') . '#i';
 
@@ -558,7 +572,6 @@ class Smartyer
 		unset($anti, $pattern);
 
 		$compiled = '';
-		$literal = false;
 
 		foreach ($source as $i=>$block)
 		{
@@ -572,31 +585,14 @@ class Smartyer
 				continue;
 			}
 
-			// Comments
-			if ($block[0] == '*' && substr($block, -1) == '*')
-			{
-				continue;
-			}
 			// Avoid matching JS blocks and others
-			elseif ($tblock == 'ldelim')
+			if ($tblock == 'ldelim')
 			{
 				$compiled .= $this->delimiter_start;
 			}
 			elseif ($tblock == 'rdelim')
 			{
 				$compiled .= $this->delimiter_end;
-			}
-			elseif ($tblock == 'literal')
-			{
-				$literal = true;
-			}
-			elseif ($tblock == '/literal')
-			{
-				$literal = false;
-			}
-			elseif ($literal)
-			{
-				$compiled .= $this->delimiter_start . $block . $this->delimiter_end;
 			}
 			// Closing blocks
 			elseif ($tblock[0] == '/')
@@ -619,7 +615,36 @@ class Smartyer
 			}
 		}
 
-		unset($literal, $source, $i, $block, $tblock, $pos);
+		unset($source, $i, $block, $tblock, $pos);
+
+		// Include removed literals, PHP blocks etc.
+		foreach ($literals as $i=>$literal)
+		{
+			// Not PHP code: specific treatment
+			if ($literal[0] != '<')
+			{
+				// Comments
+				if (strpos($literal, $this->delimiter_start . '*') === 0)
+				{
+					// Remove
+					$literal = '';
+				}
+				// literals
+				else
+				{
+					$start_tag = $this->delimiter_start . 'literal' . $this->delimiter_end;
+					$end_tag = $this->delimiter_start . '/literal' . $this->delimiter_end;
+					$literal = substr($literal, strlen($start_tag), -(strlen($end_tag)));
+					unset($start_tag, $end_tag);
+				}
+			}
+			else
+			{
+				// PHP code, leave as is
+			}
+			
+			$compiled = preg_replace('/<\?php\/\*#LITERAL#' . $i . '#.*?#\*\/\?>/', $literal, $compiled);
+		}
 
 		return $compiled;
 	}
