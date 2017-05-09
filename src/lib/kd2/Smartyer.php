@@ -552,7 +552,7 @@ class Smartyer
 	{
 		$literals = [];
 
-		$pattern = sprintf('/%s\*.*?\*%2$s|<\?(?:php|=).*?\?>|%1$sliteral%2$s.*?%1$s\/literal%2$s/',
+		$pattern = sprintf('/%s\*.*?\*%2$s|<\?(?:php|=).*?\?>|%1$sliteral%2$s.*?%1$s\/literal%2$s/s',
 			preg_quote($this->delimiter_start), preg_quote($this->delimiter_end));
 
 		// Remove literal blocks, PHP blocks and comments, to avoid interference with block parsing
@@ -643,7 +643,7 @@ class Smartyer
 				// PHP code, leave as is
 			}
 			
-			$compiled = preg_replace('/<\?php\/\*#LITERAL#' . $i . '#.*?#\*\/\?>/', $literal, $compiled);
+			$compiled = preg_replace('/<\?php\/\*#LITERAL#' . $i . '#\s*?#\*\/\?>/', $literal, $compiled);
 		}
 
 		return $compiled;

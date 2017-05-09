@@ -163,8 +163,8 @@ function test_literals()
 	$output = $tpl->fetch();
 	Test::equals($expected, $output, 'Javascript literal');
 
-	$code = '{literal}{not a block{{/literal}test{literal}}still}not}a}block{/literal}';
-	$expected = '{not a block{test}still}not}a}block';
+	$code = "{literal}{not\n a block{{/literal}te\n\nst{literal}}still}not}a}block{/literal}";
+	$expected = "{not\n a block{te\n\nst}still}not}a}block";
 	$output = Smartyer::fromString($code)->fetch();
 	Test::equals($expected, $output, 'Stuff that looks like a block but is not');
 }
