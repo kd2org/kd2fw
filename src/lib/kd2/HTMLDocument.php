@@ -320,8 +320,13 @@ class HTMLDocument extends \DOMDocument
 	 * @param  integer $options use the options parameter to specify additional Libxml parameters
 	 * @return Returns TRUE on success or FALSE on failure.
 	 */
-	public function loadHTML($source, $options = LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD)
+	public function loadHTML($source, $options = null)
 	{
+		if (is_null($options))
+		{
+			$options = LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD;
+		}
+
 		// Temporary disable throwing errors / exceptions / warnings
 		// you can see them later using ->getErrors()
 		libxml_use_internal_errors(true);
@@ -340,8 +345,13 @@ class HTMLDocument extends \DOMDocument
 	 * @param  integer $options  use the options parameter to specify additional Libxml parameters
 	 * @return boolean Returns TRUE on success or FALSE on failure.
 	 */
-	public function loadHTMLFile($filename, $options = LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD)
+	public function loadHTMLFile($filename, $options = null)
 	{
+		if (is_null($options))
+		{
+			$options = LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD;
+		}
+
 		// Temporary disable throwing errors / exceptions
 		// you can see them later using ->getErrors()
 		libxml_use_internal_errors(true);
