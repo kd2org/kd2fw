@@ -228,7 +228,21 @@ class Smartyer
 			throw new \LogicException('Compile dir not set: call ' . __CLASS__ . '::setCompileDir() first');
 		}
 
-		$this->template_path = !is_null($template) ? self::$templates_dir . DIRECTORY_SEPARATOR . $template : null;
+		$this->template_path = null;
+
+		if (!is_null($template))
+		{
+			// Don't prepend templates_dir for phar and absolute paths
+			if (substr($template, 0, 7) == 'phar://' || $template[0] == '/')
+			{
+				$this->template_path = $template;
+			}
+			else
+			{
+				$this->template_path = self::$templates_dir . DIRECTORY_SEPARATOR . $template;
+			}
+		}
+
 		$this->compiled_template_path = self::$cache_dir . DIRECTORY_SEPARATOR . sha1($template) . '.phptpl';
 
 		// Register parent functions and variables locally
