@@ -31,12 +31,6 @@ namespace KD2;
 class Security
 {
 	/**
-	 * Secret used for tokens
-	 * @var null
-	 */
-	static protected $token_secret = null;
-
-	/**
 	 * Allowed schemes/protocols in URLs
 	 * @var array
 	 */
@@ -184,124 +178,6 @@ class Security
 		}
 
 		throw new \Exception('An appropriate source of randomness cannot be found.');
-	}
-
-	/**
-	 * Sets the secret key used to hash and check the CSRF tokens
-	 * @param  string $secret Whatever secret you may like, must be the same for all the user session
-	 * @return boolean true
-	 */
-	static public function tokenSetSecret($secret)
-	{
-		self::$token_secret = $secret;
-		return true;
-	}
-
-	/**
-	 * Generate a single use token and return the value
-	 * The token will be HMAC signed and you can use it directly in a HTML form
-	 * @param  string $action An action description, if NULL then REQUEST_URI will be used
-	 * @param  integer $expire Number of hours before the hash will expire
-	 * @return string         HMAC signed token
-	 */
-	static public function tokenGenerate($action = null, $expire = 5)
-	{
-		if (is_null(self::$token_secret))
-		{
-			throw new \RuntimeException('No CSRF token secret has been set.');
-		}
-
-		// Default action, will work as long as the check is on the same URI as the generation
-		if (is_null($action) && !empty($_SERVER['REQUEST_URI']))
-		{
-			$url = parse_url($_SERVER['REQUEST_URI']);
-
-			if (!empty($url['path']))
-			{
-				$action = $url['path'];
-			}
-		}
-
-		$random = self::random_int();
-		$expire = floor(time() / 3600) + $expire;
-		$value = $expire . $random . $action;
-
-		$hash = hash_hmac('sha256', $expire . $random . $action, self::$token_secret);
-
-		return $hash . '/' . dechex($expire) . '/' . dechex($random);
-	}
-
-	/**
-	 * Checks a CSRF token
-	 * @param  string $action An action description, if NULL then REQUEST_URI will be used
-	 * @param  string $value  User supplied value, if NULL then $_POST[automatic name] will be used
-	 * @return boolean
-	 */
-	static public function tokenCheck($action = null, $value = null)
-	{
-		if (is_null($value))
-		{
-			$name = 'ct_' . sha1($action . $_SERVER['DOCUMENT_ROOT'] . $_SERVER['SERVER_NAME']);
-			
-			if (empty($_POST[$name]))
-			{
-				return false;
-			}
-
-			$value = $_POST[$name];
-		}
-
-		$value = explode('/', $value, 3);
-
-		if (count($value) != 3)
-		{
-			return false;
-		}
-
-		$user_hash = $value[0];
-		$expire = hexdec($value[1]);
-		$random = hexdec($value[2]);
-
-		// Expired token
-		if ($expire < ceil(time() / 3600))
-		{
-			return false;
-		}
-
-		$hash = hash_hmac('sha256', $expire . $random . $action, self::$token_secret);
-
-		return self::hash_equals($hash, $user_hash);
-	}
-
-	/**
-	 * Returns HTML code to embed a CSRF token in a form
-	 * @param  string $action An action description, if NULL then REQUEST_URI will be used
-	 * @return string HTML <input type="hidden" /> element
-	 */
-	static public function tokenHTML($action = null)
-	{
-		$name = 'ct_' . sha1($action . $_SERVER['DOCUMENT_ROOT'] . $_SERVER['SERVER_NAME']);
-		return '<input type="hidden" name="' . $name . '" value="' . self::tokenGenerate($action) . '" />';
-	}
-
-	/**
-	 * Check an email address validity
-	 * @param  string $email Email address
-	 * @return boolean TRUE if valid
-	 */
-	static public function checkEmailAddress($email)
-	{
-		return (bool) filter_var($email, FILTER_VALIDATE_EMAIL);
-	}
-
-	/**
-	 * Check an URL validity (scheme and host are required, '//domain.com/uri' will be invalid for example)
-	 * @param  string $url URL to check
-	 * @return boolean TRUE if valid
-	 */
-	static public function checkURL($url)
-	{
-		return (bool) filter_var($url, FILTER_VALIDATE_URL, FILTER_FLAG_SCHEME_REQUIRED | FILTER_FLAG_HOST_REQUIRED);
 	}
 
 	/**
