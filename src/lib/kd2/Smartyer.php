@@ -396,6 +396,28 @@ class Smartyer
 	}
 
 	/**
+	 * Return assigned variables
+	 * @param  string|null $name name of the variable, if NULL then all variables are returned
+	 * @return mixed
+	 */
+	public function getTemplateVars($name = null)
+	{
+		if (!is_null($name))
+		{
+			if (array_key_exists($name, $this->variables))
+			{
+				return $this->variables[$name];
+			}
+			else
+			{
+				return null;
+			}
+		}
+
+		return $this->variables;
+	}
+
+	/**
 	 * Register a modifier function to the current template
 	 * @param  string|array  $name     Modifier name or associative array of multiple modifiers
 	 * @param  Callable|null $callback Valid callback if $name is a string
@@ -423,7 +445,7 @@ class Smartyer
 	 * @param  Callable|null $callback Valid callback if $name is a string
 	 * @return Smartyer
 	 */
-	public function register_function($name, Callable $callback)
+	public function register_function($name, Callable $callback = null)
 	{
 		if (is_array($name))
 		{
@@ -445,7 +467,7 @@ class Smartyer
 	 * @param  Callable|null $callback Valid callback if $name is a string
 	 * @return Smartyer
 	 */
-	public function register_block($name, Callable $callback)
+	public function register_block($name, Callable $callback = null)
 	{
 		if (is_array($name))
 		{
