@@ -2,13 +2,27 @@
 
 namespace KD2;
 
+use KD2\Security;
+
+/**
+ * Form management helper
+ * - CSRF protection
+ * - validate form fields
+ * - return form fields
+ */
 class Form
 {
 	/**
-	 * Secret used for tokens
-	 * @var null
+	 * Custom validation rules
+	 * @var array
 	 */
-	static protected $token_secret = null;
+	static protected $custom_validation_rules = [];
+
+	/**
+	 * Secret used for tokens
+	 * @var string
+	 */
+	static protected $token_secret;
 
 	/**
 	 * Sets the secret key used to hash and check the CSRF tokens
@@ -37,7 +51,7 @@ class Form
 
 		$action = self::tokenAction($action);
 
-		$random = self::random_int();
+		$random = Security::random_int();
 		$expire = floor(time() / 3600) + $expire;
 		$value = $expire . $random . $action;
 
@@ -87,7 +101,7 @@ class Form
 
 		$hash = hash_hmac('sha256', $expire . $random . $action, self::$token_secret);
 
-		return self::hash_equals($hash, $user_hash);
+		return hash_equals($hash, $user_hash);
 	}
 
 	/**
@@ -132,13 +146,22 @@ class Form
 		return '<input type="hidden" name="' . self::tokenFieldName($action) . '" value="' . self::tokenGenerate($action) . '" />';
 	}
 
-	static protected $custom_validation_rules = [];
-
+	/**
+	 * Returns TRUE if the form has this key and it's not NULL
+	 * @param  string  $key Key to find in the form
+	 * @return boolean
+	 */
 	static public function has($key)
 	{
 		return isset($_POST[$key]) || isset($_FILES[$key]);
 	}
 
+	/**
+	 * Returns the value for a form field, or NULL
+	 * 
+	 * @param  string $key Field name
+	 * @return mixed
+	 */
 	static public function get($key)
 	{
 		if (isset($_POST[$key])) 
@@ -153,14 +176,30 @@ class Form
 		return null;
 	}
 
-	static public function registerValidationRule($name, callable $callback)
+	/**
+	 * Register a custom validation rule
+	 * 
+	 * @param  string   $name     Rule name
+	 * @param  Callable $callback Callback (must return a boolean)
+	 * @return void
+	 */
+	static public function registerValidationRule($name, Callable $callback)
 	{
 		self::$custom_validation_rules[$name] = $callback;
 	}
 
-	static public function validateRule($key, $rule_name, Array $params = [])
+	/**
+	 * Check a form field against a rule
+	 * 
+	 * @param  string $key       Field name
+	 * @param  string $rule_name Rule name
+	 * @param  Array  $params    Parameters of the rule
+	 * @param  Array  $source    Source of the field data
+	 * @return boolean
+	 */
+	static public function validateRule($key, $rule_name, Array $params = [], Array $source)
 	{
-		$value = self::get($key);
+		$value = isset($source[$key]) ? $source[$key] : null;
 
 		switch ($rule_name)
 		{
@@ -196,14 +235,15 @@ class Form
 			case 'boolean':
 				return ($value == 0 || $value == 1);
 			case 'confirmed':
-				return $value === form_get($key . '_confirmed');
+				$key_c = $key . '_confirmed';
+				return isset($source[$key_c]) && $value == $source[$key_c];
 			case 'date':
 				return (bool) strtotime($value);
 			case 'date_format':
 				$date = date_parse_from_format($params[0], $value);
 				return $date['warning_count'] === 0 && $date['error_count'] === 0;
 			case 'different':
-				return isset($params[0]) && $value !== form_get($params[0]);
+				return isset($params[0]) && isset($source[$params[0]]) && $value != $source[$params[0]];
 			case 'digits':
 				return is_numeric($value) && strlen((string) $value) == $params[0];
 			case 'digits_between':
@@ -214,7 +254,8 @@ class Form
 			case 'in':
 				return in_array($value, $params);
 			case 'in_array':
-				return isset($params[0]) && ($field = form_get($params[0])) && is_array($field) && in_array($value, $field);
+				$field = isset($params[0]) && isset($source[$params[0]]) ? $source[$params[0]] : null;
+				return $field && is_array($field) && in_array($value, $field);
 			case 'integer':
 				return is_int($value);
 			case 'ip':
@@ -232,11 +273,11 @@ class Form
 			case 'numeric':
 				return is_numeric($value);
 			case 'present':
-				return form_has($key);
+				return isset($source[$key]);
 			case 'regex':
 				return isset($params[0]) && preg_match($params[0], $value);
 			case 'same':
-				return isset($params[0]) && form_get($params[0]) == $value;
+				return isset($params[0]) && isset($source[$params[0]]) && $source[$params[0]] == $value;
 			case 'size':
 				$size = is_array($value) ? count($value) : (is_numeric($value) ? $value : strlen($value));
 				return isset($params[0]) && $size == (int) $params[0];
@@ -252,6 +293,15 @@ class Form
 				}
 			case 'url':
 				return filter_var($value, FILTER_VALIDATE_URL, FILTER_FLAG_SCHEME_REQUIRED | FILTER_FLAG_HOST_REQUIRED) !== false;
+			// Dates
+			case 'after':
+				return isset($params[0]) && ($date1 = strtotime($value)) && ($date2 = strtotime($params[0])) && $date1 > $date2;
+			case 'after_or_equal':
+				return isset($params[0]) && ($date1 = strtotime($value)) && ($date2 = strtotime($params[0])) && $date1 >= $date2;
+			case 'before':
+				return isset($params[0]) && ($date1 = strtotime($value)) && ($date2 = strtotime($params[0])) && $date1 < $date2;
+			case 'before_or_equal':
+				return isset($params[0]) && ($date1 = strtotime($value)) && ($date2 = strtotime($params[0])) && $date1 <= $date2;
 			default:
 				if (isset(self::$custom_validation_rules[$rule_name]))
 				{
@@ -262,6 +312,14 @@ class Form
 		}
 	}
 
+	/**
+	 * Validate but add CSRF token check to that
+	 * 
+	 * @param  string $token_action CSRF token action name
+	 * @param  Array  $all_rules    List of rules, eg. 'login' => 'required|string'
+	 * @param  Array  &$errors      List of errors encountered
+	 * @return boolean
+	 */
 	static public function check($token_action, Array $all_rules, Array &$errors = [])
 	{
 		if (!self::tokenCheck($token_action))
@@ -273,8 +331,25 @@ class Form
 		return self::validate($all_rules, $errors);
 	}
 
-	static public function validate(Array $all_rules, Array &$errors = [])
+	/**
+	 * Validate the current form against a set of rules
+	 *
+	 * Most rules from Laravel are implemented.
+	 * 
+	 * @link https://laravel.com/docs/5.4/validation#available-validation-rules
+	 * @param  Array $all_rules List of rules, eg. 'login' => 'required|string'
+	 * @param  Array &$errors   Filled with list of errors encountered
+	 * @param  Array $source    Source of form data, if left empty or NULL,
+	 * $_POST will be used
+	 * @return boolean
+	 */
+	static public function validate(Array $all_rules, Array &$errors = [], Array $source = null)
 	{
+		if (is_null($source))
+		{
+			$source = $_POST;
+		}
+
 		foreach ($all_rules as $key=>$rules)
 		{
 			$rules = explode('|', $rules);
@@ -282,12 +357,10 @@ class Form
 			foreach ($rules as $rule)
 			{
 				$params = explode(':', $rule);
-				$name = $params[0];
-				unset($params[0]);
 
-				if (!form_validate_rule($key, $params[0], array_slice($params, 1)))
+				if (!self::validateRule($key, $params[0], array_slice($params, 1), $source))
 				{
-					$errors[] = ['name' => $key, 'rule' => $name];
+					$errors[] = ['name' => $key, 'rule' => $params[0]];
 				}
 			}
 		}
