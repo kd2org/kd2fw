@@ -1,60 +1,64 @@
 <?php
 
-function obj_has($src, $pattern)
+namespace KD2;
+
+class Helpers
 {
-	if (!is_object($src) && !is_array($src))
+	static public function obj_has($src, $pattern)
 	{
-		throw new \InvalidArgumentException('Source variable must be an object or an array');
+		if (!is_object($src) && !is_array($src))
+		{
+			throw new \InvalidArgumentException('Source variable must be an object or an array');
+		}
+
+		$keys = explode('.', $pattern);
+
+		foreach ($keys as $key)
+		{
+			if (is_object($src) && !($src instanceOf ArrayAccess) && property_exists($src, $key))
+			{
+				$src = $src->$key;
+			}
+			elseif (is_array($src) && array_key_exists($key, $src))
+			{
+				$src = $src[$key];
+			}
+			else
+			{
+				// Not found
+				return false;
+			}
+		}
+
+		return true;
 	}
 
-	$keys = explode('.', $pattern);
-
-	foreach ($keys as $key)
+	static public function obj_get($src, $pattern, $default = null)
 	{
-		if (is_object($src) && !($src instanceOf ArrayAccess) && property_exists($src, $key))
+		if (!is_object($src) && !is_array($src))
 		{
-			$src = $src->$key;
+			throw new \InvalidArgumentException('Source variable must be an object or an array');
 		}
-		elseif (is_array($src) && array_key_exists($key, $src))
-		{
-			$src = $src[$key];
-		}
-		else
-		{
-			// Not found
-			return false;
-		}
-	}
 
-	return true;
+		$keys = explode('.', $pattern);
+
+		foreach ($keys as $key)
+		{
+			if (is_object($src) && !($src instanceOf ArrayAccess) && property_exists($src, $key))
+			{
+				$src = $src->$key;
+			}
+			elseif (is_array($src) && array_key_exists($key, $src))
+			{
+				$src = $src[$key];
+			}
+			else
+			{
+				// Not found
+				return $default;
+			}
+		}
+
+		return $src;
+	}
 }
-
-function obj_get($src, $pattern, $default = null)
-{
-	if (!is_object($src) && !is_array($src))
-	{
-		throw new \InvalidArgumentException('Source variable must be an object or an array');
-	}
-
-	$keys = explode('.', $pattern);
-
-	foreach ($keys as $key)
-	{
-		if (is_object($src) && !($src instanceOf ArrayAccess) && property_exists($src, $key))
-		{
-			$src = $src->$key;
-		}
-		elseif (is_array($src) && array_key_exists($key, $src))
-		{
-			$src = $src[$key];
-		}
-		else
-		{
-			// Not found
-			return $default;
-		}
-	}
-
-	return $src;
-}
-
