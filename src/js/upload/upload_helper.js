@@ -251,14 +251,17 @@
 
 			if (file.noUpload)
 			{
-				data.append(element.getAttribute('name'), file.name);
+				data.append('uploadHelper_mode', 'hash_only');
+				data.append('uploadHelper_fileName', file.name);
 			}
 			else if (resizedBlob)
 			{
+				data.append('uploadHelper_mode', 'upload');
 				data.append(element.getAttribute('name'), resizedBlob, file.name);
 			}
 			else
 			{
+				data.append('uploadHelper_mode', 'upload');
 				data.append(element.getAttribute('name'), file);
 			}
 

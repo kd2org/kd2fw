@@ -4,8 +4,7 @@ define('STORAGE_DIR', __DIR__);
 
 define('MAX_UPLOAD_SIZE', min([
     return_bytes(ini_get('upload_max_filesize')),
-    return_bytes(ini_get('post_max_size')),
-    return_bytes(ini_get('memory_limit'))
+    return_bytes(ini_get('post_max_size'))
 ]));
 
 $nb = 0;
@@ -103,6 +102,11 @@ $fm = new FileManager;
 
 function return_bytes ($size_str)
 {
+	if ($size_str == -1)
+	{
+		return null;
+	}
+
     switch (substr($size_str, -1))
     {
         case 'G': case 'g': return (int)$size_str * pow(1024, 3);
