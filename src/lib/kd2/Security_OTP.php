@@ -230,10 +230,10 @@ class Security_OTP
 	 * Returns UNIX timestamp from a NTP server (RFC 5905)
 	 *
 	 * @param  string  $host    Server host (default is pool.ntp.org)
-	 * @param  integer $timeout Timeout  in seconds (default is 10 seconds)
+	 * @param  integer $timeout Timeout  in seconds (default is 5 seconds)
 	 * @return integer Number of seconds since January 1st 1970
 	 */
-	static public function getTimeFromNTP($host = 'pool.ntp.org', $timeout = 10)
+	static public function getTimeFromNTP($host = 'pool.ntp.org', $timeout = 5)
 	{
 		$socket = stream_socket_client('udp://' . $host . ':123', $errno, $errstr, (int)$timeout);
 
@@ -242,6 +242,11 @@ class Security_OTP
 
 		$response = fread($socket, 48);
 		fclose($socket);
+
+		if (strlen($response) < 1)
+		{
+			return false;
+		}
 
 		// unpack to unsigned long
 		$data = unpack('N12', $response);
