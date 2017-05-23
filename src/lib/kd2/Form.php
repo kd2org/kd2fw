@@ -153,7 +153,7 @@ class Form
 	 */
 	static public function has($key)
 	{
-		return isset($_POST[$key]) || isset($_FILES[$key]);
+		return isset($_POST[$key]);
 	}
 
 	/**
@@ -164,16 +164,7 @@ class Form
 	 */
 	static public function get($key)
 	{
-		if (isset($_POST[$key])) 
-		{
-			return $_POST[$key];
-		}
-		elseif (isset($_FILES[$key]))
-		{
-			return $_FILES[$key];
-		}
-
-		return null;
+		return isset($_POST[$key]) ? $_POST[$key] : null;
 	}
 
 	/**
@@ -197,7 +188,7 @@ class Form
 	 * @param  Array  $source    Source of the field data
 	 * @return boolean
 	 */
-	static public function validateRule($key, $rule_name, Array $params = [], Array $source)
+	static public function validateRule($key, $rule_name, Array $params = [], Array $source = null)
 	{
 		$value = isset($source[$key]) ? $source[$key] : null;
 
@@ -217,8 +208,58 @@ class Form
 					return trim($value) !== '';
 				}
 				return is_null($value);
+			case 'required_with':
+				$required = false;
+
+				foreach ($params as $condition)
+				{
+					if (isset($source[$condition]))
+					{
+						$required = true;
+						break;
+					}
+				}
+
+				return $required ? self::validateRule($key, 'required', $params, $source) : true;
+			case 'required_with_all':
+				$required = 0;
+
+				foreach ($params as $condition)
+				{
+					if (isset($source[$condition]))
+					{
+						$required++;
+					}
+				}
+
+				return $required == count($params) ? self::validateRule($key, 'required', $params, $source) : true;
+			case 'required_without':
+				$required = false;
+
+				foreach ($params as $condition)
+				{
+					if (!isset($source[$condition]))
+					{
+						$required = true;
+						break;
+					}
+				}
+
+				return $required ? self::validateRule($key, 'required', $params, $source) : true;
+			case 'required_without_all':
+				$required = 0;
+
+				foreach ($params as $condition)
+				{
+					if (!isset($source[$condition]))
+					{
+						$required++;
+					}
+				}
+
+				return $required == count($params) ? self::validateRule($key, 'required', $params, $source) : true;
 			case 'file':
-				return isset($_FILES[$key]) && !empty($value['size']) && !empty($value['tmp_name']) && empty($value['error']);
+				return isset($_FILES[$key]) && ($value = $_FILES[$key]) && !empty($value['size']) && !empty($value['tmp_name']) && empty($value['error']);
 			case 'active_url':
 				$url = parse_url($value);
 				return isset($url['host']) && strlen($url['host']) && (checkdnsrr($url['host'], 'A') || checkdnsrr($url['host'], 'AAAA'));
@@ -234,6 +275,8 @@ class Form
 				return isset($params[0]) && isset($params[1]) && $value >= $params[0] && $value <= $params[1];
 			case 'boolean':
 				return ($value == 0 || $value == 1);
+			case 'color':
+				return preg_match('/^#?[a-f0-9]{6}$/', $value);
 			case 'confirmed':
 				$key_c = $key . '_confirmed';
 				return isset($source[$key_c]) && $value == $source[$key_c];
@@ -343,8 +386,13 @@ class Form
 	 * $_POST will be used
 	 * @return boolean
 	 */
-	static public function validate(Array $all_rules, Array &$errors = [], Array $source = null)
+	static public function validate(Array $all_rules, Array &$errors = null, Array $source = null)
 	{
+		if (is_null($errors))
+		{
+			$errors = [];
+		}
+
 		if (is_null($source))
 		{
 			$source = $_POST;
