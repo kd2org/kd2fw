@@ -259,7 +259,12 @@ class Form
 
 				return $required == count($params) ? self::validateRule($key, 'required', $params, $source) : true;
 			case 'file':
-				return isset($_FILES[$key]) && ($value = $_FILES[$key]) && !empty($value['size']) && !empty($value['tmp_name']) && empty($value['error']);
+				if (!isset($_FILES[$key]))
+				{
+					return true;
+				}
+
+				return ($value = $_FILES[$key]) && !empty($value['size']) && !empty($value['tmp_name']) && empty($value['error']);
 			case 'active_url':
 				$url = parse_url($value);
 				return isset($url['host']) && strlen($url['host']) && (checkdnsrr($url['host'], 'A') || checkdnsrr($url['host'], 'AAAA'));
@@ -405,10 +410,12 @@ class Form
 			foreach ($rules as $rule)
 			{
 				$params = explode(':', $rule);
+				$rule = $params[0];
+				$params = array_slice($params, 1);
 
-				if (!self::validateRule($key, $params[0], array_slice($params, 1), $source))
+				if (!self::validateRule($key, $rule, $params, $source))
 				{
-					$errors[] = ['name' => $key, 'rule' => $params[0]];
+					$errors[] = ['name' => $key, 'rule' => $rule, 'params' => $params];
 				}
 			}
 		}
