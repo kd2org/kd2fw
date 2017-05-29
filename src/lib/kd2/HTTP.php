@@ -251,7 +251,7 @@ class HTTP
 				throw new \RuntimeException('Invalid HTTP redirect: Location is not a valid URL.');
 			}
 
-			$url = self::mergeURLs($url, $location);
+			$url = self::mergeURLs($url, $location, true);
 			$previous = $response;
 		}
 
@@ -298,12 +298,19 @@ class HTTP
 	 * Merge two URLs, managing relative $b URL
 	 * @param  string $a Primary URL
 	 * @param  string $b New URL
+	 * @param  boolean $dismiss_query Set to TRUE to dismiss query part of the primary URL
 	 * @return string
 	 */
-	static public function mergeURLs($a, $b)
+	static public function mergeURLs($a, $b, $dismiss_query = false)
 	{
 		$a = parse_url($a);
 		$b = parse_url($b);
+
+		if ($dismiss_query)
+		{
+			// Don't propagate query params between redirects
+			unset($a['query']);
+		}
 
 		// Relative URL
 		if (!isset($b['host']) && isset($b['path']) && substr(trim($b['path']), 0, 1) != '/')
