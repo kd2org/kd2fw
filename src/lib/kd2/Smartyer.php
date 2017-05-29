@@ -243,7 +243,7 @@ class Smartyer
 			}
 		}
 
-		$this->compiled_template_path = self::$cache_dir . DIRECTORY_SEPARATOR . sha1($template) . '.phptpl';
+		$this->compiled_template_path = self::$cache_dir . DIRECTORY_SEPARATOR . sha1($template) . '.tpl.php';
 
 		// Register parent functions and variables locally
 		if ($parent instanceof Smartyer)
@@ -266,7 +266,7 @@ class Smartyer
 	{
 		$s = new Smartyer(null, $parent);
 		$s->source = $string;
-		$s->compiled_template_path = self::$cache_dir . DIRECTORY_SEPARATOR . sha1($string) . '.phptpl';
+		$s->compiled_template_path = self::$cache_dir . DIRECTORY_SEPARATOR . sha1($string) . '.tpl.php';
 		return $s;
 	}
 
@@ -527,9 +527,17 @@ class Smartyer
 		// Force new lines (this is to avoid PHP eating new lines after its closing tag)
 		$compiled = preg_replace("/\?>\n/", "$0\n", $compiled);
 
-		$compiled = '<?php /* Compiled from ' . $this->template_path . ' - ' . gmdate('Y-m-d H:i:s') . ' UTC */ '
-			. 'if (!isset($_i)) { $_i = []; } if (!isset($_blocks)) { $_blocks = []; } ?>'
-			. $compiled;
+		// Keep a trace of the source for debug purposes
+		$prefix = '<?php /* Compiled from ' . $this->template_path . ' - ' . gmdate('Y-m-d H:i:s') . ' UTC */ ';
+
+		// Stop execution if not in the context of Smartyer
+		// this is to avoid potential execution of template code outside of Smartyer
+		$prefix .= 'if (!isset($this) || !is_object($this) || !is_subclass_of($this, \'KD2\Smartyer\', true)) { die("Wrong call context."); } ';
+
+		// Initialize useful variables
+		$prefix .= 'if (!isset($_i)) { $_i = []; } if (!isset($_blocks)) { $_blocks = []; } ?>';
+
+		$compile = $prefix . $compiled;
 
 		// Write to temporary file
 		file_put_contents($this->compiled_template_path . '.tmp', $compiled);
@@ -709,7 +717,7 @@ class Smartyer
 		}
 
 		// Start counter
-		if ($name == 'foreach')
+		if ($name == 'foreach' || $name == 'for' || $name == 'while')
 		{
 			$code = '$_i[] = 0; ';
 		}
@@ -833,7 +841,7 @@ class Smartyer
 			}
 		}
 
-		if ($name == 'foreach')
+		if ($name == 'foreach' || $name == 'for' || $name == 'while')
 		{
 			// Iteration counter
 			$code .= ' $iteration =& $_i[count($_i)-1]; $iteration++;';
@@ -865,7 +873,7 @@ class Smartyer
 					$name = 'if';
 				}
 
-				$code .= ' array_pop($_i);';
+				$code .= ' array_pop($_i); unset($iteration);';
 			case 'if':
 				$code = 'end' . $name . ';' . $code;
 				break;

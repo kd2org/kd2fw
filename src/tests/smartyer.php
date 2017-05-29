@@ -226,11 +226,18 @@ function test_functions()
 	Test::equals($expected, $output, 'function call in if condition');
 
 	// for () loop
-	$code = '{for $i = 1; $i < 4; $i++}{$i}{/for}';
-	$expected = '123';
+	$code = '{for $i = 1; $i < 4; $i++}{$i}.{$iteration}|{/for}';
+	$expected = '1.1|2.2|3.3|';
 	$output = Smartyer::fromString($code)->fetch();
 
 	Test::equals($expected, $output, 'for loop');
+
+	// while () loop
+	$code = '{while $a = array_shift($array)}{$a}.{$iteration}|{/while}';
+	$expected = 'a.1|b.2|c.3|';
+	$output = Smartyer::fromString($code)->assign('array', ['a', 'b', 'c'])->fetch();
+
+	Test::equals($expected, $output, 'while loop');
 
 	// custom function
 	$code = '{repeat length="1" source=$object.array.key1|rot13|cat:"Embedded variables $object.array.key2 $simple `$simple` {$simple}"}';
