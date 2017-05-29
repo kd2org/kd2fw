@@ -258,6 +258,18 @@ class Form
 				}
 
 				return $required == count($params) ? self::validateRule($key, 'required', $params, $source) : true;
+			case 'absent':
+				return $value === null;
+		}
+
+		// Ignore rules for empty fields, except 'required*'
+		if ($value === null || (is_string($value) && trim($value) === ''))
+		{
+			return true;
+		}
+
+		switch ($rule_name)
+		{
 			case 'file':
 				if (!isset($_FILES[$key]))
 				{
@@ -409,7 +421,7 @@ class Form
 
 			foreach ($rules as $rule)
 			{
-				$params = explode(':', $rule);
+				$params = preg_split('/(?<!\\\\):/', $rule);
 				$rule = $params[0];
 				$params = array_slice($params, 1);
 
