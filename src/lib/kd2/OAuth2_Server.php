@@ -42,15 +42,33 @@ class OAuth2_Server
 	 */
 	protected $return_mode = false;
 
+	/**
+	 * Forces clients with passwords to use a secure (TLS/SSL) connection
+	 * OAuth 2.0 RFC section 2.3.1 "The authorization server MUST require the use of TLS"
+	 *
+	 * You can disable that restriction for test purposes though.
+	 *
+	 * Please note that this is using $_SERVER['HTTPS'] to detect if the
+	 * connection is secure or not and it might not be set on some configurations.
+	 * 
+	 * @var boolean
+	 */
+	protected $force_secure_client_connection = true;
+
 	public function __construct()
 	{
 		$this->setExpiry();
 		$this->callbacks = (object)[];
 	}
 
-	public function toggleReturnMode($enable = true)
+	public function toggleReturnMode($enable)
 	{
 		$this->return_mode = (bool) $enable;
+	}
+
+	public function toggleForceSecureClient($enable)
+	{
+		$this->force_secure_client_connection = (bool) $enable;
 	}
 
 	public function setExpiry($access = self::DEFAULT_ACCESS_TOKEN_EXPIRY, $refresh = 7776000)
@@ -63,7 +81,8 @@ class OAuth2_Server
 
 	public function setCallback($type, callable $callback)
 	{
-		static $types = ['store_token', 'check_client', 'check_token'];
+		static $types = ['store_token', 'check_access_token', 'check_refresh_token',
+			'auth_client', 'auth_password'];
 
 		if (!in_array($type, $types))
 		{
@@ -75,14 +94,24 @@ class OAuth2_Server
 
 	public function handleRequest()
 	{
-		if (count((array) $this->callbacks) !== 3)
+		if (!isset($this->callbacks->store_token) || !isset($this->callbacks->check_access_token))
 		{
-			throw new \LogicException('No callbacks registered.');
+			throw new \LogicException('Undefined callback. Both of these are required: store_token, check_access_token');
+		}
+
+		if (!isset($this->callbacks->auth_client) && !isset($this->callbacks->auth_password))
+		{
+			throw new \LogicException('No auth callback defined. One of these is required: auth_client, auth_password');
 		}
 
 		if (isset($_POST['grant_type']))
 		{
 			return $this->handleGrantRequest($_POST['grant_type']);
+		}
+
+		if (isset($_POST['response_type']))
+		{
+			return $this->error('unsupported_grant_type', 'This grant type is not supported.');
 		}
 
 		return false;
@@ -130,10 +159,11 @@ class OAuth2_Server
 		}
 
 		$this->authorized = new \stdClass;
-		$this->authorized->user = call_user_func($this->callbacks->check_token, 'access_token', $token);
+		$this->authorized->user = call_user_func($this->callbacks->check_access_token, $token);
 
-		if (!$user)
+		if (false === $this->authorized->user)
 		{
+			$this->authorized = false;
 			return $this->error('invalid_token', 'Invalid or expired Authorization token.', 401);
 		}
 
@@ -142,41 +172,56 @@ class OAuth2_Server
 
 	protected function handleGrantRequest($type)
 	{
-		if ($type == 'client_credentials')
+		if ($type == 'password' && isset($this->callbacks->auth_password))
 		{
-			if (empty($_POST['client_id']) || empty($_POST['client_secret']))
+			if (empty($_POST['username']) || empty($_POST['password']))
+			{
+				return $this->error('invalid_client', 'Missing username or password for password grant type.');
+			}
+
+			$response = call_user_func($this->callbacks->auth_password, $_POST['username'], $_POST['password']);
+
+			if (!$response)
+			{
+				return $this->error('invalid_grant', 'Invalid username or password.');
+			}
+
+			return $this->tokenResponse($type, $response);
+		}
+		elseif ($type == 'client_credentials' && isset($this->callbacks->auth_client))
+		{
+			if ($this->force_secure_client_connection && empty($_SERVER['HTTPS']))
+			{
+				return $this->error('unsupported_over_http', 'Grant type client_credentials must be used with HTTPS only.');
+			}
+
+			// Support for HTTP Basic authentication
+			if (!empty($_SERVER['PHP_AUTH_USER']) && !empty($_SERVER['PHP_AUTH_PW']))
+			{
+				$client_id = $_SERVER['PHP_AUTH_USER'];
+				$client_secret = $_SERVER['PHP_AUTH_PW'];
+			}
+			// Support sending of id/password in body
+			elseif (!empty($_POST['client_id']) && !empty($_POST['client_secret']))
+			{
+				$client_id = $_POST['client_id'];
+				$client_secret = $_POST['client_secret'];
+			}
+			else
 			{
 				return $this->error('invalid_client', 'Missing client ID or client secret.');
 			}
 
-			$client_id = trim($_POST['client_id']);
+			$response = call_user_func($this->callbacks->auth_client, $client_id, $client_secret);
 
-			$ok = call_user_func($this->callbacks->check_client, $client_id, $_POST['client_secret']);
-
-			if (!$ok)
+			if (!$response)
 			{
 				return $this->error('invalid_client', 'Invalid or expired client ID or client secret.');
 			}
 
-			$refresh_token = $this->generateToken($client_id);
-			$access_token = $this->generateToken($refresh_token);
-
-			call_user_func($this->callbacks->store_token, [
-				'client_id'      => $client_id,
-				'access_token'   => $access_token,
-				'access_expiry'  => (new \DateTime)->modify(sprintf('+%d seconds', $this->expiry->access)),
-				'refresh_token'  => $refresh_token,
-				'refresh_expiry' => (new \DateTime)->modify(sprintf('+%d seconds', $this->expiry->refresh)),
-			]);
-
-			return $this->response([
-				'token_type'    => 'bearer',
-				'access_token'  => $access_token,
-				'expires_in'    => $this->expiry->access,
-				'refresh_token' => $refresh_token,
-			]);
+			return $this->tokenResponse($type, $response);
 		}
-		elseif ($type == 'refresh_token')
+		elseif ($type == 'refresh_token' && isset($this->callbacks->check_refresh_token))
 		{
 			if (empty($_POST['refresh_token']))
 			{
@@ -185,40 +230,55 @@ class OAuth2_Server
 
 			$token = $_POST['refresh_token'];
 
-			$ok = call_user_func($this->callbacks->check_token, 'refresh_token', $token);
+			$response = call_user_func($this->callbacks->check_refresh_token, $token);
 
-			if (!$ok)
+			if (!$response)
 			{
 				return $this->error('invalid_token', 'Invalid or expired refresh token.', 401);
 			}
 
-			// Generate new tokens
-			$refresh_token = $this->generateToken($token);
-			$access_token = $this->generateToken($refresh_token);
-
-			call_user_func($this->callbacks->store_token, [
-				'old_refresh_token' => $token,
-				'access_token'      => $access_token,
-				'access_expiry'     => (new \DateTime)->modify(sprintf('+%d seconds', $this->expiry->access)),
-				'refresh_token'     => $refresh_token,
-				'refresh_expiry'    => (new \DateTime)->modify(sprintf('+%d seconds', $this->expiry->refresh)),
-			]);
-
-			return $this->response([
-				'token_type'    => 'bearer',
-				'access_token'  => $access_token,
-				'expires_in'    => $this->expiry->access,
-				'refresh_token' => $refresh_token,
-			]);
+			return $this->tokenResponse($type, $response);
 		}
-		else
+
+		return $this->error('unsupported_grant_type', 'Unsupported grant type.');
+	}
+
+	protected function tokenResponse($type, $auth_response)
+	{
+		// Generate new tokens
+		$access_token = $this->generateToken(microtime(true));
+		$tokens = [
+			'access_token'  => $access_token,
+			'access_expiry' => (new \DateTime)->modify(sprintf('+%d seconds', $this->expiry->access)),
+		];
+
+		$response = [
+			'token_type'    => 'bearer',
+			'access_token'  => $access_token,
+			'expires_in'    => $this->expiry->access,
+		];
+
+		// Only generate a refresh token if we have enabled that feature
+		if (isset($this->callbacks->check_refresh_token))
 		{
-			return $this->error('unsupported_grant_type', 'Unsupported grant type.');
+			$refresh_token = $this->generateToken(microtime(true));
+			$response['refresh_token'] = $refresh_token;
+			$tokens['refresh_token'] = $refresh_token;
+			$tokens['refresh_expiry'] = (new \DateTime)->modify(sprintf('+%d seconds', $this->expiry->refresh));
 		}
+
+		call_user_func($this->callbacks->store_token, $type, $auth_response, (object) $tokens);
+
+		return $this->response($response);
 	}
 
 	protected function response($data, $code = 200)
 	{
+		if ($this->return_mode)
+		{
+			return (object) $data;
+		}
+
 		static $messages = [
 			200 => 'OK',
 			400 => 'Bad Request',
@@ -227,7 +287,7 @@ class OAuth2_Server
 
 		$protocol = !empty($_SERVER['SERVER_PROTOCOL']) ? $_SERVER['SERVER_PROTOCOL'] : 'HTTP/1.0';
 
-		if (!$this->return_mode && !headers_sent())
+		if (!headers_sent())
 		{
 			header(sprintf('%s %d %s', $protocol, $code, $messages[$code]), true, (int)$code);
 			header('Content-Type: application/json', true);
@@ -235,13 +295,7 @@ class OAuth2_Server
 
 		$data = json_encode($data, JSON_PRETTY_PRINT);
 
-		if (!$this->return_mode)
-		{
-			echo $data;
-			exit;
-		}
-
-		return $data;
+		echo $data;
 	}
 
 	protected function error($error, $description, $code = 400)
@@ -252,10 +306,34 @@ class OAuth2_Server
 		], $code);
 	}
 
+	protected function randomBytes($length)
+	{
+		if (function_exists('random_bytes'))
+		{
+			return random_bytes($length);
+		}
+        elseif (function_exists('mcrypt_create_iv') && version_compare(PHP_VERSION, '5.3.7') >= 0)
+        {
+            return mcrypt_create_iv($length, MCRYPT_DEV_URANDOM);
+        }
+		elseif (file_exists('/dev/urandom') && is_readable('/dev/urandom'))
+		{
+			return file_get_contents('/dev/urandom', false, null, 0, $length);
+		}
+		elseif (function_exists('openssl_random_pseudo_bytes'))
+		{
+			return openssl_random_pseudo_bytes($length);
+		}
+		else
+		{
+			throw new \LogicException('Cannot generate random bytes: no random source found.');
+		}
+	}
+
 	protected function generateToken($ref)
 	{
 		// 16 random bytes
-		$bytes = random_bytes(16);
+		$bytes = self::randomBytes(16);
 
 		// hash it
 		$token = hash('sha256', $bytes . $ref, true);
