@@ -51,6 +51,15 @@ class Test
 		);
 	}
 
+	static public function strictlyEquals($expected, $result, $message = '')
+	{
+		self::assert($expected === $result, 
+			sprintf("Strictly equals condition failed: %s\n--- %s\n+++ %s", 
+				$message, EM::dump($expected), EM::dump($result)
+			)
+		);
+	}
+
 	static public function isObject($object, $message = '')
 	{
 		self::assert(is_object($object), 
