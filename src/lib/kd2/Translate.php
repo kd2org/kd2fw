@@ -864,14 +864,20 @@ class Translate
 	 */
 	static public function getCountriesList($lang = null)
 	{
-		$lang = substr(self::$locale, 0, 2);
+		if (null === $lang)
+		{
+			$lang = substr(self::$locale, 0, 2);
+		}
 
 		if ($lang != 'fr')
 		{
 			$lang = 'en';
 		}
 
-		return json_decode(__DIR__ . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'countries.' . $lang . '.json', true);
+		$path = sprintf('%s/data/countries.%s.json', __DIR__, $lang);
+		$file = file_get_contents($path);
+
+		return json_decode($file, true);
 	}
 
 	/**
