@@ -857,6 +857,24 @@ class Translate
 	}
 
 	/**
+	 * Returns an associative array list of countries (ISO-3166:2013)
+	 *
+	 * @param  string $lang Language to use (only 'fr' and 'en' are available)
+	 * @return array
+	 */
+	static public function getCountriesList($lang = null)
+	{
+		$lang = substr(self::$locale, 0, 2);
+
+		if ($lang != 'fr')
+		{
+			$lang = 'en';
+		}
+
+		return json_decode(__DIR__ . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'countries.' . $lang . '.json', true);
+	}
+
+	/**
 	 * Register a new template block in Smartyer to call KD2Intl::gettext()
 	 * @param  Smartyer &$tpl Smartyer instance
 	 * @return Smartyer
