@@ -99,7 +99,7 @@ class Security_OTP
 
 		if (!is_null($code))
 		{
-			return hash_equals(self::HOTP($secret, $count, null, $digits, $digest), $code);
+			return hash_equals(self::HOTP($secret, $count, null, $digits, $digest), (string) $code);
 		}
 
 		// Decodes the secret to binary
@@ -119,7 +119,7 @@ class Security_OTP
 			(ord($hmac[$offset + 2]) & 0xFF) << 8 |
 			(ord($hmac[$offset + 3]) & 0xFF);
 
-		return $code % pow(10, $digits);
+		return (string) ($code % pow(10, $digits));
 	}
 
 	/**
@@ -164,7 +164,7 @@ class Security_OTP
 		// Check supplied code
 		if (!is_null($code))
 		{
-			$check = hash_equals(self::HOTP($secret, $counter, null, $digits, $digest), $code);
+			$check = hash_equals(self::HOTP($secret, $counter, null, $digits, $digest), (string) $code);
 
 			if ($check || empty($drift))
 			{
