@@ -422,10 +422,15 @@ class Security
 	 */
 	static public function getEncryptionKeyFingerprint($key)
 	{
+		if (trim($key) === '')
+		{
+			return false;
+		}
+
 		self::_initGnupgEnv($key, $tmpdir, $info);
 		self::_cleanGnupgEnv($tmpdir);
 
-		return $info['fingerprint'];
+		return isset($info['fingerprint']) ? $info['fingerprint'] : false;
 	}
 
 	/**
