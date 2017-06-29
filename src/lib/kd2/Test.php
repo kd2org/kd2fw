@@ -121,6 +121,19 @@ class Test
 		);
 	}
 
+	static public function exception($name, callable $callback, $message = '')
+	{
+		try
+		{
+			$callback();
+		}
+		catch (\Exception $e)
+		{
+			self::equals($name, get_class($e),
+				sprintf("Exception '%s' doesn't match expected '%s'", get_class($e), $name));
+		}
+	}
+
 	static public function runFile($file)
 	{
 		$classes = get_declared_classes();
