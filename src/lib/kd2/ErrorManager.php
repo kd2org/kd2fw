@@ -556,7 +556,11 @@ class ErrorManager
 			<pre id="icn"> \__/<br /> (xx)<br />//||\\\\</pre>');
 		}
 
-		register_shutdown_function([__CLASS__, 'shutdownHandler']);
+		register_shutdown_function(function () {
+			// This is to make sure that our shutdown handler is actually called last
+			register_shutdown_function(['\KD2\ErrorManager', 'shutdownHandler']);
+		});
+
 		set_exception_handler([__CLASS__, 'exceptionHandler']);
 
 		// For PHP7 we don't need to throw ErrorException as all errors are thrown as Error
