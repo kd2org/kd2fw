@@ -252,6 +252,7 @@ class DB_SQLite3 extends DB
 	{
 		$args = array_slice(func_get_args(), 1);
 		$res = $this->preparedQuery($query, $args);
+		$out = [];
 
 		while ($row = $res->fetchArray(\SQLITE3_ASSOC))
 		{
@@ -265,6 +266,7 @@ class DB_SQLite3 extends DB
 	{
 		$args = array_slice(func_get_args(), 1);
 		$res = $this->preparedQuery($query, $args);
+		$out = [];
 
 		while ($row = $res->fetchArray(\SQLITE3_NUM))
 		{
@@ -278,6 +280,7 @@ class DB_SQLite3 extends DB
 	{
 		$args = array_slice(func_get_args(), 1);
 		$res = $this->preparedQuery($query, $args);
+		$out = [];
 
 		while ($row = $res->fetchArray(\SQLITE3_ASSOC))
 		{
