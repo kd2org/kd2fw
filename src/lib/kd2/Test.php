@@ -130,7 +130,7 @@ class Test
 		catch (\Exception $e)
 		{
 			self::equals($name, get_class($e),
-				sprintf("Exception '%s' doesn't match expected '%s'", get_class($e), $name));
+				sprintf("Exception '%s' doesn't match expected '%s':\n%s", get_class($e), $name, $e->getMessage()));
 		}
 	}
 
