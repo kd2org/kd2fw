@@ -32,48 +32,49 @@ use PDO;
 use PDOException;
 use PDOStatement;
 
-class DB extends PDO
+class DB
 {
 	/**
 	 * Attributes for PDO instance
 	 * @var array
 	 */
-	protected $attributes = [
-		PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-		PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+	protected $pdo_attributes = [
+		PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+		PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_OBJ,
+		PDO::ATTR_TIMEOUT            => 5, // in seconds
+		PDO::ATTR_EMULATE_PREPARES   => false,
 	];
 
 	/**
 	 * Current driver
 	 * @var null
 	 */
-	protected $driver = null;
-
-	/**
-	 * List of lazy callbacks to register on connect
-	 * @var array
-	 */
-	protected $lazy_callbacks = [];
+	protected $driver;
 
 	/**
 	 * Store PDO object
 	 * @var null
 	 */
-	protected $pdo = null;
+	protected $pdo;
+
+	protected $sqlite_functions = [
+		'base64_encode'      => 'base64_encode',
+		'rank'               => [__CLASS__, 'sqlite_rank'],
+		'haversine_distance' => [__CLASS__, 'sqlite_haversine'],
+	];
 
 	/**
-	 * Returns a driver configuration after check
-	 * @param  string $name   Driver name: mysql or sqlite
-	 * @param  array  $params Driver configuration
-	 * @return array          Driver array
+	 * Class construct, expects a driver configuration
+	 * @param array $driver Driver configurtaion
 	 */
-	static public function getDriver($name, $params = [])
+	public function __construct($name, array $params)
 	{
-		$driver = [
-			'type'  => 	$name,
-			'url'	=>	null,
-			'user'	=>	null,
-			'password'	=>	null
+		$driver = (object) [
+			'type'     => $name,
+			'url'      => null,
+			'user'     => null,
+			'password' => null,
+			'options'  => [],
 		];
 
 		if ($name == 'mysql')
@@ -103,9 +104,9 @@ class DB extends PDO
 				$params['charset'] = 'UTF8';
 			}
 
-			$driver['url'] = 'mysql:dbname='.$params['database'].';charset=UTF8;host='.$params['host'];
-			$driver['user'] = $params['user'];
-			$driver['password'] = $params['password'];
+			$driver->url = sprintf('mysql:dbname=%s;charset=UTF8;host=%s', $params['database'], $params['host']);
+			$driver->user = $params['user'];
+			$driver->password = $params['password'];
 		}
 		else if ($name == 'sqlite')
 		{
@@ -114,25 +115,11 @@ class DB extends PDO
 				throw new \BadMethodCallException('No file parameter passed.');
 			}
 
-			$driver['url'] = 'sqlite:' . $params['file'];
+			$driver->url = 'sqlite:' . $params['file'];
 		}
 		else
 		{
 			throw new \BadMethodCallException('Invalid driver name.');
-		}
-
-		return $driver;
-	}
-
-	/**
-	 * Class construct, expects a driver configuration
-	 * @param array $driver Driver configurtaion
-	 */
-	public function __construct($driver)
-	{
-		if (empty($driver['url']))
-		{
-			throw new \LogicException('No PDO driver is set.');
 		}
 
 		$this->driver = $driver;
@@ -150,10 +137,10 @@ class DB extends PDO
 		}
 
 		try {
-			$this->pdo = new PDO($this->driver['url'], $this->driver['user'], $this->driver['password']);
+			$this->pdo = new PDO($this->driver->url, $this->driver->user, $this->driver->password, $this->driver->options);
 
 			// Set attributes
-			foreach ($this->attributes as $attr => $value)
+			foreach ($this->pdo_attributes as $attr => $value)
 			{
 				$this->pdo->setAttribute($attr, $value);
 			}
@@ -164,57 +151,31 @@ class DB extends PDO
 			throw new PDOException('Unable to connect to database. Check username and password.');
 		}
 
-		// Enhance SQLite with default functions
-		if ($this->driver['type'] == 'sqlite')
+		if ($this->driver->type == 'sqlite')
 		{
-			$this->pdo->sqliteCreateFunction('rank', [__CLASS__, 'sqlite_rank']);
-			$this->pdo->sqliteCreateFunction('haversine_distance', [__CLASS__, 'sqlite_haversine']);
-		}
-
-		// Register callbacks like sqliteCreateFunction etc.
-		foreach ($this->lazy_callbacks as $function => $callbacks)
-		{
-			foreach ($callbacks as $name => $callback)
+			// Enhance SQLite with default functions
+			foreach ($this->sqlite_functions as $name => $callback)
 			{
-				$this->pdo->{$function}($name, $callback);
+				$this->pdo->sqliteCreateFunction($name, $callback);
 			}
+
+			// Force to rollback any outstanding transaction
+			register_shutdown_function(function () {
+				if ($this->inTransaction())
+				{
+					$this->rollback();
+				}
+			});
 		}
 
-		$this->driver['password'] = '******';
+		$this->driver->password = '******';
 	}
 
-	public function disconnect()
+	public function close()
 	{
 		$this->pdo = null;
 	}
 
-	/**
-	 * Store DB-specific callbacks to be registered at connection
-	 * @param  string   $name     Function name
-	 * @param  Callable $callback PHP callback
-	 * @return boolean
-	 */
-	public function sqliteCreateFunction($name, Callable $callback)
-	{
-		$this->lazy_callbacks[__FUNCTION__][$name] = $callback;
-		return true;
-	}
-
-	public function sqliteCreateAggregate($name, Callable $callback)
-	{
-		$this->lazy_callbacks[__FUNCTION__][$name] = $callback;
-		return true;
-	}
-
-	public function sqliteCreateCollation($name, Callable $callback)
-	{
-		$this->lazy_callbacks[__FUNCTION__][$name] = $callback;
-		return true;
-	}
-
-	/**
-	 * Redefine PDO methods to do lazy connect
-	 */
 	public function query($statement)
 	{
 		$this->connect();
@@ -224,7 +185,56 @@ class DB extends PDO
 	public function exec($statement)
 	{
 		$this->connect();
-		return $this->pdo->query($statement);
+
+		$this->begin();
+
+		try
+		{
+			if ($this->driver->type == 'mysql')
+			{
+				$emulate = $this->pdo->getAttribute(PDO::ATTR_EMULATE_PREPARES);
+				$this->pdo->setAttribute(PDO::ATTR_EMULATE_PREPARES, true); // required to allow multiple queries in same statement
+
+				$st = $this->prepare($statement);
+				$st->execute();
+
+				while ($st->nextRowset())
+				{
+					// Iterate over rowsets, see https://bugs.php.net/bug.php?id=61613 
+				}
+
+				$return = $this->commit();
+			}
+			else
+			{
+				$return = $this->pdo->exec($statement);
+				$this->commit();
+			}
+		}
+		catch (\PDOException $e)
+		{
+			$this->rollBack();
+			throw $e;
+		}
+		finally
+		{
+			if ($this->driver->type == 'mysql')
+			{
+				$this->pdo->setAttribute(PDO::ATTR_EMULATE_PREPARES, $emulate);
+			}
+		}
+
+		return $return;
+	}
+
+	public function import($file)
+	{
+		if (!is_readable($file))
+		{
+			throw new \RuntimeException(sprintf('Cannot read file %s', $file));
+		}
+
+		return $this->exec(file_get_contents($file));
 	}
 
 	public function prepare($statement, $driver_options = [])
@@ -233,7 +243,7 @@ class DB extends PDO
 		return $this->pdo->prepare($statement, $driver_options);
 	}
 
-	public function beginTransaction()
+	public function begin()
 	{
 		$this->connect();
 		return $this->pdo->beginTransaction();
@@ -251,33 +261,10 @@ class DB extends PDO
 		return $this->pdo->commit();
 	}
 
-	public function errorCode()
+	public function rollback()
 	{
 		$this->connect();
-		return $this->pdo->errorCode();
-	}
-
-	public function errorInfo()
-	{
-		$this->connect();
-		return $this->pdo->errorInfo();
-	}
-
-	public function getAttribute($attribute)
-	{
-		return $this->attributes[$attribute];
-	}
-
-	public function setAttribute($attribute, $value)
-	{
-		$this->attributes[$attribute] = $value;
-
-		if ($this->pdo)
-		{
-			$this->pdo->setAttribute($attribute, $value);
-		}
-
-		return true;
+		return $this->pdo->rollBack();
 	}
 
 	public function lastInsertId($name = null)
@@ -286,7 +273,7 @@ class DB extends PDO
 		return $this->pdo->lastInsertId($name);
 	}
 
-	public function quote($value, $parameter_type = self::PARAM_STR)
+	public function quote($value, $parameter_type = PDO::PARAM_STR)
 	{
 		if ($this->driver['type'] == 'sqlite')
 		{
@@ -300,45 +287,275 @@ class DB extends PDO
 		return $this->pdo->quote($value, $parameter_type);
 	}
 
+
+	public function preparedQuery($query, $args = [])
+	{
+        assert(is_string($query));
+
+        // Only one argument, which is an array: this is an associative array
+        if (isset($args[0]) && is_array($args[0]))
+        {
+        	$args = $args[0];
+        }
+
+        assert(is_array($args) || is_object($args));
+
+        $args = (array) $args;
+
+		$this->connect();
+		$st = $this->pdo->prepare($query);
+		$st->execute($args);
+
+		return $st;
+	}
+
+	public function iterate($query)
+	{
+		$args = array_slice(func_get_args(), 1);
+		$st = $this->preparedQuery($query, $args);
+
+		while ($row = $st->fetch())
+		{
+			yield $row;
+		}
+
+		unset($st);
+
+		return;
+	}
+
+	public function get($query)
+	{
+		$args = array_slice(func_get_args(), 1);
+		return $this->preparedQuery($query, $args)->fetchAll();
+	}
+
+	public function getAssoc($query)
+	{
+		$args = array_slice(func_get_args(), 1);
+		$st = $this->preparedQuery($query, $args);
+
+		while ($row = $st->fetch(PDO::FETCH_NUM))
+		{
+			$out[$row[0]] = $row[1];
+		}
+
+		return $out;
+	}
+
+	public function getGrouped($query)
+	{
+		$args = array_slice(func_get_args(), 1);
+		$st = $this->preparedQuery($query, $args);
+
+		while ($row = $st->fetch(PDO::FETCH_ASSOC))
+		{
+			$out[current($row)] = (object) $row;
+		}
+
+		return $out;
+	}
+
+	/**
+	 * Runs a query and returns the first row
+	 * @param  string $query SQL query
+	 * @return object
+	 *
+	 * Accepts one or more arguments as part of bindings for the statement
+	 */
+	public function first($query)
+	{
+		$st = $this->preparedQuery($query, array_slice(func_get_args(), 1));
+
+		return $st->fetch();
+	}
+
+	/**
+	 * Runs a query and returns the first column
+	 * @param  string $query SQL query
+	 * @return object
+	 *
+	 * Accepts one or more arguments as part of bindings for the statement
+	 */
+	public function firstColumn($query)
+	{
+		$st = $this->preparedQuery($query, array_slice(func_get_args(), 1));
+
+		return $st->fetchColumn();
+	}
+
+	/**
+	 * Inserts a row in $table, using $fields as data to fill
+	 * @param  string $table  Table où insérer
+	 * @param  array|object $fields Champs à remplir
+	 * @return boolean
+	 */
+	public function insert($table, $fields)
+	{
+		assert(is_array($fields) || is_object($fields));
+
+		$fields = (array) $fields;
+
+		$fields_names = array_keys($fields);
+		$query = sprintf('INSERT INTO %s (%s) VALUES (:%s);', $table, 
+			implode(', ', $fields_names), implode(', :', $fields_names));
+
+		return $this->preparedQuery($query, $fields);
+	}
+
+	/**
+	 * Updates lines in $table using $fields, selecting using $where
+	 * @param  string       $table  Table name
+	 * @param  array|object $fields List of fields to update
+	 * @param  string       $where  Content of the WHERE clause
+	 * @param  array|object $args   Arguments for the WHERE clause
+	 * @return boolean
+	 */
+	public function update($table, $fields, $where = null, $args = [])
+	{
+		assert(is_string($table));
+		assert((is_string($where) && strlen($where)) || is_null($where));
+		assert(is_array($fields) || is_object($fields));
+		assert(is_array($args) || is_object($args));
+
+		// Forcer en tableau
+		$fields = (array) $fields;
+		$args = (array) $args;
+
+		// No fields to update? no need to do a query
+		if (empty($fields))
+		{
+			return false;
+		}
+
+		$column_updates = [];
+		
+		foreach ($fields as $key=>$value)
+		{
+			// Append to arguments
+			$args['field_' . $key] = $value;
+
+			$column_updates[] = sprintf('%s = :field_%s', $key, $key);
+		}
+
+		if (is_null($where))
+		{
+			$where = '1';
+		}
+
+		// Assemblage de la requête
+		$column_updates = implode(', ', $column_updates);
+		$query = sprintf('UPDATE %s SET %s WHERE %s;', $table, $column_updates, $where);
+
+		return $this->preparedQuery($query, $args);
+	}
+
+
+	/**
+	 * Supprime une ou plusieurs lignes d'une table
+	 * @param  string $table Nom de la table
+	 * @param  string $where Clause WHERE
+	 * @return boolean
+	 *
+	 * Accepte un ou plusieurs arguments supplémentaires utilisés comme bindings
+	 * pour la clause WHERE.
+	 */
+	public function delete($table, $where = '1')
+	{
+		$query = sprintf('DELETE FROM %s WHERE %s;', $table, $where);
+		return $this->preparedQuery($query, array_slice(func_get_args(), 2));
+	}
+
+	public function where($name)
+	{
+		$num_args = func_num_args();
+
+		$value = func_get_arg($num_args - 1);
+
+		if (is_object($value))
+		{
+			$value = (array) $value;
+		}
+
+		if ($num_args == 2)
+		{
+			if (is_array($value))
+			{
+				$operator = 'IN';
+			}
+			elseif (is_null($value))
+			{
+				$operator = 'IS';
+			}
+			else
+			{
+				$operator = '=';
+			}
+		}
+		elseif ($num_args == 3)
+		{
+			$operator = strtoupper(func_get_arg(1));
+
+			if (is_array($value))
+			{
+				if ($operator == 'IN' || $operator == '=')
+				{
+					$operator = 'IN';
+				}
+				elseif ($operator == 'NOT IN' || $operator == '!=')
+				{
+					$operator = 'NOT IN';
+				}
+				else
+				{
+					throw new \InvalidArgumentException(sprintf('Invalid operator \'%s\' for value of type array or object (only IN and NOT IN are accepted)', $operator));
+				}
+			}
+			elseif (is_null($value))
+			{
+				if ($operator != '=' && $operator != '!=')
+				{
+					throw new \InvalidArgumentException(sprintf('Invalid operator \'%s\' for value of type null (only = and != are accepted)', $operator));
+				}
+
+				$operator = ($operator == '=') ? 'IS' : 'IS NOT';
+			}
+		}
+		else
+		{
+			throw new \BadMethodCallException('Method where requires 2 or 3 parameters');
+		}
+
+		if (is_array($value))
+		{
+			$value = array_values($value);
+
+			array_walk($value, function (&$row) {
+				$row = $this->quote($row);
+			});
+
+			$value = sprintf('(%s)', implode(', ', $value));
+		}
+		elseif (is_null($value))
+		{
+			$value = 'NULL';
+		}
+		elseif (is_bool($value))
+		{
+			$value = $value ? 'TRUE' : 'FALSE';
+		}
+		elseif (is_string($value))
+		{
+			$value = $this->quote($value);
+		}
+
+		return sprintf('%s %s %s', $name, $operator, $value);
+	}
 	/**
 	 * SQLite search ranking user defined function
 	 * Converted from C from SQLite manual: https://www.sqlite.org/fts3.html#appendix_a
 	 * @param  string $aMatchInfo
 	 * @return double Score
-	 */
-	/*
-	** SQLite user defined function to use with matchinfo() to calculate the
-	** relevancy of an FTS match. The value returned is the relevancy score
-	** (a real value greater than or equal to zero). A larger value indicates 
-	** a more relevant document.
-	**
-	** The overall relevancy returned is the sum of the relevancies of each 
-	** column value in the FTS table. The relevancy of a column value is the
-	** sum of the following for each reportable phrase in the FTS query:
-	**
-	**   (<hit count> / <global hit count>) * <column weight>
-	**
-	** where <hit count> is the number of instances of the phrase in the
-	** column value of the current row and <global hit count> is the number
-	** of instances of the phrase in the same column of all rows in the FTS
-	** table. The <column weight> is a weighting factor assigned to each
-	** column by the caller (see below).
-	**
-	** The first argument to this function must be the return value of the FTS 
-	** matchinfo() function. Following this must be one argument for each column 
-	** of the FTS table containing a numeric weight factor for the corresponding 
-	** column. Example:
-	**
-	**     CREATE VIRTUAL TABLE documents USING fts3(title, content)
-	**
-	** The following query returns the docids of documents that match the full-text
-	** query <query> sorted from most to least relevant. When calculating
-	** relevance, query term instances in the 'title' column are given twice the
-	** weighting of those in the 'content' column.
-	**
-	**     SELECT docid FROM documents 
-	**     WHERE documents MATCH <query> 
-	**     ORDER BY rank(matchinfo(documents), 1.0, 0.5) DESC
 	 */
 	static public function sqlite_rank($aMatchInfo)
 	{
@@ -403,203 +620,7 @@ class DB extends PDO
 		{
 			throw new \InvalidArgumentException('4 arguments expected for haversine_distance');
 		}
-    	
-    	return round(acos(sin($geo[0]) * sin($geo[2]) + cos($geo[0]) * cos($geo[2]) * cos($geo[1] - $geo[3])) * 6372.8, 3);
-	}
-
-	/**
-	 * Returns a MySQL DATETIME formatted string for insertion/update from a timestamp
-	 * Note that DATETIME stores in local time, not UTC, and this function returns local time,
-	 * unless $utc parameter is set to true
-	 * @param  integer $timestamp UNIX timestamp
-	 * @return string             Mysql DATETIME formatted string
-	 */
-	public function mysqlDateTime($timestamp, $utc = false)
-	{
-		if ($utc)
-		{
-			return gmdate('Y-m-d H:i:s', $timestamp);
-		}
-		else
-		{
-			return date('Y-m-d H:i:s', $timestamp);
-		}
-	}
-
-	/**
-	 * Simple query returning a single row
-	 * @param  string  $query       SQL query
-	 * @param  boolean $all_columns true if you want to get all the columns, false will return only the first column
-	 * @return mixed                A single value if $all_columns = false, an array or object otherwise
-	 */
-	public function simpleQuerySingle($query, $all_columns = false)
-	{
-		if (func_num_args() < 3)
-		{
-			$args = [];
-		}
-		else if (func_num_args() == 3 && is_array(func_get_arg(2)))
-		{
-			$args = func_get_arg(2);
-		}
-		else
-		{
-			$args = array_slice(func_get_args(), 2);
-		}
-
-		$st = $this->prepare($query);
 		
-		if (!$st->execute($args))
-		{
-			return false;
-		}
-
-		if ($all_columns)
-		{
-			return $st->fetch($this->default_fetch_mode);
-		}
-		else
-		{
-			return $st->fetchColumn();
-		}
-	}
-
-	public function querySingle($query, $all_columns = false)
-	{
-		return $this->simpleQuerySingle($query, $all_columns);
-	}
-
-	public function simpleInsert($table, array $changes)
-	{
-		$query = 'INSERT INTO ' . $table . ' (' . implode(', ', array_keys($changes)) 
-			. ') VALUES (:' . implode(', :', array_keys($changes)) . ');';
-
-		foreach ($changes as $key=>$value)
-		{
-			if ($value == 'NOW()')
-			{
-				$query = str_replace(':' . $key, $value, $query);
-				unset($changes[$key]);
-			}
-		}
-		
-		$st = $this->prepare($query);
-		return $st->execute($changes);
-	}
-
-	public function whereArray(array $criterias)
-	{
-		$out = [];
-
-		foreach ($criterias as $key=>$value)
-		{
-			if (!preg_match('/^[a-z_][\d\w_]+/', '', $key))
-				throw new PDOException('Invalid column name: ' . $key);
-
-			if (is_string($value))
-				$value = '= ' . $this->quote($value);
-			else if (is_bool($value))
-				$value = $value ? '= TRUE' : '= FALSE';
-			else if (is_null($value))
-				$value = 'IS NULL';
-			else if (is_int($value))
-				$value = '= ' . (int) $value;
-			else
-				throw new PDOException('Invalid WHERE value type: ' . gettype($value));
-
-			$out[] = $key . ' ' . $value;
-		}
-
-		return implode(' AND ', $out);
-	}
-
-	public function simpleUpdate($table, array $changes, $where)
-	{
-		$query = 'UPDATE ' . $table . ' SET ';
-
-		foreach ($changes as $key=>$value)
-		{
-			if ($value == 'NOW()')
-			{
-				$query .= $key . ' = ' . $value . ', ';
-				unset($changes[$key]);
-			}
-			else
-			{
-				$query .= $key . ' = :' . $key . ', ';
-			}
-		}
-
-		if (is_array($where))
-		{
-			$where = $this->whereArray($where);
-		}
-
-		$query = substr($query, 0, -2) . ' WHERE ' . $where;
-		
-		$st = $this->prepare($query);
-		return $st->execute($changes);
-	}
-
-	public function simpleDelete($table, array $where)
-	{
-		$query = 'DELETE FROM ' . $table . ' WHERE ' . $this->whereArray($where);
-		
-		$st = $this->prepare($query);
-		return $st->execute($changes);
-	}
-
-	public function simpleQuery($query)
-	{
-		if (func_num_args() == 1)
-		{
-			$args = [];
-		}
-		else if (func_num_args() == 2 && is_array(func_get_arg(1)))
-		{
-			$args = func_get_arg(1);
-		}
-		else
-		{
-			$args = array_slice(func_get_args(), 1);
-		}
-
-		$st = $this->prepare($query);
-		return $st->execute($args) ? $st : false;
-	}
-
-	public function simpleQueryFetch($query, $fetch_mode = null)
-	{
-		if (func_num_args() < 3)
-		{
-			$args = [];
-		}
-		else if (func_num_args() == 3 && is_array(func_get_arg(2)))
-		{
-			$args = func_get_arg(2);
-		}
-		else
-		{
-			$args = array_slice(func_get_args(), 2);
-		}
-
-		return $this->fetch($this->simpleQuery($query, $args), $fetch_mode);
-	}
-
-	public function fetch($result, $fetch_mode = null)
-	{
-		if (is_null($fetch_mode))
-		{
-			$fetch_mode = $this->default_fetch_mode;
-		}
-
-		$rows = [];
-
-		while ($row = $result->fetch($fetch_mode))
-		{
-			$rows[] = $row;
-		}
-
-		return $rows;
+		return round(acos(sin($geo[0]) * sin($geo[2]) + cos($geo[0]) * cos($geo[2]) * cos($geo[1] - $geo[3])) * 6372.8, 3);
 	}
 }
