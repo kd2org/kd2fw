@@ -466,6 +466,16 @@ class DB
 		return $this->preparedQuery($query, array_slice(func_get_args(), 2));
 	}
 
+	public function test($table, $where = '1')
+	{
+		return (bool) $this->firstColumn(sprintf('SELECT 1 FROM %s WHERE %s LIMIT 1;', $where));
+	}
+
+	public function count($table, $where = '1')
+	{
+		return (int) $this->firstColumn(sprintf('SELECT COUNT(*) FROM %s WHERE %s;', $where));
+	}
+
 	public function where($name)
 	{
 		$num_args = func_num_args();
