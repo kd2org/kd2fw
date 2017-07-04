@@ -236,6 +236,7 @@ class Security_OTP
 	static public function getTimeFromNTP($host = 'pool.ntp.org', $timeout = 5)
 	{
 		$socket = stream_socket_client('udp://' . $host . ':123', $errno, $errstr, (int)$timeout);
+		stream_set_timeout($socket, $timeout);
 
 		$msg = "\010" . str_repeat("\0", 47);
 		fwrite($socket, $msg);
