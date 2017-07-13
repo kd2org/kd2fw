@@ -6,7 +6,7 @@ use KD2\Test;
 require __DIR__ . '/_assert.php';
 
 $images = [
-	'pp.jpg' => [1920, 1440],
+	'icon.png' => [300, 300],
 	'black_bluff.jpg' => [1200, 900],
 	'onepoto.gif' => [600, 250],
 	'invoice.pdf' => [595, 842],
