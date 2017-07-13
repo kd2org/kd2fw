@@ -182,7 +182,13 @@ class DB
 		return $this->pdo->query($statement);
 	}
 
-	public function exec($statement)
+	public function exec($query)
+	{
+		$this->connect();
+		return $this->pdo->exec($query);
+	}
+
+	public function execMultiple($statement)
 	{
 		$this->connect();
 
@@ -234,7 +240,7 @@ class DB
 			throw new \RuntimeException(sprintf('Cannot read file %s', $file));
 		}
 
-		return $this->exec(file_get_contents($file));
+		return $this->execMultiple(file_get_contents($file));
 	}
 
 	public function prepare($statement, $driver_options = [])
@@ -275,7 +281,7 @@ class DB
 
 	public function quote($value, $parameter_type = PDO::PARAM_STR)
 	{
-		if ($this->driver['type'] == 'sqlite')
+		if ($this->driver->type == 'sqlite')
 		{
 			// PHP quote() is truncating strings on NUL bytes
 			// https://bugs.php.net/bug.php?id=63419
