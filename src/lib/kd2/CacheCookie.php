@@ -101,6 +101,12 @@ class CacheCookie
     protected $content = null;
 
     /**
+     * Cookie HTTP only parameter
+     * @var boolean
+     */
+    protected $httponly = false;
+
+    /**
      * Create a new CacheCookie instance and setup default parameters
      * @param string $name     Cookie name
      * @param string $secret   Secret random hash (should stay the same for at least the cookie duration)
@@ -110,72 +116,40 @@ class CacheCookie
      * @param string $domain   Cookie domain, if left null the current HTTP_HOST or SERVER_NAME will be used
      * @param string $secure   Set to TRUE if the cookie should only be sent on a secure connection
      */
-    public function __construct($name = null, $secret = null, $duration = null, $path = null, $domain = null, $secure = null)
+    public function __construct($name = null, $secret = null, $duration = null, $path = null, $domain = null, $secure = false, $httponly = false)
     {
         if (!is_null($name))
         {
-            $this->setName($name);
+            $this->name = $name;
         }
 
         if (!is_null($secret))
         {
-            $this->setSecret($secret);
+            $this->secret = $secret;
         }
         else
         {
             // Default secret key
-            $this->setSecret(sha1(isset($_SERVER['DOCUMENT_ROOT']) ? $_SERVER['DOCUMENT_ROOT'] : ''));
+            $this->secret = \hash('sha256', (isset($_SERVER['DOCUMENT_ROOT']) ? $_SERVER['DOCUMENT_ROOT'] : ''));
         }
 
         if (!is_null($duration))
         {
-            $this->setDuration($duration);
+            $this->duration = (int) $duration;
         }
 
         if (!is_null($path))
         {
-            $this->setPath($path);
+            $this->path = $path;
         }
 
         if (!is_null($domain))
         {
-            $this->setDomain($domain);
+            $this->domain = $domain;
         }
 
-        if (!is_null($secure))
-        {
-            $this->setSecure($secure);
-        }
-    }
-
-    public function setName($name)
-    {
-        $this->name = $name;
-    }
-
-    public function setSecret($secret)
-    {
-        $this->secret = $secret;
-    }
-
-    public function setDuration($duration)
-    {
-        $this->duration = (int) $duration;
-    }
-
-    public function setPath($path)
-    {
-        $this->path = $path;
-    }
-
-    public function setDomain($domain)
-    {
-        $this->domain = $domain;
-    }
-
-    public function setSecure($secure)
-    {
         $this->secure = (bool)$secure;
+        $this->httponly = (bool)$httponly;
     }
 
     public function setAutoRenew($renew)
@@ -209,7 +183,7 @@ class CacheCookie
             // Check data expiration and integrity
             if (!empty($digest) && !empty($data) && !empty($expire) 
                 && ($expire > round((time() - $this->start_timestamp) / 60))
-                && ($digest === hash_hmac($this->digest_method, $expire . '|' . $data, $this->secret)))
+                && hash_equals($digest, hash_hmac($this->digest_method, $expire . '|' . $data, $this->secret)))
             {
                 if (substr($data, 0, 1) == '{')
                 {
