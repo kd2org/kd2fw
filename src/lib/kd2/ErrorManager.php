@@ -341,7 +341,7 @@ class ErrorManager
 	 */
 	static protected function getFileLocation($file)
 	{
-		if (isset($_SERVER['DOCUMENT_ROOT']) && ($pos = strpos($file, $_SERVER['DOCUMENT_ROOT'])) === 0)
+		if (!empty($_SERVER['DOCUMENT_ROOT']) && ($pos = strpos($file, $_SERVER['DOCUMENT_ROOT'])) === 0)
 		{
 			return substr($file, strlen($_SERVER['DOCUMENT_ROOT']));
 		}
