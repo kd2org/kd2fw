@@ -30,10 +30,10 @@ namespace KD2;
 
 /*
 	Generic image resize library
-	Copyleft (C) 2005-16 BohwaZ <http://bohwaz.net/>
+	Copyleft (C) 2005-17 BohwaZ <http://bohwaz.net/>
 */
 
-class Image2
+class Image
 {
 	static private $init = false;
 
@@ -50,7 +50,7 @@ class Image2
 	protected $pointer = null;
 	protected $library = null;
 
-	protected $use_gd_fast_resize_trick = true;
+	public $use_gd_fast_resize_trick = true;
 
 	/**
 	 * JPEG quality, from 1 to 100
@@ -73,9 +73,6 @@ class Image2
 	 */
 	public $compression = 9;
 
-	/**
-	 * Image2 constructor
-	 */
 	public function __construct($path = null, $library = null)
 	{
 		$this->libraries = [
@@ -207,7 +204,7 @@ class Image2
 	{
 		// Trick to allow empty source in constructor
 		self::$init = true;
-		$obj = new Image2(null, $library);
+		$obj = new Image(null, $library);
 
 		$info = getimagesizefromstring($blob);
 
@@ -286,7 +283,7 @@ class Image2
 	 * Crop the current image to this dimensions
 	 * @param  integer $new_width  Width of the desired image
 	 * @param  integer $new_height Height of the desired image
-	 * @return Image2
+	 * @return Image
 	 */
 	public function crop($new_width = null, $new_height = null)
 	{
@@ -465,7 +462,7 @@ class Image2
 	static public function getLibrariesForFormat($format)
 	{
 		self::$init = true;
-		$im = new Image2;
+		$im = new Image;
 		self::$init = false;
 
 		$libraries = [];
