@@ -1,4 +1,30 @@
 <?php
+/*
+  Part of the KD2 framework collection of tools: http://dev.kd2.org/
+  
+  Copyright (c) 2001-2016 BohwaZ <http://bohwaz.net/>
+  All rights reserved.
+  
+  Redistribution and use in source and binary forms, with or without
+  modification, are permitted provided that the following conditions are met:
+  1. Redistributions of source code must retain the above copyright notice,
+  this list of conditions and the following disclaimer.
+  2. Redistributions in binary form must reproduce the above copyright notice,
+  this list of conditions and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
+  
+  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+  ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+  LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+  CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+  SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+  INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+  CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
+  THE POSSIBILITY OF SUCH DAMAGE.
+*/
 
 namespace KD2;
 
@@ -70,7 +96,7 @@ class DB_SQLite3 extends DB
 
 	public function escapeString($str)
 	{
-		// escapeString n'est pas binary safe: https://bugs.php.net/bug.php?id=62361
+		// escapeString is not binary safe: https://bugs.php.net/bug.php?id=62361
 		$str = str_replace("\0", "\\0", $str);
 
 		return SQLite3::escapeString($str);
@@ -154,16 +180,13 @@ class DB_SQLite3 extends DB
 	}
 
 	/**
-	 * Performe une requête en utilisant les arguments contenus dans le tableau $args
-	 * @param  string       $query Requête SQL
-	 * @param  array|object $args  Arguments à utiliser comme bindings pour la requête
-	 * @return \SQLite3Statement|boolean Retourne un booléen si c'est une requête 
-	 * qui exécute une opération d'écriture, ou un statement si c'est une requête de lecture.
+	 * Executes a prepared query using $args array
+	 * @return \SQLite3Statement|boolean Returns a boolean if the query is writing
+	 * to the database, or a statement if it's a read-only query.
 	 *
-	 * Note: le fait que cette fonction retourne un booléen est un comportement
-	 * volontaire pour éviter un bug dans le module SQLite3 de PHP, qui provoque
-	 * un risque de faire des opérations en double en cas d'exécution de 
-	 * ->fetchResult() sur un statement d'écriture.
+	 * The fact that this method returns a boolean is voluntary, to avoid a bug
+	 * in SQLite3/PHP where you can re-run a query by calling fetchResult
+	 * on a statement. This could cause double writing.
 	 */
 	public function preparedQuery($query, $args = [])
 	{
@@ -291,13 +314,9 @@ class DB_SQLite3 extends DB
 	}
 
 	/**
-	 * Exécute une requête SQL (alias pour query)
-	 * @param  string $query Requête SQL
-	 * @return boolean
-	 *
-	 * N'accepte PAS d'arguments supplémentaires
+	 * Executes multiple queries in a transaction
 	 */
-	public function exec($query)
+	public function execMultiple($query)
 	{
 		$this->begin();
 
@@ -313,12 +332,18 @@ class DB_SQLite3 extends DB
 		return $this->commit();
 	}
 
+	public function exec($query)
+	{
+		$this->connect();
+		return $this->db->exec($query);
+	}
+
 	/**
-	 * Exécute une requête et retourne la première ligne
-	 * @param  string $query Requête SQL
+	 * Runs a query and returns the first row from the result
+	 * @param  string $query
 	 * @return object
 	 *
-	 * Accepte un ou plusieurs arguments supplémentaires utilisés comme bindings.
+	 * Accepts one or more arguments for the prepared query
 	 */
 	public function first($query)
 	{
@@ -331,11 +356,11 @@ class DB_SQLite3 extends DB
 	}
 
 	/**
-	 * Exécute une requête et retourne la première colonne de la première ligne
-	 * @param  string $query Requête SQL
+	 * Runs a query and returns the first column of the first row of the result
+	 * @param  string $query
 	 * @return object
 	 *
-	 * Accepte un ou plusieurs arguments supplémentaires utilisés comme bindings.
+	 * Accepts one or more arguments for the prepared query
 	 */
 	public function firstColumn($query)
 	{
@@ -346,11 +371,6 @@ class DB_SQLite3 extends DB
 		return count($row) > 0 ? $row[0] : false;
 	}
 
-	/**
-	 * Compte le nombre de lignes dans un résultat
-	 * @param  \SQLite3Result $result Résultat SQLite3
-	 * @return integer
-	 */
 	public function countRows(\SQLite3Result $result)
 	{
 		$i = 0;
@@ -370,18 +390,25 @@ class DB_SQLite3 extends DB
 		return $this->db->lastInsertRowId();
 	}
 
-	/**
-	 * Préparer un statement SQLite3
-	 * @param  string $query Requête SQL
-	 * @return \SQLite3Statement
-	 */
 	public function prepare($query, $driver_options = [])
 	{
 		return $this->db->prepare($query);
 	}
 
-	public function openBlob($table, $column, $rowid)
+	public function openBlob($table, $column, $rowid, $dbname = 'main', $flags = \SQLITE3_OPEN_READONLY)
 	{
-		return $this->db->openBlob($table, $column, $rowid);
+		if (\PHP_VERSION_ID >= 70200)
+		{
+			return $this->db->openBlob($table, $column, $rowid, $dbname, $flags);
+		}
+		else
+		{
+			if ($flags != \SQLITE3_OPEN_READONLY)
+			{
+				throw new \Exception('Cannot open blob with read/write. Only available from PHP 7.2.0');
+			}
+
+			return $this->db->openBlob($table, $column, $rowid, $dbname);
+		}
 	}
 }
