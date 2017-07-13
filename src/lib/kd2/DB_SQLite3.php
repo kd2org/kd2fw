@@ -119,6 +119,11 @@ class DB_SQLite3 extends DB
 		return $this->db->exec('BEGIN;');
 	}
 
+	public function inTransaction()
+	{
+		return $this->transaction;
+	}
+
 	public function commit()
 	{
 		if (!$this->transaction)
