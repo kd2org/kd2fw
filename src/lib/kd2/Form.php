@@ -157,14 +157,82 @@ class Form
 	}
 
 	/**
+	 * Parses rules for form validation
+	 * @param  string $str Rule description
+	 * @return array List of rules with parameters
+	 */
+	static protected function parseRules($str)
+	{
+		$str = preg_split('/(?<!\\\\)\|/', $str);
+		$rules = [];
+
+		foreach ($str as $rule)
+		{
+			$name = strtok($rule, ':');
+			$rules[$name] = [];
+			
+			while (($param = strtok(',')) !== false)
+			{
+				$rules[$name][] = $param;
+			}
+		}
+
+		return $rules;
+	}
+
+	/**
 	 * Returns the value for a form field, or NULL
 	 * 
 	 * @param  string $key Field name
 	 * @return mixed
 	 */
-	static public function get($key)
+	static public function get($field)
 	{
-		return isset($_POST[$key]) ? $_POST[$key] : null;
+		if (is_array($field))
+		{
+			$out = new \stdClass;
+
+			foreach ($field as $key => $value)
+			{
+				$name = is_int($key) ? $value : $key;
+				$out->$name = self::get($name);
+
+				if (!is_int($key))
+				{
+					$rules = self::parseRules($value);
+
+					foreach ($rules as $rule => $params)
+					{
+						$out->$name = self::filterField($out->$name, $rule, $params);
+					}
+				}
+			}
+
+			return $out;
+		}
+
+		return isset($_POST[$field]) ? $_POST[$field] : null;
+	}
+
+	static public function filterField($value, $filter, array $params = [])
+	{
+		switch ($filter)
+		{
+			case 'date':
+				return new \DateTime($value);
+			case 'date_format':
+				return \DateTime::createFromFormat($params[0], $value);
+			case 'int':
+			case 'integer':
+				return (int) $value;
+			case 'bool':
+			case 'boolean':
+				return (bool) $value;
+			case 'string':
+				return trim($value);
+		}
+
+		return $value;
 	}
 
 	/**
@@ -291,6 +359,7 @@ class Form
 			case 'between':
 				return isset($params[0]) && isset($params[1]) && $value >= $params[0] && $value <= $params[1];
 			case 'boolean':
+			case 'bool':
 				return ($value == 0 || $value == 1);
 			case 'color':
 				return preg_match('/^#?[a-f0-9]{6}$/', $value);
@@ -317,6 +386,7 @@ class Form
 				$field = isset($params[0]) && isset($source[$params[0]]) ? $source[$params[0]] : null;
 				return $field && is_array($field) && in_array($value, $field);
 			case 'integer':
+			case 'int':
 				return is_int($value);
 			case 'ip':
 				return filter_var($value, FILTER_VALIDATE_IP) !== false;
@@ -415,19 +485,15 @@ class Form
 			$source = $_POST;
 		}
 
-		foreach ($all_rules as $key=>$rules)
+		foreach ($all_rules as $key => $rules)
 		{
-			$rules = explode('|', $rules);
+			$rules = self::parseRules($rules);
 
-			foreach ($rules as $rule)
+			foreach ($rules as $name => $params)
 			{
-				$params = preg_split('/(?<!\\\\):/', $rule);
-				$rule = $params[0];
-				$params = array_slice($params, 1);
-
-				if (!self::validateRule($key, $rule, $params, $source))
+				if (!self::validateRule($key, $name, $params, $source))
 				{
-					$errors[] = ['name' => $key, 'rule' => $rule, 'params' => $params];
+					$errors[] = ['name' => $key, 'rule' => $name, 'params' => $params];
 				}
 			}
 		}
