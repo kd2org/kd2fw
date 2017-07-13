@@ -35,29 +35,20 @@ namespace KD2;
 
 class Image2
 {
-	const INSTALLED = 0b0001;
-	const ENABLED = 0b0010;
+	static private $init = false;
 
-	protected $libraries = [
-	 	// Disable ExactImage: buggy, inability to save images
-	 	// see https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=833703
-		'exact'	=>	false,
-		// Disable EPEG: only supports resize, not cropping or rotating
-		'epeg'	=>	false,
-		'imagick'=> self::ENABLED,
-		'imlib' => 	self::ENABLED,
-		'gd'	=>	self::ENABLED,
-	];
+	protected $libraries = [];
 
-	protected $source = null;
+	protected $path = null;
+	protected $blob = null;
+
 	protected $width = null;
 	protected $height = null;
-	protected $format = null;
 	protected $type = null;
-	protected $info = null;
+	protected $format = null;
 
 	protected $pointer = null;
-	protected $pointer_lib = null;
+	protected $library = null;
 
 	protected $use_gd_fast_resize_trick = true;
 
@@ -85,219 +76,201 @@ class Image2
 	/**
 	 * Image2 constructor
 	 */
-	public function __construct()
+	public function __construct($path = null, $library = null)
 	{
-		$this->libraries['exact'] |= ($this->checkOrLoadLib('ExactImage') && function_exists('newImage')) ? self::INSTALLED : 0;
-		$this->libraries['epeg']  |= ($this->checkOrLoadLib('epeg') && function_exists('epeg_open')) ? self::INSTALLED : 0;
-		$this->libraries['imlib'] |= ($this->checkOrLoadLib('imlib') && function_exists('imlib_load_image')) ? self::INSTALLED : 0;
-		$this->libraries['imagick'] |= ($this->checkOrLoadLib('imagick') && class_exists('Imagick')) ? self::INSTALLED : 0;
+		$this->libraries = [
+			'epeg'    => function_exists('\epeg_open'),
+			'imlib'   => function_exists('\imlib_load_image'),
+			'imagick' => class_exists('\Imagick'),
+			'gd'      => function_exists('\imagecreatefromjpeg'),
+		];
 
-		// Don't try to load GD is ExactImage is loaded, as they have function names that collide!
-		$this->libraries['gd'] = ($this->checkOrLoadLib('gd', extension_loaded('ExactImage') ? false : true) && function_exists('imagecreatefromjpeg')) ? self::INSTALLED : 0;
-	}
-
-	/**
-	 * Checks if a library is loaded, and if possible, loads it into memory
-	 * @param  string  $name   Library module name
-	 * @param  boolean $use_dl If set to FALSE, won't try to load the module with dl()
-	 * @return boolean
-	 */
-	protected function checkOrLoadLib($name, $use_dl = true)
-	{
-		if (!extension_loaded($name))
+		if (!self::$init)
 		{
-			if (!$use_dl || !ini_get('enable_dl') || ini_get('safe_mode') || !function_exists('dl'))
+			if (empty($path))
 			{
-				return false;
+				throw new \InvalidArgumentException('Empty source file argument passed');
 			}
 
-			$prefix = (PHP_SHLIB_SUFFIX === 'dll') ? 'php_' : '';
-
-			echo $name;
-
-			// Try to dynamically load extension
-			if (!@dl($prefix . $name . '.' . PHP_SHLIB_SUFFIX))
+			if (!is_readable($path))
 			{
-				return false;
+				throw new \InvalidArgumentException(sprintf('Can\'t read source file: %s', $path));
 			}
 		}
 
-		return true;
-	}
-
-	/**
-	 * Returns the list of enabled libraries and the list of image formats they support
-	 * @return array
-	 */
-	public function queryLibraries()
-	{
-		$out = [];
-
-		foreach ($this->libraries as $lib=>$flags)
+		if ($library || !self::$init)
 		{
-			$out[$lib] = ($flags & self::ENABLED && $flags & self::INSTALLED) ? $this->{$lib . '_formats'}() : false;
+			if (!isset($this->libraries[$library]))
+			{
+				throw new \InvalidArgumentException(sprintf('Library \'%s\' is not supported.', $library));
+			}
+
+			if (!$this->libraries[$library])
+			{
+				throw new \RuntimeException(sprintf('Library \'%s\' is not installed and can not be used.', $library));
+			}
 		}
 
-		return $out;
-	}
-
-	/**
-	 * Enable or disable a library in automatic selection
-	 * @param string $name    Library name: epeg, imagick, etc.
-	 * @param bool $enabled   Set to TRUE to enable the library, FALSE and it will never be used to open images
-	 */
-	public function setLibraryEnabled($name, $enabled)
-	{
-		$this->libraries[$name] = (($this->libraries[$name] & self::INSTALLED) ? self::INSTALLED : 0) | ($enabled ? self::ENABLED : 0);
-	}
-
-	/**
-	 * Set the library used to open/save images
-	 * @param string|null $library Name of the library to use, if NULL will use the first library that can handle the supplied file format
-	 */
-	protected function setLibrary($library = null)
-	{
-		if ($this->pointer !== null)
+		if (!self::$init)
 		{
-			throw new \RuntimeException('Cannot change the library while a pointer is open.');
+			$this->path = $path;
+
+			$info = getimagesize($path);
+
+			if (!$info && function_exists('mime_content_type'))
+			{
+				$info = ['mime' => mime_content_type($path)];
+			}
+
+			if (!$info)
+			{
+				throw new \RuntimeException(sprintf('Invalid image format: %s', $path));
+			}
+
+			$this->init($info, $library);
+		}
+	}
+
+	protected function init(array $info, $library = null)
+	{
+		if (isset($info[0]))
+		{
+			$this->width = $info[0];
+			$this->height = $info[1];
+		}
+
+		$this->type = $info['mime'];
+		$this->format = $this->getFormatFromType($this->type);
+
+		if (!$this->format)
+		{
+			throw new \RuntimeException('Not an image format: ' . $this->type);
 		}
 
 		if ($library)
 		{
-			if (!array_key_exists($library, $this->libraries))
-			{
-				throw new \RuntimeException('Library \'' . $library . '\' is not supported.');
-			}
+			$supported_formats = call_user_func([$this, $library . '_formats']);
 
-			if (!($this->libraries[$library] & self::INSTALLED))
+			if (!in_array($this->format, $supported_formats))
 			{
-				throw new \RuntimeException('Library \'' . $library . '\' is not installed and can not be used.');
+				throw new \RuntimeException(sprintf('Library \'%s\' doesn\'t support files of type \'%s\'.', $library, $this->type));
 			}
-
-			$this->pointer_lib = $library;
 		}
 		else
 		{
-			$format = $this->getFormatFromType($this->type);
-
-			foreach ($this->libraries as $lib=>$flags)
+			foreach ($this->libraries as $name => $enabled)
 			{
-				if (($flags & self::ENABLED) && ($flags & self::INSTALLED) && in_array($format, $this->{$lib . '_formats'}()))
+				if (!$enabled)
 				{
-					$this->pointer_lib = $lib;
+					continue;
+				}
+
+				$supported_formats = call_user_func([$this, $name . '_formats']);
+
+				if (in_array($this->format, $supported_formats))
+				{
+					$library = $name;
 					break;
 				}
 			}
+
+			if (!$library)
+			{
+				throw new \RuntimeException('No suitable image library found for type: ' . $this->type);
+			}
 		}
 
-		if (!$this->pointer_lib)
+		$this->library = $library;
+
+		if (!$this->width && !$this->height)
 		{
-			throw new \RuntimeException('No suitable image library found for type: ' . $this->type);
+			$this->open();
 		}
+	}
+
+	public function __get($key)
+	{
+		if (!property_exists($this, $key))
+		{
+			throw new \RuntimeException('Unknown property: ' . $key);
+		}
+
+		return $this->$key;
+	}
+
+	public function __set($key, $value)
+	{
+		$this->key = $value;
+	}
+
+	static public function createFromBlob($blob, $library = null)
+	{
+		// Trick to allow empty source in constructor
+		self::$init = true;
+		$obj = new Image2(null, $library);
+
+		$info = getimagesizefromstring($blob);
+
+		// Find MIME type
+		if (!$info && function_exists('finfo_open'))
+		{
+			$f = finfo_open(FILEINFO_MIME);
+			$info = ['mime' => strstr(finfo_buffer($f, $data), ';', true)];
+			finfo_close($f);
+		}
+
+		if (!$info)
+		{
+			throw new \RuntimeException('Invalid image format, couldn\'t be read: from string');
+		}
+
+		$obj->blob = $blob;
+		$obj->init($info, $library);
+
+		self::$init = false;
+
+		return $obj;
 	}
 
 	/**
 	 * Open an image file
-	 * @param string $source Source image file path
-	 * @param string $library Use of a specific library (imlib, exact, imagick or gd)
-	 * @throws InvalidArgumentException If $source file is invalid or can not be read
 	 */
-	public function open($source, &$library = null)
-	{
-		if (empty($source))
-		{
-			throw new \InvalidArgumentException('Empty source file argument passed');
-		}
-
-		if (!is_readable($source))
-		{
-			throw new \InvalidArgumentException('Can\'t read source file: ' . $source);
-		}
-
-		$this->close();
-		$this->source = $source;
-
-		// Find MIME type
-		if (function_exists('mime_content_type'))
-		{
-			 $this->type = mime_content_type($source);
-		}
-
-		$this->setLibrary($library);
-
-		$this->{$this->pointer_lib . '_open'}();
-
-		if (!$this->pointer)
-		{
-			throw new \RuntimeException('Invalid image format, couldn\'t be read: ' . $source);
-		}
-
-		$this->{$this->pointer_lib . '_size'}();
-
-		$library = $this->pointer_lib;
-
-		return $this;
-	}
-
-	/**
-	 * Load an image from a string
-	 * @param string $data Source image data
-	 * @param string $library Use of a specific library (imlib, exact, imagick or gd)
-	 * @throws InvalidArgumentException If $source data is invalid
-	 */
-	public function readBlob($data, $library = null)
-	{
-		if (empty($data))
-		{
-			throw new \InvalidArgumentException('Empty source data argument passed');
-		}
-
-		$this->close();
-		$this->source = true;
-
-		// Find MIME type
-		if (function_exists('finfo_open'))
-		{
-			$f = finfo_open(FILEINFO_MIME);
-			$this->type = finfo_buffer($f, $data);
-		}
-
-		$this->setLibrary($library);
-
-		$this->{$this->pointer_lib . '_blob'}($data);
-
-		if (!$this->pointer)
-		{
-			throw new \RuntimeException('Invalid image format, couldn\'t be read.');
-		}
-
-		$this->getInfo($data);
-		$this->{$this->pointer_lib . '_size'}();
-
-		return $this;
-	}
-
-	public function close()
+	public function open()
 	{
 		if ($this->pointer !== null)
 		{
-			$this->{$this->pointer_lib . '_close'}();
+			return true;
 		}
 
-		$this->pointer = null;
-		$this->pointer_lib = null;
+		if ($this->path)
+		{
+			call_user_func([$this, $this->library . '_open']);
+		}
+		else
+		{
+			call_user_func([$this, $this->library . '_blob']);
+			$this->blob = null;
+		}
 
-		$this->source = null;
-		$this->type = null;
-		$this->format = null;
-		$this->width = null;
-		$this->height = null;
-		$this->info = null;
+		if (!$this->pointer)
+		{
+			throw new \RuntimeException('Invalid image format, couldn\'t be read: ' . $this->path);
+		}
+
+		call_user_func([$this, $this->library . '_size']);
+
+		return $this;
 	}
 
 	public function __destruct()
 	{
-		$this->close();
+		$this->blob = null;
+		$this->path = null;
+
+		if ($this->pointer)
+		{
+			call_user_func([$this, $this->library . '_close']);
+		}
 	}
 
 	/**
@@ -310,181 +283,6 @@ class Image2
 	}
 
 	/**
-	 * Returns image size and type from binary blob
-	 * (only works with JPEG, PNG and GIF)
-	 * @param  string $data Binary data from file (24 bytes minimum for PNG, 10 bytes for GIF and about 250 KB for JPEG)
-	 * @return mixed		Array(Width, Height, Mime-Type) or FALSE if unknown file type and size
-	 */
-	public function getSizeFromBlob($data)
-	{
-		$types = ['JPEG', 'PNG', 'GIF'];
-
-		// Try every format until it works
-		foreach ($types as $type)
-		{
-			$func = 'getSizeFrom' . $type . 'Blob';
-			$size = $this->$func($data);
-
-			if ($size)
-			{
-				return $size + ['image/' . strtolower($type)];
-			}
-		}
-
-		return false;
-	}
-
-	/**
-	 * In case we need to read directly from the file
-	 * @return string Binary blob
-	 */
-	public function getFileSizeHeader($source, $format = null)
-	{
-		if ($format == 'jpeg' || !$format)
-		{
-			// How many bytes should we read from the file?
-			// In JPEG, the canvas size is not always at the beginning so we need to leave some slack
-			// if this data is not in the first 256 KB it probably means something wrong
-			// but this could fail il case there is a lot of other data before the canvas size
-			$bytes = 1024*256;
-		}
-		else if ($format == 'png')
-		{
-			// PNG requires 24 bytes
-			$bytes = 24;
-		}
-		else if ($format == 'gif')
-		{
-			$bytes = 12;
-		}
-
-		return file_get_contents($source, false, null, 0, $bytes);
-	}
-
-	/**
-	 * Returns JPEG image size directly from a binary string
-	 * Source: http://php.net/manual/en/function.getimagesize.php#94178
-	 * @param  string $data JPEG Binary string
-	 * @return mixed        array(Width, Height) or FALSE if not a JPEG or no size information found
-	 */
-	public function getSizeFromJPEGBlob($data)
-	{
-		$soi = unpack('nmagic/nmarker', $data);
-
-		// Not a JPEG
-		if ($soi['magic'] != 0xFFD8)
-			return false;
-		
-		$marker = $soi['marker'];
-		$data   = substr($data, 4);
-		$done   = false;
-
-		while (true)
-		{
-			if (strlen($data) === 0)
-				return false;
-
-			switch($marker)
-			{
-				case 0xFFC0:
-					$info = unpack('nlength/Cprecision/nY/nX', $data);
-					return [$info['X'], $info['Y']];
-					break;
-
-				default:
-					$info   = unpack('nlength', $data);
-					$data   = substr($data, $info['length']);
-					$info   = unpack('nmarker', $data);
-					$marker = $info['marker'];
-					$data   = substr($data, 2);
-					break;
-			}
-		}
-
-		return false;
-	}
-
-	/**
-	 * Extracts PNG image size directly from binary blob (24 bytes minimum)
-	 * Source: https://www.w3.org/TR/PNG/
-	 * and https://mtekk.us/archives/guides/check-image-dimensions-without-getimagesize/
-	 * @param  string $data Binary PNG blob
-	 * @return mixed        Array [Width, Height] or FALSE if not a PNG file
-	 */
-	public function getSizeFromPNGBlob($data)
-	{
-		if (strlen($data) < 24)
-		{
-			return false;
-		}
-
-		// Check if the file is really a PNG
-		if (substr($data, 0, 8) !== "\x89PNG\x0d\x0a\x1a\x0a")
-		{
-			return false;
-		}
-
-		// Check if first block is IHDR
-		if (substr($data, 12, 4) !== 'IHDR')
-		{
-			return false;
-		}
-
-		$xy = unpack('NX/NY', substr($data, 0, 8));
-		return array_values($xy);
-	}
-
-	/**
-	 * Extracts GIF image size directly from binary blob
-	 * Source: http://giflib.sourceforge.net/whatsinagif/bits_and_bytes.html
-	 * @param  string $data Binary GIF blob (10 bytes minimum)
-	 * @return mixed        Arry [Width, Height] or FALSE if not a GIF file
-	 */
-	public function getSizeFromGIFBlob($data)
-	{
-		if (strlen($data) < 10)
-		{
-			return false;
-		}
-
-		$header = substr($data, 0, 6);
-
-		if ($header !== 'GIF87a' && $header !== 'GIF89a')
-		{
-			return false;
-		}
-
-		$xy = unpack('vX/vY', substr($data, 6, 4));
-		return array_values($xy);
-	}
-
-	public function getInfo($data = null)
-	{
-		if ($this->info !== null)
-			return $this->info;
-
-		if (!function_exists('getimagesize') || !function_exists('getimagesizefromstring'))
-		{
-			throw new \RuntimeException('Can not get image info: GD extension not installed but required to call getimagesize()');
-		}
-		
-		$extra = null;
-		
-		if (is_null($data))
-		{
-			$this->info = getimagesize($this->source, $extra);
-		}
-		else
-		{
-			$this->info = getimagesizefromstring($data, $extra);
-		}
-
-		$this->info['info'] = $extra;
-
-		return $this->info;
-	}
-
-	/**
 	 * Crop the current image to this dimensions
 	 * @param  integer $new_width  Width of the desired image
 	 * @param  integer $new_height Height of the desired image
@@ -492,6 +290,8 @@ class Image2
 	 */
 	public function crop($new_width = null, $new_height = null)
 	{
+		$this->open();
+
 		if (!$new_width)
 		{
 			$new_width = $new_height = min($this->width, $this->height);
@@ -502,21 +302,23 @@ class Image2
 			$new_height = $new_width;
 		}
 
-		$method = $this->pointer_lib . '_crop';
+		$method = $this->library . '_crop';
 
 		if (!method_exists($this, $method))
 		{
-			throw new \RuntimeException('Crop is not supported by the current library: ' . $this->pointer_lib);
+			throw new \RuntimeException('Crop is not supported by the current library: ' . $this->library);
 		}
 
 		$this->$method((int) $new_width, (int) $new_height);
-		$this->{$this->pointer_lib . '_size'}();
+		call_user_func([$this, $this->library . '_size']);
 
 		return $this;
 	}
 
 	public function resize($new_width, $new_height = null, $ignore_aspect_ratio = false)
 	{
+		$this->open();
+
 		if (!$new_height)
 		{
 			$new_height = $new_width;
@@ -525,34 +327,38 @@ class Image2
 		$new_height = (int) $new_height;
 		$new_width = (int) $new_width;
 
-		$this->{$this->pointer_lib . '_resize'}($new_width, $new_height, $ignore_aspect_ratio);
-		$this->{$this->pointer_lib . '_size'}();
+		call_user_func([$this, $this->library . '_resize'], $new_width, $new_height, $ignore_aspect_ratio);
+		call_user_func([$this, $this->library . '_size']);
 
 		return $this;
 	}
 
 	public function rotate($angle)
 	{
+		$this->open();
+
 		if (!$angle)
 		{
 			return $this;
 		}
 
-		$method = $this->pointer_lib . '_rotate';
+		$method = $this->library . '_rotate';
 
 		if (!method_exists($this, $method))
 		{
-			throw new \RuntimeException('Rotate is not supported by the current library: ' . $this->pointer_lib);
+			throw new \RuntimeException('Rotate is not supported by the current library: ' . $this->library);
 		}
 
-		$this->$method($angle);
-		$this->{$this->pointer_lib . '_size'}();
+		call_user_func([$this, $method], $angle);
+		call_user_func([$this, $this->library . '_size']);
 
 		return $this;
 	}
 
 	public function cropResize($new_width, $new_height = null)
 	{
+		$this->open();
+
 		if (!$new_height)
 		{
 			$new_height = $new_width;
@@ -577,27 +383,36 @@ class Image2
 
 	public function save($destination, $format = null)
 	{
+		$this->open();
+
 		if (is_null($format))
 		{
-			if ($this->pointer_lib == 'exact')
-			{
-				throw new \InvalidArgumentException('ExactImage requires to specify an output format.');
-			}
-
 			$format = $this->format;
 		}
 
-		if (!in_array($format, $this->{$this->pointer_lib . '_formats'}()))
+		if (!in_array($format, call_user_func([$this, $this->library . '_formats'])))
 		{
-			throw new \InvalidArgumentException('The specified format ' . $format . ' can not be used by ' . $this->pointer_lib);
+			throw new \InvalidArgumentException('The specified format ' . $format . ' can not be used by ' . $this->library);
 		}
 
-		return $this->{$this->pointer_lib . '_save'}($destination, $format);
+		return call_user_func([$this, $this->library . '_save'], $destination, $format);
 	}
 
 	public function output($format = null, $return = false)
 	{
-		return $this->{$this->pointer_lib . '_output'}($format, $return);
+		$this->open();
+
+		if (is_null($format))
+		{
+			$format = $this->format;
+		}
+
+		if (!in_array($format, call_user_func([$this, $this->library . '_formats'])))
+		{
+			throw new \InvalidArgumentException('The specified format ' . $format . ' can not be used by ' . $this->library);
+		}
+
+		return call_user_func([$this, $this->library . '_output'], $format, $return);
 	}
 
 	protected function getCropGeometry($w, $h, $new_width, $new_height)
@@ -639,15 +454,42 @@ class Image2
 			case 'image/x-icon': return 'bmp';
 			default:
 				if (preg_match('!^image/([\w\d]+)$!', $type, $match))
+				{
 					return $match[1];
+				}
+
 				return false;
 		}
+	}
+
+	static public function getLibrariesForFormat($format)
+	{
+		self::$init = true;
+		$im = new Image2;
+		self::$init = false;
+
+		$libraries = [];
+
+		foreach ($im->libraries as $name => $enabled)
+		{
+			if (!$enabled)
+			{
+				continue;
+			}
+
+			if (in_array($format, call_user_func([$im, $name . '_formats'])))
+			{
+				$libraries[] = $name;
+			}
+		}
+
+		return $libraries;
 	}
 
 	// EPEG methods //////////////////////////////////////////////////////////
 	protected function epeg_open()
 	{
-		$this->pointer = new \Epeg($this->source);
+		$this->pointer = new \Epeg($this->path);
 		$this->format = 'jpeg';
 	}
 
@@ -659,14 +501,17 @@ class Image2
 	protected function epeg_blob($data)
 	{
 		$this->pointer = \Epeg::openBuffer($data);
-		$this->source = true;
 	}
 
 	protected function epeg_size()
 	{
+		// Do nothing as it only returns the original size of the JPEG
+		// not the resized size
+		/*
 		$size = $this->pointer->getSize();
 		$this->width = $size[0];
 		$this->height = $size[1];
+		*/
 	}
 
 	protected function epeg_close()
@@ -693,76 +538,25 @@ class Image2
 		return true;
 	}
 
-	protected function epeg_resize($new_width, $new_height, $ignore_aspect_ratio = false)
+	protected function epeg_crop($new_width, $new_height)
 	{
-		$this->pointer->setDecodeSize($new_width, $new_height, !$ignore_aspect_ratio);
+		if (!method_exists($this->pointer, 'setDecodeBounds'))
+		{
+			throw new \RuntimeException('Crop is not supported by EPEG');
+		}
+
+		$x = floor(($this->width - $new_width) / 2);
+		$y = floor(($this->height - $new_height) / 2);
+
+		$this->pointer->setDecodeBounds($x, $y, $new_width, $new_height);
 	}
 
-	// ExactImage methods /////////////////////////////////////////////////////
-	protected function exact_open()
-	{
-		$this->pointer = newImage();
-		decodeImageFile($this->pointer, $this->source);
-	}
-
-	protected function exact_formats()
-	{
-		// From https://exactcode.com/opensource/exactimage/
-		return ['gif', 'jpeg', 'png', 'jp2', 'bmp', 'exr', 'raw', 'pbm', 
-			'tiff', 'xpm', 'svg', 'pcx', 'tga'];
-	}
-
-	protected function exact_blob($data)
-	{
-		$this->pointer = newImage();
-		decodeImage($this->pointer, $data);
-	}
-
-	protected function exact_size()
-	{
-		$this->width = imageWidth($this->pointer);
-		$this->height = imageHeight($this->pointer);
-	}
-
-	protected function exact_close()
-	{
-		return deleteImage($this->pointer);
-	}
-
-	protected function exact_save($destination, $format)
-	{
-		return file_put_contents($destination, $this->exact_output($format, true));
-	}
-
-	protected function exact_output($format, $return)
-	{
-		$im = encodeImage($this->pointer, $format, $this->jpeg_quality, $this->compression);
-
-		if ($return)
-			return $im;
-
-		echo $im;
-		return true;
-	}
-
-	protected function exact_rotate($angle)
-	{
-		imageRotate($this->pointer, $angle);
-	}
-
-	protected function exact_crop($new_width, $new_height)
-	{
-		list($x, $y, $w, $h) = $this->getCropGeometry($this->width, $this->height, $new_width, $new_height);
-
-		imageCrop($this->pointer, $x, $y, $new_width, $new_height);
-	}
-
-	protected function exact_resize($new_width, $new_height, $ignore_aspect_ratio = false)
+	protected function epeg_resize($new_width, $new_height, $ignore_aspect_ratio)
 	{
 		if (!$ignore_aspect_ratio)
 		{
-			list($w, $h) = $this->getSize();
-			$in_ratio = $w / $h;
+			$in_ratio = $this->width / $this->height;
+
 			$out_ratio = $new_width / $new_height;
 
 			if ($in_ratio >= $out_ratio)
@@ -775,13 +569,16 @@ class Image2
 			}
 		}
 
-		imageResize($this->pointer, $new_width, $new_height);
+		$this->width = $new_width;
+		$this->height = $new_height;
+
+		$this->pointer->setDecodeSize($new_width, $new_height, true);
 	}
 
 	// ImLib methods //////////////////////////////////////////////////////////
 	protected function imlib_open()
 	{
-		$this->pointer = imlib_load_image($this->source);
+		$this->pointer = imlib_load_image($this->path);
 		$this->format = imlib_image_format($this->pointer);
 	}
 
@@ -798,9 +595,9 @@ class Image2
 	{
 		// Imlib doesn't have a function to create an image from a string, so
 		// to avoid creating a temporary file we use data: scheme
-		$this->source = 'data:text/plain,' . urlencode($data);
+		$this->path = 'data:text/plain,' . urlencode($data);
 		$this->imlib_open();
-		$this->source = true;
+		$this->path = true;
 	}
 
 	protected function imlib_size()
@@ -912,11 +709,11 @@ class Image2
 	protected function imagick_open()
 	{
 		try {
-			$this->pointer = new \Imagick($this->source);
+			$this->pointer = new \Imagick($this->path);
 		}
 		catch (\ImagickException $e)
 		{
-			throw new \RuntimeException('Unable to open file: ' . $this->source, false, $e);
+			throw new \RuntimeException('Unable to open file: ' . $this->path, false, $e);
 		}
 
 		$this->format = strtolower($this->pointer->getImageFormat());
@@ -1067,16 +864,7 @@ class Image2
 	// GD methods /////////////////////////////////////////////////////////////
 	protected function gd_open()
 	{
-		$info = $this->getInfo();
-		$this->format = substr(image_type_to_extension($info[2]), 1);
-
-		if (!$this->format || !in_array($this->format, $this->gd_formats()))
-		{
-			throw new \RuntimeException('Image type is not supported by GD.');
-		}
-
-		$func = 'imagecreatefrom' . $this->format;
-		$this->pointer = $func($this->source);
+		$this->pointer = call_user_func('imagecreatefrom' . $this->format, $this->path);
 	}
 
 	protected function gd_formats()
