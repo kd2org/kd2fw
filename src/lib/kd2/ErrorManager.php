@@ -341,7 +341,12 @@ class ErrorManager
 	 */
 	static protected function getFileLocation($file)
 	{
-		return str_replace($_SERVER['DOCUMENT_ROOT'], '', $file);
+		if (isset($_SERVER['DOCUMENT_ROOT']) && ($pos = strpos($file, $_SERVER['DOCUMENT_ROOT'])) === 0)
+		{
+			return substr($file, strlen($_SERVER['DOCUMENT_ROOT']));
+		}
+
+		return $file;
 	}
 
 	/**
@@ -368,8 +373,11 @@ class ErrorManager
 		foreach ($e->getTrace() as $i=>$t)
 		{
 			// Ignore the error stack from ErrorManager
-			if (isset($t['class']) && $t['class'] === __CLASS__ && ($t['function'] === 'shutdownHandler' || $t['function'] === 'errorHandler'))
+			if (isset($t['class']) && $t['class'] === __CLASS__ 
+				&& ($t['function'] === 'shutdownHandler' || $t['function'] === 'errorHandler'))
+			{
 				continue;
+			}
 
 			$nb_args = count($t['args']);
 
@@ -400,9 +408,13 @@ class ErrorManager
 				// Find arguments variables names via reflection
 				try {
 					if (isset($t['class']))
+					{
 						$r = new \ReflectionMethod($t['class'], $t['function']);
+					}
 					else
+					{
 						$r = new \ReflectionFunction($t['function']);
+					}
 					
 					$params = $r->getParameters();
 				}
@@ -425,7 +437,9 @@ class ErrorManager
 
 			// Display source code
 			if (isset($t['file']) && isset($t['line']))
+			{
 				echo self::htmlSource($t['file'], $t['line']);
+			}
 
 			echo '</article>';
 		}
@@ -439,7 +453,49 @@ class ErrorManager
 	 */
 	static public function htmlEnvironment()
 	{
+		$modules = [];
 
+		foreach (get_loaded_extensions() as $ext)
+		{
+			$modules[] = sprintf('%s (%s)', $ext, phpversion($ext));
+		}
+
+		$env = array_merge(self::$debug_env, [
+				'PHP version' => phpversion(),
+				'PHP modules' => implode(', ', $modules),
+			], $_SERVER);
+
+		$headers = function_exists('apache_request_headers') ? apache_request_headers() : [];
+
+		echo '<section><article>';
+
+		if ($headers)
+		{
+			echo '<h2>Request headers</h2>';
+			echo '<table>';
+			
+			foreach ($headers as $name => $value)
+			{
+				echo '<tr><th>' . htmlspecialchars($name) . '</th><td>' . htmlspecialchars($value) .'</td></tr>';
+			}
+
+			echo '</table>';
+		}
+
+		echo '<h2>Server config</h2>';
+		echo '<table>';
+
+		foreach ($env as $name => $value)
+		{
+			if (substr($name, 0, 5) == 'HTTP_' && $headers)
+			{
+				continue;
+			}
+
+			echo '<tr><th>' . htmlspecialchars($name) . '</th><td>' . htmlspecialchars($value) .'</td></tr>';
+		}
+
+		echo '</table></article></section>';
 	}
 
 	/**
@@ -499,21 +555,21 @@ class ErrorManager
 	public static function errorTypeName($type)
 	{
 		$types = [
-			E_ERROR => 'Fatal error',
-			E_USER_ERROR => 'User error',
+			E_ERROR             => 'Fatal error',
+			E_USER_ERROR        => 'User error',
 			E_RECOVERABLE_ERROR => 'Recoverable error',
-			E_CORE_ERROR => 'Core error',
-			E_COMPILE_ERROR => 'Compile error',
-			E_PARSE => 'Parse error',
-			E_WARNING => 'Warning',
-			E_CORE_WARNING => 'Core warning',
-			E_COMPILE_WARNING => 'Compile warning',
-			E_USER_WARNING => 'User warning',
-			E_NOTICE => 'Notice',
-			E_USER_NOTICE => 'User notice',
-			E_STRICT => 'Strict standards',
-			E_DEPRECATED => 'Deprecated',
-			E_USER_DEPRECATED => 'User deprecated',
+			E_CORE_ERROR        => 'Core error',
+			E_COMPILE_ERROR     => 'Compile error',
+			E_PARSE             => 'Parse error',
+			E_WARNING           => 'Warning',
+			E_CORE_WARNING      => 'Core warning',
+			E_COMPILE_WARNING   => 'Compile warning',
+			E_USER_WARNING      => 'User warning',
+			E_NOTICE            => 'Notice',
+			E_USER_NOTICE       => 'User notice',
+			E_STRICT            => 'Strict standards',
+			E_DEPRECATED        => 'Deprecated',
+			E_USER_DEPRECATED   => 'User deprecated',
 		];
 		
 		return array_key_exists($type, $types) ? $types[$type] : 'Unknown error';
@@ -556,10 +612,7 @@ class ErrorManager
 			<pre id="icn"> \__/<br /> (xx)<br />//||\\\\</pre>');
 		}
 
-		register_shutdown_function(function () {
-			// This is to make sure that our shutdown handler is actually called last
-			register_shutdown_function(['\KD2\ErrorManager', 'shutdownHandler']);
-		});
+		register_shutdown_function([self::class, 'shutdownHandler']);
 
 		set_exception_handler([__CLASS__, 'exceptionHandler']);
 
