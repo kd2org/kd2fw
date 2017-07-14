@@ -474,12 +474,22 @@ class DB
 
 	public function test($table, $where = '1')
 	{
-		return (bool) $this->firstColumn(sprintf('SELECT 1 FROM %s WHERE %s LIMIT 1;', $where));
+		$args = array_merge(
+			[sprintf('SELECT 1 FROM %s WHERE %s LIMIT 1;', $table, $where)],
+			array_slice(func_get_args(), 2)
+		);
+
+		return (bool) call_user_func_array([$this, 'firstColumn'], $args);
 	}
 
 	public function count($table, $where = '1')
 	{
-		return (int) $this->firstColumn(sprintf('SELECT COUNT(*) FROM %s WHERE %s;', $where));
+		$args = array_merge(
+			[sprintf('SELECT COUNT(*) FROM %s WHERE %s LIMIT 1;', $table, $where)],
+			array_slice(func_get_args(), 2)
+		);
+
+		return (int) call_user_func_array([$this, 'firstColumn'], $args);
 	}
 
 	public function where($name)
