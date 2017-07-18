@@ -36,7 +36,7 @@
 
 namespace KD2;
 
-use \KD2\DB;
+use KD2\DB;
 
 class UserActions
 {
@@ -66,12 +66,11 @@ class UserActions
 	 */
 	const DEFAULT_ANONYMIZE_DELAY = 31536000;
 
-	protected $banned_ips = [];
+	protected $banned_ips;
+	protected $banned_emails;
 
-	protected $banned_emails = [];
-
-	protected $ban_cookie_name = 'userSessionID2';
-	protected $ban_cookie_value = '59bcc3ad6775562f845953cf01624225';
+	public $ban_cookie_name = 'userSessionID2';
+	public $ban_cookie_secret = '59bcc3ad6775562f845953cf01624225';
 
 	protected $remote_addr_server_key = 'REMOTE_ADDR';
 
@@ -82,14 +81,14 @@ class UserActions
 		$this->db = $db;
 	}
 
-	public function createTables($driver)
+	public function createTables()
 	{
 		$this->db->exec('
 			CREATE TABLE user_actions_log (
 				id INTEGER UNSIGNED NOT NULL PRIMARY KEY auto_increment,
 				date INTEGER UNSIGNED NOT NULL,
-				action TINYINT NOT NULL,
-				success TINYINT NULL,
+				action TINYINT UNSIGNED NOT NULL,
+				success TINYINT UNSIGNED NULL,
 				details VARCHAR(255) NULL,
 				ip VARCHAR(255) NULL,
 				user_id INTEGER UNSIGNED NULL,
@@ -105,7 +104,7 @@ class UserActions
 				expiry INTEGER UNSIGNED NULL,
 				user_id INTEGER UNSIGNED NULL,
 				email VARCHAR(255) NULL,
-				ip TEXT NULL,
+				ip VARCHAR(255) NULL,
 				shadow_ban TINYINT UNSIGNED NOT NULL DEFAULT 0
 			);
 
@@ -155,6 +154,16 @@ class UserActions
 
 	}
 
+	public function listBannedIPs()
+	{
+		if (is_null($this->banned_ips))
+		{
+			$this->banned_ips = $this->db->getAssoc('SELECT id, ip FROM user_actions_bans WHERE ip IS NOT NULL;');
+		}
+
+		return $this->banned_ips;
+	}
+
 	public function isIPBanned($ip = null)
 	{
 		if (is_null($ip))
@@ -168,7 +177,7 @@ class UserActions
 			return false;
 		}
 
-		// fixme
+		return self::matchIP($ip, $this->listBannedIPs());
 	}
 
 	/**
@@ -318,6 +327,37 @@ class UserActions
 		}
 
 		return $list;
+	}
+
+	public function setBanCookie($type, $age = self::DEFAULT_BAN_EXPIRY)
+	{
+		return setcookie($this->ban_cookie_name, sha1($this->ban_cookie_secret . $type), time() + $age, '/');
+	}
+
+	public function isBanned($id = null, $email = null)
+	{
+		if (isset($_COOKIE[$this->ban_cookie_name]))
+		{
+			return true;
+		}
+
+		if ($this->isIPBanned())
+		{
+			$this->setBanCookie('ip');
+		}
+
+		return false;
+	}
+
+	public function isFlooding($action = null, $max_actions = 10, $time = 60)
+	{
+		$action = $action ? $this->db->where('action', $action) : 1;
+		$ip = $this->db->where('ip', 'IN', $this->getIP());
+
+		$query = sprint('SELECT COUNT(*) > ? FROM user_actions_log
+			WHERE %s AND date > ? AND (%s);', $action, $ip);
+
+		return $this->db->test($query, $max_actions, time() - $time);
 	}
 
 	/**
