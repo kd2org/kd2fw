@@ -128,6 +128,45 @@ class Image
 		}
 	}
 
+	static public function getBytesFromINI($size_str)
+	{
+		if ($size_str == -1)
+		{
+			return null;
+		}
+
+		$unit = strtoupper(substr($size_str, -1));
+
+		switch ($unit)
+		{
+			case 'G': return (int) $size_str * pow(1024, 3);
+			case 'M': return (int) $size_str * pow(1024, 2);
+			case 'K': return (int) $size_str * 1024;
+			default:  return (int) $size_str;
+		}
+	}
+
+	static public function getMaxUploadSize($max_user_size = null)
+	{
+		$sizes = [
+			ini_get('upload_max_filesize'),
+			ini_get('post_max_size'),
+			ini_get('memory_limit'),
+			$max_user_size,
+		];
+
+		// Convert to bytes
+		$sizes = array_map([self::class, 'getBytesFromINI'], $sizes);
+
+		// Remove sizes that are null or -1 (unlimited)
+		$sizes = array_filter($sizes, function ($size) {
+			return !is_null($size);
+		});
+
+		// Return maximum file size allowed
+		return min($sizes);
+	}
+
 	protected function init(array $info, $library = null)
 	{
 		if (isset($info[0]))
@@ -810,7 +849,7 @@ class Image
 			foreach ($image as $frame)
 			{
 				$frame->cropImage($w, $h, $x, $y);
-			  	$frame->setImagePage($w, $h, 0, 0);
+				$frame->setImagePage($w, $h, 0, 0);
 			}
 
 			$this->pointer = $image->deconstructImages(); 
@@ -833,7 +872,7 @@ class Image
 			foreach ($image as $frame)
 			{
 				$frame->thumbnailImage($new_width, $new_height, !$ignore_aspect_ratio);
-			  	$frame->setImagePage($new_width, $new_height, 0, 0);
+				$frame->setImagePage($new_width, $new_height, 0, 0);
 			}
 
 			$this->pointer = $image->deconstructImages(); 
@@ -947,14 +986,14 @@ class Image
 	{
 		$new = imagecreatetruecolor($w, $h);
 
-        if ($this->format == 'png' || $this->format == 'gif')
-        {
+		if ($this->format == 'png' || $this->format == 'gif')
+		{
 			imagealphablending($new, false);
 			imagecolortransparent($new, imagecolorallocatealpha($new, 0, 0, 0, 127));
 			imagesavealpha($new, true);
-        }
+		}
 
-        return $new;
+		return $new;
 	}
 
 	protected function gd_crop($new_width, $new_height)
