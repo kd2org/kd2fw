@@ -75,6 +75,7 @@ class DB
 			'user'     => null,
 			'password' => null,
 			'options'  => [],
+			'tables_prefix' => '',
 		];
 
 		if ($name == 'mysql')
@@ -101,10 +102,15 @@ class DB
 
 			if (empty($params['charset']))
 			{
-				$params['charset'] = 'UTF8';
+				$params['charset'] = 'utf8mb4';
 			}
 
-			$driver->url = sprintf('mysql:dbname=%s;charset=UTF8;host=%s', $params['database'], $params['host']);
+			if (empty($params['port']))
+			{
+				$params['port'] = 3306;
+			}
+
+			$driver->url = sprintf('mysql:dbname=%s;charset=%s;host=%s;port=%d', $params['database'], $params['charset'], $params['host'], $params['port']);
 			$driver->user = $params['user'];
 			$driver->password = $params['password'];
 		}
@@ -176,16 +182,28 @@ class DB
 		$this->pdo = null;
 	}
 
+	protected function applyTablePrefix($statement)
+	{
+		if (strpos('__PREFIX__', $statement) !== false)
+		{
+			$statement = preg_replace('/(?<=\s|^)__PREFIX__(?=\w)/', $this->driver->tables_prefix, $statement);
+		}
+
+		return $statement;
+	}
+
 	public function query($statement)
 	{
 		$this->connect();
+		$statement = $this->applyTablePrefix($statement);
 		return $this->pdo->query($statement);
 	}
 
-	public function exec($query)
+	public function exec($statement)
 	{
 		$this->connect();
-		return $this->pdo->exec($query);
+		$statement = $this->applyTablePrefix($statement);
+		return $this->pdo->exec($statement);
 	}
 
 	public function execMultiple($statement)
@@ -246,6 +264,7 @@ class DB
 	public function prepare($statement, $driver_options = [])
 	{
 		$this->connect();
+		$statement = $this->applyTablePrefix($statement);
 		return $this->pdo->prepare($statement, $driver_options);
 	}
 
@@ -308,8 +327,7 @@ class DB
 
         $args = (array) $args;
 
-		$this->connect();
-		$st = $this->pdo->prepare($query);
+		$st = $this->prepare($query);
 		$st->execute($args);
 
 		return $st;
@@ -436,8 +454,13 @@ class DB
 
 		$column_updates = [];
 		
-		foreach ($fields as $key=>$value)
+		foreach ($fields as $key => $value)
 		{
+			if (is_object($value) && $value instanceof \DateTimeInterface)
+			{
+				$value = $value->format('Y-m-d H:i:s', $value);
+			}
+
 			// Append to arguments
 			$args['field_' . $key] = $value;
 
