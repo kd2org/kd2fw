@@ -31,7 +31,7 @@
  *
  * @author  bohwaz  http://bohwaz.net/
  * @license BSD
- * @version 0.1
+ * @version 0.2
  */
 
 namespace KD2;
@@ -59,12 +59,12 @@ class UserActions
 	/**
 	 * Default ban expiry (1 year)
 	 */
-	const DEFAULT_BAN_EXPIRY = 31536000;
+	const DEFAULT_BAN_EXPIRY = 366 * 24 * 60 * 60;
 
 	/**
 	 * Default anonymisation delay for removing IP address (1 year)
 	 */
-	const DEFAULT_ANONYMIZE_DELAY = 31536000;
+	const DEFAULT_ANONYMIZE_DELAY = 366 * 24 * 60 * 60;
 
 	protected $banned_ips;
 	protected $banned_emails;
@@ -84,84 +84,147 @@ class UserActions
 	public function createTables()
 	{
 		$this->db->exec('
-			CREATE TABLE user_actions_log (
+			CREATE TABLE __PREFIX__user_actions_log (
 				id INTEGER UNSIGNED NOT NULL PRIMARY KEY auto_increment,
 				date INTEGER UNSIGNED NOT NULL,
+				ip BINARY(16) NULL,
 				action TINYINT UNSIGNED NOT NULL,
 				success TINYINT UNSIGNED NULL,
-				details VARCHAR(255) NULL,
-				ip VARCHAR(255) NULL,
-				user_id INTEGER UNSIGNED NULL,
-				content_id INTEGER UNSIGNED NULL
+				user_id VARCHAR(255) UNSIGNED NULL,
+				content_type VARCHAR(255) NULL,
+				content_id VARCHAR(255) NULL
 			);
 
-			CREATE INDEX user_actions_log_ip_action ON user_actions_log (ip, action, success);
-			CREATE INDEX user_actions_log_user_action ON user_actions_log (user_id, action, success);
+			CREATE INDEX __PREFIX__user_actions_log_ip_action ON __PREFIX__user_actions_log (ip, action, success);
+			CREATE INDEX __PREFIX__user_actions_log_user_action ON __PREFIX__user_actions_log (user_id, action, success);
 
-			CREATE TABLE user_actions_bans (
+			CREATE TABLE __PREFIX__user_actions_bans (
 				id INTEGER UNSIGNED NOT NULL PRIMARY KEY auto_increment,
 				details VARCHAR(255) NULL,
 				expiry INTEGER UNSIGNED NULL,
-				user_id INTEGER UNSIGNED NULL,
+				user_id VARCHAR(255) UNSIGNED NULL,
 				email VARCHAR(255) NULL,
-				ip VARCHAR(255) NULL,
+				ip BINARY(16) NULL,
 				shadow_ban TINYINT UNSIGNED NOT NULL DEFAULT 0
 			);
 
-			CREATE INDEX user_actions_bans_ip ON user_actions_bans (ip, expiry);
-			CREATE INDEX user_actions_bans_user ON user_actions_bans (user_id, expiry);
-			CREATE INDEX user_actions_bans_email ON user_actions_bans (email, expiry);
+			CREATE INDEX __PREFIX__user_actions_bans_ip ON __PREFIX__user_actions_bans (ip, expiry);
+			CREATE INDEX __PREFIX__user_actions_bans_user ON __PREFIX__user_actions_bans (user_id, expiry);
+			CREATE INDEX __PREFIX__user_actions_bans_email ON __PREFIX__user_actions_bans (email, expiry);
 			');
 	}
 
 	public function register($action, $success = null, $user_id = null, $content_type = null, $content_id = null)
 	{
-
+		return $this->db->insert('__PREFIX__user_actions_log', [
+			'action'       => (int) $action,
+			'date'         => time(),
+			'success'      => is_null($success) ? null : (int) $success,
+			'user_id'      => $user_id,
+			'ip'           => inet_pton($this->getIP(true)),
+			'content_type' => $content_type,
+			'content_id'   => $content_id,
+		]);
 	}
 
 	public function listByUser($id)
 	{
-
+		return $this->list([$this->db->where('user_id', $id)]);
 	}
 
 	public function listByIP($ip)
 	{
-		
+		return $this->list([$this->db->where('ip', inet_pton($ip))]);
 	}
 
-	public function listByContentID($id)
+	public function listByContent($type = null, $id = null)
 	{
+		$where = [];
 
+		if ($type)
+		{
+			$where[] = $this->db->where('content_type', $type);
+		}
+
+		if ($id)
+		{
+			$where[] = $this->db->where('content_id', $id);
+		}
+
+		if (!count($where))
+		{
+			throw new \BadMethodCallException('Either type or ID arguments are required');
+		}
+
+		return $this->list($where);
+	}
+
+	protected function list(array $where)
+	{
+		return $this->db->get(
+			sprintf('SELECT * FROM __PREFIX__user_actions_log WHERE %s ORDER BY date DESC LIMIT 500;',
+				implode(' AND ', $where)
+			)
+		);
 	}
 
 	public function listBans($expired = false)
 	{
-
-	}
-
-	public function banIP($ip, $expiry = self::DEFAULT_BAN_EXPIRY, $details = null, $shadow = false)
-	{
-
-	}
-
-	public function banUser($id, $email = null, $expiry = self::DEFAULT_BAN_EXPIRY, $details = null, $shadow = false)
-	{
-
-	}
-
-	public function banEmail($email, $expiry = self::DEFAULT_BAN_EXPIRY, $details = null, $shadow = false)
-	{
-
+		$where = $this->db->where('expiry', $expired ? '<=' : '>', time());
+		return $this->db->get(sprintf('SELECT * FROM __PREFIX__user_actions_bans WHERE %s ORDER BY date DESC LIMIT 500;', $where));
 	}
 
 	public function listBannedIPs()
 	{
 		if (is_null($this->banned_ips))
 		{
-			$this->banned_ips = $this->db->getAssoc('SELECT id, ip FROM user_actions_bans WHERE ip IS NOT NULL;');
+			$this->banned_ips = $this->db->getAssoc('SELECT ip, expiry FROM __PREFIX__user_actions_bans WHERE ip IS NOT NULL AND expiry > ?;', time());
+			$this->banned_ips = array_map('inet_ntop', array_flip($this->banned_ips));
+			$this->banned_ips = array_flip($this->banned_ips);
 		}
 
 		return $this->banned_ips;
+	}
+
+	public function banIP($ip, $expiry = self::DEFAULT_BAN_EXPIRY, $details = null, $shadow = false)
+	{
+		return $this->db->insert('__PREFIX__user_actions_bans', [
+			'ip'      => $ip,
+			'details' => $details,
+			'expiry'  => time() + $expiry,
+			'shadow'  => (int) $shadow,
+		]);
+	}
+
+	public function banUser($id, $email = null, $expiry = self::DEFAULT_BAN_EXPIRY, $details = null, $shadow = false)
+	{
+		return $this->db->insert('__PREFIX__user_actions_bans', [
+			'id'      => $id,
+			'email'   => $email,
+			'details' => $details,
+			'expiry'  => time() + $expiry,
+			'shadow'  => (int) $shadow,
+		]);
+	}
+
+	public function banEmail($email, $expiry = self::DEFAULT_BAN_EXPIRY, $details = null, $shadow = false)
+	{
+		return $this->db->insert('__PREFIX__user_actions_bans', [
+			'email'   => $email,
+			'details' => $details,
+			'expiry'  => time() + $expiry,
+			'shadow'  => (int) $shadow,
+		]);
+	}
+
+	public function isEmailBanned($email)
+	{
+		return $this->db->firstColumn('SELECT expiry FROM __PREFIX__user_actions_bans WHERE email = ? AND expiry > ?;', $email, time());
+	}
+
+	public function isUserBanned($user_id)
+	{
+		return $this->db->firstColumn('SELECT expiry FROM __PREFIX__user_actions_bans WHERE user_id = ? AND expiry > ?;', $user_id, time());
 	}
 
 	public function isIPBanned($ip = null)
@@ -178,6 +241,150 @@ class UserActions
 		}
 
 		return self::matchIP($ip, $this->listBannedIPs());
+	}
+
+	public function getIP($short = true)
+	{
+		if ($short)
+		{
+			return $_SERVER[$this->remote_addr_server_key];
+		}
+
+		$list = [];
+
+		$headers = ['REMOTE_ADDR', 'HTTP_CLIENT_IP', 'HTTP_X_FORWARDED_FOR', 'HTTP_X_CLUSTER_CLIENT_IP', 'HTTP_FORWARDED_FOR', 'HTTP_FORWARDED'];
+
+		foreach ($headers as $header)
+		{
+			if (!empty($_SERVER[$header]) && filter_var($_SERVER[$header], FILTER_VALIDATE_IP))
+			{
+				$list[] = $_SERVER[$header];
+			}
+		}
+
+		return $list;
+	}
+
+	public function setBanCookie($type, $age = self::DEFAULT_BAN_EXPIRY)
+	{
+		return setcookie($this->ban_cookie_name, sha1($this->ban_cookie_secret . $type), time() + $age, '/');
+	}
+
+	public function isBanned($user_id = null, $email = null)
+	{
+		if (isset($_COOKIE[$this->ban_cookie_name]))
+		{
+			return true;
+		}
+
+		if ($this->isIPBanned())
+		{
+			$this->setBanCookie('ip');
+			return true;
+		}
+
+		if ($user_id && $this->isUserBanned($user_id))
+		{
+			$this->setBanCookie('id');
+			return true;
+		}
+
+		if (isset($email) && trim($email) !== '' && $this->isEmailBanned($email))
+		{
+			$this->setBanCookie('email');
+			return true;
+		}
+
+		return false;
+	}
+
+	public function isFlooding($action = null, $max_actions = 10, $time = 60)
+	{
+		$action = $action ? $this->db->where('action', $action) : 1;
+		$ip = $this->db->where('ip', 'IN', $this->getIP());
+
+		$query = sprint('SELECT COUNT(*) > ? FROM user_actions_log
+			WHERE %s AND date > ? AND (%s);', $action, $ip);
+
+		return $this->db->test($query, $max_actions, time() - $time);
+	}
+
+	/**
+	 * Creates random errors and problems for hell-banned users and IPs
+	 * @return	void
+	 * @link	https://www.drupal.org/project/misery Inspiration
+	 * @link	https://blog.codinghorror.com/suspension-ban-or-hellban/
+	 */
+	public function randomHellBan()
+	{
+		if ((mt_rand() % 15) == 0)
+		{
+			header('HTTP/1.1 404 Not Found', true, 404);
+			echo '<h1>Not Found</h1><p>The requested URL was not found on this server.</p>';
+			exit;
+		}
+		else if ((mt_rand() % 10) == 0)
+		{
+			header('HTTP/1.1 500 Internal Server Error', true, 500);
+			echo '<h1>Internal Server Error</h1><p>The server encountered an internal error or misconfiguration and was unable to complete your request.</p>';
+			exit;
+		}
+		// Empty page
+		else if ((mt_rand() % 3) == 0)
+		{
+			exit;
+		}
+		// Remove POST data and session data (= forced logout), as well as cookies (but not the ban cookie)
+		else if ((mt_rand() % 5) == 0)
+		{
+			$_POST = [];
+			$_SESSION = [];
+			
+			if (!empty($_COOKIE) && !headers_sent())
+			{
+				foreach ($_COOKIE as $name=>$value)
+				{
+					if ($name == $this->ban_cookie_name)
+						continue;
+
+					setcookie($name, '', 0, '/');
+				}
+			}
+		}
+	}
+
+	/**
+	 * Delete old records from the logs
+	 * @param  integer $age Expiry delay after which rows should be deleted (in seconds)
+	 * @return boolean
+	 */
+	public function purge($age)
+	{
+		$expiry = time() - $age;
+
+		$st = $this->db->prepare('DELETE FROM user_actions_log WHERE date < :expiry;');
+		$st->bindValue(':expiry', (int)$expiry);
+		return $st->execute();
+	}
+
+	/**
+	 * Anonymize old records from the logs (remove the IP address)
+	 *
+	 * Useful to comply with local regulations that require to delete or anomymize private data
+	 * after X delay.
+	 *
+	 * In France this delay is one year.
+	 * 
+	 * @param  integer $age Expiry delay after which rows should be anonymised (in seconds, default is one year)
+	 * @return boolean
+	 */
+	public function anonymize($age = self::DEFAULT_ANONYMIZE_DELAY)
+	{
+		$expiry = time() - $age;
+
+		$st = $this->db->prepare('UPDATE user_actions_log SET ip = NULL WHERE date < :expiry;');
+		$st->bindValue(':expiry', (int)$expiry);
+		return $st->execute();
 	}
 
 	/**
@@ -301,141 +508,4 @@ class UserActions
 
 		return false;
 	}
-
-	public function isEmailBanned($email)
-	{
-
-	}
-
-	public function getIP($short = true)
-	{
-		if ($short)
-		{
-			return $_SERVER[$this->remote_addr_server_key];
-		}
-
-		$list = [];
-
-		$headers = ['REMOTE_ADDR', 'HTTP_CLIENT_IP', 'HTTP_X_FORWARDED_FOR', 'HTTP_X_CLUSTER_CLIENT_IP', 'HTTP_FORWARDED_FOR', 'HTTP_FORWARDED'];
-
-		foreach ($headers as $header)
-		{
-			if (!empty($_SERVER[$header]) && filter_var($_SERVER[$header], FILTER_VALIDATE_IP))
-			{
-				$list[] = $_SERVER[$header];
-			}
-		}
-
-		return $list;
-	}
-
-	public function setBanCookie($type, $age = self::DEFAULT_BAN_EXPIRY)
-	{
-		return setcookie($this->ban_cookie_name, sha1($this->ban_cookie_secret . $type), time() + $age, '/');
-	}
-
-	public function isBanned($id = null, $email = null)
-	{
-		if (isset($_COOKIE[$this->ban_cookie_name]))
-		{
-			return true;
-		}
-
-		if ($this->isIPBanned())
-		{
-			$this->setBanCookie('ip');
-		}
-
-		return false;
-	}
-
-	public function isFlooding($action = null, $max_actions = 10, $time = 60)
-	{
-		$action = $action ? $this->db->where('action', $action) : 1;
-		$ip = $this->db->where('ip', 'IN', $this->getIP());
-
-		$query = sprint('SELECT COUNT(*) > ? FROM user_actions_log
-			WHERE %s AND date > ? AND (%s);', $action, $ip);
-
-		return $this->db->test($query, $max_actions, time() - $time);
-	}
-
-	/**
-	 * Creates random errors and problems for hell-banned users and IPs
-	 * @return	void
-	 * @link	https://www.drupal.org/project/misery Inspiration
-	 * @link	https://blog.codinghorror.com/suspension-ban-or-hellban/
-	 */
-	public function randomHellBan()
-	{
-		if ((mt_rand() % 15) == 0)
-		{
-			header('HTTP/1.1 404 Not Found', true, 404);
-			echo '<h1>Not Found</h1><p>The requested URL was not found on this server.</p>';
-			exit;
-		}
-		else if ((mt_rand() % 10) == 0)
-		{
-			header('HTTP/1.1 500 Internal Server Error', true, 500);
-			echo '<h1>Internal Server Error</h1><p>The server encountered an internal error or misconfiguration and was unable to complete your request.</p>';
-			exit;
-		}
-		// Empty page
-		else if ((mt_rand() % 3) == 0)
-		{
-			exit;
-		}
-		// Remove POST data and session data (= forced logout), as well as cookies (but not the ban cookie)
-		else if ((mt_rand() % 5) == 0)
-		{
-			$_POST = [];
-			$_SESSION = [];
-			
-			if (!empty($_COOKIE) && !headers_sent())
-			{
-				foreach ($_COOKIE as $name=>$value)
-				{
-					if ($name == $this->ban_cookie_name)
-						continue;
-
-					setcookie($name, '', 0, '/');
-				}
-			}
-		}
-	}
-
-	/**
-	 * Delete old records from the logs
-	 * @param  integer $age Expiry delay after which rows should be deleted (in seconds)
-	 * @return boolean
-	 */
-	public function purge($age)
-	{
-		$expiry = time() - $age;
-
-		$st = $this->db->prepare('DELETE FROM user_actions_log WHERE date < :expiry;');
-		$st->bindValue(':expiry', (int)$expiry);
-		return $st->execute();
-	}
-
-	/**
-	 * Anonymize old records from the logs (remove the IP address)
-	 *
-	 * Useful to comply with local regulations that require to delete or anomymize private data
-	 * after X delay.
-	 *
-	 * In France this delay is one year.
-	 * 
-	 * @param  integer $age Expiry delay after which rows should be anonymised (in seconds, default is one year)
-	 * @return boolean
-	 */
-	public function anonymize($age = self::DEFAULT_ANONYMIZE_DELAY)
-	{
-		$expiry = time() - $age;
-
-		$st = $this->db->prepare('UPDATE user_actions_log SET ip = NULL WHERE date < :expiry;');
-		$st->bindValue(':expiry', (int)$expiry);
-		return $st->execute();
-	}
-
 }
