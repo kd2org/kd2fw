@@ -161,7 +161,7 @@
 		{
 			if (file.type.match(/^image\/(jpe?g|gif|svg|png)$/))
 			{
-				resize(file, options.thumb_width, options.thumb_height, function(blob) {
+				resize(file, options.thumb_width, options.thumb_height, 'image/png', 9, function(blob) {
 					file.url = URL.createObjectURL(blob);
 					var img = new Image;
 					img.src = file.url;
@@ -358,7 +358,7 @@
 				row.className = 'resizing';
 				progress_bar.removeAttribute('max');
 				progress_bar.removeAttribute('value');
-				resize(file, options.width, options.height, function (resizedBlob) {
+				resize(file, options.width, options.height, 'image/jpeg', options.jpeg_quality, function (resizedBlob) {
 					// Check file size
 					if (resizedBlob.size > max_size)
 					{
@@ -540,12 +540,12 @@
 			upload_queue = false;
 		}
 
-		function resize(file, max_width, max_height, callback, orientation = null)
+		function resize(file, max_width, max_height, format, quality, callback, orientation = null)
 		{
 			if (null === orientation)
 			{
 				return getExifOrientation(file, function (orientation) {
-					return resize(file, max_width, max_height, callback, orientation);
+					return resize(file, max_width, max_height, format, quality, callback, orientation);
 				});
 			}
 
@@ -560,7 +560,6 @@
 				if (orientation && orientation <= 8)
 				{
 					var canvas1 = document.createElement("canvas");
-					console.log('rotate/flip');
 
 					if ([5,6,7,8].indexOf(orientation) > -1)
 					{
@@ -587,7 +586,6 @@
 					}
 
 					ctx.drawImage(img, 0, 0);
-					console.log(canvas1 || img);
 				}
 
 				var width = max_width,
@@ -608,8 +606,6 @@
 				width = Math.abs(width);
 				height = Math.abs(height);
 
-				console.log([img.width, img.height], [canvas1.width, canvas1.height], [width, height]);
-
 				// Two-step downscaling for better quality
 				var canvas2 = document.createElement("canvas");
 				var factor = 1;
@@ -618,8 +614,6 @@
 				{
 					factor = 2;
 				}
-
-				console.log('factor', 2);
 
 				canvas2.width = width*factor;
 				canvas2.height = height*factor;
@@ -660,7 +654,7 @@
 					);
 				}
 
-				(canvas3 || canvas2).toBlob(callback, 'image/jpeg', options.jpeg_quality);
+				(canvas3 || canvas2).toBlob(callback, format, quality);
 
 				delete canvas2;
 				delete canvas3;

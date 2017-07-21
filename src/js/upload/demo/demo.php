@@ -40,15 +40,14 @@ class FileManager
 		}
 	}
 
-	public function store($file)
+	public function store($file, $suffix = '')
 	{
 		if (empty($file['size']) || empty($file['tmp_name']) || !empty($file['error']))
 		{
 			return $file['error'];
 		}
 
-		if (count($this->files) == 1 
-			&& !empty($_POST['uploadHelper_fileHash'])
+		if (!empty($_POST['uploadHelper_fileHash'])
 			&& preg_match('/^[a-f0-9]+$/', $_POST['uploadHelper_fileHash']))
 		{
 			// Original file hash was found by Javascript
@@ -59,7 +58,7 @@ class FileManager
 			$hash = sha1_file($file['tmp_name']);
 		}
 
-		$path = STORAGE_DIR . '/upload_' . $hash;
+		$path = STORAGE_DIR . '/upload_' . $hash . $suffix;
 		
 		if (file_exists($path))
 			return true;
@@ -81,6 +80,11 @@ class FileManager
 				return false;
 			}
 			$i++;
+		}
+
+		if (!empty($this->files['uploadHelper_thumbnail']))
+		{
+			$this->store($this->files['uploadHelper_thumbnail'], '_th');
 		}
 
 		return $i;
@@ -197,7 +201,7 @@ if (!empty($_POST))
 
 <script>
 window.uploadHelper(document.forms[0].myFile, {
-	width: 200,
+	width: 600,
 	thumb_width: 200,
 	resize: true,
 	bytes: 'o',
