@@ -1,11 +1,14 @@
 (function () {
 	var canvas = document.createElement('canvas');
+	var URL = (window.URL || window.webkitURL);
 
 	// Required JS objects
-	if (!FileReader || !File || !document.querySelector || !FormData || !XMLHttpRequest || !JSON || !canvas.toBlob)
+	if (!FileReader || !File || !document.querySelector || !FormData || !XMLHttpRequest || !JSON || !canvas.toBlob || !DataView || !URL)
 	{
 		return false;
 	}
+
+	delete canvas;
 
 	function getByteSize(size, bytes)
 	{
@@ -17,11 +20,59 @@
 			return (Math.round(size / 1024 / 1024 * 100) / 100) + ' M' + bytes;
 	}
 
-	window.uploadHelper = function (element, options) {
+	// Source: https://stackoverflow.com/questions/7584794/accessing-jpeg-exif-rotation-data-in-javascript-on-the-client-side/32490603#32490603
+	function getExifOrientation(file, callback) {
+		var reader = new FileReader();
+
+		reader.onload = function(e)
+		{
+			var view = new DataView(e.target.result);
+
+			if (view.getUint16(0, false) != 0xFFD8)
+				return callback(-2);
+
+			var length = view.byteLength, offset = 2;
+
+			while (offset < length)
+			{
+				var marker = view.getUint16(offset, false);
+				offset += 2;
+
+				if (marker == 0xFFE1)
+				{
+					if (view.getUint32(offset += 2, false) != 0x45786966) 
+						return callback(-1);
+
+					var little = view.getUint16(offset += 6, false) == 0x4949;
+					offset += view.getUint32(offset + 4, little);
+					var tags = view.getUint16(offset, little);
+					offset += 2;
+
+					for (var i = 0; i < tags; i++)
+					{
+						if (view.getUint16(offset + (i * 12), little) == 0x0112)
+						{
+							return callback(view.getUint16(offset + (i * 12) + 8, little));
+						}
+					}
+				}
+				else if ((marker & 0xFF00) != 0xFF00)
+					break;
+				else
+					offset += view.getUint16(offset, false);
+			}
+			return callback(-1);
+		};
+
+		reader.readAsArrayBuffer(file);
+	}
+
+	window.uploadHelper = function (source, options) {
 		var rusha = new Rusha();
 
-		var form = element.form;
-		var hash_check = element.hasAttribute('data-hash-check');
+		var form = source.form;
+
+		var files = [];
 		
 		var upload_queue = false;
 		var hash_queue = false;
@@ -32,9 +83,14 @@
 		var options = options || {};
 
 		options.width = options.width || false;
-		options.height = options.height || null;
+		options.jpeg_quality = options.jpeg_quality || 0.87;
+		options.thumb_width = options.thumb_width || 250;
+		options.thumb_quality = options.thumb_quality || 0.80;
+		options.thumb_upload = !!options.thumb_upload;
 		options.resize = (options.width && options.resize) ? true : false;
 		options.bytes = options.bytes || 'B';
+		options.check_hash = options.check_hash || false;
+		options.edit_name_field = options.edit_name_field || false;
 		options.size_error_msg = options.size_error_msg 
 			|| 'The file %file has a size of %size, more than the allowed %max_size allowed.';
 
@@ -46,28 +102,105 @@
 			var max_size = i.value;
 		}
 
-		element.addEventListener('change', function ()
+		var div = document.createElement('div');
+		div.classList.toggle('uploadHelper');
+
+		var file_list = document.createElement('table');
+
+		var fileInput = source.cloneNode(true);
+		fileInput.required = false;
+		div.appendChild(fileInput);
+		div.appendChild(file_list);
+
+		source.parentNode.replaceChild(div, source);
+
+		function appendFile(file)
 		{
-			var files = this.files;
+			files.push(file);
+			var tr = document.createElement('tr');
+
+			var preview = document.createElement('td');
+			preview.className = 'preview';
+
+			makePreview(file, preview);
+
+			var name = document.createElement('th');
+
+			var input = document.createElement('input');
+			input.type = 'text';
+			input.value = file.name.replace(/\.\w+$/, '');
+			input.disabled = !options.edit_name_field;
+
+			name.appendChild(input);
+
+			var actions = document.createElement('td');
+			var deleteBtn = document.createElement('input');
+			deleteBtn.type = 'button';
+			deleteBtn.value = '🗙';
+			deleteBtn.title = 'Delete';
+			deleteBtn.onclick = deleteFile;
+			actions.appendChild(deleteBtn);
+
+			tr.appendChild(preview);
+			tr.appendChild(name);
+			tr.appendChild(actions);
+			file_list.appendChild(tr);
+		}
+
+		function deleteFile(e)
+		{
+			var row = e.target.parentNode.parentNode;
+			var idx = row.rowIndex;
+			files.splice(idx, 1);
+			row.className = 'deleted';
+
+			window.setTimeout(function () { row.parentNode.removeChild(row); }, 750);
+		}
+
+		function makePreview(file, parent)
+		{
+			if (file.type.match(/^image\/(jpe?g|gif|svg|png)$/))
+			{
+				resize(file, options.thumb_width, options.thumb_height, function(blob) {
+					file.url = URL.createObjectURL(blob);
+					var img = new Image;
+					img.src = file.url;
+					parent.appendChild(img);
+				});
+			}
+			else
+			{
+				var css_class = file.type.replace(/^(\w+)\/.*$/g, 'type_$1');
+				css_class += ' type_' + file.type.replace(/[^\w]$/g, '_');
+				var icn = document.createElement('span');
+				icn.className = css_class;
+				icn.innerHTML = file.type;
+				parent.appendChild(icn);
+			}
+		}
+
+		fileInput.addEventListener('change', function ()
+		{
 			hash_queue = [];
 
 			// No files selected, nothing to do
-			if (files.length < 1)
+			if (this.files.length < 1)
 			{
 				return false;
 			}
 
 			// The input is not multiple but multiple files were selected, wtf!
-			if (!this.multiple && files.length > 1)
+			if (!this.multiple && this.files.length > 1)
 			{
 				this.value = '';
 				return false;
 			}
 
-			var l = files.length;
+
+			var l = this.files.length;
 			for (var i = 0; i < l; i++)
 			{
-				var file = files[i];
+				var file = this.files[i];
 
 				// Check file size
 				if (file.size > max_size && (!options.resize || !file.type.match(/^image\/jpe?g/)))
@@ -85,15 +218,16 @@
 				}
 
 				hash_queue.push(file);
+				appendFile(file);
 			}
 
+			this.value = '';
 			runHashQueue();
-
 		}, false);
 
 		form.addEventListener('submit', function (e) {
 			// No files to upload, just send the form
-			if (!element.files || element.files.length == 0)
+			if (files.length == 0)
 			{
 				return true;
 			}
@@ -113,10 +247,10 @@
 			}
 
 			// Convert FileList object to an array
-			upload_queue = Object.keys(element.files).map(function (key) { return element.files[key]; });
+			upload_queue = files;
 
 			// Make sure the file input isn't sent
-			element.disabled = true;
+			fileInput.disabled = true;
 
 			// Make all form elements read-only
 			var list = form.elements;
@@ -134,9 +268,9 @@
 			progress_bar = document.createElement('progress');
 			
 			progress_container.appendChild(progress_bar);
-			element.parentNode.insertBefore(progress_container, element.nextSibling);
+			fileInput.parentNode.insertBefore(progress_container, fileInput.nextSibling);
 
-			if (hash_check)
+			if (options.check_hash)
 			{
 				var http = new XMLHttpRequest();
 				var data = new FormData();
@@ -216,8 +350,12 @@
 			var file = upload_queue.shift();
 			progress_status = upload_queue.length;
 
+			var fileIndex = files.length - 1 - upload_queue.length;
+
 			if (options.resize && file.type.match(/^image\/jpe?g/) && !file.noUpload)
 			{
+				var row = file_list.rows[fileIndex];
+				row.className = 'resizing';
 				progress_bar.removeAttribute('max');
 				progress_bar.removeAttribute('value');
 				resize(file, options.width, options.height, function (resizedBlob) {
@@ -239,19 +377,43 @@
 						return !alert(msg);
 					}
 
-					uploadFile(file, resizedBlob);
+					var callback = function (blob) {
+						uploadFile(file, fileIndex, resizedBlob, blob);
+					};
+
+					if (options.upload_thumb)
+					{
+						var img = row.querySelector('img');
+						var canvas = document.createElement('canvas');
+						canvas.width = img.width;
+						canvas.height = img.height;
+						canvas.getContext('2d').drawImage(img, 0, 0);
+						canvas.toBlob(callback,  'image/jpeg', options.thumb_quality);
+					}
+					else
+					{
+						callback(false);
+					}
 				});
 			}
 			else
 			{
-				uploadFile(file, false);
+				uploadFile(file, fileIndex, false);
 			}
 		}
 
-		function uploadFile(file, resizedBlob)
+		function uploadFile(file, fileIndex, resizedBlob, thumbnailBlob)
 		{
 			var http = new XMLHttpRequest();
 			var data = new FormData(form);
+
+			var row = file_list.rows[fileIndex];
+			row.className = 'uploading';
+
+			if (options.edit_name_field)
+			{
+				file.alias = row.querySelector('input[type=text]').value;
+			}
 
 			if (file.noUpload)
 			{
@@ -261,12 +423,17 @@
 			else if (resizedBlob)
 			{
 				data.append('uploadHelper_mode', 'upload');
-				data.append(element.getAttribute('name'), resizedBlob, file.name);
+				data.append(fileInput.getAttribute('name'), resizedBlob, file.alias || file.name);
 			}
 			else
 			{
 				data.append('uploadHelper_mode', 'upload');
-				data.append(element.getAttribute('name'), file);
+				data.append(fileInput.getAttribute('name'), file);
+			}
+
+			if (thumbnailBlob)
+			{
+				data.append('uploadHelper_thumbnail', thumbnailBlob, file.alias || file.name);
 			}
 
 			if (file.hash)
@@ -296,6 +463,8 @@
 
 				if (http.status == 200)
 				{
+					row.className = 'uploaded';
+
 					try {
 						var result = window.JSON.parse(http.responseText);
 					}
@@ -340,7 +509,7 @@
 			delete data;
 
 			// Don't send form fields after the first upload
-			if (upload_queue.length + 1 == element.files.length)
+			if (upload_queue.length + 1 == files.length)
 			{
 				var list = form.elements;
 				for (var i = 0; i < list.length; i++)
@@ -371,112 +540,130 @@
 			upload_queue = false;
 		}
 
-		function resize(file, max_width, max_height, callback)
+		function resize(file, max_width, max_height, callback, orientation = null)
 		{
+			if (null === orientation)
+			{
+				return getExifOrientation(file, function (orientation) {
+					return resize(file, max_width, max_height, callback, orientation);
+				});
+			}
+
+			max_height = max_height || max_width;
+
+			// Create image using temporary URL
 			var img = new Image;
 			img.src = (window.URL || window.webkitURL).createObjectURL(file);
-			
+
 			img.onload = function() {
-				var width = max_width, height = max_height;
-
-				if (max_height == null && max_width < 0)
+				// Flip/rotate following orientation
+				if (orientation && orientation <= 8)
 				{
-					var max_mp = Math.abs(max_width) * Math.abs(max_width);
-					var img_mp = img.width * img.height;
+					var canvas1 = document.createElement("canvas");
+					console.log('rotate/flip');
 
-					if (img_mp > max_mp)
+					if ([5,6,7,8].indexOf(orientation) > -1)
 					{
-						var ratio = Math.sqrt(img_mp) / Math.abs(max_width);
-						height = Math.round(img.height / ratio);
-						width = Math.round(img.width / ratio);
+						canvas1.width = img.height;
+						canvas1.height = img.width;
 					}
 					else
 					{
-						width = img.width;
-						height = img.height;
+						canvas1.width = img.width;
+						canvas1.height = img.height;
 					}
 
-					if (width > Math.abs(max_width)*10)
-					{
-						width = Math.abs(max_width)*10;
-						height = Math.round(img.height * width / img.width)
+					var ctx = canvas1.getContext('2d');
+					
+					switch (orientation) {
+						case 2: ctx.transform(-1, 0, 0, 1, img.width, 0); break;
+						case 3: ctx.transform(-1, 0, 0, -1, img.width, img.height); break;
+						case 4: ctx.transform(1, 0, 0, -1, 0, img.height); break;
+						case 5: ctx.transform(0, 1, 1, 0, 0, 0); break;
+						case 6: ctx.transform(0, 1, -1, 0, img.height , 0); break;
+						case 7: ctx.transform(0, -1, -1, 0, img.height, img.width); break;
+						case 8: ctx.transform(0, -1, 1, 0, 0, img.width); break;
+						default: ctx.transform(1, 0, 0, 1, 0, 0);
 					}
-					else if (height > Math.abs(max_width)*10)
-					{
-						height = Math.abs(max_width)*10;
-						width = Math.round(img.width * height / img.height)
-					}
+
+					ctx.drawImage(img, 0, 0);
+					console.log(canvas1 || img);
 				}
-				else if (max_height == null)
-				{
-					if (img.width > img.height)
-					{
-						height = Math.round(img.height * max_width / img.width)
-					}
-					else if (img.width == img.height)
-					{
-						height = max_width;
-					}
-					else
-					{
-						height = max_width;
-						width = Math.round(img.width * height / img.height);
-					}
 
-					if (img.width < width && img.height < height)
-					{
-						width = img.width, height = img.height;
-					}
+				var width = max_width,
+					height = max_height;
+
+				in_ratio = (canvas1 || img).width / (canvas1 || img).height;
+				out_ratio = max_width / max_height;
+
+				if (in_ratio >= out_ratio)
+				{
+					height = max_width / in_ratio;
+				}
+				else
+				{
+					width = max_height * in_ratio;
 				}
 
 				width = Math.abs(width);
 				height = Math.abs(height);
 
-				var canvas2 = false, ctx = false;
+				console.log([img.width, img.height], [canvas1.width, canvas1.height], [width, height]);
 
 				// Two-step downscaling for better quality
-				if (width < img.width || height < img.height)
-				{
-					canvas2 = document.createElement("canvas");
+				var canvas2 = document.createElement("canvas");
+				var factor = 1;
 
-					canvas2.width = width*2;
-					canvas2.height = height*2;
-					canvas2.getContext("2d").drawImage(
-						img, // original image
+				if (width < (canvas1 || img).width || height < (canvas1 || img).height)
+				{
+					factor = 2;
+				}
+
+				console.log('factor', 2);
+
+				canvas2.width = width*factor;
+				canvas2.height = height*factor;
+
+				canvas2.getContext('2d').drawImage(
+					(canvas1 || img), // original image
+					0, // starting x point
+					0, // starting y point
+					(canvas1 || img).width, // image width
+					(canvas1 || img).height, // image height
+					0, // destination x point
+					0, // destination y point
+					width*factor, // destination width
+					height*factor // destination height
+				);
+
+				(window.URL || window.webkitURL).revokeObjectURL(img.src);
+				delete img, canvas1;
+
+				// Second step down scaling
+				if (factor > 1)
+				{
+					var canvas3 = document.createElement("canvas");
+
+					canvas3.width = width;
+					canvas3.height = height;
+
+					canvas3.getContext('2d').drawImage(
+						canvas2, // original image
 						0, // starting x point
 						0, // starting y point
-						img.width, // image width
-						img.height, // image height
+						canvas2.width, // image width
+						canvas2.height, // image height
 						0, // destination x point
 						0, // destination y point
-						width*2, // destination width
-						height*2 // destination height
+						width, // destination width
+						height // destination height
 					);
 				}
 
-				var canvas = document.createElement("canvas");
-
-				canvas.width = width;
-				canvas.height = height;
-				canvas.getContext("2d").drawImage(
-					(canvas2 || img), // original image
-					0, // starting x point
-					0, // starting y point
-					(canvas2 || img).width, // image width
-					(canvas2 || img).height, // image height
-					0, // destination x point
-					0, // destination y point
-					width, // destination width
-					height // destination height
-				);
+				(canvas3 || canvas2).toBlob(callback, 'image/jpeg', options.jpeg_quality);
 
 				delete canvas2;
-
-				canvas.toBlob(callback, 'image/jpeg', 0.85);
-
-				(window.URL || window.webkitURL).revokeObjectURL(img.src);
-				delete img;
-				delete canvas;
+				delete canvas3;
 			};
 		}
 	};

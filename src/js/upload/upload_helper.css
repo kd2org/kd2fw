@@ -1,0 +1,25 @@
+.uploadHelper table {
+	border-collapse: collapse;
+	border: 1px solid black;
+	width: 100%;
+}
+
+.uploadHelper tr {
+	transition: all 1s;
+}
+
+.uploadHelper tr td, .uploadHelper tr th {
+	text-align: center;
+	padding: .2em;
+}
+
+.uploadHelper input[type=text] {
+	padding: 2%;
+	width: 96%;
+}
+
+.uploadHelper .deleted {
+	opacity: 0;
+	transform: translateX(-2em);
+}
+

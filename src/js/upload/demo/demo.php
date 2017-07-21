@@ -168,6 +168,7 @@ if (!empty($_POST))
 	<meta charset="utf-8" />
 	<title>Upload.js demo</title>
 	<script type="text/javascript" src="../upload_helper.js"></script>
+	<link rel="stylesheet" type="text/css" href="../upload_helper.css" />
 </head>
 
 <body>
@@ -183,18 +184,28 @@ if (!empty($_POST))
         <legend>Upload a file</legend>
         <input type="hidden" name="MAX_FILE_SIZE" value="<?=MAX_UPLOAD_SIZE?>" />
         <p>Your name : <input type="text" name="myName" value="Calvin Hobbes" /></p>
-        <p><input type="file" name="myFile[]" id="myFile" multiple data-hash-check /></p>
+    	<p><input type="file" name="myFile[]" id="myFile" multiple required="required" /></p>
+        <noscript>
+        	<p><input type="file" name="myFile[]" id="myFile" multiple /></p>
+        	<p><input type="file" name="myFile[]" id="myFile" multiple /></p>
+        	<p><input type="file" name="myFile[]" id="myFile" multiple /></p>
+        	<p><input type="file" name="myFile[]" id="myFile" multiple /></p>
+        </noscript>
         <p><input type="submit" name="submit" value="Upload" /></p>
     </fieldset>
 </form>
 
 <script>
 window.uploadHelper(document.forms[0].myFile, {
-	width: -200,
-	height: null,
+	width: 200,
+	thumb_width: 200,
 	resize: true,
 	bytes: 'o',
-	size_error_msg: 'Le fichier %file fait %size, soit plus que la taille maximale autorisée de %max_size.'
+	size_error_msg: 'Le fichier %file fait %size, soit plus que la taille maximale autorisée de %max_size.',
+	gallery: true,
+	edit_name_field: true,
+	check_hash: true,
+	upload_thumb: true
 });
 </script>
 
