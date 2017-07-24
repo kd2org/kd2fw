@@ -188,19 +188,19 @@ if (!empty($_POST))
         <legend>Upload a file</legend>
         <input type="hidden" name="MAX_FILE_SIZE" value="<?=MAX_UPLOAD_SIZE?>" />
         <p>Your name : <input type="text" name="myName" value="Calvin Hobbes" /></p>
-    	<p><input type="file" name="myFile[]" id="myFile" multiple required="required" /></p>
+		<div id="myUpload"><label><b>Drop files here, or click to select a file</b> <input type="file" name="myFile[]" multiple required="required" /></label></div>
         <noscript>
-        	<p><input type="file" name="myFile[]" id="myFile" multiple /></p>
-        	<p><input type="file" name="myFile[]" id="myFile" multiple /></p>
-        	<p><input type="file" name="myFile[]" id="myFile" multiple /></p>
-        	<p><input type="file" name="myFile[]" id="myFile" multiple /></p>
+        	<p><input type="file" name="myFile[]" multiple /></p>
+        	<p><input type="file" name="myFile[]" multiple /></p>
+        	<p><input type="file" name="myFile[]" multiple /></p>
+        	<p><input type="file" name="myFile[]" multiple /></p>
         </noscript>
         <p><input type="submit" name="submit" value="Upload" /></p>
     </fieldset>
 </form>
 
 <script>
-window.uploadHelper(document.forms[0].myFile, {
+window.uploadHelper(document.getElementById('myUpload'), {
 	width: 600,
 	thumb_width: 200,
 	resize: true,

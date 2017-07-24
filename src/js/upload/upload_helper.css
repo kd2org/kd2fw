@@ -1,6 +1,5 @@
 .uploadHelper table {
 	border-collapse: collapse;
-	border: 1px solid black;
 	width: 100%;
 }
 
@@ -13,6 +12,19 @@
 	padding: .2em;
 }
 
+.uploadHelper table .preview span {
+	background: #ccc;
+	color: #fff;
+	text-indent: -1em;
+	font-family: sans-serif;
+	width: 100px;
+	height: 100px;
+	display: inline-block;
+	text-align: right;
+	overflow: hidden;
+	font-size: 300%;
+}
+
 .uploadHelper input[type=text] {
 	padding: 2%;
 	width: 96%;
@@ -21,5 +33,43 @@
 .uploadHelper .deleted {
 	opacity: 0;
 	transform: translateX(-2em);
+}
+
+#myUpload b {
+	display: none;
+}
+
+#myUpload.uploadHelper b {
+	display: inline-block;
+}
+
+.uploadHelper label {
+	display: inline-block;
+	vertical-align: middle;
+	width: 300px;
+	text-align: center;
+	border: 1px solid #ccc;
+	background: #eef;
+	position: relative;
+	padding: .5em;
+}
+
+.uploadHelper label:hover b {
+	text-decoration: underline;
+	color: darkred;
+}
+
+.uploadHelper input[type="file"] {
+	position: absolute;
+	top: 0;
+	right: 0;
+	margin: 0;
+	padding: 0;
+	font-size: 20px;
+	cursor: pointer;
+	opacity: 0;
+	filter: alpha(opacity=0);
+    min-height: 100%;
+    min-width: 100%;
 }
 

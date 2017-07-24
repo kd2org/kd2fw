@@ -70,7 +70,10 @@
 	window.uploadHelper = function (source, options) {
 		var rusha = new Rusha();
 
-		var form = source.form;
+		var fileInput = source.querySelector('input[type=file]');
+		fileInput.required = false;
+
+		var form = fileInput.form;
 
 		var files = [];
 		
@@ -102,17 +105,10 @@
 			var max_size = i.value;
 		}
 
-		var div = document.createElement('div');
-		div.classList.toggle('uploadHelper');
+		source.classList.toggle('uploadHelper');
 
-		var file_list = document.createElement('table');
-
-		var fileInput = source.cloneNode(true);
-		fileInput.required = false;
-		div.appendChild(fileInput);
-		div.appendChild(file_list);
-
-		source.parentNode.replaceChild(div, source);
+		var filesTable = document.createElement('table');
+		source.appendChild(filesTable);
 
 		function appendFile(file)
 		{
@@ -144,7 +140,7 @@
 			tr.appendChild(preview);
 			tr.appendChild(name);
 			tr.appendChild(actions);
-			file_list.appendChild(tr);
+			filesTable.appendChild(tr);
 		}
 
 		function deleteFile(e)
@@ -171,10 +167,10 @@
 			else
 			{
 				var css_class = file.type.replace(/^(\w+)\/.*$/g, 'type_$1');
-				css_class += ' type_' + file.type.replace(/[^\w]$/g, '_');
+				css_class += ' type_' + file.type.replace(/[^\w]+/g, '_');
 				var icn = document.createElement('span');
 				icn.className = css_class;
-				icn.innerHTML = file.type;
+				icn.innerHTML = file.name.replace(/^.*\./, '');
 				parent.appendChild(icn);
 			}
 		}
@@ -354,7 +350,7 @@
 
 			if (options.resize && file.type.match(/^image\/jpe?g/) && !file.noUpload)
 			{
-				var row = file_list.rows[fileIndex];
+				var row = filesTable.rows[fileIndex];
 				row.className = 'resizing';
 				progress_bar.removeAttribute('max');
 				progress_bar.removeAttribute('value');
@@ -407,7 +403,7 @@
 			var http = new XMLHttpRequest();
 			var data = new FormData(form);
 
-			var row = file_list.rows[fileIndex];
+			var row = filesTable.rows[fileIndex];
 			row.className = 'uploading';
 
 			if (options.edit_name_field)
