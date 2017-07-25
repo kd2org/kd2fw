@@ -56,7 +56,7 @@ class Image
 	 * JPEG quality, from 1 to 100
 	 * @var integer
 	 */
-	public $jpeg_quality = 80;
+	public $jpeg_quality = 90;
 
 	/**
 	 * Progressive JPEG output?
@@ -391,6 +391,50 @@ class Image
 		return $this;
 	}
 
+	public function autoRotate()
+	{
+		$orientation = $this->getOrientation();
+
+		if (!$orientation)
+		{
+			return $this;
+		}
+
+		if (in_array($orientation, [2, 4, 5, 7]))
+		{
+			$this->flip();
+		}
+
+		switch ($orientation)
+		{
+			case 3:
+			case 4:
+				return $this->rotate(180);
+			case 5:
+			case 8:
+				return $this->rotate(270);
+			case 7:
+			case 6:
+				return $this->rotate(90);
+		}
+
+		return $this;
+	}
+
+	public function flip()
+	{
+		$method = $this->library . '_flip';
+
+		if (!method_exists($this, $method))
+		{
+			throw new \RuntimeException('Flip is not supported by the current library: ' . $this->library);
+		}
+
+		call_user_func([$this, $method]);
+
+		return $this;
+	}
+
 	public function cropResize($new_width, $new_height = null)
 	{
 		$this->open();
@@ -449,6 +493,11 @@ class Image
 		}
 
 		return call_user_func([$this, $this->library . '_output'], $format, $return);
+	}
+
+	public function format()
+	{
+		return $this->format;
 	}
 
 	protected function getCropGeometry($w, $h, $new_width, $new_height)
@@ -520,6 +569,92 @@ class Image
 		}
 
 		return $libraries;
+	}
+
+	/**
+	 * Returns orientation of a JPEG file according to its EXIF tag
+	 * @link  http://magnushoff.com/jpeg-orientation.html See to interpret the orientation value
+	 * @return integer|boolean An integer between 1 and 8 or false if no orientation tag have been found
+	 */
+	public function getOrientation()
+	{
+		if ($this->blob)
+		{
+			$file = fopen('php://temp', 'rwb');
+			fwrite($file, $this->blob);
+		}
+		else
+		{
+			$file = fopen($this->path, 'rb');
+		}
+
+		rewind($file);
+
+		// Get length of file
+		fseek($file, 0, SEEK_END);
+		$length = ftell($file);
+		rewind($file);
+
+		$sign = 'n';
+
+		if (fread($file, 2) != "\xff\xd8")
+		{
+			return false;
+		}
+
+		while (!feof($file))
+		{
+			$marker = fread($file, 2);
+			$info = unpack('nlength', fread($file, 2));
+			$section_length = $info['length'];
+
+			if ($marker == "\xff\xe1")
+			{
+				if (fread($file, 6) != "Exif\x00\x00")
+				{
+					return false;
+				}
+
+				if (fread($file, 2) == "\x49\x49")
+				{
+					$sign = 'v';
+				}
+
+				fseek($file, 2, SEEK_CUR);
+
+				$info = unpack(strtoupper($sign) . 'offset', fread($file, 4));
+				fseek($file, $info['offset'] - 8, SEEK_CUR);
+
+				$info = unpack($sign . 'tags', fread($file, 2));
+				$tags = $info['tags'];
+
+				for ($i = 0; $i < $tags; $i++)
+				{
+					$info = unpack(sprintf('%stag', $sign), fread($file, 2));
+
+					if ($info['tag'] == 0x0112)
+					{
+						fseek($file, 6, SEEK_CUR);
+						$info = unpack(sprintf('%sorientation', $sign), fread($file, 2));
+						return $info['orientation'];
+					}
+					else
+					{
+						fseek($file, 10, SEEK_CUR);
+					}
+				}
+			}
+			else if (($marker & 0xFF00) && $marker != "\xFF\x00")
+			{
+				break;
+			}
+			else
+			{
+				fseek($file, $section_length - 2, SEEK_CUR);
+			}
+		}
+
+		return false;
 	}
 
 	// EPEG methods //////////////////////////////////////////////////////////
@@ -741,6 +876,11 @@ class Image
 		$this->imlib_crop($w, $h);
 	}
 
+	protected function imlib_flip()
+	{
+		imlib_image_flip_horizontal($this->pointer);
+	}
+
 	// Imagick methods ////////////////////////////////////////////////////////
 	protected function imagick_open()
 	{
@@ -837,7 +977,8 @@ class Image
 
 	protected function imagick_crop($new_width, $new_height)
 	{
-		list($x, $y, $w, $h) = $this->getCropGeometry($this->width, $this->height, $new_width, $new_height);
+		$src_x = floor(($this->width - $new_width) / 2);
+		$src_y = floor(($this->height - $new_height) / 2);
 
 		// Detect animated GIF
 		if ($this->format == 'gif' && $this->pointer->getIteratorIndex() > 0)
@@ -848,8 +989,8 @@ class Image
 
 			foreach ($image as $frame)
 			{
-				$frame->cropImage($w, $h, $x, $y);
-				$frame->setImagePage($w, $h, 0, 0);
+				$frame->cropImage($new_width, $new_height, $src_x, $src_x);
+				$frame->setImagePage($new_width, $new_height, 0, 0);
 			}
 
 			$this->pointer = $image->deconstructImages(); 
@@ -857,7 +998,7 @@ class Image
 		}
 		else
 		{
-			$this->pointer->cropImage($w, $h, $x, $y);
+			$this->pointer->cropImage($new_width, $new_height, $src_x, $src_x);
 		}
 	}
 
@@ -895,6 +1036,11 @@ class Image
 	{
 		$this->pointer->rotateImage(new \ImagickPixel('#00000000'), $angle);
 		$this->pointer->setImageOrientation(\Imagick::ORIENTATION_UNDEFINED);
+	}
+
+	protected function imagick_flip()
+	{
+		$this->pointer->flopImage();
 	}
 
 	// GD methods /////////////////////////////////////////////////////////////
@@ -1039,6 +1185,11 @@ class Image
 
 		imagedestroy($this->pointer);
 		$this->pointer = $new;
+	}
+
+	protected function gd_flip()
+	{
+		imageflip($this->pointer, IMG_FLIP_HORIZONTAL);
 	}
 
 	protected function gd_rotate($angle)
