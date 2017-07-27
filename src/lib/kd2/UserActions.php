@@ -129,12 +129,12 @@ class UserActions
 
 	public function listByUser($id)
 	{
-		return $this->list([$this->db->where('user_id', $id)]);
+		return $this->getList([$this->db->where('user_id', $id)]);
 	}
 
 	public function listByIP($ip)
 	{
-		return $this->list([$this->db->where('ip', inet_pton($ip))]);
+		return $this->getList([$this->db->where('ip', inet_pton($ip))]);
 	}
 
 	public function listByContent($type = null, $id = null)
@@ -156,10 +156,10 @@ class UserActions
 			throw new \BadMethodCallException('Either type or ID arguments are required');
 		}
 
-		return $this->list($where);
+		return $this->getList($where);
 	}
 
-	protected function list(array $where)
+	protected function getList(array $where)
 	{
 		return $this->db->get(
 			sprintf('SELECT * FROM __PREFIX__user_actions_log WHERE %s ORDER BY date DESC LIMIT 500;',
