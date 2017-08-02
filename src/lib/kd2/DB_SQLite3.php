@@ -111,10 +111,12 @@ class DB_SQLite3 extends DB
 	{
 		if ($this->transaction)
 		{
-			throw new \Exception('A transaction is already running.');
+			throw new \Exception('A transaction is already running: started at ' . $this->transaction);
 		}
 
-		$this->transaction = true;
+		$trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 1);
+
+		$this->transaction = $trace[0]['file'] . ':' . $trace[0]['line'];
 		$this->connect();
 		return $this->db->exec('BEGIN;');
 	}
@@ -261,6 +263,12 @@ class DB_SQLite3 extends DB
 		}
 	}
 
+	public function query($query)
+	{
+		$this->connect();
+		return $this->db->query($query);
+	}
+
 	public function iterate($query)
 	{
 		$args = array_slice(func_get_args(), 1);
@@ -391,6 +399,11 @@ class DB_SQLite3 extends DB
 	}
 
 	public function lastInsertId($name = null)
+	{
+		return $this->db->lastInsertRowId();
+	}
+
+	public function lastInsertRowId()
 	{
 		return $this->db->lastInsertRowId();
 	}
