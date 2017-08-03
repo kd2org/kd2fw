@@ -71,7 +71,7 @@ class DB_SQLite3 extends DB
 	{
 		if ($this->db)
 		{
-			return true;
+			return false;
 		}
 
 		$this->db = new \SQLite3($this->file, $this->flags);
@@ -92,6 +92,8 @@ class DB_SQLite3 extends DB
 				$this->rollback();
 			}
 		});
+
+		return true;
 	}
 
 	public function escapeString($str)
