@@ -269,7 +269,7 @@ class Form
 				}
 				elseif (is_array($value) || $value instanceof \Countable)
 				{
-					return count($value) < 1;
+					return count($value) > 0;
 				}
 				elseif (is_string($value))
 				{
@@ -326,6 +326,34 @@ class Form
 				}
 
 				return $required == count($params) ? self::validateRule($key, 'required', $params, $source) : true;
+			case 'required_if':
+				$required = false;
+				$if_value = isset($source[$params[0]]) ? $source[$params[0]] : null;
+
+				for ($i = 1; $i < count($params); $i++)
+				{
+					if ($params[$i] == $if_value)
+					{
+						$required = true;
+						break;
+					}
+				}
+
+				return $required ? self::validateRule($key, 'required', $params, $source) : true;
+			case 'required_unless':
+				$required = true;
+				$if_value = isset($source[$params[0]]) ? $source[$params[0]] : null;
+
+				for ($i = 1; $i < count($params); $i++)
+				{
+					if ($params[$i] == $if_value)
+					{
+						$required = false;
+						break;
+					}
+				}
+
+				return $required ? self::validateRule($key, 'required', $params, $source) : true;
 			case 'absent':
 				return $value === null;
 		}
@@ -435,7 +463,7 @@ class Form
 			default:
 				if (isset(self::$custom_validation_rules[$rule_name]))
 				{
-					return call_user_func(self::$custom_validation_rules[$rule_name], [$key, $params]);
+					return call_user_func_array(self::$custom_validation_rules[$rule_name], [$key, $params, $value, $source]);
 				}
 
 				throw new \UnexpectedValueException('Invalid rule name: ' . $rule_name);
