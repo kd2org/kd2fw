@@ -249,6 +249,26 @@ class Security
 	}
 
 	/**
+	 * Returns a base64 string safe for URLs
+	 * @param  string $str
+	 * @return string
+	 */
+	static public function base64_encode_url_safe($str)
+	{
+		return rtrim(strtr(base64_encode($str), '+/', '-_'), '='); 
+	}
+
+	/**
+	 * Decodes a URL safe base64 string
+	 * @param  string $str
+	 * @return string
+	 */
+	static public function base64_decode_url_safe($str)
+	{
+		return base64_decode(str_pad(strtr($str, '-_', '+/'), strlen($str) % 4, '=', STR_PAD_RIGHT)); 
+	}
+
+	/**
 	 * Protects a URL/URI given as an image/link target against XSS attacks
 	 * (at least it tries)
 	 * @param  string 	$value 	Original URL
