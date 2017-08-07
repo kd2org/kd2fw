@@ -324,9 +324,6 @@ class SMTP
 		$content = preg_replace("#(?<!\r)\n#si", self::EOL, $content);
 		$content = wordwrap($content, 998, self::EOL, true);
 
-		// SMTP Sender
-		$from = 'mail@'.$this->servername;
-
 		// Extract and filter recipients addresses
 		$to = self::extractEmailAddresses($to);
 		$headers['To'] = implode(', ', $to);
@@ -348,7 +345,7 @@ class SMTP
 		}
 
 		// Send email
-		return $this->rawSend($from, $to, $content);
+		return $this->rawSend($headers['From'], $to, $content);
 	}
 
 	/**
