@@ -269,7 +269,7 @@ class SMTP
 		// Parse $headers if it's a string
 		if (is_string($headers))
 		{
-			preg_match_all('/^(\\S.*?):(.*?)\\s*(?=^\\S|\\Z)/sm', $headers, $match);
+			preg_match_all('/^(\\S.*?):(.*?)\\s*(?=^\\S|\\Z)/sm', $headers, $match, PREG_SET_ORDER);
 			$headers = array();
 
 			foreach ($match as $header)
