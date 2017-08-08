@@ -75,10 +75,10 @@ class SkrivLite
 	 * Ignore metadata at the beginning of the parsed string?
 	 * Metadata is at the beginning of the text, using a simple syntax of key: value
 	 * Inspired by https://github.com/fletcher/MultiMarkdown/wiki/MultiMarkdown-Syntax-Guide
-	 * Default is false.
+	 * Default is true.
 	 * @var boolean
 	 */
-	public $ignore_metadata = false;
+	public $ignore_metadata = true;
 
 	/**
 	 * Enable basic inline HTML tags?
