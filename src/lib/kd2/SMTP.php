@@ -313,6 +313,13 @@ class SMTP
 			$headers['From'] = 'mail@'.$this->servername;
 		}
 
+		if (!isset($headers['Message-ID']))
+		{
+			// With headers + uniqid, it is presumed to be sufficiently unique
+			// so that two messages won't have the same ID
+			$headers['Message-ID'] = sha1(uniqid() . var_export($headers, true)) . '@' . $this->servername;
+		}
+
 		$content = '';
 
 		foreach ($headers as $name=>$value)
