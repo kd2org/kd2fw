@@ -251,6 +251,24 @@ class DB
 		return $return;
 	}
 
+	public function createFunction($name, callable $callback)
+	{
+		if ($this->driver->type != 'sqlite')
+		{
+			throw new \LogicException('This driver does not support functions.');
+		}
+
+		if ($this->pdo)
+		{
+			return $this->pdo->sqliteCreateFunction($name, $callback);
+		}
+		else
+		{
+			$this->sqlite_functions[$name] = $callback;
+			return true;
+		}
+	}
+
 	public function import($file)
 	{
 		if (!is_readable($file))

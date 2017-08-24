@@ -96,6 +96,20 @@ class DB_SQLite3 extends DB
 		return true;
 	}
 
+	public function createFunction($name, callable $callback)
+	{
+		if ($this->db)
+		{
+			return $this->db->createFunction($name, $callback);
+		}
+		else
+		{
+			$this->sqlite_functions[$name] = $callback;
+			return true;
+		}
+	}
+
+
 	public function escapeString($str)
 	{
 		// escapeString is not binary safe: https://bugs.php.net/bug.php?id=62361
