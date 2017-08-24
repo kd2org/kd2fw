@@ -239,7 +239,7 @@ class Route
 	static public function route($path, $pattern, Callable $callback)
 	{
 		// Allow for {id}, {id_bis?}, {id:\d+}, {login?:(?i:\w{2}\.\w+\d+)}
-		$replace_pattern = '#(?<!\\)\{(\w+(?:_\w+)*)(\?)?(?:\:((?:[^{}]|(?R))*?))?\}#i';
+		$replace_pattern = '#(?<!\\\\)\{(\w+(?:_\w+)*)(\?)?(?:\:((?:[^{}]|(?R))*?))?\}#i';
 
 		// Make a real regexp
 		$pattern = preg_replace_callback($replace_pattern, function($match) {
@@ -283,7 +283,7 @@ class Route
 	{
 		$status = (int)$status;
 
-		if (!array_key_exists($status, self::$messages))
+		if (!array_key_exists($status, self::$http_codes))
 		{
 			throw new \InvalidArgumentException('Invalid HTTP code: ' . $status);
 		}
