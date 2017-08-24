@@ -888,14 +888,14 @@ class Translate
 	static public function extendSmartyer(Smartyer &$tpl)
 	{
 		$tpl->register_modifier('date_format', function ($timestamp, $format = '%c') {
-			if (!is_numeric($date))
+			if (!is_numeric($timestamp))
 			{
-				$date = strtotime($date);
+				$timestamp = strtotime($timestamp);
 			}
 
 			if (strpos('DATE_', $format) === 0 && defined($format))
 			{
-				return date(constant($format), $date);
+				return date(constant($format), $timestamp);
 			}
 
 			return \KD2\Translate::strftime($format, $timestamp);
