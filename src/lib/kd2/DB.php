@@ -476,7 +476,7 @@ class DB
 		{
 			if (is_object($value) && $value instanceof \DateTimeInterface)
 			{
-				$value = $value->format('Y-m-d H:i:s', $value);
+				$value = $value->format('Y-m-d H:i:s');
 			}
 
 			// Append to arguments
