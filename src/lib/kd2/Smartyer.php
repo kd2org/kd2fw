@@ -1255,17 +1255,17 @@ class Smartyer
 		$u = preg_match('//u', $str) ? 'u' : '';
 
 		// Shorter than $length + 1
-		if (!preg_match('/^.{' . ((int)$length + 1) . '}/' . $u, $str))
+		if (!preg_match('/^.{' . ((int)$length + 1) . '}/s' . $u, $str))
 		{
 			return $str;
 		}
 
 		// Cut at 80 characters
-		$str = preg_replace('/^(.{' . (int)$length . '}).*$/' . $u, '$1', $str);
+		$str = preg_replace('/^(.{0,' . (int)$length . '}).*$/s' . $u, '$1', $str);
 
 		if (!$strict_cut)
 		{
-			$str = preg_replace('/([\s.,:;!?]).*?$/' . $u, '$1', $str);
+			$str = preg_replace('/[^\s.,:;!?]*?$/s' . $u, '', $str);
 		}
 
 		return trim($str) . $placeholder;
