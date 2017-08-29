@@ -44,7 +44,13 @@ class Route
 	 * Set to true when one of the routes returns true
 	 * @var null
 	 */
-	static protected $routed = null;
+	static protected $routed;
+
+	/**
+	 * Stores request URI
+	 * @var string
+	 */
+	static protected $request_uri;
 
 	/**
 	 * Known HTTP request methods
@@ -142,36 +148,34 @@ class Route
 
 	/**
 	 * Returns the URI requested by the HTTP requests
-	 * @param  boolean $relative If TRUE will send the request URI relative
-	 * to the document root (useful if your app is not in the root directory
-	 * of the virtual host).
-	 * If FALSE will just return the raw request URI.
 	 * @return string            Request URI
 	 */
 	static public function requestURI($relative = false)
 	{
-		if (empty($_SERVER['REQUEST_URI']))
+		if (is_null(self::$request_uri))
 		{
-			return null;
+			self::setRequestURI();
 		}
 
-		$url = parse_url($_SERVER['REQUEST_URI']);
+		return self::$request_uri;
+	}
 
-		if (empty($url['path']))
+	static public function setRequestURI($uri = null)
+	{
+		if ($uri === null)
 		{
-			return null;
+			$url = parse_url($_SERVER['REQUEST_URI']);
+
+			if (empty($url['path']))
+			{
+				return null;
+			}
+
+			$uri = $url['path'];
 		}
 
-		$uri = $url['path'];
-
-		if ($relative)
-		{
-			// Relative, for when your app is in http://server.tld/sub/directory/
-			$prefix = substr(__DIR__, strlen($_SERVER['DOCUMENT_ROOT']));
-			$uri = substr($uri, strlen($prefix));
-		}
-
-		return $uri;
+		self::$request_uri = $uri;
+		return true;
 	}
 
 	/**
@@ -211,7 +215,7 @@ class Route
 			throw new RouteException('Method Not Allowed', 405);
 		}
 
-		return self::route(self::requestURI(true), $pattern, $callback);
+		return self::route(self::requestURI(), $pattern, $callback);
 	}
 
 	/**
@@ -250,7 +254,7 @@ class Route
 
 		$pattern = '#^' . $pattern . '$#';
 
-		if (preg_match($pattern, self::requestURI(true), $match))
+		if (preg_match($pattern, self::requestURI(), $match))
 		{
 			unset($match[0]);
 			self::$routed = call_user_func_array($callback, $match);
@@ -291,5 +295,11 @@ class Route
 		$message = self::$http_codes[$status];
 
 	    return header($_SERVER['SERVER_PROTOCOL'] . ' ' . $status . ' ' . $message, true, $status);
+	}
+
+	static public function isExistingFile($path)
+	{
+		$file_path = rtrim($path, '/\\') . DIRECTORY_SEPARATOR . ltrim(self::requestURI(), '/');
+		return is_file($file_path);
 	}
 }
