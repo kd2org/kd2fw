@@ -32,8 +32,9 @@ abstract class MemCache
 {
 	protected $prefix = null;
 	protected $default_ttl = null;
+	protected $options = [];
 
-	public function __construct($prefix = null, $default_ttl = 0)
+	public function __construct($prefix = null, $default_ttl = 0, $options = [])
 	{
 		if (!$this->checkSetup())
 		{
@@ -42,6 +43,7 @@ abstract class MemCache
 
 		$this->prefix = (string) $prefix;
 		$this->default_ttl = (int) $default_ttl;
+		$this->options = $options;
 	}
 
 	abstract public function checkSetup();

@@ -1,26 +1,31 @@
 <?php
 
+use KD2\ErrorManager as EM;
+
 define('KD2FW_ROOT', __DIR__ . '/../lib/kd2');
 define('DATA_DIR', __DIR__ . '/data');
 
-error_reporting(-1);
-
-assert_options(ASSERT_ACTIVE, 1);
-assert_options(ASSERT_WARNING, 0);
-assert_options(ASSERT_QUIET_EVAL, 0);
-assert_options(ASSERT_CALLBACK, 'assert_fail');
-
-function test($assertion, $desc)
+function __autoload($class)
 {
-	assert($assertion . ' // ' . $desc . "\n");
+	$class = explode('\\', $class);
+	$class = array_pop($class);
+	$path = KD2FW_ROOT . '/' . $class . '.php';
+
+	require_once $path;
 }
 
-function assert_fail($file, $line, $code, $desc = null)
+if (file_exists(__DIR__ . '/error.log'))
 {
-	if (is_null($desc))
+	unlink(__DIR__ . '/error.log');
+}
+
+EM::setLogFile(__DIR__ . '/error.log');
+EM::enable();
+
+// Check error log at shutdown
+register_shutdown_function(function () {
+	if (file_exists(__DIR__ . '/error.log'))
 	{
-		list($code, $desc) = explode('//', $code);
+		echo '[FAIL] Error log is not empty: ' . __DIR__ . '/error.log' . PHP_EOL;
 	}
-
-    echo '[FAIL] ' . $file . ':' . $line . ': ' . trim($desc) . "\n";
-}
+});

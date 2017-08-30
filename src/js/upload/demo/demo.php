@@ -4,8 +4,7 @@ define('STORAGE_DIR', __DIR__);
 
 define('MAX_UPLOAD_SIZE', min([
     return_bytes(ini_get('upload_max_filesize')),
-    return_bytes(ini_get('post_max_size')),
-    return_bytes(ini_get('memory_limit'))
+    return_bytes(ini_get('post_max_size'))
 ]));
 
 $nb = 0;
@@ -41,15 +40,14 @@ class FileManager
 		}
 	}
 
-	public function store($file)
+	public function store($file, $suffix = '')
 	{
 		if (empty($file['size']) || empty($file['tmp_name']) || !empty($file['error']))
 		{
 			return $file['error'];
 		}
 
-		if (count($this->files) == 1 
-			&& !empty($_POST['uploadHelper_fileHash'])
+		if (!empty($_POST['uploadHelper_fileHash'])
 			&& preg_match('/^[a-f0-9]+$/', $_POST['uploadHelper_fileHash']))
 		{
 			// Original file hash was found by Javascript
@@ -60,7 +58,7 @@ class FileManager
 			$hash = sha1_file($file['tmp_name']);
 		}
 
-		$path = STORAGE_DIR . '/upload_' . $hash;
+		$path = STORAGE_DIR . '/upload_' . $hash . $suffix;
 		
 		if (file_exists($path))
 			return true;
@@ -84,6 +82,11 @@ class FileManager
 			$i++;
 		}
 
+		if (!empty($this->files['uploadHelper_thumbnail']))
+		{
+			$this->store($this->files['uploadHelper_thumbnail'], '_th');
+		}
+
 		return $i;
 	}
 
@@ -103,6 +106,11 @@ $fm = new FileManager;
 
 function return_bytes ($size_str)
 {
+	if ($size_str == -1)
+	{
+		return null;
+	}
+
     switch (substr($size_str, -1))
     {
         case 'G': case 'g': return (int)$size_str * pow(1024, 3);
@@ -164,6 +172,7 @@ if (!empty($_POST))
 	<meta charset="utf-8" />
 	<title>Upload.js demo</title>
 	<script type="text/javascript" src="../upload_helper.js"></script>
+	<link rel="stylesheet" type="text/css" href="../upload_helper.css" />
 </head>
 
 <body>
@@ -179,18 +188,28 @@ if (!empty($_POST))
         <legend>Upload a file</legend>
         <input type="hidden" name="MAX_FILE_SIZE" value="<?=MAX_UPLOAD_SIZE?>" />
         <p>Your name : <input type="text" name="myName" value="Calvin Hobbes" /></p>
-        <p><input type="file" name="myFile[]" id="myFile" multiple data-hash-check /></p>
+		<div id="myUpload"><label><b>Drop files here, or click to select a file</b> <input type="file" name="myFile[]" multiple required="required" /></label></div>
+        <noscript>
+        	<p><input type="file" name="myFile[]" multiple /></p>
+        	<p><input type="file" name="myFile[]" multiple /></p>
+        	<p><input type="file" name="myFile[]" multiple /></p>
+        	<p><input type="file" name="myFile[]" multiple /></p>
+        </noscript>
         <p><input type="submit" name="submit" value="Upload" /></p>
     </fieldset>
 </form>
 
 <script>
-window.uploadHelper(document.forms[0].myFile, {
-	width: -200,
-	height: null,
+window.uploadHelper(document.getElementById('myUpload'), {
+	width: 600,
+	thumb_width: 200,
 	resize: true,
 	bytes: 'o',
-	size_error_msg: 'Le fichier %file fait %size, soit plus que la taille maximale autorisée de %max_size.'
+	size_error_msg: 'Le fichier %file fait %size, soit plus que la taille maximale autorisée de %max_size.',
+	gallery: true,
+	edit_name_field: true,
+	check_hash: true,
+	upload_thumb: true
 });
 </script>
 

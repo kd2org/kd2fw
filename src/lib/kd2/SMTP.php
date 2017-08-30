@@ -269,7 +269,7 @@ class SMTP
 		// Parse $headers if it's a string
 		if (is_string($headers))
 		{
-			preg_match_all('/^(\\S.*?):(.*?)\\s*(?=^\\S|\\Z)/sm', $headers, $match);
+			preg_match_all('/^(\\S.*?):(.*?)\\s*(?=^\\S|\\Z)/sm', $headers, $match, PREG_SET_ORDER);
 			$headers = array();
 
 			foreach ($match as $header)
@@ -313,6 +313,13 @@ class SMTP
 			$headers['From'] = 'mail@'.$this->servername;
 		}
 
+		if (!isset($headers['Message-ID']))
+		{
+			// With headers + uniqid, it is presumed to be sufficiently unique
+			// so that two messages won't have the same ID
+			$headers['Message-ID'] = sha1(uniqid() . var_export($headers, true)) . '@' . $this->servername;
+		}
+
 		$content = '';
 
 		foreach ($headers as $name=>$value)
@@ -323,9 +330,6 @@ class SMTP
 		$content = trim($content) . self::EOL . self::EOL . $message . self::EOL;
 		$content = preg_replace("#(?<!\r)\n#si", self::EOL, $content);
 		$content = wordwrap($content, 998, self::EOL, true);
-
-		// SMTP Sender
-		$from = 'mail@'.$this->servername;
 
 		// Extract and filter recipients addresses
 		$to = self::extractEmailAddresses($to);
@@ -348,7 +352,7 @@ class SMTP
 		}
 
 		// Send email
-		return $this->rawSend($from, $to, $content);
+		return $this->rawSend($headers['From'], $to, $content);
 	}
 
 	/**

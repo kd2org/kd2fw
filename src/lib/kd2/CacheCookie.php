@@ -54,13 +54,7 @@ class CacheCookie
      * Digest method for hash_hmac
      * @var string
      */
-    protected $digest_method = 'md5';
-
-    /**
-     * Default expiration delay of data (in minutes)
-     * @var integer
-     */
-    protected $data_expiration = 60;
+    protected $digest_method = 'sha256';
 
     /**
      * Delay before expiration when we should renew the cookie
@@ -82,7 +76,8 @@ class CacheCookie
     protected $domain = null;
 
     /**
-     * Default cookie duration
+     * Default cookie duration, in minutes
+     * Will also determine data validity
      * @var integer
      */
     protected $duration = 0;
@@ -106,86 +101,55 @@ class CacheCookie
     protected $content = null;
 
     /**
+     * Cookie HTTP only parameter
+     * @var boolean
+     */
+    protected $httponly = false;
+
+    /**
      * Create a new CacheCookie instance and setup default parameters
      * @param string $name     Cookie name
      * @param string $secret   Secret random hash (should stay the same for at least the cookie duration)
-     * @param int    $duration Cookie duration in seconds, set to 0 (zero) to make the cookie lasts for the
+     * @param int    $duration Cookie duration, in minutes, set to 0 (zero) to make the cookie lasts for the
      * whole user agent session (cookie will be deleted when the browser is closed).
      * @param string $path     Cookie path
      * @param string $domain   Cookie domain, if left null the current HTTP_HOST or SERVER_NAME will be used
      * @param string $secure   Set to TRUE if the cookie should only be sent on a secure connection
      */
-    public function __construct($name = null, $secret = null, $duration = null, $path = null, $domain = null, $secure = null)
+    public function __construct($name = null, $secret = null, $duration = null, $path = null, $domain = null, $secure = false, $httponly = false)
     {
         if (!is_null($name))
         {
-            $this->setName($name);
+            $this->name = $name;
         }
 
         if (!is_null($secret))
         {
-            $this->setSecret($secret);
+            $this->secret = $secret;
         }
         else
         {
             // Default secret key
-            $this->setSecret(md5($_SERVER['DOCUMENT_ROOT']));
+            $this->secret = \hash('sha256', (isset($_SERVER['DOCUMENT_ROOT']) ? $_SERVER['DOCUMENT_ROOT'] : ''));
         }
 
         if (!is_null($duration))
         {
-            $this->setDuration($duration);
+            $this->duration = (int) $duration;
         }
 
         if (!is_null($path))
         {
-            $this->setPath($path);
+            $this->path = $path;
         }
 
         if (!is_null($domain))
         {
-            $this->setDomain($domain);
+            $this->domain = $domain;
         }
 
-        if (!is_null($secure))
-        {
-            $this->setSecure($secure);
-        }
-    }
-
-    public function setName($name)
-    {
-        $this->name = $name;
-    }
-
-    public function setSecret($secret)
-    {
-        $this->secret = $secret;
-    }
-
-    public function setDuration($duration)
-    {
-        $this->duration = (int) $duration;
-    }
-
-    public function setPath($path)
-    {
-        $this->path = $path;
-    }
-
-    public function setDomain($domain)
-    {
-        $this->domain = $domain;
-    }
-
-    public function setSecure($secure)
-    {
         $this->secure = (bool)$secure;
-    }
-
-    public function setDataExpiration($expiration)
-    {
-        $this->data_expiration = (int) $expiration;
+        $this->httponly = (bool)$httponly;
     }
 
     public function setAutoRenew($renew)
@@ -219,7 +183,7 @@ class CacheCookie
             // Check data expiration and integrity
             if (!empty($digest) && !empty($data) && !empty($expire) 
                 && ($expire > round((time() - $this->start_timestamp) / 60))
-                && ($digest === hash_hmac($this->digest_method, $expire . '|' . $data, $this->secret)))
+                && hash_equals($digest, hash_hmac($this->digest_method, $expire . '|' . $data, $this->secret)))
             {
                 if (substr($data, 0, 1) == '{')
                 {
@@ -284,13 +248,13 @@ class CacheCookie
             }
 
             // Store expiration time in minutes
-            $data = round((time() - $this->start_timestamp + $this->data_expiration*60)/60) . '|' . $data;
+            $data = round((time() - $this->start_timestamp + $this->duration*60)/60) . '|' . $data;
 
             $cookie = hash_hmac($this->digest_method, $data, $this->secret) . '|' . $data;
 
-            $duration = $this->duration ? time() + $this->duration : 0;
+            $duration = $this->duration ? time() + $this->duration * 60 : 0;
 
-            if (strlen($cookie . $this->path . $this->duration . $this->domain . $this->name) > 4080)
+            if (strlen($cookie . $this->path . $duration . $this->domain . $this->name) > 4080)
             {
                 throw new \OverflowException('Cache cookie can not be saved as its size exceeds 4KB.');
             }

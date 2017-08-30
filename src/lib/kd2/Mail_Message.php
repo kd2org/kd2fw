@@ -62,27 +62,16 @@ class Mail_Message
 
 	public function getMessageId()
 	{
-		foreach ($this->headers as $key=>$value)
+		$value = $this->getHeader('message-id');
+
+		if (preg_match('!<(.*?)>!', $value, $match))
 		{
-			if ($key == 'message-id')
-			{
-				if (is_array($value))
-				{
-					$value = current($value);
-				}
+			return $match[1];
+		}
 
-				if (preg_match('!<(.*?)>!', $value, $match))
-				{
-					return $match[1];
-				}
-
-				if (filter_var(trim($value), FILTER_VALIDATE_EMAIL))
-				{
-					return $value;
-				}
-
-				return false;
-			}
+		if (filter_var(trim($value), FILTER_VALIDATE_EMAIL))
+		{
+			return $value;
 		}
 
 		return false;
@@ -114,27 +103,16 @@ class Mail_Message
 
 	public function getInReplyTo()
 	{
-		foreach ($this->headers as $key=>$value)
+		$value = $this->getHeader('in-reply-to');
+
+		if (preg_match('!<(.*?)>!', $value, $match))
 		{
-			if ($key == 'in-reply-to')
-			{
-				if (is_array($value))
-				{
-					$value = current($value);
-				}
+			return $match[1];
+		}
 
-				if (preg_match('!<(.*?)>!', $value, $match))
-				{
-					return $match[1];
-				}
-
-				if (filter_var(trim($value), FILTER_VALIDATE_EMAIL))
-				{
-					return $value;
-				}
-
-				return false;
-			}
+		if (filter_var(trim($value), FILTER_VALIDATE_EMAIL))
+		{
+			return $value;
 		}
 
 		return false;
@@ -142,32 +120,47 @@ class Mail_Message
 
 	public function getReferences()
 	{
-		foreach ($this->headers as $key=>$value)
+		$value = $this->getHeader('references');
+
+		if (preg_match_all('!<(.*?)>!', $value, $match, PREG_PATTERN_ORDER))
 		{
-			if ($key == 'references')
-			{
-				if (is_array($value))
-				{
-					$value = current($value);
-				}
+			return $match[1];
+		}
 
-				if (preg_match_all('!<(.*?)>!', $value, $match, PREG_PATTERN_ORDER))
-				{
-					return $match[1];
-				}
-
-				if (filter_var(trim($value), FILTER_VALIDATE_EMAIL))
-				{
-					return [$value];
-				}
-
-				return false;
-			}
+		if (filter_var(trim($value), FILTER_VALIDATE_EMAIL))
+		{
+			return [$value];
 		}
 
 		return false;
 	}
 
+	public function getFrom()
+	{
+		return $this->getMultipleAddressHeader('from');
+	}
+
+	public function getTo()
+	{
+		return $this->getMultipleAddressHeader('to');
+	}
+
+	public function getCc()
+	{
+		return $this->getMultipleAddressHeader('cc');
+	}
+
+	public function getMultipleAddressHeader($header)
+	{
+		$header = $this->getHeader($header);
+		
+		// Remove grouping, see RFC 2822 § section 3.4
+		$header = preg_replace('/(?:[^:"<>,]+)\s*:\s*(.*?);/', '$1', $header);
+
+		// Extract addresses
+		preg_match_all('/(?:"((?!").)*"\s*|[^"<>,]+)?<(.*?)>|[^<>",\s]+/s', $header, $match, PREG_PATTERN_ORDER);
+		return $match[0];
+	}
 
 	public function setHeader($key, $value)
 	{
@@ -183,13 +176,35 @@ class Mail_Message
 
 	public function removeHeader($key)
 	{
-		unset($this->headers[$key]);
+		unset($this->headers[strtolower($key)]);
 	}
 
-	public function setDate($ts = null)
+	public function getDate()
 	{
-		$this->headers['date'] = is_null($ts) ? date(DATE_RFC2822) : date(DATE_RFC2822, $ts);
-		return true;
+		$date = $this->getHeader('date');
+		return $date ? new \DateTime($date) : null;
+	}
+
+	public function setDate($date = null)
+	{
+		if (is_null($date))
+		{
+			$date = date(\DATE_RFC2822);
+		}
+		elseif (is_object($date) && $date instanceof \DateTime)
+		{
+			$date = $date->format(\DATE_RFC2822);
+		}
+		elseif (is_numeric($date))
+		{
+			$date = date(\DATE_RFC2822, $date);
+		}
+		else
+		{
+			throw new \InvalidArgumentException('Argument is not a valid date: ' . (string)$date);
+		}
+
+		return $this->setHeader('date', $date);
 	}
 
 	public function appendHeaders($headers)

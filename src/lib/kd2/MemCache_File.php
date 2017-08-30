@@ -28,46 +28,59 @@
 
 namespace KD2;
 
-abstract class Singleton
+/**
+ * Cache user data with files, since PHP 5.5 will use OpCache and will be faster than MemCache!
+ * (and so it is still a memory cache)
+ *
+ */
+class MemCache_File extends MemCache
 {
-    private static $instances = array();
- 
-    /**
-     * Disables instanciation
-     */
-    protected function __construct()
-    {
-    }
- 
-    /**
-     * Disables cloning
-     */
-    final public function __clone()
-    {
-        throw new \LogicException('Cloning disabled: class is a singleton');
-    }
+	public function checkSetup()
+	{
+		if (empty($this->options['cache_dir']))
+		{
+			throw new \Exception('options.cache_dir is not set.');
+		}
 
-    /**
-     * Returns object instance
-     */
-    final public static function getInstance()
-    {
-        $c = get_called_class();
- 
-        if(!isset(self::$instances[$c]))
-        {
-            self::$instances[$c] = new $c;
-        }
- 
-        return self::$instances[$c];
-    }
+		if (!is_writeable($this->options['cache_dir']))
+		{
+			throw new \Exception($this->options['cache_dir'] . ' directory does not exists or is not writable');
+		}
+	}
 
-    final public static function deleteInstance()
-    {
-        $c = get_called_class();
+	protected function getPath($key)
+	{
+		return $this->options['cache_dir'] . DIRECTORY_SEPARATOR . sha1($this->prefix . $key);
+	}
 
-        unset(self::$instances[$c]);
+	public function exists($key)
+	{
+		return file_exists($this->getPath($key));
+	}
 
-        return true;
-    }
+	public function get($key)
+	{
+		include file_exists($this->getPath($key));
+		return $data;
+	}
+
+	public function set($key, $value, $ttl = 0)
+	{
+		return file_put_contents($this->getPath($key), '<?php $data = ' . var_export($value) . ';');
+	}
+
+	public function inc($key, $step = 1)
+	{
+		return $this->set($key, $this->get($key) + $step);
+	}
+
+	public function dec($key, $step = 1)
+	{
+		return $this->set($key, $this->get($key) - $step);
+	}
+
+	public function delete($key)
+	{
+		unlink($this->getPath($key));
+	}
 }
