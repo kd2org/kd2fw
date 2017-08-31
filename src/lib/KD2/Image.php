@@ -95,7 +95,7 @@ class Image
 			}
 		}
 
-		if ($library || !self::$init)
+		if ($library && !self::$init)
 		{
 			if (!isset($this->libraries[$library]))
 			{
@@ -358,6 +358,12 @@ class Image
 		if (!$new_height)
 		{
 			$new_height = $new_width;
+		}
+
+		if ($this->width <= $new_width && $this->height <= $new_height)
+		{
+			// Nothing to do
+			return $this;
 		}
 
 		$new_height = (int) $new_height;
@@ -1028,7 +1034,7 @@ class Image
 				$this->pointer->evaluateImage(\Imagick::EVALUATE_MULTIPLY, 0.3, \Imagick::CHANNEL_ALPHA);
 			}
 			
-			$this->pointer->resizeImage($new_width, $new_height, \Imagick::FILTER_CATROM, 1, false);
+			$this->pointer->resizeImage($new_width, $new_height, \Imagick::FILTER_CATROM, 1, true);
 		}
 	}
 
