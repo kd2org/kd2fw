@@ -539,6 +539,11 @@ class DB
 
 		$value = func_get_arg($num_args - 1);
 
+		if (is_object($value) && $value instanceof \DateTimeInterface)
+		{
+			$value = $value->format('Y-m-d H:i:s');
+		}
+
 		if (is_object($value))
 		{
 			$value = (array) $value;
@@ -590,7 +595,7 @@ class DB
 		}
 		else
 		{
-			throw new \BadMethodCallException('Method where requires 2 or 3 parameters');
+			throw new \BadMethodCallException('Method ::where requires 2 or 3 parameters');
 		}
 
 		if (is_array($value))
