@@ -92,7 +92,7 @@ class UserSession
 	 * @param  string $stored_password
 	 * @return boolean TRUE if password is matching, FALSE if it's not
 	 */
-	protected function checkPassword($supplied_password, $stored_password)
+	public function checkPassword($supplied_password, $stored_password)
 	{
 		// Remove NUL bytes
 		// see http://blog.ircmaxell.com/2015/03/security-issue-combining-bcrypt-with.html
@@ -168,7 +168,6 @@ class UserSession
 
 	protected $cookie;
 	protected $user;
-	protected $id;
 
 	protected $db;
 
