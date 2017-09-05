@@ -122,7 +122,15 @@ class UserSession
 		return $this->db->first('SELECT * FROM users WHERE id = ? LIMIT 1;', $id);
 	}
 
-	protected function storeRememberMeSelector($selector, $hash, \DateTime $expiry, $user_id)
+	/**
+	 * Stores "remember me" selector and details
+	 * @param  string $selector
+	 * @param  string $hash
+	 * @param  integer $expiry
+	 * @param  string $user_id
+	 * @return boolean
+	 */
+	protected function storeRememberMeSelector($selector, $hash, $expiry, $user_id)
 	{
 		return $this->db->insert('remember_me_selectors', [
 			'selector' => $selector,
@@ -132,9 +140,13 @@ class UserSession
 		]);
 	}
 
+	/**
+	 * Deletes expired selectors
+	 * @return boolean
+	 */
 	protected function expireRememberMeSelectors()
 	{
-		return $this->db->delete('remember_me_selectors', $this->db->where('expiry', '<', new \DateTime));
+		return $this->db->delete('remember_me_selectors', $this->db->where('expiry', '<', time()));
 	}
 
 	/**
@@ -144,17 +156,27 @@ class UserSession
 	 */
 	protected function getRememberMeSelector($selector)
 	{
-		return $this->db->get('SELECT r.*, u.password AS user_password
+		return $this->db->first('SELECT r.*, u.password AS user_password
 			FROM remember_me_selectors AS r
 			LEFT JOIN users AS u ON u.id = r.user_id
 			WHERE r.selector = ? LIMIT 1;', $selector);
 	}
 
+	/**
+	 * Deletes a specific selector
+	 * @param  string $selector
+	 * @return boolean
+	 */
 	protected function deleteRememberMeSelector($selector)
 	{
 		return $this->db->delete('remember_me_selectors', $this->db->where('selector', $selector));
 	}
 
+	/**
+	 * Deletes all selectors for a user
+	 * @param  string $user_id
+	 * @return boolean
+	 */
 	protected function deleteAllRememberMeSelectors($user_id)
 	{
 		return $this->db->delete('remember_me_selectors', $this->db->where('user_id', $user_id));
@@ -208,6 +230,7 @@ class UserSession
 		// Only start session if it exists
 		if ($write || isset($_COOKIE[$this->cookie_name]))
 		{
+			session_set_cookie_params(0, $this->cookie_path, $this->cookie_domain, $this->cookie_secure, true);
 			session_name($this->cookie_name);
 			return session_start($this->getSessionOptions());
 		}
@@ -292,7 +315,7 @@ class UserSession
 			return false;
 		}
 
-		if ($this->checkPassword(trim($password), $user->password))
+		if (!$this->checkPassword(trim($password), $user->password))
 		{
 			return false;
 		}
@@ -304,8 +327,8 @@ class UserSession
 			$_SESSION = [];
 
 			$_SESSION['userSessionRequireOTP'] = (object) [
-				'user'     => $user,
-				'remember' => $remember,
+				'user'        => $user,
+				'remember_me' => $remember_me,
 			];
 
 			return $this::REQUIRE_OTP;
@@ -316,7 +339,7 @@ class UserSession
 
 			if ($remember_me)
 			{
-				$this->createRememberMeSelector();
+				$this->createRememberMeSelector($user->id, $user->password);
 			}
 
 			return true;
@@ -339,23 +362,20 @@ class UserSession
 
 	public function logout()
 	{
-		$options = $this->getSessionOptions();
-
 		if ($cookie = $this->getRememberMeCookie())
 		{
 			$this->deleteRememberMeSelector($cookie->selector);
 
-			setcookie($this->remember_me_cookie_name, null, -1, $options['cookie_path'],
-				$options['cookie_domain'], $options['cookie_secure'], $options['cookie_httponly']);
+			setcookie($this->remember_me_cookie_name, null, -1, $this->cookie_path,
+				$this->cookie_domain, $this->cookie_secure, true);
 			unset($_COOKIE[$this->remember_me_cookie_name]);
 		}
 
 		$this->start(true);
-		session_destroy();
 		$_SESSION = [];
 
-		setcookie($options['name'], null, -1, $options['cookie_path'],
-			$options['cookie_domain'], $options['cookie_secure'], $options['cookie_httponly']);
+		setcookie($this->cookie_name, null, -1, $this->cookie_path,
+			$this->cookie_domain, $this->cookie_secure, true);
 
 		unset($_COOKIE[$this->cookie_name]);
 	
@@ -379,14 +399,15 @@ class UserSession
 		$selector = hash($this::HASH_ALGO, Security::random_bytes(10));
 		$verifier = hash($this::HASH_ALGO, Security::random_bytes(10));
 		$expiry = (new \DateTime)->modify($this->remember_me_expiry);
+		$expiry = $expiry->getTimestamp();
 
-		$hash = hash($this::HASH_ALGO, $selector . $verifier . $user_password . $expiry->format(DATE_ATOM));
+		$hash = hash($this::HASH_ALGO, $selector . $verifier . $user_password . $expiry);
 
 		$this->storeRememberMeSelector($selector, $hash, $expiry, $user_id);
 
 		$cookie = $selector . '|' . $verifier;
 
-		setcookie($this->remember_me_cookie_name, $cookie, $expire->getTimestamp(),
+		setcookie($this->remember_me_cookie_name, $cookie, $expiry,
 			$this->cookie_path, $this->cookie_domain, $this->cookie_secure, true);
 
 		return true;
@@ -424,11 +445,11 @@ class UserSession
 		}
 
 		// The selector is useless now, delete it so that it can't be reused
-		$this->deleteRememberMeSelector($selector);
+		$this->deleteRememberMeSelector($cookie->selector);
 
 		// Here we are using the user password. If the user changes his password,
 		// any previously opened session will be invalid.
-		$hash = hash($this::HASH_ALGO, $cookie->selector . $cookie->verifier . $selector->user_password . $selector->expiry->getTimestamp());
+		$hash = hash($this::HASH_ALGO, $cookie->selector . $cookie->verifier . $selector->user_password . $selector->expiry);
 
 		// Check the token hash
 		if (!hash_equals($selector->hash, $hash))
@@ -444,7 +465,7 @@ class UserSession
 		}
 
 		// Create short lived session
-		$this->create($user_id);
+		$this->create($selector->user_id);
 
 		// Re-generate a new verifier/selector and update the cookie
 		// as each selector is single use
@@ -495,16 +516,21 @@ class UserSession
 			return false;
 		}
 
-		$user = $_SESSION['userSessionRequireOTP'];
+		$user = $_SESSION['userSessionRequireOTP']->user;
 
-		if (empty($user->secret) || empty($user->id))
+		if (empty($user->otp_secret) || empty($user->id))
 		{
 			return false;
 		}
 
-		if (!$this->checkOTP($user->secret, $code))
+		if (!$this->checkOTP($user->otp_secret, $code))
 		{
 			return false;
+		}
+
+		if (!empty($_SESSION['userSessionRequireOTP']->remember_me))
+		{
+			$this->createRememberMeSelector($user->id, $user->password);
 		}
 
 		$this->create($user->id);
