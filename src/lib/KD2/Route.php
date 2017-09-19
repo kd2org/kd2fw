@@ -171,7 +171,7 @@ class Route
 				return null;
 			}
 
-			$uri = $url['path'];
+			$uri = rawurldecode($url['path']);
 		}
 
 		self::$request_uri = $uri;
@@ -242,6 +242,11 @@ class Route
 	 */
 	static public function route($path, $pattern, Callable $callback)
 	{
+		if (self::$routed)
+		{
+			return false;
+		}
+
 		// Allow for {id}, {id_bis?}, {id:\d+}, {login?:(?i:\w{2}\.\w+\d+)}
 		$replace_pattern = '#(?<!\\\\)\{(\w+(?:_\w+)*)(\?)?(?:\:((?:[^{}]|(?R))*?))?\}#i';
 
@@ -252,7 +257,7 @@ class Route
 			return '(' . $pattern . ')' . $opt;
 		}, $pattern);
 
-		$pattern = '#^' . $pattern . '$#';
+		$pattern = '#^' . $pattern . '$#u';
 
 		if (preg_match($pattern, self::requestURI(), $match))
 		{
@@ -301,5 +306,11 @@ class Route
 	{
 		$file_path = rtrim($path, '/\\') . DIRECTORY_SEPARATOR . ltrim(self::requestURI(), '/');
 		return is_file($file_path);
+	}
+
+	static public function isExistingDir($path)
+	{
+		$file_path = rtrim($path, '/\\') . DIRECTORY_SEPARATOR . ltrim(self::requestURI(), '/');
+		return is_dir($file_path);		
 	}
 }
