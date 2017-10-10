@@ -2,7 +2,7 @@
 
 use KD2\ErrorManager as EM;
 
-define('KD2FW_ROOT', __DIR__ . '/../lib/kd2');
+define('KD2FW_ROOT', __DIR__ . '/../lib/KD2');
 define('DATA_DIR', __DIR__ . '/data');
 
 function __autoload($class)
