@@ -289,14 +289,19 @@ class UserSession
 
 	public function set($key, $value)
 	{
-		$_SESSION['userSession'][$key] = $value;
+		if (!isset($_SESSION['userSessionData']))
+		{
+			$_SESSION['UserSessionData'] = [];
+		}
+
+		$_SESSION['userSessionData'][$key] = $value;
 	}
 
 	public function get($key)
 	{
-		if (isset($_SESSION['userSession'][$key]))
+		if (isset($_SESSION['userSessionData'][$key]))
 		{
-			return $_SESSION['userSession'][$key];
+			return $_SESSION['userSessionData'][$key];
 		}
 
 		return null;
