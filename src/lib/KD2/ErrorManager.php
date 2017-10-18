@@ -222,11 +222,10 @@ class ErrorManager
 				$from = !empty($_SERVER['SERVER_NAME']) ? $_SERVER['SERVER_NAME'] : basename($_SERVER['DOCUMENT_ROOT']);
 
 				$headers = [
-					'Subject'	=>	'Error ref ' . $ref,
-					'From' 		=>	'"' . $from . '" <' . self::$email_errors . '>',
+					'From' => sprintf('"%s" <%s>', $from, self::$email_errors),
 				];
 
-				error_log($log, 1, self::$email_errors, implode("\r\n", $headers));
+				mail(self::$email_errors, 'Error ref ' . $ref, $log, implode("\r\n", $headers));
 			}
 
 			// Disable any output if it was buffering
