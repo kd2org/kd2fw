@@ -276,8 +276,8 @@ class Mail_Message
 
 		foreach ($this->parts as $id=>$p)
 		{
-			unset($p['content']);
 			$out[$id] = $p;
+			unset($out[$id]['content']);
 		}
 
 		return $out;
@@ -638,7 +638,9 @@ class Mail_Message
 		else
 		{
 			if (empty($headers['content-type']))
+			{
 				$headers['content-type'] = 'text/plain';
+			}
 
 			$encoding = isset($headers['content-transfer-encoding']) ? $headers['content-transfer-encoding'] : '';
 
@@ -801,7 +803,7 @@ class Mail_Message
 		// Skip to beginning of next part
 		foreach ($lines as $line)
 		{
-			if (preg_match('!(?:Content-Type:.*|^\s+)boundary=(?:"(.*?)"|([^\s]+))!si', $line, $match))
+			if (preg_match('!(?:Content-Type:.*|^\s+)boundary=(?:"(.*?)"|([^\s;]+))!si', $line, $match))
 			{
 				$this->boundaries[] = !empty($match[2]) ? $match[2] : $match[1];
 			}
