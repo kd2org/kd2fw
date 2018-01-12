@@ -610,7 +610,7 @@ class Mail_Message
             return $value;
 		}
 
-		if ($this->is_utf8($value))
+		if (preg_match('//u', $str)) // will detect if it is a valid UTF-8 string
 		{
 			$value = '=?UTF-8?B?'.base64_encode($value).'?=';
 		}
