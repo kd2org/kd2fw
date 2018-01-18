@@ -610,7 +610,7 @@ class Mail_Message
             return $value;
 		}
 
-		if (!$this->is_utf8($value))
+		if ($this->is_utf8($value))
 		{
 			$value = '=?UTF-8?B?'.base64_encode($value).'?=';
 		}
