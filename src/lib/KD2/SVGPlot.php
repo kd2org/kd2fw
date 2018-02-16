@@ -193,11 +193,10 @@ class SVGPlot
 			// labels for x axis
 			$y = $this->height - ($this->height * 0.07);
 			$i = 0;
-			$step = round($nb_elements / 5);
+			$step = max(1, round($nb_elements / 5));
 
 			for ($i = 0; $i <= $nb_elements; $i += $step)
 			{
-				//echo
 				$x = ($i * ($space + $this->data[0]->width)) + ($this->width * 0.1);
 
 				if ($x >= $this->width)
