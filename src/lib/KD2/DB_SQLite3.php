@@ -397,7 +397,7 @@ class DB_SQLite3 extends DB
 
 		$row = $res->fetchArray(\SQLITE3_NUM);
 
-		return count($row) > 0 ? $row[0] : false;
+		return (is_array($row) && count($row) > 0) ? $row[0] : false;
 	}
 
 	public function countRows(\SQLite3Result $result)
