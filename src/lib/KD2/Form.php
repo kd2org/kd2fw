@@ -254,18 +254,20 @@ class Form
 	 * @param  string $rule_name Rule name
 	 * @param  Array  $params    Parameters of the rule
 	 * @param  Array  $source    Source of the field data
+	 * @param  Array  $rules     Complete list of rules
 	 * @return boolean
 	 */
-	static public function validateRule($key, $rule_name, Array $params = [], Array $source = null)
+	static public function validateRule($key, $rule_name, Array $params = [], Array $source = null, Array $rules = [])
 	{
 		$value = isset($source[$key]) ? $source[$key] : null;
 
 		switch ($rule_name)
 		{
 			case 'required':
-				if (isset($_FILES[$key]))
+				if (isset($rules['file']))
 				{
-					return self::validateRule($key, 'file');
+					// Checked in 'file' rule
+					return true;
 				}
 				elseif (is_array($value) || $value instanceof \Countable)
 				{
@@ -359,7 +361,7 @@ class Form
 		}
 
 		// Ignore rules for empty fields, except 'required*'
-		if ($value === null || (is_string($value) && trim($value) === ''))
+		if ($rule_name != 'file' && ($value === null || (is_string($value) && trim($value) === '')))
 		{
 			return true;
 		}
@@ -367,7 +369,7 @@ class Form
 		switch ($rule_name)
 		{
 			case 'file':
-				if (!isset($_FILES[$key]))
+				if (!isset($_FILES[$key]) && !isset($rules['required']))
 				{
 					return true;
 				}
@@ -519,7 +521,7 @@ class Form
 
 			foreach ($rules as $name => $params)
 			{
-				if (!self::validateRule($key, $name, $params, $source))
+				if (!self::validateRule($key, $name, $params, $source, $rules))
 				{
 					$errors[] = ['name' => $key, 'rule' => $name, 'params' => $params];
 				}
