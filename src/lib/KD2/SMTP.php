@@ -85,14 +85,23 @@ class SMTP
 		fputs($this->conn, $data . ($eol ? self::EOL : ''));
 	}
 
-	public function __construct($server = 'localhost', $port = 25, $username = null, $password = null, $secure = self::NONE)
+	/**
+	 * SMTP class instance constructor
+	 * @param string  $server     SMTP Server address
+	 * @param integer $port       SMTP server port
+	 * @param string  $username   SMTP AUTH username (or null to disable AUTH)
+	 * @param string  $password   SMTP AUTH password
+	 * @param integer $secure     either SMTP::NONE, SMTP::SSL to use SSL/TLS or SMTP::STARTTLS for STARTTLS
+	 * @param string  $servername Internal server name used for Message-ID generation and HELO commands (if null will use SERVER_NAME or hostname)
+	 */
+	public function __construct($server = 'localhost', $port = 25, $username = null, $password = null, $secure = self::NONE, $servername = null)
 	{
 		$this->server = $secure == self::SSL ? 'ssl://' . $server : $server;
 		$this->port = $port;
 		$this->username = $username;
 		$this->password = $password;
 		$this->secure = (int)$secure;
-		$this->servername = isset($_SERVER['SERVER_NAME']) ? $_SERVER['SERVER_NAME'] : gethostname();
+		$this->servername = $servername ?: (isset($_SERVER['SERVER_NAME']) ? $_SERVER['SERVER_NAME'] : gethostname());
 	}
 
 	public function __destruct()
@@ -134,8 +143,22 @@ class SMTP
 
 	public function authenticate()
 	{
-		$this->_write('HELO '.$this->servername);
-		$this->_read();
+		$this->_write(sprintf('EHLO %s', $this->servername));
+		
+		if ($this->_readCode() != 250)
+		{
+			if ($this->secure == self::TLS)
+			{
+				throw new SMTP_Exception('Can\'t use STARTTLS on this server: server doesn\'t support ESMTP');
+			}
+
+			$this->_write('HELO');
+
+			if ($this->_readCode() != 250)
+			{
+				throw new SMTP_Exception('SMTP error on HELO: '.$this->last_line);
+			}
+		}
 
 		if ($this->secure == self::TLS)
 		{
@@ -148,11 +171,11 @@ class SMTP
 
 			stream_socket_enable_crypto($this->conn, true, STREAM_CRYPTO_METHOD_TLS_CLIENT);
 
-			$this->_write('HELO ' . $this->servername);
+			$this->_write(sprintf('EHLO %s', $this->servername));
 
 			if ($this->_readCode() != 250)
 			{
-				throw new SMTP_Exception('SMTP error on HELO: '.$this->last_line);
+				throw new SMTP_Exception('SMTP error on EHLO: '.$this->last_line);
 			}
 		}
 
@@ -258,19 +281,19 @@ class SMTP
 
 	/**
 	 * Send an email to $to, using $subject as a subject and $message as content
-	 * @param  mixed  $to      List of recipients, as an array or a string
+	 * @param  mixed  $to      List of recipients, as an array or string of email addresses
 	 * @param  string $subject Message subject
 	 * @param  string $message Message content
 	 * @param  mixed  $headers Additional headers, either as an array of key=>value pairs or a string
-	 * @return boolean		   TRUE if success, exception if it fails
+	 * @return string
 	 */
-	public function send($to, $subject, $message, $headers = array())
+	public function buildMessage($to, $subject, $message, $headers = [])
 	{
 		// Parse $headers if it's a string
 		if (is_string($headers))
 		{
 			preg_match_all('/^(\\S.*?):(.*?)\\s*(?=^\\S|\\Z)/sm', $headers, $match, PREG_SET_ORDER);
-			$headers = array();
+			$headers = [];
 
 			foreach ($match as $header)
 			{
@@ -279,7 +302,7 @@ class SMTP
 		}
 
 		// Normalize headers
-		$headers_normalized = array();
+		$headers_normalized = [];
 
 		foreach ($headers as $key=>$value)
 		{
@@ -293,7 +316,7 @@ class SMTP
 		// Set default headers if they are missing
 		if (!isset($headers['Date']))
 		{
-			$headers['Date'] = date(DATE_RFC822);
+			$headers['Date'] = date(DATE_RFC2822);
 		}
 
 		$headers['Subject'] = (trim($subject) == '') ? '' : '=?UTF-8?B?'.base64_encode($subject).'?=';
@@ -317,23 +340,12 @@ class SMTP
 		{
 			// With headers + uniqid, it is presumed to be sufficiently unique
 			// so that two messages won't have the same ID
-			$headers['Message-ID'] = sha1(uniqid() . var_export($headers, true)) . '@' . $this->servername;
+			$headers['Message-ID'] = sprintf('<%s.%s@%s>', uniqid(), substr(sha1(var_export($headers, true)), 0, 10), $this->servername);
 		}
-
-		$content = '';
-
-		foreach ($headers as $name=>$value)
-		{
-			$content .= $name . ': ' . $value . self::EOL;
-		}
-
-		$content = trim($content) . self::EOL . self::EOL . $message . self::EOL;
-		$content = preg_replace("#(?<!\r)\n#si", self::EOL, $content);
-		$content = wordwrap($content, 998, self::EOL, true);
 
 		// Extract and filter recipients addresses
 		$to = self::extractEmailAddresses($to);
-		$headers['To'] = implode(', ', $to);
+		$headers['To'] = '<' . implode('>, <', $to) . '>';
 
 		if (isset($headers['Cc']))
 		{
@@ -351,10 +363,36 @@ class SMTP
 			$headers['Bcc'] = implode(', ', $headers['Bcc']);
 		}
 
-		$from = self::extractEmailAddresses($headers['From']);
+		$content = '';
+
+		foreach ($headers as $name=>$value)
+		{
+			$content .= $name . ': ' . $value . self::EOL;
+		}
+
+		$content = trim($content) . self::EOL . self::EOL . $message . self::EOL;
+		$content = preg_replace("#(?<!\r)\n#si", self::EOL, $content);
+		$content = wordwrap($content, 998, self::EOL, true);
+
+		return (object) ['message' => $content, 'headers' => $headers, 'recipients' => $to];
+	}
+
+	/**
+	 * Send an email to $to, using $subject as a subject and $message as content
+	 * @param  mixed  $to      List of recipients, as an array or a string
+	 * @param  string $subject Message subject
+	 * @param  string $message Message content
+	 * @param  mixed  $headers Additional headers, either as an array of key=>value pairs or a string
+	 * @return boolean		   TRUE if success, exception if it fails
+	 */
+	public function send($to, $subject, $message, $headers = [])
+	{
+		$msg = $this->buildMessage($to, $subject, $message, $headers);
+
+		$from = self::extractEmailAddresses($msg->headers['From']);
 
 		// Send email
-		return $this->rawSend(current($from), $to, $content);
+		return $this->rawSend(current($from), $msg->recipients, $msg->message);
 	}
 
 	/**
@@ -368,7 +406,7 @@ class SMTP
 	{
 		if (is_array($str))
 		{
-			$out = array();
+			$out = [];
 
 			// Filter invalid email addresses
 			foreach ($str as $email)
@@ -383,7 +421,7 @@ class SMTP
 		}
 
 		$str = explode(',', $str);
-		$out = array();
+		$out = [];
 
 		foreach ($str as $s)
 		{
