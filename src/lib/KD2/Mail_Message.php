@@ -509,7 +509,7 @@ class Mail_Message
 
 		if ($part['type'] == 'message/rfc822')
 		{
-			$out .= "\n";
+			$out .= "\nContent-Disposition: inline\n";
 			$content = $part['content'];
 		}
 		elseif (stripos($part['type'], 'text/') === 0)
@@ -543,7 +543,8 @@ class Mail_Message
 			$out .= 'Content-Location: ' . $part['location'] . "\n";
 		}
 
-		$out .= "\n" . $content;
+		$out = rtrim($out, "\r\n");
+		$out .= "\n\n" . ltrim($content, "\r\n");
 
 		return $out;
 	}
