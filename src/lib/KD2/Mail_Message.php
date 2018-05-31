@@ -410,6 +410,11 @@ class Mail_Message
 				$this->headers['content-type'] = $parts[0]['type'] . '; charset=utf-8';
 				$this->headers['content-transfer-encoding'] = 'quoted-printable';
 			}
+			elseif (stristr($this->headers['content-type'], 'text/plain'))
+			{
+				// Force UTF-8
+				$this->headers['content-type'] = $parts[0]['type'] . '; charset=utf-8';
+			}
 		}
 		else
 		{
