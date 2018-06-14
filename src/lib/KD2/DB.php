@@ -345,6 +345,16 @@ class DB
 
         $args = (array) $args;
 
+        foreach ($args as &$arg)
+        {
+        	if (is_object($arg) && $arg instanceof \DateTimeInterface)
+        	{
+        		$arg = $arg->format('Y-m-d H:i:s');
+        	}
+        }
+
+        unset($arg);
+
 		$st = $this->prepare($query);
 		$st->execute($args);
 
