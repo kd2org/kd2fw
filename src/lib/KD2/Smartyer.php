@@ -166,6 +166,12 @@ class Smartyer
 	public $error_on_invalid_block = true;
 
 	/**
+	 * Default namespace used in templates
+	 * @var string
+	 */
+	protected $namespace;
+
+	/**
 	 * Global parent path to templates
 	 * @var string
 	 */
@@ -248,7 +254,7 @@ class Smartyer
 		// Register parent functions and variables locally
 		if ($parent instanceof Smartyer)
 		{
-			$copy = ['modifiers', 'blocks', 'functions', 'variables', 'escape_type', 'compile_functions'];
+			$copy = ['modifiers', 'blocks', 'functions', 'variables', 'escape_type', 'compile_functions', 'namespace'];
 
 			foreach ($copy as $key)
 			{
@@ -530,14 +536,20 @@ class Smartyer
 		// Keep a trace of the source for debug purposes
 		$prefix = '<?php /* Compiled from ' . $this->template_path . ' - ' . gmdate('Y-m-d H:i:s') . ' UTC */ ';
 
+		// Apply namespace
+		if ($this->namespace)
+		{
+			$prefix .= sprintf("\nnamespace %s;", $this->namespace);
+		}
+
 		// Stop execution if not in the context of Smartyer
 		// this is to avoid potential execution of template code outside of Smartyer
-		$prefix .= 'if (!isset($this) || !is_object($this) || !is_subclass_of($this, \'KD2\Smartyer\', true)) { die("Wrong call context."); } ';
+		$prefix .= 'if (!isset($this) || !is_object($this) || (!($this instanceof \KD2\Smartyer) && !is_subclass_of($this, \'\KD2\Smartyer\', true))) { die("Wrong call context."); } ';
 
 		// Initialize useful variables
 		$prefix .= 'if (!isset($_i)) { $_i = []; } if (!isset($_blocks)) { $_blocks = []; } ?>';
 
-		$compile = $prefix . $compiled;
+		$compiled = $prefix . $compiled;
 
 		// Write to temporary file
 		file_put_contents($this->compiled_template_path . '.tmp', $compiled);
@@ -790,11 +802,11 @@ class Smartyer
 
 			if (count($args) > 0)
 			{
-				$assign = '$_s->assign(' . $this->exportArguments($args) . ');';
+				$assign = '$_s->assign(array_merge(get_defined_vars(), ' . $this->exportArguments($args) . '));';
 			}
 			else
 			{
-				$assign = '';
+				$assign = '$_s->assign(get_defined_vars());';
 			}
 
 			$code = '$_s = new \KD2\Smartyer(' . $file . ', $this); ' . $assign . ' $_s->display(); unset($_s);';
@@ -809,7 +821,7 @@ class Smartyer
 			elseif (array_key_exists($name, $this->functions))
 			{
 				$args = $this->parseArguments($raw_args);
-				$code = 'echo $this->functions[' . var_export($name, true) . '](' . $this->exportArguments($args) . ');';
+				$code = 'echo $this->functions[' . var_export($name, true) . '](' . $this->exportArguments($args) . ', $this);';
 			}
 			else
 			{
