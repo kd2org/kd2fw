@@ -96,7 +96,9 @@ class Smartyer
 	 * Functions registered to the template
 	 * @var array
 	 */
-	protected $functions = [];
+	protected $functions = [
+		'assign' => [__CLASS__, 'templateAssign'],
+	];
 
 	/**
 	 * Block functions registered to the template
@@ -738,7 +740,10 @@ class Smartyer
 		if ($raw_args[0] == '(' && substr($raw_args, -1) == ')')
 		{
 			$raw_args = $this->parseMagicVariables($raw_args);
-			$code .= $name . $raw_args . ':';
+
+			// Make sure the arguments are wrapped in parenthesis as it could be a false positive
+			// eg. ($a == 1) || ($b == 1) would create an error
+			$code .= sprintf('%s (%s):', $name, $raw_args);
 		}
 		// Raw PHP tags with no enclosing bracket: enclose it in brackets if needed
 		elseif (in_array($name, $this->raw_php_blocks))
@@ -1310,6 +1315,24 @@ class Smartyer
 	static protected function concatenate()
 	{
 		return implode('', func_get_args());
+	}
+
+	/**
+	 * {assign} template function
+	 * @param  array  $args
+	 * @param  object &$tpl Smartyer object
+	 * @return string
+	 */
+	static protected function templateAssign(array $args, &$tpl)
+	{
+		// Value can be NULL!
+		if (!isset($args['var']) || !array_key_exists($args['value']))
+		{
+			throw new \BadFunctionCallException('Missing argument "var" or "value" to function {assign}');
+		}
+
+		$tpl->assign($args['var'], $args['value']);
+		return '';
 	}
 }
 
