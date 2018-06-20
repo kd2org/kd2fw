@@ -413,6 +413,7 @@ class DB
 	{
 		$args = array_slice(func_get_args(), 1);
 		$st = $this->preparedQuery($query, $args);
+		$out = [];
 
 		while ($row = $st->fetch(PDO::FETCH_NUM))
 		{
@@ -426,6 +427,7 @@ class DB
 	{
 		$args = array_slice(func_get_args(), 1);
 		$st = $this->preparedQuery($query, $args);
+		$out = [];
 
 		while ($row = $st->fetch(PDO::FETCH_ASSOC))
 		{
