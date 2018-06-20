@@ -330,6 +330,33 @@ class DB
 		return $this->pdo->quote($value, $parameter_type);
 	}
 
+	public function quoteIdentifier($value)
+	{
+		// see https://www.codetinkerer.com/2015/07/08/escaping-column-and-table-names-in-mysql-part2.html
+		if ($this->driver->type == 'mysql')
+		{
+			if (strlen($value) > 64)
+			{
+				throw new \OverflowException('MySQL column or table names cannot be longer than 64 characters.');
+			}
+
+			if (substr($value, 0, -1) == ' ')
+			{
+				throw new \UnexpectedValueException('MySQL column or table names cannot end with a space character');
+			}
+
+			if (preg_match('/[\0\.\/\\\\]/', $value))
+			{
+				throw new \UnexpectedValueException('Invalid MySQL column or table name');
+			}
+
+			return sprintf('`%s`', str_replace('`', '``', $value));
+		}
+		else
+		{
+			return sprintf('"%s"', str_replace('"', '""', $value));
+		}
+	}
 
 	public function preparedQuery($query, $args = [])
 	{
@@ -341,7 +368,7 @@ class DB
         	$args = $args[0];
         }
 
-        assert(is_array($args) || is_object($args));
+        assert(is_array($args) || is_object($args), 'Expecting an array or object as query arguments');
 
         $args = (array) $args;
 
@@ -449,8 +476,8 @@ class DB
 		$fields = (array) $fields;
 
 		$fields_names = array_keys($fields);
-		$query = sprintf('INSERT INTO %s (%s) VALUES (:%s);', $table, 
-			implode(', ', $fields_names), implode(', :', $fields_names));
+		$query = sprintf('INSERT INTO %s (%s) VALUES (:%s);', $this->quoteIdentifier($table),
+			implode(', ', array_map([$this, 'quoteIdentifier'], $fields_names)), implode(', :', $fields_names));
 
 		return $this->preparedQuery($query, $fields);
 	}
@@ -468,7 +495,7 @@ class DB
 		assert(is_string($table));
 		assert((is_string($where) && strlen($where)) || is_null($where));
 		assert(is_array($fields) || is_object($fields));
-		assert(is_array($args) || is_object($args));
+		assert(is_array($args) || is_object($args), 'Arguments for the WHERE clause must be a named array or object');
 
 		// Forcer en tableau
 		$fields = (array) $fields;
@@ -492,7 +519,7 @@ class DB
 			// Append to arguments
 			$args['field_' . $key] = $value;
 
-			$column_updates[] = sprintf('%s = :field_%s', $key, $key);
+			$column_updates[] = sprintf('%s = :field_%s', $this->quoteIdentifier($key), $key);
 		}
 
 		if (is_null($where))
@@ -502,20 +529,19 @@ class DB
 
 		// Assemblage de la requête
 		$column_updates = implode(', ', $column_updates);
-		$query = sprintf('UPDATE %s SET %s WHERE %s;', $table, $column_updates, $where);
+		$query = sprintf('UPDATE %s SET %s WHERE %s;', $this->quoteIdentifier($table), $column_updates, $where);
 
 		return $this->preparedQuery($query, $args);
 	}
 
-
 	/**
-	 * Supprime une ou plusieurs lignes d'une table
-	 * @param  string $table Nom de la table
-	 * @param  string $where Clause WHERE
+	 * Deletes rows from a table
+	 * @param  string $table Table name
+	 * @param  string $where WHERE clause
 	 * @return boolean
 	 *
-	 * Accepte un ou plusieurs arguments supplémentaires utilisés comme bindings
-	 * pour la clause WHERE.
+	 * Accepts one or more arguments as bindings for the WHERE clause.
+	 * Warning! If run without a $where argument, will delete all rows from a table!
 	 */
 	public function delete($table, $where = '1')
 	{
@@ -523,10 +549,16 @@ class DB
 		return $this->preparedQuery($query, array_slice(func_get_args(), 2));
 	}
 
+	/**
+	 * Returns true if the condition from the WHERE clause is valid and a row exists
+	 * @param  string $table Table name
+	 * @param  string $where WHERE clause
+	 * @return boolean
+	 */
 	public function test($table, $where = '1')
 	{
 		$args = array_merge(
-			[sprintf('SELECT 1 FROM %s WHERE %s LIMIT 1;', $table, $where)],
+			[sprintf('SELECT 1 FROM %s WHERE %s LIMIT 1;', $this->quoteIdentifier($table), $where)],
 			array_slice(func_get_args(), 2)
 		);
 
@@ -536,7 +568,7 @@ class DB
 	public function count($table, $where = '1')
 	{
 		$args = array_merge(
-			[sprintf('SELECT COUNT(*) FROM %s WHERE %s LIMIT 1;', $table, $where)],
+			[sprintf('SELECT COUNT(*) FROM %s WHERE %s LIMIT 1;', $this->quoteIdentifier($table), $where)],
 			array_slice(func_get_args(), 2)
 		);
 
@@ -631,8 +663,9 @@ class DB
 			$value = $this->quote($value);
 		}
 
-		return sprintf('%s %s %s', $name, $operator, $value);
+		return sprintf('%s %s %s', $this->quoteIdentifier($name), $operator, $value);
 	}
+
 	/**
 	 * SQLite search ranking user defined function
 	 * Converted from C from SQLite manual: https://www.sqlite.org/fts3.html#appendix_a
