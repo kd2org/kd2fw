@@ -1175,7 +1175,7 @@ class Smartyer
 					return constant(get_class($var) . '::' . $key);
 				}
 
-				if (!property_exists($var, $key))
+				if (!isset($var->$key))
 				{
 					return null;
 				}
@@ -1326,7 +1326,7 @@ class Smartyer
 	static protected function templateAssign(array $args, &$tpl)
 	{
 		// Value can be NULL!
-		if (!isset($args['var']) || !array_key_exists($args['value']))
+		if (!isset($args['var']) || !array_key_exists('value', $args))
 		{
 			throw new \BadFunctionCallException('Missing argument "var" or "value" to function {assign}');
 		}
