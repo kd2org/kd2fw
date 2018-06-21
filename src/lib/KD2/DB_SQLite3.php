@@ -57,6 +57,8 @@ class DB_SQLite3 extends DB
 
 	public function __construct($file, $flags = SQLITE3_OPEN_READWRITE | SQLITE3_OPEN_CREATE)
 	{
+		parent::__construct('sqlite', ['file' => $file]);
+
 		$this->file = $file;
 		$this->flags = $flags;
 	}
