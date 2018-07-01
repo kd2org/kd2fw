@@ -60,7 +60,7 @@ trait HTML_Query_Selector
 
 		$xpath = new \DOMXPath($this instanceOf \DOMDocument ? $this : $this->ownerDocument);
 
-		return $xpath->query($xpath_query);
+		return $xpath->query($xpath_query, $this);
 	}
 
 	/**
@@ -291,7 +291,8 @@ trait HTML_Query_Selector
 			$xpath = preg_replace('!(^|/)\[!', '$1*[', $xpath);
 		}
 
-		return $xpath;
+		// Always return relative queries, see http://php.net/manual/fr/domxpath.query.php#99760
+		return '.' . $xpath;
 	}
 }
 
