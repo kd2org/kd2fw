@@ -20,10 +20,9 @@ $tests = array(
 foreach ($tests as $src=>$expected)
 {
     $return = BubbleBabble::Encode($src);
-    test($return == $expected, 'Encoding failed for string: ' . $src . ' (expected: ' . $expected . ')');
+    assert($return == $expected, 'Encoding failed for string: ' . $src . ' (expected: ' . $expected . ')');
 
     $return = BubbleBabble::Decode($return);
-    test($return == $src, 'Decoding failed for string: ' . $expected . ' (expected: ' . $src . ')');
+    assert($return == $src, 'Decoding failed for string: ' . $expected . ' (expected: ' . $src . ')');
 }
 
-?>
