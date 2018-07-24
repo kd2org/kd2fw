@@ -9,6 +9,10 @@ const SMTP_SERVER = 'smtp.mailtrap.io';
 const SMTP_USERNAME = '7d565d93aadbec';
 const SMTP_PASSWORD = 'f103803c179a2e';
 
+test_connect('smtp.gmail.com', 465, SMTP::TLS);
+test_connect('smtp.gmail.com', 465, SMTP::SSL);
+test_connect('smtp.gmail.com', 465, 'tlsv1.2'); // Manual protocol
+
 test_smtp(SMTP_SERVER, 2525, SMTP_USERNAME, SMTP_PASSWORD);
 test_smtp(SMTP_SERVER, 465, SMTP_USERNAME, SMTP_PASSWORD, SMTP::STARTTLS);
 
@@ -32,4 +36,11 @@ function test_smtp($server, $port, $username = null, $password = null, $secure =
 	Test::assert($return === true);
 
 	Test::assert($smtp->disconnect() === true);
+}
+
+function test_connect($server, $port, $secure)
+{
+	$smtp = new SMTP($server, $port, null, null, $secure, 'local.host');
+	Test::assert($smtp->connect() == true);
+	Test::assert($smtp->disconnect() == true);
 }

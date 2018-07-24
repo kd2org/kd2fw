@@ -33,9 +33,9 @@ class SMTP_Exception extends \Exception {}
 class SMTP
 {
 	const NONE = 0;
-	const TLS = 3;
+	const TLS = 'tls';
 	const STARTTLS = 1;
-	const SSL = 2;
+	const SSL = 'ssl';
 
 	const EOL = "\r\n";
 
@@ -91,20 +91,16 @@ class SMTP
 	 * @param integer $port       SMTP server port
 	 * @param string  $username   SMTP AUTH username (or null to disable AUTH)
 	 * @param string  $password   SMTP AUTH password
-	 * @param integer $secure     either SMTP::NONE, SMTP::SSL to use SSL/TLS or SMTP::STARTTLS for STARTTLS
+	 * @param integer $secure     either SMTP::NONE, SMTP::SSL, SMTP::TLS or SMTP::STARTTLS
 	 * @param string  $servername Internal server name used for Message-ID generation and HELO commands (if null will use SERVER_NAME or hostname)
 	 */
 	public function __construct($server = 'localhost', $port = 25, $username = null, $password = null, $secure = self::NONE, $servername = null)
 	{
 		$prefix = '';
 
-		if ($secure == self::SSL)
+		if ($secure && $secure != self::STARTTLS)
 		{
-			$prefix = 'ssl://';
-		}
-		elseif ($secure == self::TLS)
-		{
-			$prefix = 'tls://';
+			$prefix = $secure . '://';
 		}
 
 		$this->server = $prefix . $server;
