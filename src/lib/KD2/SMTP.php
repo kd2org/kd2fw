@@ -2,7 +2,7 @@
 /*
   Part of the KD2 framework collection of tools: http://dev.kd2.org/
   
-  Copyright (c) 2001-2016 BohwaZ <http://bohwaz.net/>
+  Copyright (c) 2001-2018 BohwaZ <http://bohwaz.net/>
   All rights reserved.
   
   Redistribution and use in source and binary forms, with or without
@@ -33,7 +33,7 @@ class SMTP_Exception extends \Exception {}
 class SMTP
 {
 	const NONE = 0;
-	const TLS = 1;
+	const TLS = 3;
 	const STARTTLS = 1;
 	const SSL = 2;
 
@@ -96,7 +96,18 @@ class SMTP
 	 */
 	public function __construct($server = 'localhost', $port = 25, $username = null, $password = null, $secure = self::NONE, $servername = null)
 	{
-		$this->server = $secure == self::SSL ? 'ssl://' . $server : $server;
+		$prefix = '';
+
+		if ($secure == self::SSL)
+		{
+			$prefix = 'ssl://';
+		}
+		elseif ($secure == self::TLS)
+		{
+			$prefix = 'tls://';
+		}
+
+		$this->server = $prefix . $server;
 		$this->port = $port;
 		$this->username = $username;
 		$this->password = $password;
@@ -126,7 +137,7 @@ class SMTP
 
 	public function connect()
 	{
-		$this->conn = fsockopen($this->server, $this->port, $errno, $errstr, $this->timeout);
+		$this->conn = stream_socket_client($this->server . ':' . $this->port, $errno, $errstr, $this->timeout);
 
 		if (!$this->conn)
 		{
@@ -147,7 +158,7 @@ class SMTP
 		
 		if ($this->_readCode() != 250)
 		{
-			if ($this->secure == self::TLS)
+			if ($this->secure == self::STARTTLS)
 			{
 				throw new SMTP_Exception('Can\'t use STARTTLS on this server: server doesn\'t support ESMTP');
 			}
@@ -160,7 +171,7 @@ class SMTP
 			}
 		}
 
-		if ($this->secure == self::TLS)
+		if ($this->secure == self::STARTTLS)
 		{
 			$this->_write('STARTTLS');
 
@@ -321,9 +332,9 @@ class SMTP
 
 		$headers['Subject'] = (trim($subject) == '') ? '' : '=?UTF-8?B?'.base64_encode($subject).'?=';
 
-		if (!isset($headers['MIME-Version']))
+		if (!isset($headers['Mime-Version']))
 		{
-			$headers['MIME-Version'] = '1.0';
+			$headers['Mime-Version'] = '1.0';
 		}
 
 		if (!isset($headers['Content-Type']))
@@ -336,11 +347,11 @@ class SMTP
 			$headers['From'] = 'mail@'.$this->servername;
 		}
 
-		if (!isset($headers['Message-ID']))
+		if (!isset($headers['Message-Id']))
 		{
 			// With headers + uniqid, it is presumed to be sufficiently unique
 			// so that two messages won't have the same ID
-			$headers['Message-ID'] = sprintf('<%s.%s@%s>', uniqid(), substr(sha1(var_export($headers, true)), 0, 10), $this->servername);
+			$headers['Message-Id'] = sprintf('<%s.%s@%s>', uniqid(), substr(sha1(var_export($headers, true)), 0, 10), $this->servername);
 		}
 
 		// Extract and filter recipients addresses
@@ -441,5 +452,17 @@ class SMTP
 		}
 
 		return $out;
+	}
+
+	public static function checkEmailIsValid($email)
+	{
+		if (!filter_var($email, FILTER_VALIDATE_EMAIL))
+		{
+			return false;
+		}
+
+		$host = substr($email, strpos($email, '@') + 1);
+
+		return checkdnsrr($host, 'MX');
 	}
 }
