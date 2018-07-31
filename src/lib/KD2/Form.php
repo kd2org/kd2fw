@@ -409,6 +409,14 @@ class Form
 				$len = strlen((string) $value);
 				return is_numeric($value) && $len >= $params[0] && $len <= $params[0];
 			case 'email':
+				// Compatibility with IDN domains
+				if (function_exists('idn_to_ascii'))
+				{
+					$host = substr($value, strpos($value, '@') + 1);
+					$host = idn_to_ascii($host);
+					$value = substr($value, 0, strpos($value, '@')+1) . $host;
+				}
+
 				return filter_var($value, FILTER_VALIDATE_EMAIL) !== false;
 			case 'in':
 				return in_array($value, $params);

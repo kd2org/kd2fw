@@ -418,7 +418,7 @@ class SMTP
 			// Filter invalid email addresses
 			foreach ($str as $email)
 			{
-				if (filter_var($email, FILTER_VALIDATE_EMAIL))
+				if (self::checkEmailIsValid($email, false))
 				{
 					$out[] = $email;
 				}
@@ -433,11 +433,11 @@ class SMTP
 		foreach ($str as $s)
 		{
 			$s = trim($s);
-			if (preg_match('/(?:([\'"]).*?\1\s*)?<([^>]*)>/', $s, $match) && filter_var(trim($match[2]), FILTER_VALIDATE_EMAIL))
+			if (preg_match('/(?:([\'"]).*?\1\s*)?<([^>]*)>/', $s, $match) && self::checkEmailIsValid(trim($match[2]), false))
 			{
 				$out[] = trim($match[2]);
 			}
-			elseif (filter_var($s, FILTER_VALIDATE_EMAIL))
+			elseif (self::checkEmailIsValid($s, false))
 			{
 				$out[] = $s;
 			}
@@ -450,14 +450,26 @@ class SMTP
 		return $out;
 	}
 
-	public static function checkEmailIsValid($email)
+	public static function checkEmailIsValid($email, $validate_mx = true)
 	{
+		$host = substr($email, strpos($email, '@') + 1);
+
+		// Compatibility with IDN domains
+		if (function_exists('idn_to_ascii'))
+		{
+			$host = idn_to_ascii($host);
+			$email = substr($email, 0, strpos($email, '@')+1) . $host;
+		}
+
 		if (!filter_var($email, FILTER_VALIDATE_EMAIL))
 		{
 			return false;
 		}
 
-		$host = substr($email, strpos($email, '@') + 1);
+		if (!$validate_mx)
+		{
+			return true;
+		}
 
 		return checkdnsrr($host, 'MX');
 	}
