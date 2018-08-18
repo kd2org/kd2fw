@@ -304,6 +304,11 @@ class Smartyer
 			return (new Smartyer($template, $this))->fetch();
 		}
 
+		if (!is_null($this->template_path) && !is_readable($this->template_path))
+		{
+			throw new \RuntimeException('Template file doesn\'t exist or is not readable: ' . $this->template_path);
+		}
+
 		$time = @filemtime($this->compiled_template_path);
 
 		if (!$time || (!is_null($this->template_path) && filemtime($this->template_path) > $time))
@@ -741,9 +746,19 @@ class Smartyer
 		{
 			$raw_args = $this->parseMagicVariables($raw_args);
 
-			// Make sure the arguments are wrapped in parenthesis as it could be a false positive
-			// eg. ($a == 1) || ($b == 1) would create an error
-			$code .= sprintf('%s (%s):', $name, $raw_args);
+			// Make sure the arguments for if/elseif are wrapped in parenthesis
+			// as it could be a false positive
+			// eg. "if ($a == 1) || ($b == 1)" would create an error
+			// this is not valid for other blocks though (foreach/for/while)
+			
+			if ($name == 'if' || $name == 'elseif')
+			{
+				$code .= sprintf('%s (%s):', $name, $raw_args);
+			}
+			else
+			{
+				$code .= sprintf('%s %s:', $name, $raw_args);
+			}
 		}
 		// Raw PHP tags with no enclosing bracket: enclose it in brackets if needed
 		elseif (in_array($name, $this->raw_php_blocks))
