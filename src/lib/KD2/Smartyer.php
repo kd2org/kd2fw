@@ -69,22 +69,27 @@ class Smartyer
 	protected $delimiter_end = '}';
 
 	/**
-	 * Current template path
+	 * Current template file name / path
+	 */
+	protected $template;
+
+	/**
+	 * Current template complete path (includes ->root_dir)
 	 * @var string
 	 */
-	protected $template_path = null;
+	protected $template_path;
 
 	/**
 	 * Current compiled template path
 	 * @var string
 	 */
-	protected $compiled_template_path = null;
+	protected $compiled_template_path;
 
 	/**
 	 * Content of the template source while compiling
 	 * @var string
 	 */
-	protected $source = null;
+	protected $source;
 
 	/**
 	 * Variables assigned to the template
@@ -136,7 +141,7 @@ class Smartyer
 	 * Auto-escaping type (any type accepted by self::escape())
 	 * @var string
 	 */
-	protected $escape_type = null;
+	protected $escape_type;
 
 	/**
 	 * List of native PHP tags that don't require any argument
@@ -174,20 +179,35 @@ class Smartyer
 	protected $namespace;
 
 	/**
-	 * Global parent path to templates
+	 * Global parent path to compiled code
 	 * @var string
+	 * * @deprecated FIXME remove
 	 */
-	static protected $cache_dir = null;
+	static protected $legacy_cache_dir = null;
 
 	/**
-	 * Directory used for storing the compiled templates
+	 * Global parent path to existing templates
+	 * @var string
+	 * @deprecated FIXME remove
+	 */
+	static protected $legacy_templates_dir = null;
+
+	/**
+	 * Directory used to store the compiled code
 	 * @var string
 	 */
-	static protected $templates_dir = null;
+	protected $compiled_dir;
+
+	/**
+	 * Root directory to child templates
+	 * @var string
+	 */
+	protected $templates_dir;
 
 	/**
 	 * Sets the path where compiled templates will be stored
 	 * @param string $path
+	 * @deprecated FIXME remove this method; use Smartyer->setCompiledDir
 	 */
 	static public function setCompileDir($path)
 	{
@@ -201,12 +221,13 @@ class Smartyer
 			throw new \RuntimeException($path . ' is not writeable by ' . __CLASS__);
 		}
 
-		self::$cache_dir = $path;
+		self::$legacy_cache_dir = $path;
 	}
 
 	/**
 	 * Sets the parent path containing all templates
 	 * @param string $path
+	 * @deprecated FIXME remove this method; use Smartyer->setTemplatesDir
 	 */
 	static public function setTemplateDir($path)
 	{
@@ -220,7 +241,54 @@ class Smartyer
 			throw new \RuntimeException($path . ' is not readable by ' . __CLASS__);
 		}
 
-		self::$templates_dir = $path;
+		self::$legacy_templates_dir = $path;
+	}
+
+	/**
+	 * Sets the path where compiled templates will be stored
+	 * @param string $path
+	 */
+	public function setCompiledDir($path)
+	{
+		if (!is_dir($path))
+		{
+			throw new \RuntimeException($path . ' is not a directory.');
+		}
+
+		if (!is_writable($path))
+		{
+			throw new \RuntimeException($path . ' is not writeable by ' . __CLASS__);
+		}
+
+		$this->compiled_dir = $path;
+	}
+
+	/**
+	 * Sets the default path containing all templates
+	 * @param string $path
+	 */
+	public function setTemplatesDir($path)
+	{
+		if (!is_dir($path))
+		{
+			throw new \RuntimeException($path . ' is not a directory.');
+		}
+
+		if (!is_readable($path))
+		{
+			throw new \RuntimeException($path . ' is not readable by ' . __CLASS__);
+		}
+
+		$this->templates_dir = $path;
+	}
+
+	/**
+	 * Sets the namespace used by the template code
+	 * @param string $namespace
+	 */
+	public function setNamespace($namespace)
+	{
+		$this->namespace = $namespace;
 	}
 
 	/**
@@ -231,37 +299,23 @@ class Smartyer
 	 */
 	public function __construct($template = null, Smartyer &$parent = null)
 	{
-		if (is_null(self::$cache_dir))
-		{
-			throw new \LogicException('Compile dir not set: call ' . __CLASS__ . '::setCompileDir() first');
-		}
-
-		$this->template_path = null;
-
-		if (!is_null($template))
-		{
-			// Don't prepend templates_dir for phar and absolute paths
-			if (substr($template, 0, 7) == 'phar://' || $template[0] == '/')
-			{
-				$this->template_path = $template;
-			}
-			else
-			{
-				$this->template_path = self::$templates_dir . DIRECTORY_SEPARATOR . $template;
-			}
-		}
-
-		$this->compiled_template_path = self::$cache_dir . DIRECTORY_SEPARATOR . sha1($template) . '.tpl.php';
+		$this->template = $template;
 
 		// Register parent functions and variables locally
 		if ($parent instanceof Smartyer)
 		{
-			$copy = ['modifiers', 'blocks', 'functions', 'variables', 'escape_type', 'compile_functions', 'namespace'];
+			$copy = ['modifiers', 'blocks', 'functions', 'variables', 'escape_type', 'compile_functions', 'namespace', 'compiled_dir', 'templates_dir'];
 
 			foreach ($copy as $key)
 			{
 				$this->{$key} = $parent->{$key};
 			}
+		}
+		else
+		{
+			// FIXME remove deprecated global set
+			$this->templates_dir = self::$legacy_templates_dir;
+			$this->compiled_dir = self::$legacy_cache_dir;
 		}
 	}
 
@@ -274,7 +328,6 @@ class Smartyer
 	{
 		$s = new Smartyer(null, $parent);
 		$s->source = $string;
-		$s->compiled_template_path = self::$cache_dir . DIRECTORY_SEPARATOR . sha1($string) . '.tpl.php';
 		return $s;
 	}
 
@@ -304,10 +357,40 @@ class Smartyer
 			return (new Smartyer($template, $this))->fetch();
 		}
 
+		if (is_null($this->compiled_dir))
+		{
+			throw new \LogicException('Compile dir not set: call ' . __CLASS__ . '->setCompiledDir() first');
+		}
+
+		if (!is_null($this->template))
+		{
+			// Don't prepend templates_dir for phar and absolute paths
+			if (substr($this->template, 0, 7) == 'phar://' || $this->template[0] == '/')
+			{
+				$this->template_path = $this->template;
+			}
+			else
+			{
+				$this->template_path = $this->templates_dir . DIRECTORY_SEPARATOR . $this->template;
+			}
+		}
+
 		if (!is_null($this->template_path) && !is_readable($this->template_path))
 		{
 			throw new \RuntimeException('Template file doesn\'t exist or is not readable: ' . $this->template_path);
 		}
+
+		if (is_null($this->template_path))
+		{
+			// Anonymous templates
+			$hash = sha1($this->source . $this->namespace);
+		}
+		else
+		{
+			$hash = sha1($this->template_path . $this->namespace);
+		}
+
+		$this->compiled_template_path = $this->compiled_dir . DIRECTORY_SEPARATOR . $hash . '.tpl.php';
 
 		$time = @filemtime($this->compiled_template_path);
 
@@ -330,16 +413,11 @@ class Smartyer
 	 * @param  string $path Path to templates dir
 	 * @return void
 	 */
-	static public function precompileAll($templates_dir = null)
+	static public function precompileAll($templates_dir)
 	{
-		if (is_null($templates_dir))
+		if (!is_dir($templates_dir))
 		{
-			$templates_dir = self::$templates_dir;
-
-			if (is_null($templates_dir))
-			{
-				throw new \Exception('No template directory specified.');
-			}
+			throw new \RuntimeException('The template directory specified is not a directory: ' . $templates_dir);
 		}
 
 		$dir = dir($templates_dir);
@@ -546,7 +624,7 @@ class Smartyer
 		// Apply namespace
 		if ($this->namespace)
 		{
-			$prefix .= sprintf("\nnamespace %s;", $this->namespace);
+			$prefix .= sprintf("\nnamespace %s;\n", $this->namespace);
 		}
 
 		// Stop execution if not in the context of Smartyer
