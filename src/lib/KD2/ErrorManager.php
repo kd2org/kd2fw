@@ -615,12 +615,7 @@ class ErrorManager
 
 		set_exception_handler([__CLASS__, 'exceptionHandler']);
 
-		// For PHP7 we don't need to throw ErrorException as all errors are thrown as Error
-		// see https://secure.php.net/manual/en/language.errors.php7.php
-		if (!class_exists('\Error', false))
-		{
-			set_error_handler([__CLASS__, 'errorHandler']);
-		}
+		set_error_handler([__CLASS__, 'errorHandler']);
 
 		if ($type == self::DEVELOPMENT)
 		{
