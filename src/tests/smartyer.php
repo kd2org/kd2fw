@@ -64,7 +64,7 @@ function test_variables()
 	Test::equals($expected, $output, 'HTML entities escaping');
 
 	// Truncate + auto escape
-	$code = '{$str|truncate:3::false}';
+	$code = '{$str|truncate:3:"":true}';
 	$string = '<b>Hello ¿é!Æ</b>';
 	$expected = htmlspecialchars(substr($string, 0, 3));
 	$output = Smartyer::fromString($code)->assign('str', $string)->fetch();
@@ -123,7 +123,7 @@ function test_variables()
 	Test::equals($expected, $output, 'Current object variable');
 
 	// Current object function call
-	$code = '{$this->dateFormat(time(), "%Y|")|truncate:1:""}';
+	$code = '{$this->dateFormat(time(), "%Y|")|truncate:1:"":true}';
 	$expected = substr(strftime('%Y', time()), 0, 1);
 	$output = Smartyer::fromString($code)->fetch();
 
