@@ -89,7 +89,7 @@ class DB_SQLite3 extends DB
 
 		// Force to rollback any outstanding transaction
 		register_shutdown_function(function () {
-			if ($this->inTransaction())
+			if ($this->db && $this->inTransaction())
 			{
 				$this->rollback();
 			}
