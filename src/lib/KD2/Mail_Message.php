@@ -252,7 +252,16 @@ class Mail_Message
 		foreach ($this->parts as $part)
 		{
 			if ($part['type'] == 'text/plain')
+			{
+				// Fix a rare but weird bug, apparently caused by some webmails
+				// where the plaintext email is HTML-encoded
+				if (preg_match('/&[a-z]+;/', $part['content']) && utf8_decode($part['content']) == $part['content'])
+				{
+					$part['content'] = html_entity_decode($part['content'], ENT_QUOTES, 'UTF-8');
+				}
+
 				return $part['content'];
+			}
 		}
 
 		// Fallback to html stripped of tags
@@ -281,6 +290,19 @@ class Mail_Message
 		}
 
 		return $out;
+	}
+
+	public function findPart($type)
+	{
+		foreach ($this->parts as $id => $p)
+		{
+			if ($p['type'] == $type)
+			{
+				return $id;
+			}
+		}
+
+		return false;
 	}
 
 	public function getPart($id)
