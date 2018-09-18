@@ -700,23 +700,28 @@ class Smartyer
 		$source = preg_replace_callback($pattern, function ($match) use (&$literals) {
 			$nb = count($literals);
 			$literals[$nb] = $match[0];
-			$returns = substr_count($match[0], "\n");
-			return '<?php/*#LITERAL#' . $nb . '#' . str_repeat("\n", $returns) .'#*/?>';
+			$lines = substr_count($match[0], "\n");
+			return '<?php/*#' . $nb . '#' . str_repeat("\n", $lines) . '#*/?>';
 		}, $source);
 
 		// Create block matching pattern
 		$anti = preg_quote($this->delimiter_start . $this->delimiter_end, '#');
 		$pattern = '#' . preg_quote($this->delimiter_start, '#') . '((?:[^' . $anti . ']|(?R))*?)' . preg_quote($this->delimiter_end, '#') . '#i';
 
-		$source = preg_split($pattern, $source, 0, PREG_SPLIT_OFFSET_CAPTURE | PREG_SPLIT_DELIM_CAPTURE);
+		$blocks = preg_split($pattern, $source, 0, PREG_SPLIT_OFFSET_CAPTURE | PREG_SPLIT_DELIM_CAPTURE);
 
 		unset($anti, $pattern);
 
 		$compiled = '';
+		$prev_pos = 0;
+		$line = 1;
 
-		foreach ($source as $i=>$block)
+		foreach ($blocks as $i=>$block)
 		{
 			$pos = $block[1];
+			$line += $pos && $pos < strlen($source) ? substr_count($source, "\n", $prev_pos, $pos - $prev_pos) : 0;
+			$prev_pos = $pos;
+
 			$block = $block[0];
 			$tblock = trim($block);
 
@@ -738,14 +743,14 @@ class Smartyer
 			// Closing blocks
 			elseif ($tblock[0] == '/')
 			{
-				$compiled .= $this->parseClosing($pos, $tblock);
+				$compiled .= $this->parseClosing($line, $tblock);
 			}
 			// Variables and strings
 			elseif ($tblock[0] == '$' || $tblock[0] == '"' || $tblock[0] == "'")
 			{
-				$compiled .= $this->parseVariable($pos, $tblock);
+				$compiled .= $this->parseVariable($line, $tblock);
 			}
-			elseif ($code = $this->parseBlock($pos, $tblock))
+			elseif ($code = $this->parseBlock($line, $tblock))
 			{
 				$compiled .= $code;
 			}
@@ -756,7 +761,7 @@ class Smartyer
 			}
 		}
 
-		unset($source, $i, $block, $tblock, $pos);
+		unset($source, $i, $block, $tblock, $pos, $prev_pos, $line);
 
 		// Include removed literals, PHP blocks etc.
 		foreach ($literals as $i=>$literal)
@@ -784,7 +789,7 @@ class Smartyer
 				// PHP code, leave as is
 			}
 			
-			$compiled = preg_replace('/<\?php\/\*#LITERAL#' . $i . '#\s*?#\*\/\?>/', $literal, $compiled);
+			$compiled = preg_replace('/<\?php\/\*#' . $i . '#\s*?#\*\/\?>/', $literal, $compiled);
 		}
 
 		return $compiled;
@@ -793,7 +798,7 @@ class Smartyer
 	/**
 	 * Parse smarty blocks and functions and returns PHP code
 	 */
-	protected function parseBlock($pos, $block)
+	protected function parseBlock($line, $block)
 	{
 		// This is not a valid Smarty block, just assume it is PHP and reject any problem on the user
 		if (!preg_match('/^(else if|.*?)(?:\s+(.+?))?$/s', $block, $match))
@@ -847,7 +852,7 @@ class Smartyer
 			}
 			elseif ($raw_args === '')
 			{
-				$this->parseError($pos, 'Invalid block {' . $name . '}: no arguments supplied');
+				$this->parseError($line, 'Invalid block {' . $name . '}: no arguments supplied');
 			}
 			else
 			{
@@ -859,7 +864,7 @@ class Smartyer
 		elseif ($name == 'foreach')
 		{
 			array_push($this->foreachelse_stack, false);
-			$args = $this->parseArguments($raw_args, $pos);
+			$args = $this->parseArguments($raw_args, $line);
 
 			$args['key'] = isset($args['key']) ? $this->getValueFromArgument($args['key']) : null;
 			$args['item'] = isset($args['item']) ? $this->getValueFromArgument($args['item']) : null;
@@ -867,12 +872,12 @@ class Smartyer
 
 			if (empty($args['item']))
 			{
-				$this->parseError($pos, 'Invalid foreach call: item parameter required.');
+				$this->parseError($line, 'Invalid foreach call: item parameter required.');
 			}
 
 			if (empty($args['from']))
 			{
-				$this->parseError($pos, 'Invalid foreach call: from parameter required.');
+				$this->parseError($line, 'Invalid foreach call: from parameter required.');
 			}
 
 			$key = $args['key'] ? '$' . $args['key'] . ' => ' : '';
@@ -888,11 +893,11 @@ class Smartyer
 		}
 		elseif ($name == 'include')
 		{
-			$args = $this->parseArguments($raw_args, $pos);
+			$args = $this->parseArguments($raw_args, $line);
 
 			if (empty($args['file']))
 			{
-				throw new Smartyer_Exception($pos, '{include} function requires file parameter.');
+				throw new Smartyer_Exception($line, '{include} function requires file parameter.');
 			}
 
 			$file = $this->exportArgument($args['file']);
@@ -928,7 +933,7 @@ class Smartyer
 				
 				foreach ($this->compile_functions as $closure)
 				{
-					$code = call_user_func($closure, $pos, $block, $name, $raw_args);
+					$code = call_user_func($closure, $line, $block, $name, $raw_args);
 
 					if ($code)
 					{
@@ -940,7 +945,7 @@ class Smartyer
 				{
 					if ($this->error_on_invalid_block)
 					{
-						$this->parseError($pos, 'Unknown function or block: ' . $name);
+						$this->parseError($line, 'Unknown function or block: ' . $name);
 					}
 					else
 					{
@@ -957,9 +962,9 @@ class Smartyer
 			$code .= ' $iteration =& $_i[count($_i)-1]; $iteration++;';
 		}
 
-		$code = '<?php ' . $code . ' //#' . $pos . '?>';
+		$code = '<?php ' . $code . ' //#' . $line . '?>';
 
-		unset($args, $name, $pos, $raw_args, $args, $block, $file);
+		unset($args, $name, $line, $raw_args, $args, $block, $file);
 
 		return $code;
 	}
@@ -967,7 +972,7 @@ class Smartyer
 	/**
 	 * Parse closing blocks and returns PHP code
 	 */
-	protected function parseClosing($pos, $block)
+	protected function parseClosing($line, $block)
 	{
 		$code = '';
 		$name = trim(substr($block, 1));
@@ -995,15 +1000,15 @@ class Smartyer
 				}
 				else
 				{
-					$this->parseError($pos, 'Unknown closing block: ' . $name);
+					$this->parseError($line, 'Unknown closing block: ' . $name);
 				}
 				break;
 			}
 		}
 
-		$code = '<?php ' . $code . ' //#' . $pos . '?>';
+		$code = '<?php ' . $code . ' //#' . $line . '?>';
 		
-		unset($name, $pos, $block);
+		unset($name, $line, $block);
 		
 		return $code;
 	}
@@ -1011,10 +1016,10 @@ class Smartyer
 	/**
 	 * Parse a Smarty variable and returns a PHP code
 	 */
-	protected function parseVariable($pos, $block)
+	protected function parseVariable($line, $block)
 	{
-		$code = 'echo ' . $this->parseSingleVariable($block, $pos) . ';';
-		$code = '<?php ' . $code . ' //#' . $pos . '?>';
+		$code = 'echo ' . $this->parseSingleVariable($block, $line) . ';';
+		$code = '<?php ' . $code . ' //#' . $line . '?>';
 			
 		return $code;
 	}
@@ -1034,24 +1039,23 @@ class Smartyer
 
 	/**
 	 * Throws an exception for the current template and hopefully giving the right line
-	 * @param  integer $position Caret position in source code
+	 * @param  integer $line Source line
 	 * @param  string $message  Error message
 	 * @param  Exception $previous Previous exception for the stack
 	 * @throws Smartyer_Exception
 	 */
-	protected function parseError($position, $message, $previous = null)
+	protected function parseError($line, $message, $previous = null)
 	{
-		$line = substr_count($this->source, "\n", 0, $position) + 1;
 		throw new Smartyer_Exception($message, $this->template_path, $line, $previous);
 	}
 
 	/**
 	 * Parse block arguments, this is similar to parsing HTML arguments
 	 * @param  string $str List of arguments
-	 * @param  integer $pos Caret position in source code
+	 * @param  integer $line Source code line
 	 * @return array
 	 */
-	protected function parseArguments($str, $pos = null)
+	protected function parseArguments($str, $line = null)
 	{
 		$args = [];
 		$state = 0;
@@ -1069,17 +1073,17 @@ class Smartyer
 			{
 				if ($value != '=')
 				{
-					$this->parseError($pos, 'Expecting \'=\' after \'' . $last_value . '\'');
+					$this->parseError($line, 'Expecting \'=\' after \'' . $last_value . '\'');
 				}
 			}
 			elseif ($state == 2)
 			{
 				if ($value == '=')
 				{
-					$this->parseError($pos, 'Unexpected \'=\' after \'' . $last_value . '\'');
+					$this->parseError($line, 'Unexpected \'=\' after \'' . $last_value . '\'');
 				}
 
-				$args[$name] = $this->parseSingleVariable($value, $pos, false);
+				$args[$name] = $this->parseSingleVariable($value, $line, false);
 				$name = null;
 				$state = -1;
 			}
@@ -1111,11 +1115,11 @@ class Smartyer
 	/**
 	 * Parse a variable, either from a {$block} or from an argument: {block arg=$bla|rot13}
 	 * @param  string  $str     Variable string
-	 * @param  integer $tpl_pos Character position in the source
+	 * @param  integer $line    Line position in the source
 	 * @param  boolean $escape  Auto-escape the variable output?
 	 * @return string 			PHP code to return the variable
 	 */
-	protected function parseSingleVariable($str, $tpl_pos = null, $escape = true)
+	protected function parseSingleVariable($str, $line = null, $escape = true)
 	{
 		// Split by pipe (|) except if enclosed in quotes
 		$modifiers = preg_split('/\|(?=(([^\'"]*["\']){2})*[^\'"]*$)/', $str);
@@ -1179,7 +1183,7 @@ class Smartyer
 			// Modifiers MUST be registered at compile time
 			if (!array_key_exists($mod_name, $this->modifiers))
 			{
-				$this->parseError($tpl_pos, 'Unknown modifier name: ' . $mod_name);
+				$this->parseError($line, 'Unknown modifier name: ' . $mod_name);
 			}
 
 			$post = $_post . ')' . $post;
