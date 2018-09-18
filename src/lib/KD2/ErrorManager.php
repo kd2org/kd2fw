@@ -604,7 +604,7 @@ class ErrorManager
 			section article h3, section article h4 { font-size: 1em; font-family: mono; }
 			code { border: 1px dotted #ccc; display: block; }
 			code b { margin-right: 1em; color: #999; }
-			code u { display: block; background: #fcc; }
+			code u { background: #fcc; display: inline-block; width: 100%; }
 			table { border-collapse: collapse; margin: 1em; } td, th { border: 1px solid #ccc; padding: .2em .5em; text-align: left; 
 			vertical-align: top; }
 			</style>
