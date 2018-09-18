@@ -80,11 +80,6 @@ class DB
 
 		if ($name == 'mysql')
 		{
-			if (empty($params['database']))
-			{
-				throw new \BadMethodCallException('No database parameter passed.');
-			}
-
 			if (empty($params['host']))
 			{
 				throw new \BadMethodCallException('No host parameter passed.');
@@ -110,7 +105,13 @@ class DB
 				$params['port'] = 3306;
 			}
 
-			$driver->url = sprintf('mysql:dbname=%s;charset=%s;host=%s;port=%d', $params['database'], $params['charset'], $params['host'], $params['port']);
+			$driver->url = sprintf('mysql:charset=%s;host=%s;port=%d', $params['charset'], $params['host'], $params['port']);
+
+			if (!empty($params['database']))
+			{
+				$driver->url .= ';dbname=' . $params['database'];
+			}
+
 			$driver->user = $params['user'];
 			$driver->password = $params['password'];
 		}
