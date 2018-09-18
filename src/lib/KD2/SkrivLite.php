@@ -159,6 +159,12 @@ class SkrivLite
 	 */
 	protected $_inline_regexp = null;
 
+	/**
+	 * List of classes
+	 * @var array
+	 */
+	protected $_classes = [];
+
 	public function __construct()
 	{
 		// Match link/image/extension/footnote not preceded by a backslash
