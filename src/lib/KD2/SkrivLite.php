@@ -95,13 +95,13 @@ class SkrivLite
 	 * @var array
 	 */
 	protected $inline_tags = array(
-			'**'	=>	'strong',
-			"''"	=>	'em',
-			'__'	=>	'u',
-			'--'	=>	's',
-			'##'	=>	'tt',
-			'^^'	=>	'sup',
-			',,'	=>	'sub'
+			'**' =>	'strong',
+			"''" =>	'em',
+			'__' =>	'u',
+			'--' =>	's',
+			'##' =>	'tt',
+			'^^' =>	'sup',
+			',,' =>	'sub',
 		);
 
 	/**
@@ -396,6 +396,7 @@ class SkrivLite
 		{
 			// Invalid tag
 			$out = $tag . $text;
+			$tag_length = strlen($out);
 		}
 
 		if (isset($match[0]))
@@ -420,7 +421,7 @@ class SkrivLite
 	protected function _renderInline($text, $escape = false)
 	{
 		$out = '';
-		
+
 		while ($text != '')
 		{
 			if (preg_match($this->_inline_regexp, $text, $match, PREG_OFFSET_CAPTURE))
@@ -866,7 +867,14 @@ class SkrivLite
 		// Paragraphs breaks
 		elseif (trim($line) == '')
 		{
-			$line = $this->_closeStack();
+			if ($this->_checkLastStack('pre'))
+			{
+				$line = '';
+			}
+			else
+			{
+				$line = $this->_closeStack();
+			}
 		}
 		else
 		{
@@ -1022,7 +1030,6 @@ class SkrivLite_Helper
 	 */
 	static public function highlightCode($language, $line)
 	{
-		
 		$line = htmlspecialchars($line, ENT_QUOTES, 'UTF-8');
 		$line = preg_replace('![;{}[]$]!', '<b>$1</b>', $line);
 		$line = preg_replace('!(public|static|protected|function|private|return)!i', '<i>$1</i>', $line);
@@ -1159,5 +1166,4 @@ class SkrivLite_Helper
 
         return $text;
 	}
-
 }
