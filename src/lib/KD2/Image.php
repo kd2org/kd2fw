@@ -78,7 +78,7 @@ class Image
 		$this->libraries = [
 			'epeg'    => function_exists('\epeg_open'),
 			'imlib'   => function_exists('\imlib_load_image'),
-			'imagick' => class_exists('\Imagick'),
+			'imagick' => class_exists('\Imagick', false),
 			'gd'      => function_exists('\imagecreatefromjpeg'),
 		];
 
