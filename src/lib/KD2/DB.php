@@ -666,7 +666,7 @@ class DB
 			$value = $this->quote($value);
 		}
 
-		return sprintf('%s %s %s', $this->quoteIdentifier($name), $operator, $value);
+		return sprintf('%s %s %s', $name, $operator, $value);
 	}
 
 	/**
