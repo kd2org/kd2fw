@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<body>
+	<div id="search"></div>
+	<p>
+		<input type="button" id="a" value="Export to JSON" />
+		<input type="button" id="b" value="Build query" />
+	</p>
+	<script type="text/javascript" src="query_builder.js"></script>
+	<script type="text/javascript">
+		// Assumes NULL by default
+		var columns = {
+			"name": {
+				"label": "Name",
+				"type": "text",
+				"null": false
+			},
+			"subscribe_date": {
+				"label": "Subscription",
+				"type": "date",
+				"null": false
+			},
+			"last_login": {
+				"label": "Last login",
+				"type": "datetime",
+				"null": true
+			},
+			"status": {
+				"label": "Account status",
+				"type": "enum",
+				"values": {
+					"-1": "Disabled",
+					0: "Waiting for confirmation",
+					1: "Confirmed"
+				},
+				"null": false
+			},
+			"flags": {
+				"label": "Account flags",
+				"type": "bitwise",
+				"values": {
+					0: "Not set",
+					2: "Moderator",
+					4: "Admin",
+					8: "Super-admin",
+				},
+				"null": false
+			},
+			"messages_sent": {
+				"label": "Number of messages sent",
+				"type": "integer",
+				"null": false
+			}
+		};
+		var q = new SQLQueryBuilder(columns);
+		q.loadDefaultOperators();
+		q.init(document.getElementById('search'));
+		q.import([{
+			"conditions": [
+				{
+					"column": "messages_sent",
+					"operator": "= ?",
+					"values": ["42"]
+				}
+			]
+		}]);
+
+		document.getElementById('a').onclick = function () {
+			alert(JSON.stringify(q.export()));
+		};
+		document.getElementById('b').onclick = function () {
+			alert(q.buildQuery());
+		};
+
+
+	qb.prototype.buildQuery = function (limit, order_column, order_desc) {
+		var groups = this.export();
+		var query_groups = [];
+
+		for (var g in groups)
+		{
+			var query_conditions = [];
+
+			for (var r in groups[g])
+			{
+				var row = groups[g][r];
+				var query = row.operator;
+
+				query = query.replace(/\?\?/, function () {
+					var values = row.values.map(this.quote);
+					return '(' + values.join(', ') + ')';
+				});
+
+				query = query.replace(/%\?%|%\?|\?%/, function (match) {
+					return this.quote(match.replace(/\?/, row.values[0].replace(/[%_]/, '\\$0'))) + ' ESCAPE \'\\\'';
+				});
+
+				var count = 0;
+				query = query.replace(/\?/g, function () {
+					if (!(count in row.values))
+					{
+						var type = this.types_operators[this.columns[row.column].type];
+						alert('The ' + type + ' operator for column ' + row.column + ' requires at least ' + row.operator.match(/\?/g).length + ' arguments.');
+						return false;
+					}
+
+					return this.quote(row.values[count++]);
+				});
+
+				query_conditions.push(row.column + ' ' + query);
+			}
+
+			query_groups.push(query_conditions.join(' AND '));
+		}
+
+		return '(' + query_groups.join(') AND (') + ')';
+	};
+	</script>
+</body>
