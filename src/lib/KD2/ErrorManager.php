@@ -131,7 +131,7 @@ class ErrorManager
 			return false;
 
 		$error = error_get_last();
-		
+
 		if (in_array($error['type'], [E_ERROR, E_CORE_ERROR, E_COMPILE_ERROR, E_PARSE, E_RECOVERABLE_ERROR, E_USER_ERROR], TRUE))
 		{
 			// Don't exit at the end, as there might be other shutdown handlers
@@ -192,7 +192,7 @@ class ErrorManager
 	static public function exceptionHandler($e, $exit = true)
 	{
 		self::$catching = true;
-		
+
 		foreach (self::$custom_handlers as $class=>$callback)
 		{
 			if ($e instanceOf $class)
@@ -241,11 +241,32 @@ class ErrorManager
 				self::termPrint('Line ' . $e->getLine() . ' in ' . $file, STDERR, self::YELLOW);
 
 				// Ignore the error stack belonging to ErrorManager
-				if (!(count($e->getTrace()) > 0 && ($t = $e->getTrace()[0]) 
-					&& isset($t['class']) && $t['class'] === __CLASS__ 
-					&& ($t['function'] === 'shutdownHandler' || $t['function'] === 'errorHandler')))
+				foreach ($e->getTrace() as $i=>$t)
 				{
-					self::termPrint(PHP_EOL . $e->getTraceAsString(), STDERR);
+					if (isset($t['class']) && $t['class'] === __CLASS__
+						&& ($t['function'] === 'shutdownHandler' || $t['function'] === 'errorHandler'))
+					{
+						continue;
+					}
+
+					$function = $t['function'];
+
+					// Add class name to function
+					if (isset($t['class']))
+					{
+						$function = $t['class'] . $t['type'] . $function;
+					}
+
+					self::termPrint('function: ' . $function, STDERR);
+
+					// Sometimes the file/line is not specified
+					if (isset($t['file']) && isset($t['line']))
+					{
+						$file = self::getFileLocation($t['file']);
+						$dir = dirname($file);
+						$dir = $dir == '/' ? $dir : $dir . '/';
+						self::termPrint(' -> ' . $dir . basename($file) . ':' . (int)$t['line'], STDERR);
+					}
 				}
 			}
 			else if (self::$enabled == self::PRODUCTION)
@@ -414,7 +435,7 @@ class ErrorManager
 					{
 						$r = new \ReflectionFunction($t['function']);
 					}
-					
+
 					$params = $r->getParameters();
 				}
 				catch (\Exception $e) {
@@ -472,7 +493,7 @@ class ErrorManager
 		{
 			echo '<h2>Request headers</h2>';
 			echo '<table>';
-			
+
 			foreach ($headers as $name => $value)
 			{
 				echo '<tr><th>' . htmlspecialchars($name) . '</th><td>' . htmlspecialchars($value) .'</td></tr>';
@@ -570,7 +591,7 @@ class ErrorManager
 			E_DEPRECATED        => 'Deprecated',
 			E_USER_DEPRECATED   => 'User deprecated',
 		];
-		
+
 		return array_key_exists($type, $types) ? $types[$type] : 'Unknown error';
 	}
 
