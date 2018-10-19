@@ -277,7 +277,7 @@ class Form
 				{
 					return trim($value) !== '';
 				}
-				return is_null($value);
+				return !is_null($value);
 			case 'required_with':
 				$required = false;
 
