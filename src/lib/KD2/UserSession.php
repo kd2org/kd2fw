@@ -243,12 +243,14 @@ class UserSession
 		return $this->start(true);
 	}
 
-	public function refresh()
+	public function refresh($clear_data = true)
 	{
 		if (!$this->isLogged())
 		{
 			throw new \LogicException('User is not logged in.');
 		}
+
+		$_SESSION['UserSessionData'] = [];
 
 		return $this->create($this->user->id);
 	}
