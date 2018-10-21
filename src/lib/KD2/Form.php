@@ -369,7 +369,11 @@ class Form
 		switch ($rule_name)
 		{
 			case 'file':
-				if (!isset($_FILES[$key]) && !isset($rules['required']))
+				if (!isset($_FILES[$key]) && isset($rules['required']))
+				{
+					return false;
+				}
+				elseif (!isset($_FILES[$key]))
 				{
 					return true;
 				}
