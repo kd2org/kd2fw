@@ -175,7 +175,7 @@ class ErrorManager
 	 */
 	static public function termPrint($message, $pipe = STDOUT, $color = null)
 	{
-		if ($color)
+		if ($color && self::$term_color)
 		{
 			$message = chr(27) . $color . $message . chr(27) . "[0m";
 		}
