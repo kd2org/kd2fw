@@ -206,6 +206,28 @@ class ErrorManager
 	{
 		self::$catching = true;
 
+		try {
+			self::reportException($e, $exit);
+			return true;
+		}
+		catch (\Throwable $e) {
+			echo $e;
+			exit(1);
+		}
+		catch (\Exception $e) {
+			echo $e;
+			exit(1);
+		}
+	}
+
+	/**
+	 * Main exception handler
+	 * @param  object  $e    Exception or Error (PHP 7) object
+	 * @param  boolean $exit Exit the script at the end
+	 * @return void
+	 */
+	static public function reportException($e, $exit)
+	{
 		foreach (self::$custom_handlers as $class=>$callback)
 		{
 			if ($e instanceOf $class)
@@ -270,7 +292,19 @@ class ErrorManager
 					$file = $t->file ?: '[internal function]';
 					$line = $t->line ? '(' . $t->line . ')' : '';
 
-					self::termPrint(sprintf('#%d %s%s: %s(%s)', $i, $file, $line, $e->function), STDERR);
+					$args = $t->args;
+
+					foreach ($args as &$arg)
+					{
+						if (strlen($arg) > 20)
+						{
+							$arg = substr($arg, 0, 19) . '…';
+						}
+					}
+
+					unset($arg);
+
+					self::termPrint(sprintf('#%d %s%s: %s(%s)', $i, $file, $line, $t->function, implode(', ', $args)), STDERR);
 				}
 			}
 		}
@@ -369,7 +403,7 @@ class ErrorManager
 	 * @param $e \Exception
 	 * @return \stdClass Report
 	 */
-	static public function makeReport(\Exception $e)
+	static public function makeReport($e)
 	{
 		$report = (object) [
 			'errors' => [],
@@ -464,6 +498,7 @@ class ErrorManager
 		}
 
 		$report->id = base_convert(substr(sha1(json_encode($report->errors)), 0, 10), 16, 36);
+		$report->date = date(DATE_ATOM);
 
 		$modules = [];
 
