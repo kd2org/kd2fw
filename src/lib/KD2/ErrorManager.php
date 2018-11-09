@@ -268,7 +268,7 @@ class ErrorManager
 		{
 			// From: sender
 			$from = !empty($_SERVER['SERVER_NAME']) ? $_SERVER['SERVER_NAME'] : basename($_SERVER['DOCUMENT_ROOT']);
-			mail(self::$email_errors, sprintf('Error #%s: %s', $ref, $e->getMessage()), $log, 'From: ' . sprintf('"%s" <%s>', $from, self::$email_errors));
+			mail(self::$email_errors, sprintf('Error #%s: %s', $report->context->id, $e->getMessage()), $log, 'From: ' . sprintf('"%s" <%s>', $from, self::$email_errors));
 		}
 
 		unset($e);
