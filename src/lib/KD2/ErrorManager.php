@@ -335,6 +335,11 @@ class ErrorManager
 			echo self::htmlTemplate(ini_get('error_append_string'), $report);
 		}
 
+		if (self::$report_auto && self::$report_url)
+		{
+			self::sendReport($report, self::$report_url);
+		}
+
 		if ($exit)
 		{
 			exit(1);
@@ -361,12 +366,7 @@ class ErrorManager
 	{
 		if (isset(self::$context['rootDirectory']) && ($pos = strpos($file, self::$context['rootDirectory'])) === 0)
 		{
-			return substr($file, strlen(self::$context['rootDirectory']));
-		}
-
-		if (!empty($_SERVER['DOCUMENT_ROOT']) && ($pos = strpos($file, $_SERVER['DOCUMENT_ROOT'])) === 0)
-		{
-			return substr($file, strlen($_SERVER['DOCUMENT_ROOT']));
+			return '...' . substr($file, strlen(self::$context['rootDirectory']));
 		}
 
 		return $file;
@@ -436,6 +436,11 @@ class ErrorManager
 							$name = '$' . $params[$name]->name;
 						}
 
+						if (is_string($value))
+						{
+							$value = self::getFileLocation($value);
+						}
+
 						$args[$name] = self::dump($value);
 
 						if (strlen($args[$name]) > 200)
@@ -487,22 +492,6 @@ class ErrorManager
 			'environment' => self::$enabled == self::DEVELOPMENT ? 'development' : 'production:' . self::$enabled,
 			'php_sapi' => PHP_SAPI,
 		], self::$context);
-
-		$defaults = [
-			'hostname'      => 'SERVER_NAME',
-			'userAgent'     => 'HTTP_USER_AGENT',
-			'userAddr'      => 'REMOTE_ADDR',
-			'remoteAddr'    => 'SERVER_ADDR',
-			'rootDirectory' => 'DOCUMENT_ROOT',
-		];
-
-		foreach ($defaults as $a => $b)
-		{
-			if (isset($_SERVER[$b]) && !isset($report->context->$a))
-			{
-				$report->context->$a = $_SERVER[$b];
-			}
-		}
 
 		if (!empty($_SERVER['HTTP_HOST']) && !empty($_SERVER['REQUEST_URI']))
 		{
@@ -694,6 +683,23 @@ class ErrorManager
 		{
 			self::startTimer('_global');
 		}
+
+		// Assign default context
+		static $defaults = [
+			'hostname'      => 'SERVER_NAME',
+			'userAgent'     => 'HTTP_USER_AGENT',
+			'userAddr'      => 'REMOTE_ADDR',
+			'remoteAddr'    => 'SERVER_ADDR',
+			'rootDirectory' => 'DOCUMENT_ROOT',
+		];
+
+		foreach ($defaults as $a => $b)
+		{
+			if (isset($_SERVER[$b]) && !isset(self::$context[$a]))
+			{
+				self::$context[$a] = $_SERVER[$b];
+			}
+		}
 	}
 
 	/**
@@ -866,5 +872,112 @@ class ErrorManager
 			default:
 				return gettype($var);
 		}
+	}
+
+	/**
+	 * Upload a report to a remote errbit-compatible API
+	 * @see https://airbrake.io/docs/api/#create-notice-v3
+	 */
+	static public function sendReport(\stdClass $report, $url)
+	{
+		$data = json_encode($report);
+
+		$headers = [
+			'Content-Type: application/json',
+			'Content-Lenth: ' . strlen($data),
+		];
+
+		if (function_exists('curl_init'))
+		{
+			$ch = curl_init($url);
+
+			curl_setopt_array($ch, [
+				CURLOPT_HTTPHEADER     => $headers,
+				CURLOPT_RETURNTRANSFER => true,
+				CURLOPT_FOLLOWLOCATION => false,
+				CURLOPT_MAXREDIRS      => 3,
+				CURLOPT_CUSTOMREQUEST  => 'POST',
+				CURLOPT_TIMEOUT        => 10,
+				CURLOPT_POSTFIELDS     => $data,
+			]);
+
+			$body = curl_exec($ch);
+			$code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+		}
+		else
+		{
+			$opts = ['http' => [
+				'method'        => 'POST',
+				'header'        => $headers,
+				'content'       => $data,
+				'max_redirects' => 3,
+				'timeout'       => 10,
+				'ignore_errors' => true,
+			]];
+
+			$body = file_get_contents($url, false, stream_context_create($opts));
+			$code = null;
+
+			foreach ($http_response_header as $header)
+			{
+				$a = substr($header, 0, 7);
+
+				if ($a == 'HTTP/1.')
+				{
+					$code = substr($header, 11, 3);
+				}
+			}
+
+			unset($http_response_header);
+		}
+
+		return [
+			'code' => (int) $code,
+			'body' => $body,
+			'data' => json_decode($body),
+		];
+	}
+
+	/**
+	 * Returns list of reports from error log
+	 */
+	static public function getReportsFromLog($log_file = null)
+	{
+		if (!$log_file)
+		{
+			$log_file = ini_get('error_log');
+		}
+
+		$reports = [];
+		$report = null;
+
+		foreach (file($log_file) as $line)
+		{
+			$line = trim($line);
+
+			if ($line == '<errorReport>')
+			{
+				$report = '';
+			}
+			elseif ($line == '</errorReport>')
+			{
+				$report = json_decode($report);
+
+				if (!is_null($report) && isset($report->context->id))
+				{
+					$reports[] = $report;
+				}
+
+				$report = null;
+			}
+			elseif ($report !== null)
+			{
+				$report .= $line;
+			}
+		}
+
+		unset($line, $report, $log_file);
+
+		return $reports;
 	}
 }
