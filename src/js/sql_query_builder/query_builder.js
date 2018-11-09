@@ -200,6 +200,12 @@
 		var operators = this.types_operators[column.type];
 		var options = {'': '---'};
 
+		if (column.null)
+		{
+			operators["IS NULL"] = this.operators["IS NULL"];
+			operators["IS NOT NULL"] = this.operators["IS NOT NULL"];
+		}
+
 		for (var o in operators)
 		{
 			options[o] = operators[o];
