@@ -364,7 +364,7 @@ class ErrorManager
 	 */
 	static protected function getFileLocation($file)
 	{
-		if (isset(self::$context['rootDirectory']) && ($pos = strpos($file, self::$context['rootDirectory'])) === 0)
+		if (!empty(self::$context['rootDirectory']) && ($pos = strpos($file, self::$context['rootDirectory'])) === 0)
 		{
 			return '...' . substr($file, strlen(self::$context['rootDirectory']));
 		}
