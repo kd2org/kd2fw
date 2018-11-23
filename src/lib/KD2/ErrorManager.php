@@ -285,7 +285,12 @@ class ErrorManager
 			{
 				self::termPrint(sprintf(' /!\\ %s ', $e->type), self::RED);
 				self::termPrint($e->message, self::RED_FAINT);
-				self::termPrint(sprintf('Line %d in %s', $e->line, $e->file), self::YELLOW);
+
+				if (isset($e->line))
+				{
+					self::termPrint(sprintf('Line %d in %s', $e->line, $e->file), self::
+						YELLOW);
+				}
 
 				// Ignore the error stack belonging to ErrorManager
 				foreach ($e->backtrace as $i=>$t)
@@ -293,19 +298,26 @@ class ErrorManager
 					$file = $t->file ?: '[internal function]';
 					$line = $t->line ? '(' . $t->line . ')' : '';
 
-					$args = $t->args;
-
-					foreach ($args as &$arg)
+					if (isset($t->args))
 					{
-						if (strlen($arg) > 20)
+						$args = $t->args;
+
+						foreach ($args as &$arg)
 						{
-							$arg = substr($arg, 0, 19) . '…';
+							if (strlen($arg) > 20)
+							{
+								$arg = substr($arg, 0, 19) . '…';
+							}
 						}
+
+						unset($arg);
+
+						self::termPrint(sprintf('#%d %s%s: %s(%s)', $i, $file, $line, $t->function, implode(', ', $args)));
 					}
-
-					unset($arg);
-
-					self::termPrint(sprintf('#%d %s%s: %s(%s)', $i, $file, $line, $t->function, implode(', ', $args)));
+					else
+					{
+						self::termPrint(sprintf('#%d %s%s', $i, $file, $line));
+					}
 				}
 			}
 		}
