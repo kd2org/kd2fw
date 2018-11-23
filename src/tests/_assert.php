@@ -5,14 +5,14 @@ use KD2\ErrorManager as EM;
 define('KD2FW_ROOT', __DIR__ . '/../lib/KD2');
 define('DATA_DIR', __DIR__ . '/data');
 
-function __autoload($class)
+spl_autoload_register(function ($class)
 {
 	$class = explode('\\', $class);
 	$class = array_pop($class);
 	$path = KD2FW_ROOT . '/' . $class . '.php';
 
 	require_once $path;
-}
+});
 
 if (file_exists(__DIR__ . '/error.log'))
 {
