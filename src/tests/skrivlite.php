@@ -9,12 +9,12 @@ $skriv = new SkrivLite;
 $skriv->setCallback(SkrivLite::CALLBACK_CODE_HIGHLIGHT, false); // Disable code highlighting
 $skriv->footnotes_prefix = 'test';
 
-test($skriv instanceOf SkrivLite, '$skriv must be an instance of SkrivLite');
+Test::isInstanceOf(SkrivLite::class, $skriv, '$skriv must be an instance of SkrivLite');
 
 $orig = '**strong word** --strike-through-- not-__underlined__';
 $target = '<p><strong>strong word</strong> <s>strike-through</s> not-__underlined__</p>';
 
-test($skriv->render($orig) == $target, 'inline rendering error');
+Test::equals($target, $skriv->render($orig), 'inline rendering error');
 
 $orig = '
 line
@@ -27,7 +27,7 @@ $target = '<p>line
 </p>
 <p>new paragraph</p>';
 
-test($skriv->render($orig) == $target, 'paragraph or line-break rendering error');
+Test::equals($target, $skriv->render($orig), 'paragraph or line-break rendering error');
 
 $orig = '
 useless text
@@ -48,7 +48,7 @@ $target = '<p>useless text
 <h1 id="with-ID">title level 1</h1>
 <h1 id="title-level-1-without-ID">title level 1 = without ID</h1>';
 
-test($skriv->render($orig) == $target, 'title rendering error');
+Test::equals($target, $skriv->render($orig), 'title rendering error');
 
 $orig = '
 some text
@@ -78,27 +78,27 @@ $target = '<p>some text
 </p></blockquote><p>sub-reply
 </p></blockquote><p>reply</p></blockquote>';
 
-test($skriv->render($orig) == $target, 'blockquote rendering error');
+Test::equals($target, $skriv->render($orig), 'blockquote rendering error');
 
 $orig = 'What is ??KD2FW|KD2 micro framework???';
 $target = '<p>What is <abbr title="KD2 micro framework">KD2FW</abbr>?</p>';
 
-test($skriv->render($orig) == $target, 'abbreviation rendering error');
+Test::equals($target, $skriv->render($orig), 'abbreviation rendering error');
 
 $orig = '
 Here is an example:
- At least one space at the beginning of each
- line is enough to create a preformatted paragraph.
- 
- Skriv syntax **works**.';
+	At least one space at the beginning of each
+	line is enough to create a preformatted paragraph.
+
+	Skriv syntax **does not work**.';
 
 $target = '<p>Here is an example:
 </p><pre>At least one space at the beginning of each
 line is enough to create a preformatted paragraph.
 
-Skriv syntax <strong>works</strong>.</pre>';
+Skriv syntax **does not work**.</pre>';
 
-test($skriv->render($orig) == $target, 'preformatted text rendering error');
+Test::equals($target, $skriv->render($orig), 'preformatted text rendering error');
 
 $orig = '
 [[[
@@ -113,7 +113,7 @@ verbatim block
 </pre>
 <p><strong>yes rendered</strong></p>';
 
-test($skriv->render($orig) == $target, 'verbatim rendering error');
+Test::equals($target, $skriv->render($orig), 'verbatim rendering error');
 
 $orig = '
 [[[ javascript
@@ -128,12 +128,12 @@ $target = '<pre><code class="language-javascript">
 }());
 </code></pre>';
 
-test($skriv->render($orig) == $target, 'code block rendering error');
+Test::equals($target, $skriv->render($orig), 'code block rendering error');
 
 $orig = '{{image|http://lol.png}} {{image.jpg}}';
 $target = '<p><img src="http://lol.png" alt="image" /> <img src="image.jpg" alt="image.jpg" /></p>';
 
-test($skriv->render($orig) == $target, 'image rendering error');
+Test::equals($target, $skriv->render($orig), 'image rendering error');
 
 $orig = '
 some text
@@ -169,12 +169,12 @@ $target = '<p>some text
 
 ';
 
-test($skriv->render($orig) == $target, 'styled block rendering error');
+Test::equals($target, $skriv->render($orig), 'styled block rendering error');
 
 $orig = 'text [[http://kd2.org/]] and [[LQDN|http://lqdn.net/]]';
 $target = '<p>text <a href="http://kd2.org/">http://kd2.org/</a> and <a href="http://lqdn.net/">LQDN</a></p>';
 
-test($skriv->render($orig) == $target, 'link rendering error');
+Test::equals($target, $skriv->render($orig), 'link rendering error');
 
 $orig = '
 !! one !! two
@@ -187,7 +187,7 @@ $target = '<table><tr><th>one</th><th>two</th></tr>
 <tr><td>1</td><td>2 ||one column too much</td></tr>
 <tr><td>missing column</td><td></td></tr></table>';
 
-test($skriv->render($orig) == $target, 'table rendering error');
+Test::equals($target, $skriv->render($orig), 'table rendering error');
 
 $orig = '
 Maybe((sure)).
@@ -203,13 +203,13 @@ $target = '<p>Maybe<sup class="footnote-ref"><a href="#cite_note-test1" id="cite
 <p>Last try<sup class="footnote-ref"><a href="#cite_note-test3" id="cite_ref-test3">2</a></sup></p>
 <div class="footnotes"><p class="footnote"><a href="#cite_ref-test1" id="cite_note-test1">1</a>. sure</p><p class="footnote"><a href="#cite_ref-test2" id="cite_note-test2">Skriv</a>. <a href="http://markup.skriv.org/">http://markup.skriv.org/</a></p><p class="footnote"><a href="#cite_ref-test3" id="cite_note-test3">2</a>. ok</p></div>';
 
-test($skriv->render($orig) == $target, 'footnote rendering error');
+Test::equals($target, $skriv->render($orig), 'footnote rendering error');
 
 // https://github.com/Amaury/SkrivMarkup/issues/3
 $orig = 'aa ##--bbb## ccc';
 $target = '<p>aa <tt>--bbb</tt> ccc</p>';
 
-test($skriv->render($orig) == $target, 'inline rendering error');
+Test::equals($target, $skriv->render($orig), 'inline rendering error');
 
 $orig = '
 * list 1
@@ -267,13 +267,13 @@ $target = '<ul><li>list 1
 </li></ol></ol>
 <p><strong>bold bold</strong></p>';
 
-test($skriv->render($orig) == $target, 'list rendering error');
+Test::equals($target, $skriv->render($orig), 'list rendering error');
 
 // https://github.com/Amaury/SkrivMarkup/issues/15
 $orig = '[[##__invoke## | http://www.php.net/manual/fr/language.oop5.magic.php#object.invoke]]';
 $target = '<p><a href="http://www.php.net/manual/fr/language.oop5.magic.php#object.invoke"><tt>__invoke</tt></a></p>';
 
-test($skriv->render($orig) == $target, 'issue 15 rendering error');
+Test::equals($target, $skriv->render($orig), 'issue 15 rendering error');
 
 $skriv->registerExtension('lipsum', function($args, $content = null) 
 {
@@ -300,11 +300,11 @@ $skriv->registerExtension('lipsum', function($args, $content = null)
 $target = '<p><s>text</s> Lorem ipsum dolor si <strong>bold</strong> normal</p>';
 $orig = '--text-- <<lipsum|20>> **bold** normal';
 
-test($skriv->render($orig) == $target, 'inline extension rendering error');
+Test::equals($target, $skriv->render($orig), 'inline extension rendering error');
 
 $orig = '--text-- <<lipsum length=20>> **bold** normal';
 
-test($skriv->render($orig) == $target, 'inline extension with named argument rendering error');
+Test::equals($target, $skriv->render($orig), 'inline extension with named argument rendering error');
 
 $orig = '<<lipsum length="20"
 >>';
@@ -312,7 +312,7 @@ $orig = '<<lipsum length="20"
 $target = '
 <p>Lorem ipsum dolor si</p>';
 
-test($skriv->render($orig) == $target, 'block extension with named argument rendering error');
+Test::equals($target, $skriv->render($orig), 'block extension with named argument rendering error');
 
 $skriv->registerExtension('html', function($args, $content = null)  { return $content; });
 
@@ -328,15 +328,17 @@ $target = '<p>&lt;b&gt;Escaped html&lt;/b&gt;
 <p><b>Not escaped</b></p>
 ';
 
-test($skriv->render($orig) == $target, 'block html extension rendering error');
+$skriv->enable_basic_html = false;
+
+Test::equals($target, $skriv->render($orig), 'block html extension rendering error');
 
 $orig = 'Multiple extensions: <<lipsum|5>> <<lipsum|5>> **some text** <<lipsum|5>> --other text--';
 $target = '<p>Multiple extensions: Lorem Lorem <strong>some text</strong> Lorem <s>other text</s></p>';
 
-test($skriv->render($orig) == $target, 'multiple inline extension rendering error');
+Test::equals($target, $skriv->render($orig), 'multiple inline extension rendering error');
 
 
 $orig = '<<lipsum|5>> <<lipsum|5>> **some text** <<lipsum|5>> --other text--';
 $target = '<p>Lorem Lorem <strong>some text</strong> Lorem <s>other text</s></p>';
 
-test($skriv->render($orig) == $target, 'multiple inline extension 2 rendering error');
+Test::equals($target, $skriv->render($orig), 'multiple inline extension 2 rendering error');
