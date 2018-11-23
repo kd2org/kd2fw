@@ -703,7 +703,7 @@ class SkrivLite
 		// Preformatted text
 		elseif (preg_match('/^(?<!\\\\)\t+/', $line)
 			|| ($this->pre_whitespace_size > 0 
-				&& preg_match('/^(?<!\\\\)[ ]{' . (int) $this->pre_whitespace_size . ',}/', $line)))
+				&& preg_match('/^(?<!\\\\)[ ]{' . (int) $this->pre_whitespace_size . ',}/', $line, $match)))
 		{
 			$before = '';
 
@@ -714,7 +714,8 @@ class SkrivLite
 				$this->_stack[] = 'pre';
 			}
 
-			$line = $before . $this->_renderInline(substr($line, 1));
+			$length = isset($match[0]) ? $this->pre_whitespace_size : 1;
+			$line = $before . $this->escape(substr($line, $length));
 		}
 		// Styled blocks
 		elseif (preg_match('/^(?<!\\\\)((?:\{{3}\s*)+)\s*(.*)$/', $line, $match))
@@ -867,7 +868,7 @@ class SkrivLite
 		// Paragraphs breaks
 		elseif (trim($line) == '')
 		{
-			if ($this->_checkLastStack('pre'))
+			if ($this->_checkLastStack('pre') && (strlen($line) > 0 || preg_match('/^\s/', $next)))
 			{
 				$line = '';
 			}
