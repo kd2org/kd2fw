@@ -5,7 +5,7 @@ require __DIR__ . '/_inc.php';
 assert_options(ASSERT_ACTIVE, 1);
 assert_options(ASSERT_WARNING, 1);
 
-if (!ini_get('zend.assertions') && PHP_MAJOR_VERSION >= 7)
+if (ini_get('zend.assertions') < 1 && PHP_MAJOR_VERSION >= 7)
 {
 	die("Fail: zend.assertions is disabled");
 }
