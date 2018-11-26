@@ -244,25 +244,37 @@
 		var prev = null;
 		var params = operator.match(/\?/g);
 
-		if (!params)
-		{
-			return;
-		}
-		else if (operator.match(/\?\?/))
+		if (params && operator.match(/\?\?/))
 		{
 			number = values ? values.length : 3;
 			buttons = true;
 		}
-		else if (params.length > 1)
+		else if (params && params.length > 1)
 		{
 			number = params.length;
+		}
+		else if (column.type == 'bitwise')
+		{
+			number = 1;
+		}
+		else
+		{
+			return;
 		}
 
 		for (var i = 0; i < number; i++)
 		{
 			prev = this.addMatchField(parent, prev, column, operator);
 
-			if (values)
+			if (column.type == 'bitwise')
+			{
+				// Check the boxes!
+				for (var j = 0; j < column.values.length; j++)
+				{
+					parent.querySelectorAll('input')[j].checked = values.indexOf(j.toString()) != -1;
+				}
+			}
+			else if (values)
 			{
 				prev.value = values[i];
 			}
@@ -393,10 +405,18 @@
 
 				// Fetch all values in an array
 				var values = Array.prototype.slice.call(r.cells[3].querySelectorAll('input, select')).map(function (input) {
-					if (input.type != 'button')
+					if (input.type == 'checkbox')
+					{
+						return input.checked ? input.value : null;
+					}
+					else if (input.type != 'button')
 					{
 						return input.value;
 					}
+				});
+
+				values = values.filter(function (v) {
+					return v === null ? false : true;
 				});
 
 				var row = {
