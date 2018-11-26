@@ -963,6 +963,11 @@ class ErrorManager
 			$log_file = ini_get('error_log');
 		}
 
+		if (!file_exists($log_file))
+		{
+			return $log_file;
+		}
+
 		$reports = [];
 		$report = null;
 
