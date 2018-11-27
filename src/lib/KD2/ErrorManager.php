@@ -269,7 +269,7 @@ class ErrorManager
 			// From: sender
 			$from = !empty($_SERVER['SERVER_NAME']) ? $_SERVER['SERVER_NAME'] : basename($report->context->rootDirectory);
 			$msgid = $report->context->id . '@' . $from;
-			$headers = sprintf("From: \"%s\" <%s>\r\nMessage-ID: <%s>\r\nIn-Reply-To: <%2$s>", $from, self::$email_errors, $msgid);
+			$headers = sprintf("From: \"%s\" <%s>\nIn-Reply-To: <%s>\nMessage-Id: <%s>", $from, self::$email_errors, $msgid, $msgid);
 			mail(self::$email_errors, sprintf('Error #%s: %s', $report->context->id, $e->getMessage()), $log, $headers);
 		}
 
@@ -630,7 +630,7 @@ class ErrorManager
 	{
 		$str = strtr($str, [
 			'{$ref}' => $report->context->id,
-			'{$report_json}' => htmlspecialchars(json_encode($report), ENT_QUOTES),
+			'{$report_json}' => htmlspecialchars(base64_encode(json_encode($report)), ENT_QUOTES),
 			'{$report_url}' => htmlspecialchars(self::$report_url),
 		]);
 
