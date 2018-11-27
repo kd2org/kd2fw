@@ -267,8 +267,10 @@ class ErrorManager
 		if (self::$email_errors)
 		{
 			// From: sender
-			$from = !empty($_SERVER['SERVER_NAME']) ? $_SERVER['SERVER_NAME'] : basename($_SERVER['DOCUMENT_ROOT']);
-			mail(self::$email_errors, sprintf('Error #%s: %s', $report->context->id, $e->getMessage()), $log, 'From: ' . sprintf('"%s" <%s>', $from, self::$email_errors));
+			$from = !empty($_SERVER['SERVER_NAME']) ? $_SERVER['SERVER_NAME'] : basename($report->context->rootDirectory);
+			$msgid = $report->context->id . '@' . $from;
+			$headers = sprintf("From: \"%s\" <%s>\r\nMessage-ID: <%s>\r\nIn-Reply-To: <%2$s>", $from, self::$email_errors, $msgid);
+			mail(self::$email_errors, sprintf('Error #%s: %s', $report->context->id, $e->getMessage()), $log, $headers);
 		}
 
 		unset($e);
