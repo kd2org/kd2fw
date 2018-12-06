@@ -1,30 +1,31 @@
 <?php
 /*
-  Part of the KD2 framework collection of tools: http://dev.kd2.org/
-  
-  Copyright (c) 2001-2016 BohwaZ <http://bohwaz.net/>
-  All rights reserved.
-  
-  Redistribution and use in source and binary forms, with or without
-  modification, are permitted provided that the following conditions are met:
-  1. Redistributions of source code must retain the above copyright notice,
-  this list of conditions and the following disclaimer.
-  2. Redistributions in binary form must reproduce the above copyright notice,
-  this list of conditions and the following disclaimer in the documentation
-  and/or other materials provided with the distribution.
-  
-  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-  ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
-  LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-  CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-  SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-  INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-  CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
-  THE POSSIBILITY OF SUCH DAMAGE.
+	This file is part of KD2FW -- <http://dev.kd2.org/>
+
+	Copyright (c) 2001-2019 BohwaZ <http://bohwaz.net/>
+	All rights reserved.
+
+	KD2FW is free software: you can redistribute it and/or modify
+	it under the terms of the GNU Affero General Public License as published by
+	the Free Software Foundation, either version 3 of the License, or
+	(at your option) any later version.
+
+	Foobar is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	GNU Affero General Public License for more details.
+
+	You should have received a copy of the GNU Affero General Public License
+	along with Foobar.  If not, see <https://www.gnu.org/licenses/>.
 */
+
+/**
+ * DB_SQLite3: a generic wrapper around SQLite3, adding easier access functions
+ * Compatible API with DB
+ *
+ * @author  bohwaz http://bohwaz.net/
+ * @license AGPLv3
+ */
 
 namespace KD2;
 
@@ -217,12 +218,15 @@ class DB_SQLite3 extends DB
 	{
 		assert(is_string($query));
 		assert(is_array($args) || is_object($args));
-		
+
 		// Forcer en tableau
 		$args = (array) $args;
 
 		$this->connect();
+
+		$query = $this->applyTablePrefix($query);
 		$statement = $this->db->prepare($query);
+
 		$nb = $statement->paramCount();
 
 		if (!empty($args))
@@ -231,7 +235,7 @@ class DB_SQLite3 extends DB
 			{
 				$args = current($args);
 			}
-			
+
 			if (count($args) != $nb)
 			{
 				throw new \LengthException(sprintf('Arguments error: %d supplied, but %d are required by query.', 
@@ -284,6 +288,7 @@ class DB_SQLite3 extends DB
 	public function query($query)
 	{
 		$this->connect();
+		$query = $this->applyTablePrefix($query);
 		return $this->db->query($query);
 	}
 
@@ -352,6 +357,7 @@ class DB_SQLite3 extends DB
 		$this->begin();
 
 		try {
+			$query = $this->applyTablePrefix($query);
 			$this->db->exec($query);
 		}
 		catch (\Exception $e)
@@ -366,6 +372,7 @@ class DB_SQLite3 extends DB
 	public function exec($query)
 	{
 		$this->connect();
+		$query = $this->applyTablePrefix($query);
 		return $this->db->exec($query);
 	}
 
@@ -428,6 +435,7 @@ class DB_SQLite3 extends DB
 
 	public function prepare($query, $driver_options = [])
 	{
+		$query = $this->applyTablePrefix($query);
 		return $this->db->prepare($query);
 	}
 
