@@ -1,29 +1,22 @@
 <?php
 /*
-  Part of the KD2 framework collection of tools: http://dev.kd2.org/
-  
-  Copyright (c) 2001-2016 BohwaZ <http://bohwaz.net/>
-  All rights reserved.
-  
-  Redistribution and use in source and binary forms, with or without
-  modification, are permitted provided that the following conditions are met:
-  1. Redistributions of source code must retain the above copyright notice,
-  this list of conditions and the following disclaimer.
-  2. Redistributions in binary form must reproduce the above copyright notice,
-  this list of conditions and the following disclaimer in the documentation
-  and/or other materials provided with the distribution.
-  
-  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-  ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
-  LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-  CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-  SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-  INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-  CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
-  THE POSSIBILITY OF SUCH DAMAGE.
+	This file is part of KD2FW -- <http://dev.kd2.org/>
+
+	Copyright (c) 2001-2019 BohwaZ <http://bohwaz.net/>
+	All rights reserved.
+
+	KD2FW is free software: you can redistribute it and/or modify
+	it under the terms of the GNU Affero General Public License as published by
+	the Free Software Foundation, either version 3 of the License, or
+	(at your option) any later version.
+
+	Foobar is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	GNU Affero General Public License for more details.
+
+	You should have received a copy of the GNU Affero General Public License
+	along with Foobar.  If not, see <https://www.gnu.org/licenses/>.
 */
 
 /**
@@ -145,11 +138,11 @@ class Smartyer
 
 	/**
 	 * List of native PHP tags that don't require any argument
-	 * 
+	 *
 	 * Note: switch/case is not supported because any white space
 	 * between switch and the first case will produce and error
 	 * see https://secure.php.net/manual/en/control-structures.alternative-syntax.php
-	 * 
+	 *
 	 * @var array
 	 */
 	protected $raw_php_blocks = ['elseif', 'if', 'else', 'for', 'while'];
@@ -404,7 +397,7 @@ class Smartyer
 		ob_start();
 
 		include $this->compiled_template_path;
-		
+
 		return ob_get_clean();
 	}
 
@@ -664,7 +657,7 @@ class Smartyer
 			$compiled = explode("\n", $compiled);
 			$compiled = array_slice($compiled, $e->getLine()-1);
 			$compiled = implode("\n", $compiled);
-			
+
 			if (preg_match('!//#(\d+)\?>!', $compiled, $match))
 			{
 				$this->parseError($match[1], $e->getMessage(), $e);
@@ -788,7 +781,7 @@ class Smartyer
 			{
 				// PHP code, leave as is
 			}
-			
+
 			$compiled = preg_replace('/<\?php\/\*#' . $i . '#\s*?#\*\/\?>/', $literal, $compiled);
 		}
 
@@ -833,7 +826,7 @@ class Smartyer
 			// as it could be a false positive
 			// eg. "if ($a == 1) || ($b == 1)" would create an error
 			// this is not valid for other blocks though (foreach/for/while)
-			
+
 			if ($name == 'if' || $name == 'elseif')
 			{
 				$code .= sprintf('%s (%s):', $name, $raw_args);
@@ -930,7 +923,7 @@ class Smartyer
 			{
 				// Let's try the user-defined compile callbacks
 				// and if none of them return something, we are out
-				
+
 				foreach ($this->compile_functions as $closure)
 				{
 					$code = call_user_func($closure, $line, $block, $name, $raw_args);
@@ -940,7 +933,7 @@ class Smartyer
 						break;
 					}
 				}
-			
+
 				if (!$code)
 				{
 					if ($this->error_on_invalid_block)
@@ -1007,9 +1000,9 @@ class Smartyer
 		}
 
 		$code = '<?php ' . $code . ' //#' . $line . '?>';
-		
+
 		unset($name, $line, $block);
-		
+
 		return $code;
 	}
 
@@ -1020,7 +1013,7 @@ class Smartyer
 	{
 		$code = 'echo ' . $this->parseSingleVariable($block, $line) . ';';
 		$code = '<?php ' . $code . ' //#' . $line . '?>';
-			
+
 		return $code;
 	}
 
@@ -1191,7 +1184,7 @@ class Smartyer
 		}
 
 		$var = $pre . $this->parseMagicVariables($var) . $post;
-		
+
 		unset($pre, $post, $arguments, $mod_name, $modifier, $modifiers, $pos, $_post);
 
 		// auto escape
@@ -1208,7 +1201,7 @@ class Smartyer
 	 *
 	 * Quoted strings will be escaped, variables and true/false/null left as is,
 	 * but unquoted strings containing [\w\d_-] will be quoted and escaped
-	 * 
+	 *
 	 * @param  string $str 	String to export
 	 * @return string 		PHP escaped string
 	 */
@@ -1236,7 +1229,7 @@ class Smartyer
 	 * Export an array to a string, like var_export but without escaping of strings
 	 *
 	 * This is used to reference variables and code in arrays
-	 * 
+	 *
 	 * @param  array   $args      Arguments to export
 	 * @return string
 	 */
@@ -1276,7 +1269,7 @@ class Smartyer
 				{
 					return null;
 				}
-				
+
 				$var = $var->$key;
 			}
 			elseif (is_array($var))

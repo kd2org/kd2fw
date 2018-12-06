@@ -1,29 +1,22 @@
 <?php
 /*
-  Part of the KD2 framework collection of tools: http://dev.kd2.org/
-  
-  Copyright (c) 2001-2016 BohwaZ <http://bohwaz.net/>
-  All rights reserved.
-  
-  Redistribution and use in source and binary forms, with or without
-  modification, are permitted provided that the following conditions are met:
-  1. Redistributions of source code must retain the above copyright notice,
-  this list of conditions and the following disclaimer.
-  2. Redistributions in binary form must reproduce the above copyright notice,
-  this list of conditions and the following disclaimer in the documentation
-  and/or other materials provided with the distribution.
-  
-  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-  ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
-  LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-  CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-  SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-  INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-  CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
-  THE POSSIBILITY OF SUCH DAMAGE.
+	This file is part of KD2FW -- <http://dev.kd2.org/>
+
+	Copyright (c) 2001-2019 BohwaZ <http://bohwaz.net/>
+	All rights reserved.
+
+	KD2FW is free software: you can redistribute it and/or modify
+	it under the terms of the GNU Affero General Public License as published by
+	the Free Software Foundation, either version 3 of the License, or
+	(at your option) any later version.
+
+	Foobar is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	GNU Affero General Public License for more details.
+
+	You should have received a copy of the GNU Affero General Public License
+	along with Foobar.  If not, see <https://www.gnu.org/licenses/>.
 */
 
 namespace KD2;
@@ -57,18 +50,18 @@ class Security
 	 *
 	 * Compares two strings using the same time whether they're equal or not.
 	 * This function should be used to mitigate timing attacks.
-	 * 
+	 *
 	 * @link https://secure.php.net/manual/en/function.hash-equals.php
-	 * 
+	 *
 	 * @param  string $known_string The string of known length to compare against
 	 * @param  string $user_string  The user-supplied string
-	 * @return boolean              
+	 * @return boolean
 	 */
 	static public function hash_equals($known_string, $user_string)
 	{
 		$known_string = (string) $known_string;
 		$user_string = (string) $user_string;
-		
+
 		// For PHP 5.6/PHP 7 use the native function
 		if (function_exists('hash_equals'))
 		{
@@ -203,7 +196,7 @@ class Security
 	 * Returns a random passphrase of $words length
 	 *
 	 * You can use any dictionary from /usr/share/dict, or any text file with one word per line
-	 * 
+	 *
 	 * @param  string  $dictionary      Path to dictionary file
 	 * @param  integer $words           Number of words to include
 	 * @param  boolean $character_match Regexp (unicode) character class to match, eg.
@@ -219,7 +212,7 @@ class Security
 		}
 
 		$file = file($dictionary);
-		
+
 		$selection = [];
 		$max = 1000;
 		$i = 0;
@@ -376,7 +369,7 @@ class Security
 		{
 			$value .= '#' . rawurlencode(rawurldecode($url['fragment']));
 		}
-		
+
 		return $value;
 	}
 
@@ -414,7 +407,7 @@ class Security
 		}
 
 		putenv('GNUPGHOME=' . $tmpdir);
-		
+
 		$gpg = new \gnupg;
 		$gpg->seterrormode(\gnupg::ERROR_EXCEPTION);
 

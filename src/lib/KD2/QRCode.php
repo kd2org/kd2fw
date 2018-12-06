@@ -1,16 +1,32 @@
 <?php
+/*
+    This file is part of KD2FW -- <http://dev.kd2.org/>
 
-namespace KD2;
+    Copyright (c) 2001-2019 BohwaZ <http://bohwaz.net/>
+    All rights reserved.
+
+    KD2FW is free software: you can redistribute it and/or modify
+    it under the terms of the GNU Affero General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Foobar is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU Affero General Public License for more details.
+
+    You should have received a copy of the GNU Affero General Public License
+    along with Foobar.  If not, see <https://www.gnu.org/licenses/>.
+*/
 
 /**
  * PHP QRCode generator, port of JS encoder by Marcel <http://www.codeministry.ch/>
  *
- * Port made by: bohwaz <http://bohwaz.net/>
- * 
  * @link http://code.google.com/p/jsqrencode/downloads/list
- * @copyright Copyright 2010, tz@execpc.com, released under GPLv3
- * @license GPLv3
  */
+
+namespace KD2;
+
 class QRCode
 {
 	// alignment pattern
@@ -381,13 +397,13 @@ class QRCode
 		$count = 0;
 		$big += $big << 2;
 		$big <<= 1;
-		
+
 		while ($big > $this->width * $this->width)
 		{
 			$big -= $this->width * $this->width;
 			$count++;
 		}
-		
+
 		$thisbad += $count * $this->N4;
 
 		// $Y runs
@@ -432,7 +448,7 @@ class QRCode
 
 		// allocate, clear and setup data structures
 		$v = $this->datablkw + ($this->datablkw + $this->eccblkwid) * ($this->neccblk1 + $this->neccblk2) + $this->neccblk2;
-		
+
 		for ( $t = 0; $t < $v; $t++ )
 		{
 			$this->eccbuf[$t] = 0;
@@ -574,7 +590,7 @@ class QRCode
 		for( $i = 0 ; $i < $v; $i++ ) {
 			$this->eccbuf[$i] = ord(substr($this->strinbuf, $i, 1));
 		}
-		
+
 		$this->strinbuf = $this->eccbuf;
 
 		// calculate max string length
@@ -625,7 +641,7 @@ class QRCode
 		$this->genpoly[0] = 1;
 		for ($i = 0; $i < $this->eccblkwid; $i++) {
 			$this->genpoly[$i + 1] = 1;
-			
+
 			for ($j = $i; $j > 0; $j--)
 			{
 				if ($this->genpoly[$j])
@@ -657,7 +673,7 @@ class QRCode
 			$y += $this->datablkw + 1;
 			$k += $this->eccblkwid;
 		}
-	
+
 		// interleave blocks
 		$y = 0;
 		for ($i = 0; $i < $this->datablkw; $i++) {
@@ -683,7 +699,7 @@ class QRCode
 		$k = $v = 1;         // up, minus
 		/* inteleaved data and ecc codes */
 		$m = ($this->datablkw + $this->eccblkwid) * ($this->neccblk1 + $this->neccblk2) + $this->neccblk2;
-		
+
 		for ($i = 0; $i < $m; $i++)
 		{
 			$t = $this->strinbuf[$i];
@@ -933,7 +949,7 @@ class QRCode
 	public function toArray()
 	{
 		$out = [];
-		
+
 		for ($i = 0; $i < $this->width; $i++)
 		{
 			$out[$i] = [];
