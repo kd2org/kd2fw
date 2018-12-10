@@ -1255,8 +1255,16 @@ class Smartyer
 	 */
 	protected function _magicVar($var, array $keys)
 	{
+		$i = 0;
+
 		while ($key = array_shift($keys))
 		{
+			if ($i++ > 20)
+			{
+				// Limit the amount of recusivity we can go through
+				return null;
+			}
+
 			if (is_object($var))
 			{
 				// Test for constants
