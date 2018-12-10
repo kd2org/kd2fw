@@ -496,6 +496,9 @@ class ErrorManager
 			'language' => 'PHP ' . PHP_VERSION,
 			'environment' => self::$enabled == self::DEVELOPMENT ? 'development' : 'production:' . self::$enabled,
 			'php_sapi' => PHP_SAPI,
+			'remote_ip'=> isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : null,
+			'http_method' => isset($_SERVER['REQUEST_METHOD']) ? $_SERVER['REQUEST_METHOD'] : null,
+			'files_sent' => self::dump($_FILES),
 		], self::$context);
 
 		if (!empty($_SERVER['HTTP_HOST']) && !empty($_SERVER['REQUEST_URI']))
@@ -838,6 +841,11 @@ class ErrorManager
 	 */
 	static public function dump($var, $level = 0)
 	{
+		if ($level > 20)
+		{
+			return '*RECURSION*';
+		}
+
 		switch (gettype($var))
 		{
 			case 'boolean':
