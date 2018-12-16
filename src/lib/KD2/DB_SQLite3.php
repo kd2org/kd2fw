@@ -275,7 +275,7 @@ class DB_SQLite3 extends DB
 		try {
 			// Return a boolean for write queries to avoid accidental duplicate execution
 			// see https://bugs.php.net/bug.php?id=64531
-			
+
 			$result = $statement->execute();
 			return $statement->readOnly() ? $result : (bool) $result;
 		}
@@ -290,6 +290,54 @@ class DB_SQLite3 extends DB
 		$this->connect();
 		$query = $this->applyTablePrefix($query);
 		return $this->db->query($query);
+	}
+
+	/**
+	 * Performs a user SELECT query in the database
+	 *
+	 * This is meant to allow users to make SELECT statements without altering the database
+	 * and staying as safe as possible.
+	 *
+	 * Warning! There are probably still some ways to extract valuable information
+	 * for a hacker. This feature should not be available to all your users!
+	 *
+	 * @param  string $query SQL SELECT query
+	 * @return array Rows of the result, as stdClass objects
+	 */
+	public function userSelectQuery($query)
+	{
+		if (preg_match('/;\s*(.+?)$/', $query))
+		{
+			throw new \LogicException('Only one single query can be executed at the same time.');
+		}
+
+		// Forbid use of some strings that could allow give hints to an attacker:
+		// PRAGMA, sqlite_version(), sqlite_master table, comments
+		if (preg_match('/PRAGMA\s+|sqlite_version|sqlite_master|--|\/\*|\*\/|load_extension|ATTACH\s+|randomblob|sqlite_compileoption_|sqlite_offset|sqlite_source_|zeroblob|X\'\w|0x\w|sqlite_dbpage/', $query, $match))
+		{
+			throw new \LogicException('Invalid SQL query.');
+		}
+
+		if (!preg_match('/^\s*SELECT/', $query))
+		{
+			$query = 'SELECT ' . $query;
+		}
+
+		$st = $this->db->prepare($query);
+
+		if (!$st->readOnly())
+		{
+			throw new \LogicException('Only read-only queries are accepted.');
+		}
+
+		$out = [];
+
+		while ($row = $res->fetchArray(\SQLITE3_ASSOC))
+		{
+			$out[] = (object) $row;
+		}
+
+		return $out;
 	}
 
 	public function iterate($query)
