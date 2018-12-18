@@ -330,6 +330,8 @@ class DB_SQLite3 extends DB
 			throw new \LogicException('Only read-only queries are accepted.');
 		}
 
+		$res = $st->execute();
+
 		$out = [];
 
 		while ($row = $res->fetchArray(\SQLITE3_ASSOC))
