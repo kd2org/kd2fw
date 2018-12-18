@@ -304,7 +304,7 @@ class DB_SQLite3 extends DB
 	 * @param  string $query SQL SELECT query
 	 * @return array Rows of the result, as stdClass objects
 	 */
-	public function userSelectQuery($query)
+	public function userSelectStatement($query)
 	{
 		if (preg_match('/;\s*(.+?)$/', $query))
 		{
@@ -329,6 +329,13 @@ class DB_SQLite3 extends DB
 		{
 			throw new \LogicException('Only read-only queries are accepted.');
 		}
+
+		return $st;
+	}
+
+	public function userSelectGet($query)
+	{
+		$st = $this->userSelectStatement($query);
 
 		$res = $st->execute();
 
