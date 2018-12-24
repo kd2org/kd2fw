@@ -318,7 +318,7 @@ class DB_SQLite3 extends DB
 			throw new \LogicException('Invalid SQL query.');
 		}
 
-		if (!preg_match('/^\s*SELECT/', $query))
+		if (!preg_match('/^\s*SELECT\s+/i', $query))
 		{
 			$query = 'SELECT ' . $query;
 		}
