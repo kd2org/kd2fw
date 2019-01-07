@@ -450,7 +450,7 @@ class SMTP
 		// Compatibility with IDN domains
 		if (function_exists('idn_to_ascii'))
 		{
-			$host = idn_to_ascii($host);
+			$host = @idn_to_ascii($host); // Silence errors because of PHP 7.2 http://php.net/manual/en/function.idn-to-ascii.php
 			$email = substr($email, 0, strpos($email, '@')+1) . $host;
 		}
 

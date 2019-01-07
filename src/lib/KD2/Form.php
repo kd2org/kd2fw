@@ -436,7 +436,7 @@ class Form
 				if (function_exists('idn_to_ascii'))
 				{
 					$host = substr($value, strpos($value, '@') + 1);
-					$host = idn_to_ascii($host);
+					$host = @idn_to_ascii($host); // Silence errors because of PHP 7.2 http://php.net/manual/en/function.idn-to-ascii.php
 					$value = substr($value, 0, strpos($value, '@')+1) . $host;
 				}
 
