@@ -23,14 +23,16 @@ namespace KD2;
 
 class Test
 {
+	static public $assertion_counter = 0;
+
 	static public function assert($test, $message = 'Assertion failed')
 	{
-		echo $test ? '.' : 'F';
-
 		if (!$test)
 		{
 			throw new TestException($message);
 		}
+
+		self::$assertion_counter++;
 	}
 
 	static public function assertf($format, array $args, $message = 'Assertion failed')
@@ -127,9 +129,40 @@ class Test
 		}
 	}
 
+	static public function run($target, $pattern = '/^.*Test\.php$/')
+	{
+		if (is_dir($target))
+		{
+			$files = new \RegexIterator(new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($target)),
+				$pattern, \RecursiveRegexIterator::GET_MATCH);
+
+			foreach ($files as $file)
+			{
+				self::run($file[0]);
+			}
+
+			return;
+		}
+
+		self::$assertion_counter = 0;
+
+		$result = self::runFile($target);
+
+		printf("%s: %d successful assertions, %s errors\n", basename($target), self::$assertion_counter, count($result) ?: 'no');
+
+		foreach ($result as $i => $fail)
+		{
+			printf("%d.\t%s::%s\n\n", $i+1, $fail['class'], isset($fail['method']) ? $fail['method'] : 'unknown');
+			printf("\t[%s] %s\n\n", $fail['assertion'], str_replace("\n", "\n\t", $fail['message']));
+			printf("\tLine %d in %s\n", $fail['line'], basename($fail['file']));
+			echo "\n\t" . str_replace("\n", "\n\t", $fail['trace']) . "\n\n";
+		}
+	}
+
 	static public function runFile($file)
 	{
 		$classes = get_declared_classes();
+		$failed = [];
 
 		try {
 			require_once $file;
@@ -143,6 +176,7 @@ class Test
 				'message'   => $e->getMessage(),
 				'trace'     => $e->getCallTraceAsString(),
 			];
+			return $failed;
 		}
 		catch (\Throwable $e) {
 			$failed[] = [
@@ -153,6 +187,7 @@ class Test
 				'message'   => $e->getMessage(),
 				'trace'     => $e->getTraceAsString(),
 			];
+			return $failed;
 		}
 		catch (\Exception $e) {
 			$failed[] = [
@@ -163,11 +198,10 @@ class Test
 				'message'   => $e->getMessage(),
 				'trace'     => $e->getTraceAsString(),
 			];
+			return $failed;
 		}
 
 		$classes = array_diff(get_declared_classes(), $classes);
-
-		$failed = [];
 
 		foreach ($classes as $class)
 		{
@@ -182,47 +216,15 @@ class Test
 
 			unset($class_file, $reflection);
 
-			try {
-				$obj = new $class;
-				$result = self::runMethods($obj);
+			$obj = new $class;
+			$result = self::runMethods($obj);
 
-				if ($result !== null)
-				{
-					$failed[] = $result;
-				}
+			if (count($result))
+			{
+				$failed = array_merge($failed, $result);
+			}
 
-				unset($obj);
-			}
-			catch (TestException $e) {
-				$failed[] = [
-					'class'     => $class,
-					'file'      => $e->getFile(),
-					'line'      => $e->getLine(),
-					'assertion' => $e->getAssertion(),
-					'message'   => $e->getMessage(),
-					'trace'     => $e->getCallTraceAsString(),
-				];
-			}
-			catch (\Throwable $e) {
-				$failed[] = [
-					'class'     => $class,
-					'file'      => $e->getFile(),
-					'line'      => $e->getLine(),
-					'assertion' => 'PHP code',
-					'message'   => $e->getMessage(),
-					'trace'     => $e->getTraceAsString(),
-				];
-			}
-			catch (\Exception $e) {
-				$failed[] = [
-					'class'     => $class,
-					'file'      => $e->getFile(),
-					'line'      => $e->getLine(),
-					'assertion' => 'PHP code',
-					'message'   => $e->getMessage(),
-					'trace'     => $e->getTraceAsString(),
-				];
-			}
+			unset($obj, $result);
 		}
 
 		return $failed;
@@ -246,7 +248,7 @@ class Test
 			throw new \InvalidArgumentException('Class argument must be an object or a string.');
 		}
 
-		$args = array_slice(func_get_args(), 1);
+		$result = [];
 
 		foreach ($reflection->getMethods($filter) as $method)
 		{
@@ -262,7 +264,7 @@ class Test
 					$class->setUp();
 				}
 
-				call_user_func_array([$class, $method->name], $args);
+				call_user_func([$class, $method->name]);
 
 				if (is_object($class) && method_exists($class, 'tearDown'))
 				{
@@ -270,36 +272,41 @@ class Test
 				}
 			}
 			catch (TestException $e) {
-				return [
+				$result[] = [
 					'class'     => $name,
 					'file'      => $e->getFile(),
 					'line'      => $e->getLine(),
 					'assertion' => $e->getAssertion(),
 					'message'   => $e->getMessage(),
 					'trace'     => $e->getCallTraceAsString(),
+					'method'    => $method->name,
 				];
 			}
-			catch (Throwable $t) {
-				return [
+			catch (\Throwable $e) {
+				$result[] = [
 					'class'     => $name,
 					'file'      => $e->getFile(),
 					'line'      => $e->getLine(),
 					'assertion' => 'PHP code',
 					'message'   => $e->getMessage(),
 					'trace'     => $e->getTraceAsString(),
+					'method'    => $method->name,
 				];
 			}
 			catch (\Exception $e) {
-				return [
+				$result[] = [
 					'class'     => $name,
 					'file'      => $e->getFile(),
 					'line'      => $e->getLine(),
 					'assertion' => 'PHP code',
 					'message'   => $e->getMessage(),
 					'trace'     => $e->getTraceAsString(),
+					'method'    => $method->name,
 				];
 			}
 		}
+
+		return $result;
 	}
 
 	static public function dump()
@@ -315,6 +322,30 @@ class Test
 		ob_end_clean();
 
 		return trim($out);
+	}
+
+	/**
+	 * Invokes a private/protected method in an object
+	 * @param  object $class
+	 * @param  string $method
+	 * @return mixed
+	 */
+	static public function invoke($class, $method, array $args = [])
+	{
+		$method = new \ReflectionMethod($class, $method);
+		$method->setAccessible(true);
+
+		return $method->invokeArgs($class, $args);
+	}
+
+	/**
+	 * Returns a private/protected property value
+	 */
+	static public function getProperty($class, $property)
+	{
+		$p = new \ReflectionProperty($class, $property);
+		$p->setAccessible(true);
+		return $p->getValue($class);
 	}
 }
 
