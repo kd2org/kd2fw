@@ -368,7 +368,7 @@ class Smartyer
 			}
 		}
 
-		if (!is_null($this->template_path) && !is_readable($this->template_path))
+		if (!is_null($this->template_path) && (!is_file($this->template_path) || !is_readable($this->template_path)))
 		{
 			throw new \RuntimeException('Template file doesn\'t exist or is not readable: ' . $this->template_path);
 		}
