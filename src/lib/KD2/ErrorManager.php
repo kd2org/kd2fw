@@ -966,7 +966,7 @@ class ErrorManager
 
 		if (!file_exists($log_file))
 		{
-			return $log_file;
+			return [];
 		}
 
 		$reports = [];
