@@ -76,9 +76,10 @@
 		var form = fileInput.form;
 
 		var files = [];
-		
+
 		var upload_queue = false;
 		var hash_queue = false;
+		var resize_queue = [];
 
 		var progress_status = false;
 		var progress_bar = false;
@@ -155,14 +156,15 @@
 
 		function makePreview(file, parent)
 		{
-			if (file.type.match(/^image\/(jpe?g|gif|svg|png)$/))
+			if (file.type.match(/^image\/(jpe?g|gif|svg\+xml|png)$/))
 			{
-				resize(file, options.thumb_width, options.thumb_height, 'image/png', 9, function(blob) {
+				resize_queue.push([file, options.thumb_width, options.thumb_height, 'image/png', 9, function(blob) {
 					file.url = URL.createObjectURL(blob);
 					var img = new Image;
 					img.src = file.url;
 					parent.appendChild(img);
-				});
+					runResizeQueue();
+				}]);
 			}
 			else
 			{
@@ -218,6 +220,7 @@
 			}
 
 			this.value = '';
+			runResizeQueue();
 			runHashQueue();
 		}, false);
 
@@ -331,6 +334,18 @@
 			};
 
 			fr.readAsArrayBuffer(file);
+		}
+
+		function runResizeQueue()
+		{
+			var r = resize_queue.shift();
+
+			if (!r)
+			{
+				return;
+			}
+
+			resize.apply(this,r);
 		}
 
 		function runUploadQueue()
@@ -552,24 +567,27 @@
 			img.src = (window.URL || window.webkitURL).createObjectURL(file);
 
 			img.onload = function() {
+				var image = {width: img.width, height: img.height};
+
 				// Flip/rotate following orientation
 				if (orientation && orientation <= 8)
 				{
-					var canvas1 = document.createElement("canvas");
+					var canvas = document.createElement("canvas");
 
 					if ([5,6,7,8].indexOf(orientation) > -1)
 					{
-						canvas1.width = img.height;
-						canvas1.height = img.width;
+						canvas.width = img.height;
+						canvas.height = img.width;
 					}
 					else
 					{
-						canvas1.width = img.width;
-						canvas1.height = img.height;
+						canvas.width = img.width;
+						canvas.height = img.height;
 					}
 
-					var ctx = canvas1.getContext('2d');
-					
+					var ctx = canvas.getContext('2d');
+					ctx.imageSmoothingQuality = 'high';
+
 					switch (orientation) {
 						case 2: ctx.transform(-1, 0, 0, 1, img.width, 0); break;
 						case 3: ctx.transform(-1, 0, 0, -1, img.width, img.height); break;
@@ -582,12 +600,21 @@
 					}
 
 					ctx.drawImage(img, 0, 0);
+
+					// Free up memory by removing image
+					(window.URL || window.webkitURL).revokeObjectURL(img.src);
+					img.width = 1;
+					img.height = 1;
+					delete img;
+
+					// Source image is now a canvas
+					img = canvas;
 				}
 
 				var width = max_width,
 					height = max_height;
 
-				in_ratio = (canvas1 || img).width / (canvas1 || img).height;
+				in_ratio = img.width / img.height;
 				out_ratio = max_width / max_height;
 
 				if (in_ratio >= out_ratio)
@@ -603,57 +630,71 @@
 				height = Math.abs(height);
 
 				// Two-step downscaling for better quality
-				var canvas2 = document.createElement("canvas");
+				var canvas = document.createElement("canvas");
 				var factor = 1;
+				var ctx = canvas.getContext('2d');
+				ctx.imageSmoothingQuality = 'high';
 
-				if (width < (canvas1 || img).width || height < (canvas1 || img).height)
+				// use two-step scaling down for better quality
+				if (width < img.width || height < img.height)
 				{
 					factor = 2;
 				}
 
-				canvas2.width = width*factor;
-				canvas2.height = height*factor;
+				canvas.width = width*factor;
+				canvas.height = height*factor;
 
-				canvas2.getContext('2d').drawImage(
-					(canvas1 || img), // original image
+				ctx.drawImage(
+					img, // original image
 					0, // starting x point
 					0, // starting y point
-					(canvas1 || img).width, // image width
-					(canvas1 || img).height, // image height
+					img.width, // image width
+					img.height, // image height
 					0, // destination x point
 					0, // destination y point
 					width*factor, // destination width
 					height*factor // destination height
 				);
 
-				(window.URL || window.webkitURL).revokeObjectURL(img.src);
-				delete img, canvas1;
+				if (img instanceof Image)
+				{
+					// Clear up image from memory
+					(window.URL || window.webkitURL).revokeObjectURL(img.src);
+					img.width = 1;
+					img.height = 1;
+				}
+
+				delete img;
 
 				// Second step down scaling
 				if (factor > 1)
 				{
-					var canvas3 = document.createElement("canvas");
+					img = canvas;
+					var canvas = document.createElement("canvas");
+					var ctx = canvas.getContext('2d');
+					ctx.imageSmoothingQuality = 'high';
 
-					canvas3.width = width;
-					canvas3.height = height;
+					canvas.width = width;
+					canvas.height = height;
 
-					canvas3.getContext('2d').drawImage(
-						canvas2, // original image
+					ctx.drawImage(
+						img, // original image
 						0, // starting x point
 						0, // starting y point
-						canvas2.width, // image width
-						canvas2.height, // image height
+						img.width, // image width
+						img.height, // image height
 						0, // destination x point
 						0, // destination y point
 						width, // destination width
 						height // destination height
 					);
+
+					delete img;
 				}
 
-				(canvas3 || canvas2).toBlob(callback, format, quality);
+				canvas.toBlob(callback, format, quality);
 
-				delete canvas2;
-				delete canvas3;
+				delete canvas;
 			};
 		}
 	};
