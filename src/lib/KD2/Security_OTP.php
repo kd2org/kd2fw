@@ -175,7 +175,7 @@ class Security_OTP
 			return false;
 		}
 
-		return self::HOTP($secret, $counter, $code, $digits, $digest, $interval);
+		return self::HOTP($secret, $counter, $code, $digits, $digest);
 	}
 
 	/**

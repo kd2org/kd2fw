@@ -112,7 +112,7 @@ class FeedParser
 	static public function getRealURL($href, $base_url)
 	{
 		$_href = parse_url($href);
-		
+
 		// already an absolute URL
 		if (!empty($_href['scheme']))
 			return $href;
@@ -193,7 +193,7 @@ class FeedParser
 			}
 		}
 		// Discover feed links from page links
-		elseif ($fallback_discover_content && preg_match_all('/<\s*a\s+(.*?)/?>(.*?)</a>/is', $content, $links, PREG_SET_ORDER))
+		elseif ($fallback_discover_content && preg_match_all('/<\s*a\s+(.*?)>(.*?)<\/a>/is', $content, $links, PREG_SET_ORDER))
 		{
 			foreach ($links as $link)
 			{
@@ -415,7 +415,7 @@ class FeedParser
 		{
 			$pos = $items[1][1];
 			$end = $items[count($items) - 2][1] + strlen($items[count($items) - 2][0]);
-			
+
 			unset($items[count($items)-1]);
 			unset($items[0]);
 

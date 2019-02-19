@@ -420,7 +420,7 @@ class Form
 				$key_c = $key . '_confirmed';
 				return isset($source[$key_c]) && $value == $source[$key_c];
 			case 'date':
-				return (bool) strtotime($value);
+				return is_object($value) ? $value instanceof \DateTimeInterface : (bool) strtotime($value);
 			case 'date_format':
 				$date = date_parse_from_format($params[0], $value);
 				return $date['warning_count'] === 0 && $date['error_count'] === 0;
@@ -476,7 +476,7 @@ class Form
 				return is_string($value);
 			case 'timezone':
 				try {
-					new DateTimeZone($value);
+					new \DateTimeZone($value);
 					return true;
 				}
 				catch (\Exception $e) {

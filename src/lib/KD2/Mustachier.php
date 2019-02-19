@@ -154,7 +154,7 @@ class Mustachier
 	 * @param  boolean $return    TRUE to get the output returned, FALSE to get it printed
 	 * @return string
 	 * @throws MustacheException
-	 * @throws InvalidArgumentException
+	 * @throws \InvalidArgumentException
 	 */
 	public function display($template, Array $variables = [], $return = false)
 	{
@@ -326,7 +326,7 @@ class Mustachier
 				{
 					return null;
 				}
-				
+
 				$var = $var->$key;
 			}
 			elseif (is_array($var))

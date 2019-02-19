@@ -34,7 +34,7 @@ class Karto_Point implements ArrayAccess
 	 * Half of the earth circumference in pixels at zoom level 21
 	 *
 	 * Full map size is 536870912 × 536870912 pixels.
-	 * Center of the map in pixel coordinates is 268435456,268435456 
+	 * Center of the map in pixel coordinates is 268435456,268435456
 	 * which in latitude and longitude would be 0,0.
 	 */
 	const PIXELS_OFFSET = 268435456;
@@ -134,12 +134,12 @@ class Karto_Point implements ArrayAccess
 		{
 			throw new \InvalidArgumentException('Invalid latitude (must be between -85.0511 and 85.0511)');
 		}
-		
+
 		if ($key == 'lon' && ($value < -180 || $value > 180))
 		{
 			throw new \InvalidArgumentException('Invalid latitude (must be between -180 and 180)');
 		}
-		
+
 		$this->$key = (double) $value;
 	}
 
@@ -155,7 +155,7 @@ class Karto_Point implements ArrayAccess
 		{
 			throw new \InvalidArgumentException('Unknown property ' . $key);
 		}
-		
+
 		return $this->$key;
 	}
 
@@ -203,7 +203,7 @@ class Karto_Point implements ArrayAccess
 		// convert lat1 and lat2 into radians now, to avoid doing it twice below
 		$lat1rad = deg2rad($lat1);
 		$lat2rad = deg2rad($lat2);
-		
+
 		// apply the spherical law of cosines to our latitudes and longitudes, and set the result appropriately
 		return (acos(sin($lat1rad) * sin($lat2rad) + cos($lat1rad) * cos($lat2rad) * cos(deg2rad($lon2) - deg2rad($lon1))) * 6371);
 	}
@@ -229,7 +229,7 @@ class Karto_Point implements ArrayAccess
 		{
 			$x1 = $x2;
 		}
-			
+
 		return sqrt(pow(($x1-$x2),2) + pow(($y1-$y2),2)) >> (21 - $zoom);
 	}
 
@@ -250,7 +250,7 @@ class Karto_Point implements ArrayAccess
 	 * Converts a latitude and longitude from decimal to DMS notation
 	 * @return	array	Latitude / Longitude in DMS notation, eg. [45 5 56 S, 174 11 37 E]
 	 */
-	static function toDMS()
+	public function toDMS()
 	{
 		$convert = function ($dec)
 		{
@@ -266,7 +266,7 @@ class Karto_Point implements ArrayAccess
 
 		$lat = $convert($this->lat);
 		$lat = abs($lat[0]) . ' ' . abs($lat[1]) . ' ' . abs($lat[2]) . ' ' . ($lat[0] > 0 ? 'N' : 'S');
-		
+
 		$lon = $convert($this->lon);
 		$lon = abs($lon[0]) . ' ' . abs($lon[1]) . ' ' . abs($lon[2]) . ' ' . ($lon[0] > 0 ? 'E' : 'W');
 

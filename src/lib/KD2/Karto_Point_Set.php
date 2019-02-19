@@ -78,7 +78,7 @@ class Karto_Point_Set
 
 	/**
 	 * Returns the bounding box of the current set of coordinates
-	 * @return stdClass {float minLat, float maxLat, float minLon, float maxLon, Karto_Point northEast, Karto_Point southWest}
+	 * @return \stdClass {float minLat, float maxLat, float minLon, float maxLon, Karto_Point northEast, Karto_Point southWest}
 	 */
 	public function getBBox()
 	{
@@ -102,7 +102,7 @@ class Karto_Point_Set
 
 		$bbox->northEast = new Karto_Point($bbox->maxLat, $bbox->minLon);
 		$bbox->southWest = new Karto_Point($bbox->minLat, $bbox->maxLon);
-		
+
 		return $bbox;
 	}
 
@@ -115,7 +115,7 @@ class Karto_Point_Set
 	{
 		if (count($this->points) < 1)
 			throw new \OutOfRangeException('Empty point set');
-		
+
 		/* Calculate average lat and lon of points. */
 		$lat_sum = $lon_sum = 0;
 		foreach ($this->points as $point)
@@ -126,7 +126,7 @@ class Karto_Point_Set
 
 		$lat_avg = $lat_sum / count($this->points);
 		$lon_avg = $lon_sum / count($this->points);
-		
+
 		return new Karto_Point($lat_avg, $lon_avg);
 	}
 
@@ -138,7 +138,7 @@ class Karto_Point_Set
 	 * @return array Each row will contain a key named 'points' containing all the points in the cluster and
 	 * a key named 'center' containing the center coordinates of the cluster.
 	 */
-	public function cluster($distance, $zoom) 
+	public function cluster($distance, $zoom)
 	{
 		$clustered = [];
 		$points = $this->points;
@@ -209,7 +209,7 @@ class Karto_Point_Set
 
 			$points[] = $number * 1 / pow(10, $precision);
 		}
-		
+
 		return new Karto_Point_Set(array_chunk($points, 2));
 	}
 
@@ -221,7 +221,7 @@ class Karto_Point_Set
 	static public function toPolyline()
 	{
 		// Flatten array
-		$points = new RecursiveIteratorIterator(new RecursiveArrayIterator($this->points));
+		$points = new \RecursiveIteratorIterator(new \RecursiveArrayIterator($this->points));
 
 		$precision = 5;
 		$encodedString = '';
@@ -231,7 +231,7 @@ class Karto_Point_Set
 		foreach ($points as $number)
 		{
 			$number = (float) $number;
-			
+
 			$number = round($number * pow(10, $precision));
 			$diff = $number - $previous[$index % 2];
 			$previous[$index % 2] = $number;
@@ -239,7 +239,7 @@ class Karto_Point_Set
 			$index++;
 			$number = ($number < 0) ? ~($number << 1) : ($number << 1);
 			$chunk = '';
-			
+
 			while ($number >= 0x20)
 			{
 				$chunk .= chr((0x20 | ($number & 0x1f)) + 63);

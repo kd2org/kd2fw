@@ -34,7 +34,7 @@ class Helpers
 
 		foreach ($keys as $key)
 		{
-			if (is_object($src) && !($src instanceOf ArrayAccess) && property_exists($src, $key))
+			if (is_object($src) && !($src instanceOf \ArrayAccess) && property_exists($src, $key))
 			{
 				$src = $src->$key;
 			}
@@ -63,7 +63,7 @@ class Helpers
 
 		foreach ($keys as $key)
 		{
-			if (is_object($src) && !($src instanceOf ArrayAccess) && property_exists($src, $key))
+			if (is_object($src) && !($src instanceOf \ArrayAccess) && property_exists($src, $key))
 			{
 				$src = $src->$key;
 			}

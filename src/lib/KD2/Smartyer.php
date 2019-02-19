@@ -430,7 +430,7 @@ class Smartyer
 				self::precompileAll($file_path);
 			}
 
-			$tpl = new Smartyer(substr($file_path, strpos($file_path, $templates_dir)), $this);
+			$tpl = new Smartyer(substr($file_path, strpos($file_path, $templates_dir)));
 			$tpl->compile();
 		}
 	}
@@ -890,7 +890,7 @@ class Smartyer
 
 			if (empty($args['file']))
 			{
-				throw new Smartyer_Exception($line, '{include} function requires file parameter.');
+				$this->parseError($line, '{include} function requires file parameter.');
 			}
 
 			$file = $this->exportArgument($args['file']);
@@ -1034,7 +1034,7 @@ class Smartyer
 	 * Throws an exception for the current template and hopefully giving the right line
 	 * @param  integer $line Source line
 	 * @param  string $message  Error message
-	 * @param  Exception $previous Previous exception for the stack
+	 * @param  \Exception $previous Previous exception for the stack
 	 * @throws Smartyer_Exception
 	 */
 	protected function parseError($line, $message, $previous = null)

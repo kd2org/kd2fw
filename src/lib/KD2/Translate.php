@@ -724,7 +724,7 @@ class Translate
 	 * is not installed
 	 * @param  string $format Date format
 	 * @param  integer $timestamp Timestamp
-	 * @param  string|DateTimeZone $timezone Timezone
+	 * @param  string|\DateTimeZone $timezone Timezone
 	 * @return string
 	 */
 	static public function strftime($format, $timestamp = null, $timezone = null)

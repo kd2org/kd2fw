@@ -181,7 +181,8 @@ class ErrorManager
 		if (assert_options(ASSERT_ACTIVE) && assert_options(ASSERT_BAIL) && substr($message, 0, 18) == 'Warning: assert():')
 		{
 			$message .= ' (ASSERT_BAIL detected)';
-			return self::exceptionHandler(new \ErrorException($message, 0, $severity, $file, $line));
+			self::exceptionHandler(new \ErrorException($message, 0, $severity, $file, $line));
+			return true;
 		}
 
 		throw new \ErrorException($message, 0, $severity, $file, $line);
@@ -200,7 +201,6 @@ class ErrorManager
 
 		try {
 			self::reportException($e, $exit);
-			return true;
 		}
 		catch (\Throwable $e) {
 			echo $e;
@@ -210,6 +210,8 @@ class ErrorManager
 			echo $e;
 			exit(1);
 		}
+
+		return true;
 	}
 
 	/**
@@ -406,7 +408,7 @@ class ErrorManager
 			foreach ($e->getTrace() as $i=>$t)
 			{
 				// Ignore the error stack from ErrorManager
-				if (isset($t['class']) && $t['class'] === __CLASS__ 
+				if (isset($t['class']) && $t['class'] === __CLASS__
 					&& ($t['function'] === 'shutdownHandler' || $t['function'] === 'errorHandler'))
 				{
 					continue;
@@ -675,7 +677,7 @@ class ErrorManager
 			code { border: 1px dotted #ccc; display: block; }
 			code b { margin-right: 1em; color: #999; }
 			code u { background: #fcc; display: inline-block; width: 100%; }
-			table { border-collapse: collapse; margin: 1em; } td, th { border: 1px solid #ccc; padding: .2em .5em; text-align: left; 
+			table { border-collapse: collapse; margin: 1em; } td, th { border: 1px solid #ccc; padding: .2em .5em; text-align: left;
 			vertical-align: top; }
 			</style>
 			<pre id="icn"> \__/<br /> (xx)<br />//||\\\\</pre>');

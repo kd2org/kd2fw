@@ -30,11 +30,11 @@ namespace KD2;
 class Karto
 {
     const PIXELS_OFFSET = 268435456;
-    // You might wonder where did number 268435456 come from? 
-    // It is half of the earth circumference in pixels at zoom level 21. 
-    // You can visualize it by thinking of full map. 
-    // Full map size is 536870912 × 536870912 pixels. 
-    // Center of the map in pixel coordinates is 268435456,268435456 
+    // You might wonder where did number 268435456 come from?
+    // It is half of the earth circumference in pixels at zoom level 21.
+    // You can visualize it by thinking of full map.
+    // Full map size is 536870912 × 536870912 pixels.
+    // Center of the map in pixel coordinates is 268435456,268435456
     // which in latitude and longitude would be 0,0.
     const PIXELS_RADIUS = 85445659.4471; /* PIXELS_OFFSET / pi() */
 
@@ -49,7 +49,7 @@ class Karto
      * @param  float $lon2 Longitude of destination (decimal)
      * @return float Distance in kilometers
      */
-    public function haversineDistance($lat1, $lon1, $lat2, $lon2) 
+    public function haversineDistance($lat1, $lon1, $lat2, $lon2)
     {
         $latd = deg2rad($lat2 - $lat1);
         $lond = deg2rad($lon2 - $lon1);
@@ -57,7 +57,7 @@ class Karto
              cos(deg2rad($lat1)) * cos(deg2rad($lat2)) *
              sin($lond / 2) * sin($lond / 2);
              $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
-        return self::EARTH_RADIUS * $c; // average radius of earth
+        return self::RADIUS * $c; // average radius of earth
     }
 
     /**
@@ -67,7 +67,7 @@ class Karto
      */
     public function lonToX($lon)
     {
-        return round(self::PIXELS_OFFSET + self::PIXELS_RADIUS * $lon * pi() / 180);        
+        return round(self::PIXELS_OFFSET + self::PIXELS_RADIUS * $lon * pi() / 180);
     }
 
     /**
@@ -77,8 +77,8 @@ class Karto
      */
     public function latToY($lat)
     {
-        return round(self::PIXELS_OFFSET - self::PIXELS_RADIUS * 
-                    log((1 + sin($lat * pi() / 180)) / 
+        return round(self::PIXELS_OFFSET - self::PIXELS_RADIUS *
+                    log((1 + sin($lat * pi() / 180)) /
                     (1 - sin($lat * pi() / 180))) / 2);
     }
 
@@ -119,7 +119,7 @@ class Karto
 
         $x2 = $this->lonToX($lon2);
         $y2 = $this->latToY($lat2);
-            
+
         return sqrt(pow(($x1-$x2),2) + pow(($y1-$y2),2)) >> (21 - $zoom);
     }
 
@@ -132,7 +132,7 @@ class Karto
      * @return array Each row will contain a key named 'points' containing all the points in the cluster and
      * a key named 'center' containing the center coordinates of the cluster.
      */
-    public function cluster($points, $distance, $zoom) 
+    public function cluster($points, $distance, $zoom)
     {
         $clustered = [];
 
@@ -193,29 +193,8 @@ class Karto
 
         $lat_avg = $lat_sum / count($points);
         $lon_avg = $lon_sum / count($points);
-        
+
         return ['lat' => $lat_avg, 'lon' => $lon_avg];
-    }
-
-    // FIXME
-    public function getBounds($lat, $lon, $width, $height, $zoom)
-    {
-        $delta_x  = round($width / 2);
-        $delta_y  = round($height / 2);
-
-        $north    = Google_Maps_Mercator::adjustLatByPixels($lat, $delta_y * -1, $zoom);
-        $south    = Google_Maps_Mercator::adjustLatByPixels($lat, $delta_y, $zoom);
-        $west     = Google_Maps_Mercator::adjustLonByPixels($lon, $delta_x * -1, $zoom);
-        $east     = Google_Maps_Mercator::adjustLonByPixels($lon, $delta_x, $zoom);
-        
-        $north_west = new Google_Maps_Coordinate($north, $west);
-        $north_east = new Google_Maps_Coordinate($north, $east);
-        $south_west = new Google_Maps_Coordinate($south, $west);
-        $south_east = new Google_Maps_Coordinate($south, $east);
-
-        $this->setZoom($old_zoom);
-        
-        return new Google_Maps_Bounds(array($north_west, $south_east));       
     }
 
     /**
@@ -239,7 +218,7 @@ class Karto
 		// convert lat1 and lat2 into radians now, to avoid doing it twice below
 		$lat1rad = deg2rad($lat1);
 		$lat2rad = deg2rad($lat2);
-		
+
 		// apply the spherical law of cosines to our latitudes and longitudes, and set the result appropriately
 		return (acos(sin($lat1rad) * sin($lat2rad) + cos($lat1rad) * cos($lat2rad) * cos(deg2rad($lon2) - deg2rad($lon1))) * self::RADIUS);
 	}
@@ -266,7 +245,7 @@ class Karto
 
 		$lat = $convert($lat);
 		$lat = abs($lat[0]) . ' ' . abs($lat[1]) . ' ' . abs($lat[2]) . ' ' . ($lat[0] > 0 ? 'N' : 'S');
-		
+
 		$lon = $convert($lon);
 		$lon = abs($lon[0]) . ' ' . abs($lon[1]) . ' ' . abs($lon[2]) . ' ' . ($lon[0] > 0 ? 'E' : 'W');
 

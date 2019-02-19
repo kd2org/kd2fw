@@ -102,7 +102,7 @@ class Image_EXIF
 			return false;
 		}
 
-		return file_put_contents($destination, $exif['THUMBNAIL']['THUMBNAIL']);
+		return file_put_contents($destination, $this->exif['THUMBNAIL']['THUMBNAIL']);
 	}
 
 	/**
