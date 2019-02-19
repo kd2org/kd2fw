@@ -64,7 +64,6 @@ class Beacon
 		410 => 'Bhutan',
 		720 => 'Bolivia',
 		478 => 'Bosnia',
-		478 => 'Herzegovina',
 		611 => 'Botswana',
 		710 => 'Brazil',
 		378 => 'British Virgin Islands',
@@ -348,7 +347,7 @@ class Beacon
 	{
 		if (strlen($id) !== 15)
 		{
-			throw new UnexpectedValueException('Hex ID must be 15 characters long');
+			throw new \UnexpectedValueException('Hex ID must be 15 characters long');
 		}
 
 		$bin = hex2bin($id . '0');
