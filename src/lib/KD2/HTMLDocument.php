@@ -316,7 +316,7 @@ class HTMLDocument extends \DOMDocument
 	 * Load HTML from a string
 	 * @param  string $source  HTML string
 	 * @param  integer $options use the options parameter to specify additional Libxml parameters
-	 * @return Returns TRUE on success or FALSE on failure.
+	 * @return bool Returns TRUE on success or FALSE on failure.
 	 */
 	public function loadHTML($source, $options = null)
 	{
