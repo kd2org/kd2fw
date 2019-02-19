@@ -218,7 +218,7 @@ class Karto_Point_Set
 	 * @link	https://developers.google.com/maps/documentation/utilities/polylinealgorithm Polyline algorithm
 	 * @return	string	A polyline encoded string
 	 */
-	static public function toPolyline()
+	public function toPolyline()
 	{
 		// Flatten array
 		$points = new \RecursiveIteratorIterator(new \RecursiveArrayIterator($this->points));
