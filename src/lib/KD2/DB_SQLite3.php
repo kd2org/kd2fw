@@ -196,7 +196,7 @@ class DB_SQLite3 extends DB
 				if ($arg instanceof \DateTime)
 				{
 					$arg = clone $arg;
-					$arg->setTimezone(new \DateTimezone('UTC'));
+					$arg->setTimezone(new \DateTimeZone('UTC'));
 					$arg = $arg->format(self::DATE_FORMAT);
 					return \SQLITE3_TEXT;
 				}
@@ -207,7 +207,7 @@ class DB_SQLite3 extends DB
 
 	/**
 	 * Executes a prepared query using $args array
-	 * @return \SQLite3Statement|boolean Returns a boolean if the query is writing
+	 * @return \SQLite3Stmt|boolean Returns a boolean if the query is writing
 	 * to the database, or a statement if it's a read-only query.
 	 *
 	 * The fact that this method returns a boolean is voluntary, to avoid a bug
