@@ -65,7 +65,7 @@ class Translate
 	 * Set the MemCache object used for caching translation messages
 	 *
 	 * If no cache is set, messages will be reloaded from .mo or .po file every time
-	 * 
+	 *
 	 * @param MemCache $cache_engine A MemCache object like MemCache_APCu (recommended)
 	 */
 	static public function setCacheEngine(MemCache $cache_engine)
@@ -92,7 +92,7 @@ class Translate
 	 * Registers a domain to a directory
 	 *
 	 * If domain is '*' (wild card) it will be used as a default when no domain is set and no default domain has been set
-	 * 
+	 *
 	 * @param  string $domain    Translation domain (equivalent to a category, in practice will be the name of the file .po/.mo)
 	 * @param  string $directory Directory where translations will be stored
 	 * @return boolean
@@ -140,6 +140,8 @@ class Translate
 		}
 
 		self::$default_domain = $domain;
+
+		return true;
 	}
 
 	/**
@@ -184,7 +186,7 @@ class Translate
 		}
 
 		self::$translations[$domain][$locale] = [];
-		
+
 		$cache_key = 'gettext_' . $domain . '_' . $locale;
 
 		// Try to fetch from cache
@@ -274,11 +276,11 @@ class Translate
 
 		// Add parenthesis for ternary operators
 		$rule = preg_replace('/(.*?)\?(.*?):(.*)1/', '($1) ? ($2) : ($3)', $rule);
-		$rule = rtrim($str, ';');
-		$str = str_replace('n', '$n', $str);
+		$rule = rtrim($rule, ';');
+		$rule = str_replace('n', '$n', $rule);
 
 		// Dirty trick, but this is the easiest way
-		$plural = eval('return ' . $str . ';');
+		$plural = eval('return ' . $rule . ';');
 
 		if ($plural > $nplurals)
 		{
@@ -292,7 +294,7 @@ class Translate
 	 * Returns a plural form from a locale code
 	 *
 	 * Contains all known plural rules to this day.
-	 * 
+	 *
 	 * @link https://www.gnu.org/software/libc/manual/html_node/Advanced-gettext-functions.html
 	 * @param  string $locale Locale
 	 * @param  integer $n     Number used to determine the plural form to use
@@ -307,12 +309,12 @@ class Translate
 
 		switch ($locale)
 		{
-			// Romanic family: french, brazilian portugese 
+			// Romanic family: french, brazilian portugese
 			case 'fr':
 			case 'pt_BR':
 				return (int) $n > 1;
-			// Asian family: Japanese, Vietnamese, Korean 
-			// Tai-Kadai family: Thai 
+			// Asian family: Japanese, Vietnamese, Korean
+			// Tai-Kadai family: Thai
 			case 'ja':
 			case 'th':
 			case 'ko':
@@ -444,7 +446,7 @@ class Translate
 			}
 
 			$str = self::gettext($msgid[0], $msgid[1], $msgid[2], $domain, $context);
-			$args['count'] = $msg[2];
+			$args['count'] = $msgid[2];
 		}
 		else
 		{
@@ -529,17 +531,17 @@ class Translate
 			// msgid
 			$r = unpack('L1length/L1offset', substr($data, $o_msg + $n * 8, 8));
 			$msgid = substr($data, $r['offset'], $r['length']);
-	
+
 			if (strpos($msgid, "\000")) {
 				list($msgid, $msgid_plural) = explode("\000", $msgid);
 			}
-	
+
 			// translation(s)
 			$r = unpack('L1length/L1offset', substr($data, $o_trn + $n * 8, 8));
 			$msgstr = explode(chr(0), substr($data, $r['offset'], $r['length']));
-		
+
 			$translations[$msgid] = $msgstr;
-	
+
 			if (isset($msgid_plural) && !$one_msgid_only)
 			{
 				$translations[$msgid_plural] =& $translations[$msgid];
@@ -634,7 +636,7 @@ class Translate
 				}
 
 				$translations[$msgid[0]] = [];
-				
+
 				foreach ($msgstr as $v)
 				{
 					$translations[$msgid[0]][] = strtr($v, $c_esc);
@@ -683,7 +685,7 @@ class Translate
 			// For each locale extract its priority
 			foreach ($http_langs as $lang)
 			{
-				if (preg_match('/;q=([0-9.,]+)/', $item, $match))
+				if (preg_match('/;q=([0-9.,]+)/', $lang, $match))
 				{
 					$q = (int) $match[1] * 10;
 					$lang = str_replace($match[0], '', $lang);
@@ -797,12 +799,12 @@ class Translate
 		{
 			// helpful for conversion to ISO format
 			$format = str_replace('%r', '%I:%M:%S %p', $format);
-			
+
 			// %c = Preferred date and time stamp based on locale
 			// Example: Tue Feb 5 00:45:10 2009 for February 5, 2009 at 12:45:10 AM
-			$format = preg_replace_callback('/(?<!%)%c/', 
+			$format = preg_replace_callback('/(?<!%)%c/',
 				function ($match) use ($locale, $timestamp, $timezone) {
-					$dateFormat = new IntlDateFormatter($locale, 
+					$dateFormat = new IntlDateFormatter($locale,
 						IntlDateFormatter::LONG,
 						IntlDateFormatter::SHORT,
 						$timezone);
@@ -813,7 +815,7 @@ class Translate
 			// Example: 02/05/09 for February 5, 2009
 			$format = preg_replace_callback('/(?<!%)%x/',
 				function ($match) use ($locale, $timestamp, $timezone) {
-					$dateFormat = new IntlDateFormatter($locale, 
+					$dateFormat = new IntlDateFormatter($locale,
 						IntlDateFormatter::SHORT,
 						IntlDateFormatter::NONE,
 						$timezone);
@@ -956,7 +958,7 @@ class Translate
 			}
 
 			// Add domain and context
-			$code .= sprintf('%s, %s)', 
+			$code .= sprintf('%s, %s)',
 				isset($args['domain']) ? $args['domain'] : 'null',
 				isset($args['context']) ? $args['context'] : 'null');
 
