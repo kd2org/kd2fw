@@ -176,6 +176,8 @@ class DB
 		}
 
 		$this->driver->password = '******';
+
+		return true;
 	}
 
 	public function close()
