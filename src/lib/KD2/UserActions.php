@@ -294,7 +294,7 @@ class UserActions
 		$action = $action ? $this->db->where('action', $action) : 1;
 		$ip = $this->db->where('ip', 'IN', $this->getIP());
 
-		$query = sprint('SELECT COUNT(*) > ? FROM user_actions_log
+		$query = sprintf('SELECT COUNT(*) > ? FROM user_actions_log
 			WHERE %s AND date > ? AND (%s);', $action, $ip);
 
 		return $this->db->test($query, $max_actions, time() - $time);
