@@ -77,7 +77,7 @@ class Test
 	{
 		self::assert(is_array($array),
 			sprintf("Not an array: %s\n%s",
-				$message, self::dump($object)
+				$message, self::dump($array)
 			)
 		);
 	}
@@ -87,7 +87,7 @@ class Test
 		self::isObject($result, $message);
 
 		$result_name = get_class($result);
-		$expected_name = is_object($expected) ? get_class($expected_name) : $expected;
+		$expected_name = is_object($expected) ? get_class($expected) : $expected;
 
 		self::assert($result instanceof $expected,
 			sprintf("'%s' is not an instance of '%s': %s\n%s",
@@ -169,7 +169,6 @@ class Test
 		}
 		catch (TestException $e) {
 			$failed[] = [
-				'class'     => $class,
 				'file'      => $e->getFile(),
 				'line'      => $e->getLine(),
 				'assertion' => $e->getAssertion(),
@@ -180,7 +179,6 @@ class Test
 		}
 		catch (\Throwable $e) {
 			$failed[] = [
-				'class'     => $class,
 				'file'      => $e->getFile(),
 				'line'      => $e->getLine(),
 				'assertion' => 'PHP code',
@@ -191,7 +189,6 @@ class Test
 		}
 		catch (\Exception $e) {
 			$failed[] = [
-				'class'     => $class,
 				'file'      => $e->getFile(),
 				'line'      => $e->getLine(),
 				'assertion' => 'PHP code',
