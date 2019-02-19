@@ -21,6 +21,9 @@
 
 namespace KD2;
 
+use LogicException;
+use RuntimeException;
+
 /**
  * Very simple ZIP Archive writer
  *
@@ -47,7 +50,7 @@ class ZipWriter
 
 		if (!$this->handle)
 		{
-			throw new \RuntimeException('Could not open ZIP file for writing: ' . $file);
+			throw new RuntimeException('Could not open ZIP file for writing: ' . $file);
 		}
 	}
 
@@ -104,7 +107,7 @@ class ZipWriter
 	{
 		if ($this->closed)
 		{
-			throw new \LogicException('Archive has been closed, files can no longer be added');
+			throw new LogicException('Archive has been closed, files can no longer be added');
 		}
 
 		$source_handle = null;
@@ -120,7 +123,7 @@ class ZipWriter
 				// Unfortunately it's not possible to use stream_filter_append
 				// to compress data on the fly, as it's not working correctly
 				// with php://output, php://temp and php://memory streams
-				throw new \RuntimeException('Compression is not supported with external files');
+				throw new RuntimeException('Compression is not supported with external files');
 			}
 		}
 		else
@@ -172,7 +175,7 @@ class ZipWriter
 	{
 		if ($this->closed)
 		{
-			throw new \LogicException('The ZIP archive has been closed. Files can no longer be added.');
+			throw new LogicException('The ZIP archive has been closed. Files can no longer be added.');
 		}
 
 		// write central directory
