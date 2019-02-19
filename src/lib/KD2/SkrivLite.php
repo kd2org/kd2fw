@@ -149,6 +149,8 @@ class SkrivLite
 	 */
 	protected $_inline_regexp = null;
 
+	protected $_nb_columns;
+
 	/**
 	 * List of classes
 	 * @var array
@@ -188,7 +190,7 @@ class SkrivLite
 
 		if (!in_array($function, $callbacks))
 		{
-			throw new \UnexpectedValue('Invalid callback method "' . $function . '"');
+			throw new \UnexpectedValueException('Invalid callback method "' . $function . '"');
 		}
 
 		if ((is_bool($callback) && $callback === false) || is_callable($callback))
@@ -197,7 +199,7 @@ class SkrivLite
 		}
 		else
 		{
-			throw new \UnexpectedValue('$callback is not a valid callback or FALSE');
+			throw new \UnexpectedValueException('$callback is not a valid callback or FALSE');
 		}
 
 		return true;
@@ -945,10 +947,9 @@ class SkrivLite
 	 */	
 	public function render($text, &$metadata = null)
 	{
-		// Reset internal storage of footnotes and TOC
+		// Reset internal storage of footnotes
 		$this->_footnotes = array();
 		$this->_footnotes_index = 0;
-		$this->_toc = array();
 
 		$text = str_replace("\r", '', $text);
 		$text = preg_replace("/\n{3,}/", "\n\n", $text);
@@ -1128,7 +1129,7 @@ class SkrivLite_Helper
         		$text = transliterator_transliterate('Any-Latin; Latin-ASCII', $text);
         		$translit = true;
         	}
-        	catch (IntlException $e)
+        	catch (\IntlException $e)
         	{
         		$translit = false;
         	}
