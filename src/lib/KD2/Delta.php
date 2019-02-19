@@ -41,9 +41,6 @@ namespace KD2;
 *******************************************************************************
 **/
 
-
-class Delta_Exception extends \Exception {}
-
 class Delta_Hash
 {
 	public $a; /* Hash values */
@@ -596,7 +593,7 @@ class Delta
 
 		if (substr($zDelta, 0, 1) != "\n")
 		{
-			throw new Delta_Exception('size integer not terminated by "\n"');
+			throw new \UnexpectedValueException('size integer not terminated by "\n"');
 		}
 
 		$zDelta = substr($zDelta, 1);
@@ -617,7 +614,7 @@ class Delta
 
 					if ($lenDelta > 0 && $zDelta[0] != ',' )
 					{
-						throw new Delta_Exception("copy command not terminated by ','");
+						throw new \RuntimeException("copy command not terminated by ','");
 					}
 
 					$zDelta = substr($zDelta, 1);
@@ -631,12 +628,12 @@ class Delta
 
 					if ($total > $limit)
 					{
-						throw new Delta_Exception('copy exceeds output file size');
+						throw new \RuntimeException('copy exceeds output file size');
 					}
 
 					if ($ofst + $cnt > $lenSrc)
 					{
-						throw new Delta_Exception('copy extends past end of input');
+						throw new \RuntimeException('copy extends past end of input');
 					}
 
 					$zOut .= substr($zSrc, $ofst, $cnt);
@@ -650,7 +647,7 @@ class Delta
 
 					if ($total > $limit)
 					{
-						throw new Delta_Exception('insert command gives an output larger than predicted');
+						throw new \RuntimeException('insert command gives an output larger than predicted');
 					}
 
 					if ($this->debug_enabled) {
@@ -659,7 +656,7 @@ class Delta
 
 					if ($cnt > $lenDelta)
 					{
-						throw new Delta_Exception('insert count exceeds size of delta');
+						throw new \RuntimeException('insert count exceeds size of delta');
 					}
 
 					$zOut .= substr($zDelta, 0, $cnt);
@@ -674,23 +671,23 @@ class Delta
 
 					if ($cnt != ($ck = $this->checksum($zOut, $total)))
 					{
-						throw new Delta_Exception('bad checksum: '.sprintf("%u", $ck));
+						throw new \RuntimeException('bad checksum: '.sprintf("%u", $ck));
 					}
 
 					if ($total != $limit)
 					{
-						throw new Delta_Exception('generated size does not match predicted size');
+						throw new \RuntimeException('generated size does not match predicted size');
 					}
 
 					return $zOut;
 				}
 				default:
 				{
-					throw new Delta_Exception('unknown delta operator: ' . sprintf("'%s'", $zDelta[0]));
+					throw new \RuntimeException('unknown delta operator: ' . sprintf("'%s'", $zDelta[0]));
 				}
 			}
 		}
 
-		throw new Delta_Exception('unterminated delta');
+		throw new \RuntimeException('unterminated delta');
 	}
 }
