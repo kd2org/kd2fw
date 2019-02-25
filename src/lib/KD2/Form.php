@@ -548,7 +548,7 @@ class Form
 
 		foreach ($all_rules as $key => $rules)
 		{
-			$rules = self::parseRules($rules);
+			$rules = is_array($rules) ? $rules : self::parseRules($rules);
 
 			foreach ($rules as $name => $params)
 			{
