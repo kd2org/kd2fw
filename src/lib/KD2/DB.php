@@ -319,13 +319,18 @@ class DB
 		return $this->pdo->lastInsertId($name);
 	}
 
+	public function lastInsertRowId()
+	{
+		return $this->lastInsertId();
+	}
+
 	public function quote($value, $parameter_type = PDO::PARAM_STR)
 	{
 		if ($this->driver->type == 'sqlite')
 		{
 			// PHP quote() is truncating strings on NUL bytes
 			// https://bugs.php.net/bug.php?id=63419
-			
+
 			$value = str_replace("\0", '\\0', $value);
 		}
 
