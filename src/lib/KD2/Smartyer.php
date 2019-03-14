@@ -1299,10 +1299,17 @@ class Smartyer
 	 */
 	static protected function escape($str, $type = 'html')
 	{
-		if ($type != 'json' && (is_array($str) || is_object($str)))
+		if ($type == 'json')
+		{
+			$str = json_encode($str);
+		}
+
+		if (is_array($str) || (is_object($str) && !method_exists($str, '__toString')))
 		{
 			throw new \InvalidArgumentException('Invalid argument type for escape modifier: ' . gettype($str));
 		}
+
+		$str = (string) $str;
 
 		switch ($type)
 		{
@@ -1329,7 +1336,7 @@ class Smartyer
 			case 'mail':
 				return str_replace('.', '[dot]', $str);
 			case 'json':
-				return json_encode($str);
+				return $str;
 			case 'js':
 			case 'javascript':
 				return strtr($str, [
@@ -1392,7 +1399,11 @@ class Smartyer
 	 */
 	static protected function dateFormat($date, $format = '%b, %e %Y')
 	{
-		if (!is_numeric($date))
+		if (is_object($date))
+		{
+			$date = $date->getTimestamp();
+		}
+		elseif (!is_numeric($date))
 		{
 			$date = strtotime($date);
 		}
