@@ -443,7 +443,7 @@ class Form
 				return filter_var($value, FILTER_VALIDATE_EMAIL) !== false;
 			case 'gt':
 				return isset($params[0]) && isset($source[$params[0]]) && $value > $source[$params[0]];
-			case 'lte':
+			case 'gte':
 				return isset($params[0]) && isset($source[$params[0]]) && $value >= $source[$params[0]];
 			case 'in':
 				return in_array($value, $params);
