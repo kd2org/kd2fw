@@ -441,6 +441,10 @@ class Form
 				}
 
 				return filter_var($value, FILTER_VALIDATE_EMAIL) !== false;
+			case 'gt':
+				return isset($params[0]) && isset($source[$params[0]]) && $value > $source[$params[0]];
+			case 'lte':
+				return isset($params[0]) && isset($source[$params[0]]) && $value >= $source[$params[0]];
 			case 'in':
 				return in_array($value, $params);
 			case 'in_array':
@@ -453,6 +457,10 @@ class Form
 				return filter_var($value, FILTER_VALIDATE_IP) !== false;
 			case 'json':
 				return json_decode($value) !== null;
+			case 'lt':
+				return isset($params[0]) && isset($source[$params[0]]) && $value < $source[$params[0]];
+			case 'lte':
+				return isset($params[0]) && isset($source[$params[0]]) && $value <= $source[$params[0]];
 			case 'max':
 				$size = is_array($value) ? count($value) : (is_numeric($value) ? $value : strlen($value));
 				return isset($params[0]) && $size <= $params[0];
