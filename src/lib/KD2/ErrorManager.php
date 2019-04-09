@@ -290,7 +290,7 @@ class ErrorManager
 				// Ignore the error stack belonging to ErrorManager
 				foreach ($e->backtrace as $i=>$t)
 				{
-					$file = $t->file ?: '[internal function]';
+					$file = !empty($t->file) ? $t->file : '[internal function]';
 					$line = $t->line ? '(' . $t->line . ')' : '';
 
 					if (isset($t->args))
