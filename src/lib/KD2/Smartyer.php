@@ -1331,7 +1331,7 @@ class Smartyer
 				}, $str);
 			case 'hexentity':
 				return preg_replace_callback('/./', function ($match) {
-					return '&#x' . ord($match[0]) . ';';
+					return '&#' . ord($match[0]) . ';';
 				}, $str);
 			case 'mail':
 				return str_replace('.', '[dot]', $str);
