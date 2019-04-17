@@ -241,7 +241,7 @@ class UserSession
 			throw new \LogicException('User is not logged in.');
 		}
 
-		$_SESSION['UserSessionData'] = [];
+		$_SESSION['userSessionData'] = [];
 
 		return $this->create($this->user->id);
 	}
@@ -284,7 +284,7 @@ class UserSession
 	{
 		if (!isset($_SESSION['userSessionData']))
 		{
-			$_SESSION['UserSessionData'] = [];
+			$_SESSION['userSessionData'] = [];
 		}
 
 		$_SESSION['userSessionData'][$key] = $value;
