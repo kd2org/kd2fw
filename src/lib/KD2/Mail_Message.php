@@ -55,9 +55,11 @@ class Mail_Message
 	{
 		$key = strtolower($key);
 
-		if (array_key_exists($key, $this->headers))
-			return $this->headers[$key];
-		return null;
+		if (!array_key_exists($key, $this->headers)) {
+			return null;
+		}
+
+		return str_replace("\n", '', $this->headers[$key]);
 	}
 
 	public function getMessageId()
@@ -461,7 +463,7 @@ class Mail_Message
 
 		$out = preg_replace("#(?<!\r)\n#si", "\r\n", $out);
 
-		return $out;
+		return rtrim($out);
 	}
 
 	public function outputBody()
@@ -476,11 +478,14 @@ class Mail_Message
 			}
 			elseif (stristr($this->getHeader('content-transfer-encoding'), 'base64'))
 			{
-				$body = base64_encode($parts[0]['content']);
+				$body = chunk_split(base64_encode($parts[0]['content']));
 			}
 			else
 			{
 				$body = $parts[0]['content'];
+
+				// Force maximum line length
+				$body = wordwrap($body, 990, "\n", true);
 			}
 		}
 		else
@@ -502,7 +507,7 @@ class Mail_Message
 
 	        	$body .= '--alt=_-=' . $this->output_boundary . "\n";
 	        	$body .= $this->outputPart($parts[$p]) . "\n";
-	        	
+
 	        	$p = $p ? 0 : 1;
 	        	$body .= '--alt=_-=' . $this->output_boundary . "\n";
 	        	$body .= $this->outputPart($parts[$p]) . "\n";
@@ -599,7 +604,7 @@ class Mail_Message
 		{
 			array_walk($value, 'trim');
 			array_walk($value, [$this, '_encodeHeaderValue'], $key);
-			
+
 			$glue = in_array($key, ['From', 'Cc', 'To', 'Bcc', 'Reply-To']) ? ', ' : '';
 			$value = implode($glue, $value);
 		}
@@ -608,10 +613,16 @@ class Mail_Message
 			$value = $this->_encodeHeaderValue($value, $key);
 		}
 
-		$value = preg_replace("/^[ ]*/m", ' ', $value);
-		$value = trim($value);
+		$value = $key . ': ' . trim($value);
 
-		return $key . ': ' . $value;
+		// Force-wrap long lines to respect RFC (max line length is 998)
+		if (strlen($value) > 997) {
+			$value = explode("\n", $value);
+			$value = array_map(function ($v) { return wordwrap($v, 997, "\n ", true); }, $value);
+			$value = implode("\n", $value);
+		}
+
+		return $value;
 	}
 
 	/**
@@ -638,7 +649,8 @@ class Mail_Message
             return $value;
 		}
 
-		if ($this->is_utf8($value))
+		// Don't encode spam report here as we want it to be readable in the source
+		if ($this->is_utf8($value) && $key !== 'X-Spam-Report')
 		{
 			$value = '=?UTF-8?B?'.base64_encode($value).'?=';
 		}
@@ -741,7 +753,8 @@ class Mail_Message
 			{
 				if (!is_null($current_header) && preg_match('/^\h/', $line))
 				{
-					$current_header .= $line;
+					// Keep lines inside folded headers
+					$current_header .= "\n" . $line;
 				}
 			}
 

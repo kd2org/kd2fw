@@ -6,6 +6,78 @@ use KD2\Mail_Message;
 require __DIR__ . '/_assert.php';
 
 test_headers();
+test_headers_multiline();
+test_length();
+
+/**
+ * Check that maximum line length of 998 is enforced
+ */
+function test_length()
+{
+	$msg = new Mail_Message;
+	$msg->setHeader('X-Test', str_repeat('aAbB', 1000));
+	$msg->setBody(str_repeat('cCdD', 1000));
+
+	Test::assert(!preg_match("/[^\r\n]{999,}/", $msg->outputHeaders()));
+	Test::assert(!preg_match("/[^\r\n]{999,}/", $msg->outputBody()));
+}
+
+/**
+ * Check that we do keep line breaks in headers when outputting
+ * but not when using getHeader()
+ */
+function test_headers_multiline()
+{
+	$headers = <<<EOF
+Received: from mail76-20.mail.maxony.net ([62.50.76.20])
+	by mail.xx.org with esmtps (TLS1.2:ECDHE_RSA_AES_256_GCM_SHA384:256)
+	(Exim 4.84_2)
+	(envelope-from <2814597.aurelie=tobeflash.com@mpdkim2.ch>)
+	id 1hGK29-0005Xo-L5
+	for xx@xx.net; Tue, 16 Apr 2019 11:05:43 +0200
+Received: by mail76-17.mail.maxony.net id hmmdea24meou for <xx@xx.net>; Tue, 16 Apr 2019 09:46:50 +0200 (envelope-from <2814597.aurelie=tobeflash.com@mpdkim2.ch>)
+X-Spam-Threshold: 5
+X-Spam-Score: 15.4
+X-Spam-Score-Int: 154
+X-Spam-Bar: +++++++++++++++
+X-Spam-Report: score                  = 15.4
+ bayes-score            = 0.9506
+ bayes-token-summary    = Tokens: new, 150; hammy, 6; neutral, 56; spammy, 20.
+ bayes-token-spam-count = 20
+ bayes-token-ham-count  = 6
+ bayes-token-spam       = idcamp, cliquez-ici, désirez, cliquezici, visualisez, correctement, cliquez, 48h, usb, I*:capacits, UD:jpg, donnes, EXPRESS, données, H*R:D*com
+ bayes-token-ham        = H*Ad:U*aurelie, l’e-mail, H*ct:multipart, 2018, H*ct:alternative, uns
+ bayes-auto-learned     = no autolearn_force=no 5.245
+ last-external-host     = mail76-20.mail.maxony.net [62.50.76.20] HELO=mail76-20.mail.maxony.net
+ possible-languages     = 
+ relayed-countries      = _RELAYCOUNTRY_
+ ---- ---------------------- --------------------------------------------------
+  4.0 USER_IN_BLACKLIST      From: address is in the user's black-list
+  5.0 BAYES_95               BODY: Bayes spam probability is 95 to 99%
+                             [score: 0.9506]
+  2.0 FR_HOWTOUNSUBSCRIBE    BODY: French: how to unsubscribe
+ -0.0 SPF_PASS               SPF: sender matches SPF record
+  0.0 HEADER_FROM_DIFFERENT_DOMAINS From and EnvelopeFrom 2nd level
+                             mail domains are different
+  1.1 URI_HEX                URI: URI hostname has long hexadecimal sequence
+  0.1 HTML_MESSAGE           BODY: HTML included in message
+  0.4 MIME_HTML_MOSTLY       BODY: Multipart message mostly text/html MIME
+  0.8 MPART_ALT_DIFF         BODY: HTML and text parts are different
+  1.0 HTML_IMAGE_RATIO_02    BODY: HTML has a low ratio of text to image
+                             area
+  0.0 HTML_FONT_LOW_CONTRAST BODY: HTML font color similar or
+                             identical to background
+  1.0 FROM_EXCESS_BASE64     From: base64 encoded unnecessarily
+Content-Type: text/plain
+EOF;
+
+	$msg = new Mail_Message;
+	$msg->parse(trim($headers));
+	Test::assert(preg_match("/[^\n\r]{998,}/", $msg->getHeader('X-Spam-Report')));
+	$expected = substr_count(trim($headers), "\n");
+	var_dump($headers, $msg->outputHeaders());
+	Test::equals($expected, substr_count($msg->outputHeaders(), "\n"));
+}
 
 function test_headers()
 {
