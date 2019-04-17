@@ -74,8 +74,8 @@ EOF;
 	$msg = new Mail_Message;
 	$msg->parse(trim($headers));
 	Test::assert(preg_match("/[^\n\r]{998,}/", $msg->getHeader('X-Spam-Report')));
+
 	$expected = substr_count(trim($headers), "\n");
-	var_dump($headers, $msg->outputHeaders());
 	Test::equals($expected, substr_count($msg->outputHeaders(), "\n"));
 }
 

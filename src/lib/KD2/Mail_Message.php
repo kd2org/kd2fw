@@ -485,7 +485,9 @@ class Mail_Message
 				$body = $parts[0]['content'];
 
 				// Force maximum line length
-				$body = wordwrap($body, 990, "\n", true);
+				$body = explode("\n", $body);
+				$body = array_map(function ($v) { return wordwrap($v, 990, "\n", true); }, $body);
+				$body = implode("\n", $body);
 			}
 		}
 		else
