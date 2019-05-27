@@ -513,6 +513,18 @@ class DB_SQLite3 extends DB
 		}
 	}
 
+	static public function getDatabaseDetailsFromString($source_string)
+	{
+		if (substr($source_string, 0, 16) !== "SQLite format 3\0" || strlen($source_string) < 100) {
+			return null;
+		}
+
+		$user_version = bin2hex(substr($source_string, 60, 4));
+		$application_id = bin2hex(substr($source_string, 68, 4));
+
+		return compact('user_version', 'application_id');
+	}
+
     public function deleteUndoTriggers()
     {
         $triggers = $this->getAssoc('SELECT name, name FROM sqlite_master
