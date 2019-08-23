@@ -365,8 +365,14 @@ class SkrivLite
 				$url = 'mailto:' . $url;
 			}
 
-			$out = '<a href="' . call_user_func($this->_callback[self::CALLBACK_URL_ESCAPING], $url) . '">'
-				. $text . '</a>';
+			$attributes = '';
+
+			if (preg_match('!^https?:!', $url)) {
+				$attributes = ' target="_blank" rel="noreferrer noopener"';
+			}
+
+			$url = call_user_func($this->_callback[self::CALLBACK_URL_ESCAPING], $url);
+			$out = sprintf('<a href="%s"%s>%s</a>', $url, $attributes, $text);
 		}
 		// Images: {{image.jpg}} or {{alternative text|image.jpg}}
 		elseif ($tag == '{{' && preg_match('/(.+?)\}\}/', $text, $match))
