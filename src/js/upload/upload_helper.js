@@ -10,6 +10,19 @@
 
 	delete canvas;
 
+	var default_options = {
+		resize: /image\/jpeg/,
+		max_file_size: null,
+		max_width: 800,
+		jpeg_quality: 0.87,
+		thumb_upload: /image\/(jpeg|png|gif|svg+xml)/,
+		thumb_max_width: 300,
+		thumb_jpeg_quality: 0.80,
+		bytes: "B",
+		size_error_msg: "The file %file has a size of %size, more than the allowed %max_size allowed.",
+		edit_name_field: false
+	};
+
 	function getByteSize(size, bytes)
 	{
 		if (size < 1024)
@@ -86,24 +99,18 @@
 
 		var options = options || {};
 
-		options.width = options.width || false;
-		options.jpeg_quality = options.jpeg_quality || 0.87;
-		options.thumb_width = options.thumb_width || 250;
-		options.thumb_quality = options.thumb_quality || 0.80;
-		options.thumb_upload = !!options.thumb_upload;
-		options.resize = (options.width && options.resize) ? true : false;
-		options.bytes = options.bytes || 'B';
-		options.check_hash = options.check_hash || false;
-		options.edit_name_field = options.edit_name_field || false;
-		options.size_error_msg = options.size_error_msg 
-			|| 'The file %file has a size of %size, more than the allowed %max_size allowed.';
-
-		var max_size = null;
+		for (var i in default_options)
+		{
+			if (!(i in options))
+			{
+				options[i] = default_options[i];
+			}
+		}
 
 		// Get the maximum file size, the standard way
-		if (i = form.querySelector('input[name=MAX_FILE_SIZE]'))
+		if (null === options.max_file_size && (i = form.querySelector('input[name=MAX_FILE_SIZE]')))
 		{
-			var max_size = i.value;
+			options.max_file_size = parseInt(i.value, 10);
 		}
 
 		source.classList.toggle('uploadHelper');
@@ -201,7 +208,7 @@
 				var file = this.files[i];
 
 				// Check file size
-				if (file.size > max_size && (!options.resize || !file.type.match(/^image\/jpe?g/)))
+				if (file.size > options.max_file_size && (!file.type.match(options.resize)))
 				{
 					this.value = '';
 					var args = {
@@ -551,7 +558,7 @@
 			upload_queue = false;
 		}
 
-		function resize(file, max_width, max_height, format, quality, callback, orientation = null)
+		function resize(file, max_width, max_height, format, quality, callback, orientation)
 		{
 			if (null === orientation)
 			{
