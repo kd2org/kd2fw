@@ -193,7 +193,16 @@
 		var row = columnSelect.parentNode.parentNode;
 		row.childNodes[2].innerHTML = '';
 		row.childNodes[3].innerHTML = '';
-		this.addOperator(row, this.columns[columnSelect.value]);
+
+		if (!columnSelect.value)
+		{
+			return;
+		}
+
+		// Select first operator
+		var o = this.addOperator(row, this.columns[columnSelect.value]);
+		o.value = o.children[1].value;
+		this.switchOperator(o, null);
 	};
 
 	qb.prototype.addOperator = function (targetRow, column) {
@@ -249,11 +258,11 @@
 			number = values ? values.length : 3;
 			buttons = true;
 		}
-		else if (params && params.length > 1)
+		else if (params && params.length >= 1)
 		{
 			number = params.length;
 		}
-		else if (column.type == 'bitwise')
+		else if (column.type == 'bitwise' && operator == '&')
 		{
 			number = 1;
 		}
@@ -266,7 +275,7 @@
 		{
 			prev = this.addMatchField(parent, prev, column, operator);
 
-			if (column.type == 'bitwise')
+			if (column.type == 'bitwise' && values)
 			{
 				// Check the boxes!
 				for (var j = 0; j < column.values.length; j++)
