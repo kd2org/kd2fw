@@ -16,8 +16,6 @@
 			return false;
 		}
 
-		this.preventKeyPress = false;
-
 		this.textarea.addEventListener('keydown', this.keyEvent.bind(this), true);
 		this.textarea.addEventListener('keypress', this.keyEvent.bind(this), true);
 
@@ -26,14 +24,6 @@
 
 	textEditor.prototype.keyEvent = function (e) {
 		var e = e || window.event;
-		// Event propagation cancellation between keydown/keypress
-		// Firefox/Gecko has a bug here where it's not stopping propagation
-		// to keypress when keydown asks cancellation
-		if (this.preventKeyPress && e.type == 'keypress')
-		{
-			this.preventKeyPress = false;
-			return this.preventDefault(e);
-		}
 
 		for (var key in this.shortcuts)
 		{
@@ -65,11 +55,6 @@
 
 			var r = shortcut.callback.call(this, e, key);
 
-			if (e.type == 'keydown' && r)
-			{
-				this.preventKeyPress = true;
-			}
-
 			return r ? this.preventDefault(e) : true;
 		}
 
@@ -81,15 +66,18 @@
 		if (e.defaultPrevented || !e.key) {
 			// Do nothing if the event was already processed
 			// or if KeyboardEvent is not supported
-			return;
+			return false;
 		}
 
-		return (e.key.toLowerCase() == key.toLowerCase());
+		key = key.toLowerCase();
+
+		return (e.key.toLowerCase() == key) ? key : false;
 	};
 
 	textEditor.prototype.preventDefault = function (e) {
        	if (e.preventDefault) e.preventDefault();
        	if (e.stopPropagation) e.stopPropagation();
+       	if (e.stopImmediatePropagation) e.stopImmediatePropagation();
       	e.returnValue = false;
       	e.cancelBubble = true;
 		return false;
