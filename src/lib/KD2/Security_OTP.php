@@ -208,11 +208,13 @@ class Security_OTP
 	 * @param  string $label Service label, eg 'Blog:james@alice.com'
 	 * @param  string $secret secret key
 	 * @param  string $type 'totp' or 'hotp'
+	 * @param  string $image HTTP URL to a PNG icon that should be displayed (supported by FreeOTP and Google Authenticator)
 	 * @return string
 	 */
-	static public function getOTPAuthURL($label, $secret, $type = 'totp')
+	static public function getOTPAuthURL($label, $secret, $type = 'totp', $image = null)
 	{
-		return 'otpauth://' . $type . '/' . rawurlencode($label) . '?secret=' . rawurlencode($secret);
+		$image = $image ? '&image=' . rawurlencode($image) : '';
+		return 'otpauth://' . $type . '/' . rawurlencode($label) . '?secret=' . rawurlencode($secret) . $image;
 	}
 
 	/**
