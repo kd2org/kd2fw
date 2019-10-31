@@ -1,22 +1,22 @@
 <?php
 /*
-    This file is part of KD2FW -- <http://dev.kd2.org/>
+	This file is part of KD2FW -- <http://dev.kd2.org/>
 
-    Copyright (c) 2001-2019 BohwaZ <http://bohwaz.net/>
-    All rights reserved.
+	Copyright (c) 2001-2019 BohwaZ <http://bohwaz.net/>
+	All rights reserved.
 
-    KD2FW is free software: you can redistribute it and/or modify
-    it under the terms of the GNU Affero General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
+	KD2FW is free software: you can redistribute it and/or modify
+	it under the terms of the GNU Affero General Public License as published by
+	the Free Software Foundation, either version 3 of the License, or
+	(at your option) any later version.
 
-    Foobar is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU Affero General Public License for more details.
+	Foobar is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	GNU Affero General Public License for more details.
 
-    You should have received a copy of the GNU Affero General Public License
-    along with Foobar.  If not, see <https://www.gnu.org/licenses/>.
+	You should have received a copy of the GNU Affero General Public License
+	along with Foobar.  If not, see <https://www.gnu.org/licenses/>.
 */
 
 namespace KD2;
@@ -318,6 +318,93 @@ class HTTP
 
 		$url = array_merge($a, $b);
 		return self::glueURL($url);
+	}
+
+	/**
+	 * Return root application URI (absolute, but no host or scheme)
+	 * @param  string $app_root Directory root of current application (eg. __DIR__)
+	 * @return string
+	 */
+	static public function getRootURI($app_root)
+	{
+		// Convert from Windows paths to UNIX paths
+		$document_root = str_replace('\\', '/', $_SERVER['DOCUMENT_ROOT']);
+		$app_root = str_replace('\\', '/', $app_root);
+
+		// Find the relative path inside the server document root
+		$path = str_replace($document_root, '', $app_root);
+
+		$path = trim($path, '/') . '/';
+
+		if ($path[0] != '/') {
+			$path = '/' . $path;
+		}
+
+		return $path;
+	}
+
+	/**
+	 * Return current HTTP host / server name
+	 * @return string Host, will be 'host.invalid' if the supplied host (via 'Host' HTTP header or SERVER_NAME is invalid)
+	 */
+	static public function getHost()
+	{
+		$host = isset($_SERVER['HTTP_HOST'])
+			? $_SERVER['HTTP_HOST']
+			: (isset($_SERVER['SERVER_NAME']) ? $_SERVER['SERVER_NAME'] : $_SERVER['SERVER_ADDR']);
+
+		// Host name must be lowercase
+		$host = strtolower(trim($host));
+
+		// Host name MUST be less than 255 bytes
+		if (strlen($host) > 255) {
+			return 'host.invalid';
+		}
+		// The host can come from the user
+		// check that it does not contain forbidden characters (see RFC 952 and RFC 2181)
+
+		// Delete allowed special characters for check
+		$valid_host = str_replace(['_', '-', ':', '[', ']', '.'], '', $host);
+
+		if (!ctype_alnum($valid_host)) {
+			return 'host.invalid';
+		}
+
+		return $host;
+	}
+
+	/**
+	 * Return current HTTP scheme
+	 * @return string http or https
+	 */
+	static public function getScheme()
+	{
+		return empty($_SERVER['HTTPS']) || $_SERVER['HTTPS'] === 'off' ? 'http' : 'https';
+	}
+
+	/**
+	 * Return complete app URL
+	 * @return string
+	 */
+	static public function getAppURL($app_root)
+	{
+		return self::getScheme() . '://' . self::getHost() . self::getRootURI($app_root);
+	}
+
+	/**
+	 * Return current complete request URL
+	 * @param bool $with_query_string Use FALSE to return the request URL without the query string (?param=a...)
+	 * @return string
+	 */
+	static public function getRequestURL($with_query_string = true)
+	{
+		$path = $_SERVER['REQUEST_URI'];
+
+		if (!$with_query_string && false !== ($pos = strpos($uri, '?'))) {
+			$path = substr($path, 0, $pos);
+		}
+
+		return self::getScheme() . '://' . self::getHost() . $path;
 	}
 
 	/**

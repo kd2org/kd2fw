@@ -7,10 +7,44 @@ use KD2\ErrorManager as EM;
 
 require __DIR__ . '/_assert.php';
 
+test_url_build();
 test_urls();
 test_uri_templates();
 test_http();
 test_http(HTTP::CLIENT_CURL);
+
+function test_url_build()
+{
+	$_SERVER['HTTP_HOST'] = '<script>FAIL</script>';
+	Test::strictlyEquals('host.invalid', HTTP::getHost());
+
+	$_SERVER['HTTP_HOST'] = str_repeat('k', 300);
+	Test::strictlyEquals('host.invalid', HTTP::getHost());
+
+	$_SERVER['HTTP_HOST'] = '1.2.3.4:443';
+	Test::strictlyEquals('1.2.3.4:443', HTTP::getHost());
+
+	$_SERVER['HTTP_HOST'] = '[2001:0db8:85a3:0000:0000:8a2e:0370:7334]:80';
+	Test::strictlyEquals('[2001:0db8:85a3:0000:0000:8a2e:0370:7334]:80', HTTP::getHost());
+
+	$_SERVER['HTTP_HOST'] = 'domain.local.name';
+	Test::strictlyEquals('domain.local.name', HTTP::getHost());
+
+	$_SERVER['HTTPS'] = 'on';
+	Test::strictlyEquals('https', HTTP::getScheme());
+
+	$_SERVER['HTTPS'] = 'off';
+	Test::strictlyEquals('http', HTTP::getScheme());
+
+	$_SERVER['HTTPS'] = '';
+	Test::strictlyEquals('http', HTTP::getScheme());
+
+	unset($_SERVER['HTTPS']);
+	Test::strictlyEquals('http', HTTP::getScheme());
+
+	$_SERVER['DOCUMENT_ROOT'] = '/home/user/www/app/www';
+	Test::strictlyEquals('/', HTTP::getRootURI('/home/user/www/app/www'));
+}
 
 function test_urls()
 {
@@ -55,7 +89,7 @@ function test_http($client = HTTP::CLIENT_DEFAULT)
 
 	Test::isObject($response->headers);
 	Test::isInstanceOf('\KD2\HTTP_Headers', $response->headers);
-	
+
 	Test::assert($response->fail === false, 'Request failed: ' . $response->body);
 
 	Test::equals(200, $response->status);
@@ -69,7 +103,7 @@ function test_http($client = HTTP::CLIENT_DEFAULT)
 
 	// Test POST
 	$http->http_options['max_redirects'] = 0;
-	$response = $http->POST('http://polyamour.info/adult_warning.php', 
+	$response = $http->POST('https://polyamour.info/adult_warning.php',
 		['majeur_et_vaccine' => 'oui', 'from' => '/']);
 
 	Test::equals(302, $response->status);
@@ -77,7 +111,7 @@ function test_http($client = HTTP::CLIENT_DEFAULT)
 
 	// Test cookies, we should now have access to this page
 	$http->http_options['max_redirects'] = 10;
-	$response = $http->GET('http://polyamour.info/discussion/-bgv-/Polyamour-libertinage-et-matrice-heteronormative/');
+	$response = $http->GET('https://polyamour.info/discussion/-bgv-/Polyamour-libertinage-et-matrice-heteronormative/');
 
 	Test::equals(200, $response->status);
 
