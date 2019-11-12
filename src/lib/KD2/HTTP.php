@@ -336,7 +336,17 @@ class HTTP
 
 		// Find the relative path inside the server document root
 		if (0 === strpos($document_root, $app_root)) {
+			// document root is below the app root: great!
+			// eg. app_root = /home/user/www/app/www
+			// and document_root = /home/user/www/app/www
+			// or document_root = /home/user/www/app/www/admin
 			$path = substr($document_root, strlen($app_root));
+		}
+		elseif (0 === strpos($app_root, $document_root)) {
+			// document root is ABOVE the app root: not great, but should still work
+			// eg. app_root = /home/user/www/app/www
+			// and document_root = /home/user/www
+			$path = substr($app_root, strlen($document_root));
 		}
 		else {
 			throw new \UnexpectedValueException('Invalid document root: cannot find app root');
