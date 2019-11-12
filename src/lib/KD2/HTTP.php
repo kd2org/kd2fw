@@ -322,7 +322,7 @@ class HTTP
 
 	/**
 	 * Return root application URI (absolute, but no host or scheme)
-	 * @param  string $app_root Directory root of current application (eg. __DIR__)
+	 * @param  string $app_root Directory root of current application (eg. __DIR__ of the public/www directory)
 	 * @return string
 	 */
 	static public function getRootURI($app_root)
@@ -331,8 +331,16 @@ class HTTP
 		$document_root = str_replace('\\', '/', $_SERVER['DOCUMENT_ROOT']);
 		$app_root = str_replace('\\', '/', $app_root);
 
+		$document_root = rtrim($document_root, '/');
+		$app_root = rtrim($app_root, '/');
+
 		// Find the relative path inside the server document root
-		$path = str_replace($document_root, '', $app_root);
+		if (0 === strpos($document_root, $app_root)) {
+			$path = substr($document_root, strlen($app_root));
+		}
+		else {
+			throw new \UnexpectedValueException('Invalid document root: cannot find app root');
+		}
 
 		$path = trim($path, '/') . '/';
 
@@ -400,7 +408,7 @@ class HTTP
 	{
 		$path = $_SERVER['REQUEST_URI'];
 
-		if (!$with_query_string && false !== ($pos = strpos($uri, '?'))) {
+		if (!$with_query_string && false !== ($pos = strpos($path, '?'))) {
 			$path = substr($path, 0, $pos);
 		}
 

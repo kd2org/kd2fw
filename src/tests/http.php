@@ -44,6 +44,30 @@ function test_url_build()
 
 	$_SERVER['DOCUMENT_ROOT'] = '/home/user/www/app/www';
 	Test::strictlyEquals('/', HTTP::getRootURI('/home/user/www/app/www'));
+
+	// If the document root is not in the www/public directory
+	$_SERVER['DOCUMENT_ROOT'] = '/home/user/www/app';
+	Test::strictlyEquals('/', HTTP::getRootURI('/home/user/www/app'));
+
+	$_SERVER['DOCUMENT_ROOT'] = '/home/user/www/app/www';
+	Test::strictlyEquals('/www/', HTTP::getRootURI('/home/user/www/app'));
+
+	// Test in case of misconfiguration
+	Test::exception('UnexpectedValueException', function () {
+		$_SERVER['DOCUMENT_ROOT'] = '/home/user/www/app';
+		Test::strictlyEquals('/www/', HTTP::getRootURI('/home/user/www/app/www'));
+	});
+
+	// If the document root is on a subdirectory of the app
+	$_SERVER['DOCUMENT_ROOT'] = '/home/user/www/app/www/admin';
+	Test::strictlyEquals('/www/admin/', HTTP::getRootURI('/home/user/www/app'));
+
+	$_SERVER['DOCUMENT_ROOT'] = '/home/user/www/app/www';
+	Test::strictlyEquals('http://domain.local.name/www/', HTTP::getAppURL('/home/user/www/app'));
+
+	$_SERVER['REQUEST_URI'] = '/admin/dir/page.php?ok=yes&two=three';
+	Test::strictlyEquals('http://domain.local.name/admin/dir/page.php?ok=yes&two=three', HTTP::getRequestURL());
+	Test::strictlyEquals('http://domain.local.name/admin/dir/page.php', HTTP::getRequestURL(false));
 }
 
 function test_urls()
