@@ -1015,18 +1015,11 @@ class Image
 				$frame->setImagePage($new_width, $new_height, 0, 0);
 			}
 
-			$this->pointer = $image->deconstructImages(); 
+			$this->pointer = $image->deconstructImages();
 			$this->pointer->setIteratorIndex($index);
 		}
 		else
 		{
-			// For transparent images
-			if ($this->pointer->getImageAlphaChannel())
-			{
-				$this->pointer->setImageOpacity(1.0);
-				$this->pointer->evaluateImage(\Imagick::EVALUATE_MULTIPLY, 0.3, \Imagick::CHANNEL_ALPHA);
-			}
-			
 			$this->pointer->resizeImage($new_width, $new_height, \Imagick::FILTER_CATROM, 1, true);
 		}
 	}
@@ -1116,7 +1109,7 @@ class Image
 		{
 			ob_start();
 		}
-		
+
 		$res = $this->gd_save(null, $format);
 
 		if ($return)
