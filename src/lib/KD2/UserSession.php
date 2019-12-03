@@ -173,16 +173,66 @@ class UserSession
 		return $this->db->delete('remember_me_selectors', $this->db->where('user_id', $user_id));
 	}
 
+	/**
+	 * Returns true if a password exists in the local cached list of compromised passwords
+	 * @param string $hash
+	 * @return bool
+	 */
+	protected function isPasswordCompromisedInCache($hash)
+	{
+		return $this->db->test('compromised_passwords_cache', $this->db->where('hash', $hash));
+	}
+
+	/**
+	 * Store a list of compromised hash suffixes in cache
+	 * @param  string $prefix Hash prefix
+	 * @param  array  $range  List of hash suffixes
+	 * @return bool
+	 */
+	protected function storeCompromisedPasswordsRange($prefix, array $range)
+	{
+		$this->db->begin();
+
+		// Insert prefix for cache expiry
+		$this->db->preparedQuery('INSERT OR REPLACE INTO compromised_passwords_cache_ranges (prefix, date) VALUES (?, ?);', [$prefix, time()]);
+
+		foreach ($range as $suffix) {
+			$this->db->preparedQuery('INSERT OR IGNORE INTO compromised_passwords_cache (hash) VALUES (?);', [$prefix . $suffix]);
+		}
+
+		return $this->db->commit();
+	}
+
+	protected function isPasswordRangeExpiredInCache($prefix)
+	{
+		// 7 days
+		$expiry = time() - 60 * 24 * 7;
+
+		return !$this->db->test('compromised_passwords_cache_ranges', 'prefix = ? AND date >= ?', $prefix, $expiry);
+	}
+
 	////////////////////////////////////////////////////////////////////////////
 	// Actual code of UserSession
 
 	const HASH_ALGO = 'sha256';
 	const REQUIRE_OTP = 'otp';
+	const HIBP_API_URL = 'https://api.pwnedpasswords.com/range/%s';
 
 	protected $cookie;
 	protected $user;
 
 	protected $db;
+
+	protected $http;
+
+    static public function hashPassword($password)
+    {
+        // Remove NUL bytes
+        // see http://blog.ircmaxell.com/2015/03/security-issue-combining-bcrypt-with.html
+        $password = str_replace("\0", '', $password);
+
+        return password_hash($password, \PASSWORD_DEFAULT);
+    }
 
 	public function __construct(DB $db, $config = [])
 	{
@@ -376,8 +426,63 @@ class UserSession
 			$this->cookie_domain, $this->cookie_secure, true);
 
 		unset($_COOKIE[$this->cookie_name]);
-	
+
 		return true;
+	}
+
+	/**
+	 * Returns true if a password is compromised according to Have I Been Pwned
+	 * @param  string  $password Password
+	 * @return boolean
+	 */
+	public function isPasswordCompromised($password)
+	{
+		if (null === $this->http) {
+			throw new \LogicException(self::class . '->http property is not set, must be an instance of \KD2\HTTP class');
+		}
+
+		$hash = strtoupper(sha1($password));
+		$prefix = substr($hash, 0, 5);
+		$suffix = substr($hash, 5);
+
+
+		if ($this->isPasswordCompromisedInCache($hash)) {
+			return true;
+		}
+
+		if ($this->isPasswordRangeExpiredInCache($prefix)) {
+			$response = $this->http->GET(sprintf($this::HIBP_API_URL, $prefix));
+
+			if (200 != $response->status) {
+				// Still store the fact that we have requested this range when the request failed
+				// so that we don't re-request this range too soon
+				$this->storeCompromisedPasswordsRange($prefix, []);
+				return false;
+			}
+
+			$range = (string) $response;
+			$range = explode("\n", $range);
+			$list = [];
+
+			foreach ($range as $row) {
+				$row = trim($row);
+
+				if ('' === $row) {
+					continue;
+				}
+
+				$row = strtok($row, ':');
+				$list[] = strtoupper($row);
+			}
+
+			$this->storeCompromisedPasswordsRange($prefix, $list);
+
+			if (in_array($suffix, $list)) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	//////////////////////////////////////////////////////////////////////
