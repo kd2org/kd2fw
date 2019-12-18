@@ -19,7 +19,7 @@
     along with Foobar.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-namespace KD2;
+namespace KD2\Graphics;
 
 /*
 	Generic image resize library

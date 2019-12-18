@@ -25,7 +25,7 @@
  * @link http://code.google.com/p/jsqrencode/downloads/list
  */
 
-namespace KD2;
+namespace KD2\Graphics;
 
 class QRCode
 {

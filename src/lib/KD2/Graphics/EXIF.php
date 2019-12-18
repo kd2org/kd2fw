@@ -19,9 +19,9 @@
     along with Foobar.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-namespace KD2;
+namespace KD2\Graphics;
 
-class Image_EXIF
+class EXIF
 {
 	/**
 	 * File source

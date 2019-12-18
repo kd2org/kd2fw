@@ -19,9 +19,9 @@
 	along with Foobar.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-namespace KD2;
+namespace KD2\Graphics\SVG;
 
-class SVGPlot
+class Plot
 {
 	protected $width = null;
 	protected $height = null;

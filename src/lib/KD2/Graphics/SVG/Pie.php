@@ -19,9 +19,9 @@
 	along with Foobar.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-namespace KD2;
+namespace KD2\Graphics\SVG;
 
-class SVGPie
+class Pie
 {
 	protected $width = null;
 	protected $height = null;
