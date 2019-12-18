@@ -26,7 +26,7 @@
  * @license AGPLv3
  */
 
-namespace KD2;
+namespace KD2\DB;
 
 use PDO;
 use PDOException;

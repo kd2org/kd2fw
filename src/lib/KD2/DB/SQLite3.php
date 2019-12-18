@@ -27,12 +27,12 @@
  * @license AGPLv3
  */
 
-namespace KD2;
+namespace KD2\DB;
 
 use SQLite3;
 use PDO;
 
-class DB_SQLite3 extends DB
+class SQLite3 extends DB
 {
 	/**
 	 * @var SQLite3
