@@ -27,9 +27,9 @@
 
 namespace KD2;
 
-use KD2\Karto_Point;
+use KD2\Karto\Point;
 
-class Karto_Point_Set
+class Point_Set
 {
 	/**
 	 * Internal storage of set of points

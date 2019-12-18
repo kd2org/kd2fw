@@ -23,12 +23,12 @@
  * Karto: an independent PHP library providing basic mapping tools
  */
 
-namespace KD2;
+namespace KD2\Karto;
 
 use ArrayAccess;
-use \KD2\Karto_Point_Set;
+use \KD2\Karto\Point_Set;
 
-class Karto_Point implements ArrayAccess
+class Point implements ArrayAccess
 {
 	/**
 	 * Half of the earth circumference in pixels at zoom level 21

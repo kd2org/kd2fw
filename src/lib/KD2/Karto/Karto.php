@@ -23,7 +23,7 @@
  * Karto: an independent PHP library providing basic mapping tools
  */
 
-namespace KD2;
+namespace KD2\Karto;
 
 // From http://www.appelsiini.net/2008/11/introduction-to-marker-clustering-with-google-maps
 
