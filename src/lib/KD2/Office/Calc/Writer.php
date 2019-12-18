@@ -19,7 +19,7 @@
     along with Foobar.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-namespace KD2;
+namespace KD2\Office\Calc;
 
 use KD2\ZipWriter;
 use DOMDocument;
@@ -27,7 +27,7 @@ use DOMDocument;
 /**
  * OpenDocument Spreadsheet exporter (very simple)
  */
-class ODSWriter
+class Writer
 {
 	const DEFAULT_TABLE_NAME = 'Sheet1';
 	const XML_HEADER = '<?xml version="1.0" encoding="UTF-8"?>';
