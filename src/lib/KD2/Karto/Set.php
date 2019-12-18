@@ -28,8 +28,9 @@
 namespace KD2;
 
 use KD2\Karto\Point;
+use stdClass;
 
-class Point_Set
+class Set
 {
 	/**
 	 * Internal storage of set of points
@@ -51,18 +52,22 @@ class Point_Set
 
 	/**
 	 * Add a new point to the set
-	 * @param mixed $point Could be a Karto_Point object, or an array like [85, 180] or [lat => 85, lon => 180]
+	 * @param mixed $point Could be a Point object, or an array like [85, 180] or [lat => 85, lon => 180]
 	 */
 	public function add($point)
 	{
-		$this->points[] = new Karto_Point($point);
+		if (!is_object($point) || !($point instanceof Point)) {
+			$point = new Point($point);
+		}
+
+		$this->points[] = $point;
 	}
 
 	/**
 	 * Returns all the points of the set
-	 * @return array list of Karto_Point points
+	 * @return array list of Point points
 	 */
-	public function getPoints()
+	public function getPoints(): array
 	{
 		return $this->points;
 	}
@@ -71,21 +76,21 @@ class Point_Set
 	 * Returns the number of points in the current set
 	 * @return integer Number of points
 	 */
-	public function count()
+	public function count(): int
 	{
 		return count($this->points);
 	}
 
 	/**
 	 * Returns the bounding box of the current set of coordinates
-	 * @return \stdClass {float minLat, float maxLat, float minLon, float maxLon, Karto_Point northEast, Karto_Point southWest}
+	 * @return \stdClass {float minLat, float maxLat, float minLon, float maxLon, Point northEast, Point southWest}
 	 */
-	public function getBBox()
+	public function getBBox(): stdClass
 	{
 		if (count($this->points) < 1)
 			throw new \OutOfRangeException('Empty point set');
 
-		$bbox = new \stdClass;
+		$bbox = new stdClass;
 
 		$point = $this->points[0];
 
@@ -100,8 +105,8 @@ class Point_Set
 			$bbox->maxLon = max($bbox->maxLon, $point->lon);
 		}
 
-		$bbox->northEast = new Karto_Point($bbox->maxLat, $bbox->minLon);
-		$bbox->southWest = new Karto_Point($bbox->minLat, $bbox->maxLon);
+		$bbox->northEast = new Point($bbox->maxLat, $bbox->minLon);
+		$bbox->southWest = new Point($bbox->minLat, $bbox->maxLon);
 
 		return $bbox;
 	}
@@ -111,7 +116,7 @@ class Point_Set
 	 * @param  array  $points Each array item MUST have at least two keys named 'lat' and 'lon'
 	 * @return object (obj)->lat = x.xxxx, ->lon => y.yyyy
 	 */
-	public function getCenter()
+	public function getCenter(): Point
 	{
 		if (count($this->points) < 1)
 			throw new \OutOfRangeException('Empty point set');
@@ -127,7 +132,7 @@ class Point_Set
 		$lat_avg = $lat_sum / count($this->points);
 		$lon_avg = $lon_sum / count($this->points);
 
-		return new Karto_Point($lat_avg, $lon_avg);
+		return new Point($lat_avg, $lon_avg);
 	}
 
 
@@ -138,7 +143,7 @@ class Point_Set
 	 * @return array Each row will contain a key named 'points' containing all the points in the cluster and
 	 * a key named 'center' containing the center coordinates of the cluster.
 	 */
-	public function cluster($distance, $zoom)
+	public function cluster(int $distance, int $zoom): array
 	{
 		$clustered = [];
 		$points = $this->points;
@@ -147,7 +152,7 @@ class Point_Set
 		while (count($points))
 		{
 			$point  = array_pop($points);
-			$cluster = new Karto_Point_Set;
+			$cluster = new Set;
 
 			/* Compare against all points which are left. */
 			foreach ($points as $key => $target)
@@ -183,9 +188,9 @@ class Point_Set
 	 * Decode a polyline into a set of coordinates
 	 * @link   https://developers.google.com/maps/documentation/utilities/polylinealgorithm Polyline algorithm
 	 * @param  string $line   Polyline encoded string
-	 * @return array          A list of lat/lon tuples
+	 * @return Set          A set of lat/lon tuples
 	 */
-	static public function fromPolyline($line)
+	static public function fromPolyline(string $line): Set
 	{
 		$precision = 5;
 		$index = $i = 0;
@@ -210,7 +215,7 @@ class Point_Set
 			$points[] = $number * 1 / pow(10, $precision);
 		}
 
-		return new Karto_Point_Set(array_chunk($points, 2));
+		return new Set(array_chunk($points, 2));
 	}
 
 	/**
@@ -218,7 +223,7 @@ class Point_Set
 	 * @link	https://developers.google.com/maps/documentation/utilities/polylinealgorithm Polyline algorithm
 	 * @return	string	A polyline encoded string
 	 */
-	public function toPolyline()
+	public function toPolyline(): string
 	{
 		// Flatten array
 		$points = new \RecursiveIteratorIterator(new \RecursiveArrayIterator($this->points));
@@ -260,7 +265,7 @@ class Point_Set
 	 * @return	integer			Zoom level between 0 and 21
 	 * @link http://stackoverflow.com/a/15397775
 	 */
-	public function getZoomLevel($mapWidth, $mapHeight)
+	public function getZoomLevel(int $mapWidth, int $mapHeight): int
 	{
 		$bbox = $this->getBBox();
 

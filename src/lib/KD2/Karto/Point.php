@@ -26,7 +26,7 @@
 namespace KD2\Karto;
 
 use ArrayAccess;
-use \KD2\Karto\Point_Set;
+use KD2\Karto\Set;
 
 class Point implements ArrayAccess
 {
@@ -45,6 +45,11 @@ class Point implements ArrayAccess
 	const PIXELS_RADIUS = 85445659.4471;
 
 	/**
+	 * Average radius of earth (in kilometers)
+	 */
+	const RADIUS = 6371;
+
+	/**
 	 * Latitude value
 	 * @var float
 	 */
@@ -53,13 +58,13 @@ class Point implements ArrayAccess
 	/**
 	 * Longitude value
 	 * @var float
-	 */	
+	 */
 	protected $lon = null;
 
 	/**
-	 * "Magic" constructor  will accept either float coordinates, an array, a Karto_Point object, or a string
-	 * @param	float	$lat	Latitude
-	 * @param	float	$lon	Longitude
+	 * "Magic" constructor  will accept either float coordinates, an array, a Point object, or a string
+	 * @param	float|Point|string|array|null	$lat	Latitude
+	 * @param	float|null	$lon	Longitude
 	 */
 	public function __construct($lat = null, $lon = null)
 	{
@@ -190,10 +195,10 @@ class Point implements ArrayAccess
 
 	/**
 	 * Gets distance between this point and another
-	 * @param	Karto_Point	$point	Distant point
+	 * @param	Point	$point	Distant point
 	 * @return	float				Distance in KM
 	 */
-	public function distanceTo(Karto_Point $point)
+	public function distanceTo(Point $point): float
 	{
 		$lat1 = $this->lat;
 		$lon1 = $this->lon;
@@ -205,17 +210,17 @@ class Point implements ArrayAccess
 		$lat2rad = deg2rad($lat2);
 
 		// apply the spherical law of cosines to our latitudes and longitudes, and set the result appropriately
-		return (acos(sin($lat1rad) * sin($lat2rad) + cos($lat1rad) * cos($lat2rad) * cos(deg2rad($lon2) - deg2rad($lon1))) * 6371);
+		return (acos(sin($lat1rad) * sin($lat2rad) + cos($lat1rad) * cos($lat2rad) * cos(deg2rad($lon2) - deg2rad($lon1))) * self::RADIUS);
 	}
 
 	/**
 	 * Distance in pixels between two points at a specific zoom level
-	 * @param	Karto_Point	$point	Distant point
+	 * @param	Point	$point	Distant point
 	 * @param	integer		$zoom	Zoom level
-	 * @param	mixed		$restrict	Restrict direction (x or y, or false to have the diagonal)
+	 * @param	mixed		$restrict	Restrict direction (x or y, or null to have the diagonal)
 	 * @return	int					Distance in pixels
 	 */
-	public function pixelDistanceTo(Karto_Point $point, $zoom, $restrict = false)
+	public function pixelDistanceTo(Point $point, int $zoom, ?string $restrict = null): int
 	{
 		list($x1, $y1) = $this->XY();
 		list($x2, $y2) = $point->XY();
@@ -237,7 +242,7 @@ class Point implements ArrayAccess
 	 * Get position in pixels for map
 	 * @return	array	[int X, int Y] position on map in pixels at zoom 21
 	 */
-	public function XY()
+	public function XY(): array
 	{
 		$x = round(self::PIXELS_OFFSET + self::PIXELS_RADIUS * $this->lon * pi() / 180);
 		$y = round(self::PIXELS_OFFSET - self::PIXELS_RADIUS * 
@@ -250,7 +255,7 @@ class Point implements ArrayAccess
 	 * Converts a latitude and longitude from decimal to DMS notation
 	 * @return	array	Latitude / Longitude in DMS notation, eg. [45 5 56 S, 174 11 37 E]
 	 */
-	public function toDMS()
+	public function toDMS(): array
 	{
 		$convert = function ($dec)
 		{
@@ -275,10 +280,10 @@ class Point implements ArrayAccess
 
 	/**
 	 * Is this latitude/longitude contained inside the given set bounds?
-	 * @param	Karto_Point_Set	$set	Set of points
+	 * @param	Set	$set	Set of points
 	 * @return	boolean					true if point is inside the boundaries, false if it is outside
 	 */
-	public function isContainedIn(Karto_Point_Set $set)
+	public function isContainedIn(Set $set): bool
 	{
 		$bbox = $set->getBBox();
 
