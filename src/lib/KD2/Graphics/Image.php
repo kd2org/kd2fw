@@ -26,6 +26,8 @@ namespace KD2\Graphics;
 	Copyleft (C) 2005-17 BohwaZ <http://bohwaz.net/>
 */
 
+use KD2\Graphics\Blob;
+
 class Image
 {
 	static private $init = false;
@@ -70,7 +72,6 @@ class Image
 	{
 		$this->libraries = [
 			'epeg'    => function_exists('\epeg_open'),
-			'imlib'   => function_exists('\imlib_load_image'),
 			'imagick' => class_exists('\Imagick', false),
 			'gd'      => function_exists('\imagecreatefromjpeg'),
 		];
@@ -422,6 +423,7 @@ class Image
 
 	public function flip()
 	{
+		$this->open();
 		$method = $this->library . '_flip';
 
 		if (!method_exists($this, $method))
@@ -577,16 +579,15 @@ class Image
 	 */
 	public function getOrientation()
 	{
-		if ($this->blob)
-		{
-			$file = fopen('php://temp', 'rwb');
-			fwrite($file, $this->blob);
-		}
-		else
-		{
-			$file = fopen($this->path, 'rb');
+		if ($this->format != 'jpeg') {
+			return false;
 		}
 
+		if (null !== $this->blob) {
+			return Blob::getOrientationJPEG($this->blob);
+		}
+
+		$file = fopen($this->path, 'rb');
 		rewind($file);
 
 		// Get length of file
@@ -643,7 +644,7 @@ class Image
 					}
 				}
 			}
-			else if (($marker & 0xFF00) && $marker != "\xFF\x00")
+			else if (is_numeric($marker) && $marker & 0xFF00 && $marker != "\xFF\x00")
 			{
 				break;
 			}
@@ -698,7 +699,7 @@ class Image
 	protected function epeg_output($format, $return)
 	{
 		$this->pointer->setQuality($this->jpeg_quality);
-		
+
 		if ($return)
 		{
 			return $this->pointer->encode();
@@ -743,141 +744,6 @@ class Image
 		$this->height = $new_height;
 
 		$this->pointer->setDecodeSize($new_width, $new_height, true);
-	}
-
-	// ImLib methods //////////////////////////////////////////////////////////
-	protected function imlib_open()
-	{
-		$this->pointer = imlib_load_image($this->path);
-		$this->format = imlib_image_format($this->pointer);
-	}
-
-	protected function imlib_formats()
-	{
-		// There is no way to query imlib for supported formats so this is
-		// from the source code, hopefully your version has support compiled
-		// for those loaders
-		// GIF is read-only, so not included here
-		return ['tiff', 'jpeg', 'png', 'pnm', 'bmp', 'xpm', 'tga'];
-	}
-
-	protected function imlib_blob($data)
-	{
-		// Imlib doesn't have a function to create an image from a string, so
-		// to avoid creating a temporary file we use data: scheme
-		$this->path = 'data:text/plain,' . urlencode($data);
-		$this->imlib_open();
-		$this->path = true;
-	}
-
-	protected function imlib_size()
-	{
-		$this->width = imlib_image_get_width($this->pointer);
-		$this->height = imlib_image_get_height($this->pointer);
-	}
-
-	protected function imlib_close()
-	{
-		imlib_free_image($this->pointer);
-	}
-
-	protected function imlib_save($destination, $format)
-	{
-		$q = null;
-
-		if ($format == 'jpeg')
-		{
-			$q = $this->jpeg_quality;
-		}
-		else if ($format == 'tiff' || $format == 'png')
-		{
-			$q = $this->compression;
-		}
-
-		imlib_image_set_format($this->pointer, $format);
-		return imlib_save_image($this->pointer, $destination, $err, $q);
-	}
-
-	protected function imlib_output($format, $return)
-	{
-		$q = null;
-
-		if ($format == 'jpeg')
-		{
-			$q = $this->jpeg_quality;
-		}
-		else if ($format == 'tiff' || $format == 'png')
-		{
-			$q = $this->compression;
-		}
-
-		// Note that imlib_dump_image is just saving the image to a temporary file and reading it
-		// so it is inefficient
-		if ($return)
-		{
-			ob_start();
-		}
-
-		$res = imlib_dump_image($this->pointer, null, (int)$q);
-
-		if ($return)
-		{
-			return ob_get_clean();
-		}
-
-		return $res;
-	}
-
-	protected function imlib_crop($new_width, $new_height)
-	{
-		$x = floor(($this->width - $new_width) / 2);
-		$y = floor(($this->height - $new_height) / 2);
-
-		$this->pointer = imlib_create_cropped_image($this->pointer, $x, $y, $new_width, $new_height);
-	}
-
-	protected function imlib_resize($new_width, $new_height = null, $ignore_aspect_ratio = false)
-	{
-		if (!$ignore_aspect_ratio)
-		{
-			if ($this->width > $this->height)
-				$new_height = 0;
-			else
-				$new_width = 0;
-		}
-
-		$this->pointer = imlib_create_scaled_image($this->pointer, $new_width, $new_height);
-
-		if (!$this->pointer)
-		{
-			throw new \RuntimeException('Image resize failed using imlib');
-		}
-	}
-
-	protected function imlib_rotate($angle)
-	{
-		// Switch width/height for portrait/landscape change
-		if (abs($angle) == 90 || abs($angle) == 270)
-		{
-			list($h, $w) = $this->getSize();
-		}
-		else
-		{
-			list($w, $h) = $this->getSize();
-		}
-
-		$this->pointer = imlib_create_rotated_image($this->pointer, $angle);
-		// imlib_create_rotated_image will create a new larger image so we need to crop it back to original size
-		// see https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=176953
-		$this->width = imlib_image_get_width($this->pointer);
-		$this->height = imlib_image_get_height($this->pointer);
-
-		$this->imlib_crop($w, $h);
-	}
-
-	protected function imlib_flip()
-	{
-		imlib_image_flip_horizontal($this->pointer);
 	}
 
 	// Imagick methods ////////////////////////////////////////////////////////
@@ -969,7 +835,7 @@ class Image
 
 		if ($return)
 			return $res;
-		
+
 		echo $res;
 		return true;
 	}
@@ -980,24 +846,19 @@ class Image
 		$src_y = floor(($this->height - $new_height) / 2);
 
 		// Detect animated GIF
-		if ($this->format == 'gif' && $this->pointer->getIteratorIndex() > 0)
+		if ($this->format == 'gif')
 		{
-			$index = $this->pointer->getIteratorIndex();
-			// FIXME keep iterations
-			$image = $this->pointer->coalesceImages();
+			$this->pointer = $this->pointer->coalesceImages();
 
-			foreach ($image as $frame)
-			{
-				$frame->cropImage($new_width, $new_height, $src_x, $src_x);
-				$frame->setImagePage($new_width, $new_height, 0, 0);
-			}
-
-			$this->pointer = $image->deconstructImages(); 
-			$this->pointer->setIteratorIndex($index);
+			do {
+				$this->pointer->cropImage($new_width, $new_height, $src_x, $src_y);
+				$this->pointer->setImagePage($new_width, $new_height, 0, 0);
+			} while ($this->pointer->nextImage());
 		}
 		else
 		{
 			$this->pointer->cropImage($new_width, $new_height, $src_x, $src_x);
+			$this->pointer->setImagePage($new_width, $new_height, 0, 0);
 		}
 	}
 
@@ -1020,7 +881,7 @@ class Image
 		}
 		else
 		{
-			$this->pointer->resizeImage($new_width, $new_height, \Imagick::FILTER_CATROM, 1, true);
+			$this->pointer->resizeImage($new_width, $new_height, \Imagick::FILTER_CATROM, 1, !$ignore_aspect_ratio, false);
 		}
 	}
 
@@ -1127,7 +988,7 @@ class Image
 		if ($this->format == 'png' || $this->format == 'gif')
 		{
 			imagealphablending($new, false);
-			imagecolortransparent($new, imagecolorallocatealpha($new, 0, 0, 0, 127));
+			imagecolortransparent($new, imagecolorallocatealpha($new, 255, 255, 255, 127));
 			imagesavealpha($new, true);
 		}
 
