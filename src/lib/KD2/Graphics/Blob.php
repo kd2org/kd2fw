@@ -236,7 +236,7 @@ class Blob
 					}
 				}
 			}
-			else if (($marker & 0xFF00) && $marker != "\xFF\x00")
+			else if (is_numeric($marker) && ($marker & 0xFF00) && $marker != "\xFF\x00")
 			{
 				break;
 			}
