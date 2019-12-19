@@ -67,7 +67,7 @@ class DB
 	 * Class construct, expects a driver configuration
 	 * @param array $driver Driver configurtaion
 	 */
-	public function __construct($name, array $params)
+	public function __construct(string $name, array $params)
 	{
 		$driver = (object) [
 			'type'     => $name,
@@ -123,6 +123,10 @@ class DB
 			}
 
 			$driver->url = 'sqlite:' . $params['file'];
+
+			if (isset($params['flags'])) {
+				$driver->options[PDO::SQLITE_ATTR_OPEN_FLAGS] = $params['flags'];
+			}
 		}
 		else
 		{
@@ -136,11 +140,11 @@ class DB
 	 * Connect to the currently defined driver if needed
 	 * @return void
 	 */
-	public function connect()
+	public function connect(): void
 	{
 		if ($this->pdo)
 		{
-			return true;
+			return;
 		}
 
 		try {
@@ -176,16 +180,14 @@ class DB
 		}
 
 		$this->driver->password = '******';
-
-		return true;
 	}
 
-	public function close()
+	public function close(): void
 	{
 		$this->pdo = null;
 	}
 
-	protected function applyTablePrefix($statement)
+	protected function applyTablePrefix(string $statement): string
 	{
 		if (strpos('__PREFIX__', $statement) !== false)
 		{
@@ -195,39 +197,53 @@ class DB
 		return $statement;
 	}
 
-	public function query($statement)
+	public function query(string $statement)
 	{
 		$this->connect();
 		$statement = $this->applyTablePrefix($statement);
 		return $this->pdo->query($statement);
 	}
 
-	public function exec($statement)
+	/**
+	 * Execute an SQL statement and return the number of affected rows
+	 * returns the number of rows that were modified or deleted by the SQL statement you issued. If no rows were affected, returns 0.
+	 * It may return FALSE, even if the operation completed successfully
+	 *
+	 * @see https://www.php.net/manual/en/pdo.exec.php
+	 * @param  string $statement SQL Query
+	 * @return bool|int
+	 */
+	public function exec(string $statement)
 	{
 		$this->connect();
 		$statement = $this->applyTablePrefix($statement);
 		return $this->pdo->exec($statement);
 	}
 
-	public function execMultiple($statement)
+	public function execMultiple(string $statement)
 	{
 		$this->connect();
 
 		$this->begin();
 
+		// Store user-set prepared emulation setting for later
+		if ($this->driver->type == 'mysql') {
+			$emulate = $this->pdo->getAttribute(PDO::ATTR_EMULATE_PREPARES);
+		}
+
 		try
 		{
 			if ($this->driver->type == 'mysql')
 			{
-				$emulate = $this->pdo->getAttribute(PDO::ATTR_EMULATE_PREPARES);
-				$this->pdo->setAttribute(PDO::ATTR_EMULATE_PREPARES, true); // required to allow multiple queries in same statement
+				// required to allow multiple queries in same statement
+				$this->pdo->setAttribute(PDO::ATTR_EMULATE_PREPARES, true);
 
 				$st = $this->prepare($statement);
 				$st->execute();
 
 				while ($st->nextRowset())
 				{
-					// Iterate over rowsets, see https://bugs.php.net/bug.php?id=61613 
+					// Iterate over rowsets, see https://bugs.php.net/bug.php?id=61613
 				}
 
 				$return = $this->commit();
@@ -238,15 +254,15 @@ class DB
 				$this->commit();
 			}
 		}
-		catch (\PDOException $e)
+		catch (PDOException $e)
 		{
 			$this->rollBack();
 			throw $e;
 		}
 		finally
 		{
-			if ($this->driver->type == 'mysql')
-			{
+			// Restore prepared statement attribute
+			if ($this->driver->type == 'mysql') {
 				$this->pdo->setAttribute(PDO::ATTR_EMULATE_PREPARES, $emulate);
 			}
 		}
@@ -254,7 +270,7 @@ class DB
 		return $return;
 	}
 
-	public function createFunction($name, callable $callback)
+	public function createFunction(string $name, callable $callback): bool
 	{
 		if ($this->driver->type != 'sqlite')
 		{
@@ -272,7 +288,7 @@ class DB
 		}
 	}
 
-	public function import($file)
+	public function import(string $file)
 	{
 		if (!is_readable($file))
 		{
@@ -282,7 +298,7 @@ class DB
 		return $this->execMultiple(file_get_contents($file));
 	}
 
-	public function prepare($statement, $driver_options = [])
+	public function prepare(string $statement, array $driver_options = [])
 	{
 		$this->connect();
 		$statement = $this->applyTablePrefix($statement);
@@ -313,18 +329,22 @@ class DB
 		return $this->pdo->rollBack();
 	}
 
-	public function lastInsertId($name = null)
+	public function lastInsertId(string $name = null): string
 	{
 		$this->connect();
 		return $this->pdo->lastInsertId($name);
 	}
 
-	public function lastInsertRowId()
+	public function lastInsertRowId(): string
 	{
 		return $this->lastInsertId();
 	}
 
-	public function quote($value, $parameter_type = PDO::PARAM_STR)
+	/**
+	 * Quotes a string for use in a query
+	 * @see https://www.php.net/manual/en/pdo.quote.php
+	 */
+	public function quote(string $value, int $parameter_type = PDO::PARAM_STR): string
 	{
 		if ($this->driver->type == 'sqlite')
 		{
@@ -338,7 +358,12 @@ class DB
 		return $this->pdo->quote($value, $parameter_type);
 	}
 
-	public function quoteIdentifier($value)
+	/**
+	 * Quotes an identifier (table name or column name) for use in a query
+	 * @param  string $value Identifier to quote
+	 * @return string Quoted identifier
+	 */
+	public function quoteIdentifier(string $value): string
 	{
 		// see https://www.codetinkerer.com/2015/07/08/escaping-column-and-table-names-in-mysql-part2.html
 		if ($this->driver->type == 'mysql')
@@ -366,7 +391,7 @@ class DB
 		}
 	}
 
-	public function preparedQuery($query, $args = [])
+	public function preparedQuery(string $query, array $args = [])
 	{
         assert(is_string($query));
 
@@ -396,9 +421,8 @@ class DB
 		return $st;
 	}
 
-	public function iterate($query)
+	public function iterate(string $query, ...$args): iterable
 	{
-		$args = array_slice(func_get_args(), 1);
 		$st = $this->preparedQuery($query, $args);
 
 		while ($row = $st->fetch())
@@ -411,15 +435,13 @@ class DB
 		return;
 	}
 
-	public function get($query)
+	public function get(string $query, ...$args): array
 	{
-		$args = array_slice(func_get_args(), 1);
 		return $this->preparedQuery($query, $args)->fetchAll();
 	}
 
-	public function getAssoc($query)
+	public function getAssoc(string $query, ...$args): array
 	{
-		$args = array_slice(func_get_args(), 1);
 		$st = $this->preparedQuery($query, $args);
 		$out = [];
 
@@ -431,9 +453,8 @@ class DB
 		return $out;
 	}
 
-	public function getGrouped($query)
+	public function getGrouped(string $query, ...$args): array
 	{
-		$args = array_slice(func_get_args(), 1);
 		$st = $this->preparedQuery($query, $args);
 		$out = [];
 
@@ -452,9 +473,9 @@ class DB
 	 *
 	 * Accepts one or more arguments as part of bindings for the statement
 	 */
-	public function first($query)
+	public function first(string $query, ...$args)
 	{
-		$st = $this->preparedQuery($query, array_slice(func_get_args(), 1));
+		$st = $this->preparedQuery($query, $args);
 
 		return $st->fetch();
 	}
@@ -466,9 +487,9 @@ class DB
 	 *
 	 * Accepts one or more arguments as part of bindings for the statement
 	 */
-	public function firstColumn($query)
+	public function firstColumn(string $query, ...$args)
 	{
-		$st = $this->preparedQuery($query, array_slice(func_get_args(), 1));
+		$st = $this->preparedQuery($query, $args);
 
 		return $st->fetchColumn();
 	}
@@ -479,7 +500,7 @@ class DB
 	 * @param  array|object $fields Champs à remplir
 	 * @return boolean
 	 */
-	public function insert($table, $fields)
+	public function insert(string $table, $fields)
 	{
 		assert(is_array($fields) || is_object($fields));
 
@@ -500,14 +521,14 @@ class DB
 	 * @param  array|object $args   Arguments for the WHERE clause
 	 * @return boolean
 	 */
-	public function update($table, $fields, $where = null, $args = [])
+	public function update(string $table, $fields, string $where = null, $args = [])
 	{
 		assert(is_string($table));
 		assert((is_string($where) && strlen($where)) || is_null($where));
 		assert(is_array($fields) || is_object($fields));
 		assert(is_array($args) || is_object($args), 'Arguments for the WHERE clause must be a named array or object');
 
-		// Forcer en tableau
+		// Convert to array
 		$fields = (array) $fields;
 		$args = (array) $args;
 
@@ -518,7 +539,7 @@ class DB
 		}
 
 		$column_updates = [];
-		
+
 		foreach ($fields as $key => $value)
 		{
 			if (is_object($value) && $value instanceof \DateTimeInterface)
@@ -537,7 +558,7 @@ class DB
 			$where = '1';
 		}
 
-		// Assemblage de la requête
+		// Final query assembly
 		$column_updates = implode(', ', $column_updates);
 		$query = sprintf('UPDATE %s SET %s WHERE %s;', $this->quoteIdentifier($table), $column_updates, $where);
 
@@ -553,10 +574,10 @@ class DB
 	 * Accepts one or more arguments as bindings for the WHERE clause.
 	 * Warning! If run without a $where argument, will delete all rows from a table!
 	 */
-	public function delete($table, $where = '1')
+	public function delete(string $table, string $where, ...$args)
 	{
 		$query = sprintf('DELETE FROM %s WHERE %s;', $table, $where);
-		return $this->preparedQuery($query, array_slice(func_get_args(), 2));
+		return $this->preparedQuery($query, $args);
 	}
 
 	/**
@@ -565,27 +586,34 @@ class DB
 	 * @param  string $where WHERE clause
 	 * @return boolean
 	 */
-	public function test($table, $where = '1')
+	public function test(string $table, string $where, ...$args): bool
 	{
-		$args = array_merge(
-			[sprintf('SELECT 1 FROM %s WHERE %s LIMIT 1;', $this->quoteIdentifier($table), $where)],
-			array_slice(func_get_args(), 2)
-		);
-
-		return (bool) call_user_func_array([$this, 'firstColumn'], $args);
+		$query = sprintf('SELECT 1 FROM %s WHERE %s LIMIT 1;', $this->quoteIdentifier($table), $where);
+		return (bool) $this->firstColumn($query, ...$args);
 	}
 
-	public function count($table, $where = '1')
+	/**
+	 * Returns the number of rows in a table according to a WHERE clause
+	 * @param  string $table Table name
+	 * @param  string $where WHERE clause
+	 * @return integer
+	 */
+	public function count(string $table, string $where, ...$args): int
 	{
-		$args = array_merge(
-			[sprintf('SELECT COUNT(*) FROM %s WHERE %s LIMIT 1;', $this->quoteIdentifier($table), $where)],
-			array_slice(func_get_args(), 2)
-		);
-
-		return (int) call_user_func_array([$this, 'firstColumn'], $args);
+		$query = sprintf('SELECT COUNT(*) FROM %s WHERE %s LIMIT 1;', $this->quoteIdentifier($table), $where);
+		return (int) $this->firstColumn($query, ...$args);
 	}
 
-	public function where($name)
+	/**
+	 * Generate a WHERE clause, can be called as a short notation:
+	 * where('id', '42')
+	 * or including the comparison operator:
+	 * where('id', '>', '42')
+	 * It accepts arrays or objects as the value. If no operator is specified, 'IN' is used.
+	 * @param  string $name Column name
+	 * @return string
+	 */
+	public function where(string $name): string
 	{
 		$num_args = func_num_args();
 
@@ -673,7 +701,7 @@ class DB
 			$value = $this->quote($value);
 		}
 
-		return sprintf('%s %s %s', $name, $operator, $value);
+		return sprintf('%s %s %s', $this->quoteIdentifier($name), $operator, $value);
 	}
 
 	/**
@@ -745,7 +773,7 @@ class DB
 		{
 			throw new \InvalidArgumentException('4 arguments expected for haversine_distance');
 		}
-		
+
 		return round(acos(sin($geo[0]) * sin($geo[2]) + cos($geo[0]) * cos($geo[2]) * cos($geo[1] - $geo[3])) * 6372.8, 3);
 	}
 }

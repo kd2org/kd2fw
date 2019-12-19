@@ -21,7 +21,7 @@
 
 /**
  * DB_SQLite3: a generic wrapper around SQLite3, adding easier access functions
- * Compatible API with DB
+ * Compatible API with DB, but instead of using PDO, uses SQLite3
  *
  * @author  bohwaz http://bohwaz.net/
  * @license AGPLv3
@@ -29,7 +29,6 @@
 
 namespace KD2\DB;
 
-use SQLite3;
 use PDO;
 
 class SQLite3 extends DB
@@ -40,44 +39,34 @@ class SQLite3 extends DB
 	protected $db;
 
 	/**
-	 * @var int
-	 */
-	protected $flags;
-
-	/**
-	 * @var string
-	 */
-	protected $file;
-
-	/**
 	 * @var boolean
 	 */
 	protected $transaction = false;
 
 	const DATE_FORMAT = 'Y-m-d H:i:s';
 
-	public function __construct($file, $flags = SQLITE3_OPEN_READWRITE | SQLITE3_OPEN_CREATE)
-	{
-		parent::__construct('sqlite', ['file' => $file]);
-
-		$this->file = $file;
-		$this->flags = $flags;
-	}
-
-	public function close()
+	public function close(): void
 	{
 		$this->db->close();
 		$this->db = null;
 	}
 
-	public function connect()
+	public function connect(): void
 	{
-		if ($this->db)
-		{
-			return false;
+		if ($this->db) {
+			return;
 		}
 
-		$this->db = new \SQLite3($this->file, $this->flags);
+		$file = str_replace('sqlite:', '', $this->driver->url);
+
+		if (isset($this->driver->options[PDO::SQLITE_ATTR_OPEN_FLAGS])) {
+			$flags = $this->driver->options[PDO::SQLITE_ATTR_OPEN_FLAGS];
+		}
+		else {
+			$flags = \SQLITE3_OPEN_READWRITE | \SQLITE3_OPEN_CREATE;
+		}
+
+		$this->db = new \SQLite3($file, $flags);
 
 		$this->db->enableExceptions(true);
 
@@ -95,11 +84,9 @@ class SQLite3 extends DB
 				$this->rollback();
 			}
 		});
-
-		return true;
 	}
 
-	public function createFunction($name, callable $callback)
+	public function createFunction(string $name, callable $callback): bool
 	{
 		if ($this->db)
 		{
@@ -113,15 +100,15 @@ class SQLite3 extends DB
 	}
 
 
-	public function escapeString($str)
+	public function escapeString(string $str): string
 	{
 		// escapeString is not binary safe: https://bugs.php.net/bug.php?id=62361
 		$str = str_replace("\0", "\\0", $str);
 
-		return SQLite3::escapeString($str);
+		return \SQLite3::escapeString($str);
 	}
 
-	public function quote($str, $parameter_type = null)
+	public function quote(string $str, int $parameter_type = 0): string
 	{
 		return '\'' . $this->escapeString($str) . '\'';
 	}
@@ -170,7 +157,7 @@ class SQLite3 extends DB
 		return true;
 	}
 
-	public function getArgType(&$arg, $name = '')
+	public function getArgType(string &$arg, string $name = ''): int
 	{
 		switch (gettype($arg))
 		{
@@ -184,7 +171,7 @@ class SQLite3 extends DB
 			case 'string':
 				return \SQLITE3_TEXT;
 			case 'array':
-				if (count($arg) == 2 
+				if (count($arg) == 2
 					&& in_array($arg[0], [\SQLITE3_FLOAT, \SQLITE3_INTEGER, \SQLITE3_NULL, \SQLITE3_TEXT, \SQLITE3_BLOB]))
 				{
 					$type = $arg[0];
@@ -214,7 +201,7 @@ class SQLite3 extends DB
 	 * in SQLite3/PHP where you can re-run a query by calling fetchResult
 	 * on a statement. This could cause double writing.
 	 */
-	public function preparedQuery($query, $args = [])
+	public function preparedQuery(string $query, array $args = [])
 	{
 		assert(is_string($query));
 		assert(is_array($args) || is_object($args));
@@ -285,11 +272,11 @@ class SQLite3 extends DB
 		}
 	}
 
-	public function query($query)
+	public function query(string $statement)
 	{
 		$this->connect();
-		$query = $this->applyTablePrefix($query);
-		return $this->db->query($query);
+		$statement = $this->applyTablePrefix($statement);
+		return $this->db->query($statement);
 	}
 
 	/**
@@ -304,26 +291,26 @@ class SQLite3 extends DB
 	 * @param  string $query SQL SELECT query
 	 * @return array Rows of the result, as stdClass objects
 	 */
-	public function userSelectStatement($query)
+	public function userSelectStatement(string $statement)
 	{
-		if (preg_match('/;\s*(.+?)$/', $query))
+		if (preg_match('/;\s*(.+?)$/', $statement))
 		{
-			throw new \LogicException('Only one single query can be executed at the same time.');
+			throw new \LogicException('Only one single statement can be executed at the same time.');
 		}
 
 		// Forbid use of some strings that could allow give hints to an attacker:
 		// PRAGMA, sqlite_version(), sqlite_master table, comments
-		if (preg_match('/PRAGMA\s+|sqlite_version|sqlite_master|--|\/\*|\*\/|load_extension|ATTACH\s+|randomblob|sqlite_compileoption_|sqlite_offset|sqlite_source_|zeroblob|X\'\w|0x\w|sqlite_dbpage|fts3_tokenizer/i', $query, $match))
+		if (preg_match('/PRAGMA\s+|sqlite_version|sqlite_master|--|\/\*|\*\/|load_extension|ATTACH\s+|randomblob|sqlite_compileoption_|sqlite_offset|sqlite_source_|zeroblob|X\'\w|0x\w|sqlite_dbpage|fts3_tokenizer/i', $statement, $match))
 		{
 			throw new \LogicException('Invalid SQL query.');
 		}
 
-		if (!preg_match('/^\s*SELECT\s+/i', $query))
+		if (!preg_match('/^\s*SELECT\s+/i', $statement))
 		{
-			$query = 'SELECT ' . $query;
+			$query = 'SELECT ' . $statement;
 		}
 
-		$st = $this->db->prepare($query);
+		$st = $this->db->prepare($statement);
 
 		if (!$st->readOnly())
 		{
@@ -333,9 +320,9 @@ class SQLite3 extends DB
 		return $st;
 	}
 
-	public function userSelectGet($query)
+	public function userSelectGet(string $statement): array
 	{
-		$st = $this->userSelectStatement($query);
+		$st = $this->userSelectStatement($statement);
 
 		$res = $st->execute();
 
@@ -349,10 +336,9 @@ class SQLite3 extends DB
 		return $out;
 	}
 
-	public function iterate($query)
+	public function iterate(string $statement, ...$args): iterable
 	{
-		$args = array_slice(func_get_args(), 1);
-		$res = $this->preparedQuery($query, $args);
+		$res = $this->preparedQuery($statement, $args);
 
 		while ($row = $res->fetchArray(\SQLITE3_ASSOC))
 		{
@@ -364,10 +350,9 @@ class SQLite3 extends DB
 		return;
 	}
 
-	public function get($query)
+	public function get(string $statement, ...$args): array
 	{
-		$args = array_slice(func_get_args(), 1);
-		$res = $this->preparedQuery($query, $args);
+		$res = $this->preparedQuery($statement, $args);
 		$out = [];
 
 		while ($row = $res->fetchArray(\SQLITE3_ASSOC))
@@ -378,10 +363,9 @@ class SQLite3 extends DB
 		return $out;
 	}
 
-	public function getAssoc($query)
+	public function getAssoc(string $statement, ...$args): array
 	{
-		$args = array_slice(func_get_args(), 1);
-		$res = $this->preparedQuery($query, $args);
+		$res = $this->preparedQuery($statement, $args);
 		$out = [];
 
 		while ($row = $res->fetchArray(\SQLITE3_NUM))
@@ -392,10 +376,9 @@ class SQLite3 extends DB
 		return $out;
 	}
 
-	public function getGrouped($query)
+	public function getGrouped(string $statement, ...$args): array
 	{
-		$args = array_slice(func_get_args(), 1);
-		$res = $this->preparedQuery($query, $args);
+		$res = $this->preparedQuery($statement, $args);
 		$out = [];
 
 		while ($row = $res->fetchArray(\SQLITE3_ASSOC))
@@ -409,13 +392,13 @@ class SQLite3 extends DB
 	/**
 	 * Executes multiple queries in a transaction
 	 */
-	public function execMultiple($query)
+	public function execMultiple(string $statement)
 	{
 		$this->begin();
 
 		try {
-			$query = $this->applyTablePrefix($query);
-			$this->db->exec($query);
+			$statement = $this->applyTablePrefix($statement);
+			$this->db->exec($statement);
 		}
 		catch (\Exception $e)
 		{
@@ -426,25 +409,25 @@ class SQLite3 extends DB
 		return $this->commit();
 	}
 
-	public function exec($query)
+	public function exec(string $statement)
 	{
 		$this->connect();
-		$query = $this->applyTablePrefix($query);
-		return $this->db->exec($query);
+		$query = $this->applyTablePrefix($statement);
+		return $this->db->exec($statement);
 	}
 
 	/**
 	 * Runs a query and returns the first row from the result
 	 * @param  string $query
-	 * @return object
+	 * @return object|bool
 	 *
 	 * Accepts one or more arguments for the prepared query
 	 */
-	public function first($query)
+	public function first(string $query, ...$args)
 	{
-		$res = $this->preparedQuery($query, array_slice(func_get_args(), 1));
+		$res = $this->preparedQuery($query, $args);
 
-		$row = $res->fetchArray(SQLITE3_ASSOC);
+		$row = $res->fetchArray(\SQLITE3_ASSOC);
 		$res->finalize();
 
 		return is_array($row) ? (object) $row : false;
@@ -457,16 +440,16 @@ class SQLite3 extends DB
 	 *
 	 * Accepts one or more arguments for the prepared query
 	 */
-	public function firstColumn($query)
+	public function firstColumn(string $query, ...$args)
 	{
-		$res = $this->preparedQuery($query, array_slice(func_get_args(), 1));
+		$res = $this->preparedQuery($query, $args);
 
 		$row = $res->fetchArray(\SQLITE3_NUM);
 
 		return (is_array($row) && count($row) > 0) ? $row[0] : false;
 	}
 
-	public function countRows(\SQLite3Result $result)
+	public function countRows(\SQLite3Result $result): int
 	{
 		$i = 0;
 
@@ -480,23 +463,23 @@ class SQLite3 extends DB
 		return $i;
 	}
 
-	public function lastInsertId($name = null)
+	public function lastInsertId($name = null): string
 	{
 		return $this->db->lastInsertRowId();
 	}
 
-	public function lastInsertRowId()
+	public function lastInsertRowId(): string
 	{
 		return $this->db->lastInsertRowId();
 	}
 
-	public function prepare($query, $driver_options = [])
+	public function prepare(string $statement, array $driver_options = [])
 	{
-		$query = $this->applyTablePrefix($query);
-		return $this->db->prepare($query);
+		$query = $this->applyTablePrefix($statement);
+		return $this->db->prepare($statement);
 	}
 
-	public function openBlob($table, $column, $rowid, $dbname = 'main', $flags = \SQLITE3_OPEN_READONLY)
+	public function openBlob(string $table, string $column, int $rowid, string $dbname = 'main', int $flags = \SQLITE3_OPEN_READONLY): resource
 	{
 		if (\PHP_VERSION_ID >= 70200)
 		{
@@ -513,7 +496,7 @@ class SQLite3 extends DB
 		}
 	}
 
-	static public function getDatabaseDetailsFromString($source_string)
+	static public function getDatabaseDetailsFromString(string $source_string): array
 	{
 		if (substr($source_string, 0, 16) !== "SQLite format 3\0" || strlen($source_string) < 100) {
 			return null;
