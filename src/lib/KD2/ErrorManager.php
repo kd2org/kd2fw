@@ -291,7 +291,7 @@ class ErrorManager
 				foreach ($e->backtrace as $i=>$t)
 				{
 					$file = !empty($t->file) ? $t->file : '[internal function]';
-					$line = $t->line ? '(' . $t->line . ')' : '';
+					$line = !empty($t->line) ? '(' . $t->line . ')' : '';
 
 					if (isset($t->args))
 					{
