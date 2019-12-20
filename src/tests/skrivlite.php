@@ -1,9 +1,9 @@
 <?php
 
-namespace KD2;
+use KD2\SkrivLite;
+use KD2\Test;
 
 require __DIR__ . '/_assert.php';
-require KD2FW_ROOT . '/SkrivLite.php';
 
 $skriv = new SkrivLite;
 $skriv->setCallback(SkrivLite::CALLBACK_CODE_HIGHLIGHT, false); // Disable code highlighting
@@ -172,7 +172,7 @@ $target = '<p>some text
 Test::equals($target, $skriv->render($orig), 'styled block rendering error');
 
 $orig = 'text [[http://kd2.org/]] and [[LQDN|http://lqdn.net/]]';
-$target = '<p>text <a href="http://kd2.org/">http://kd2.org/</a> and <a href="http://lqdn.net/">LQDN</a></p>';
+$target = '<p>text <a href="http://kd2.org/" target="_blank" rel="noreferrer noopener">http://kd2.org/</a> and <a href="http://lqdn.net/" target="_blank" rel="noreferrer noopener">LQDN</a></p>';
 
 Test::equals($target, $skriv->render($orig), 'link rendering error');
 
