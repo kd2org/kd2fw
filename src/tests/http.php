@@ -8,6 +8,7 @@ use KD2\ErrorManager as EM;
 require __DIR__ . '/_assert.php';
 
 test_url_build();
+test_1and1();
 test_urls();
 test_uri_templates();
 test_http();
@@ -71,6 +72,27 @@ function test_url_build()
 	$_SERVER['REQUEST_URI'] = '/admin/dir/page.php?ok=yes&two=three';
 	Test::strictlyEquals('http://domain.local.name/admin/dir/page.php?ok=yes&two=three', HTTP::getRequestURL());
 	Test::strictlyEquals('http://domain.local.name/admin/dir/page.php', HTTP::getRequestURL(false));
+}
+
+function test_1and1()
+{
+	$_SERVER = [
+		'SCRIPT_URL' => '/test.php',
+		'SCRIPT_URI' => 'http://compta.lol.org/test.php',
+		'SERVER_NAME' => 'compta.lol.org',
+		'DOCUMENT_ROOT' => '/kunden/homepages/21/d42/htdocs/compta/www',
+		'SCRIPT_FILENAME' => '/kunden/homepages/21/d42/htdocs/compta/www/test.php',
+		'QUERY_STRING' => '',
+		'REQUEST_URI' => '/test.php',
+		'SCRIPT_NAME' => '/test.php',
+		'STATUS' => '200',
+		'ORIG_PATH_INFO' => '/test.php',
+		'ORIG_PATH_TRANSLATED' => '/kunden/homepages/21/d42/htdocs/compta/www/test.php',
+	];
+
+	Test::exception('UnexpectedValueException', function () {
+		HTTP::getRootURI('/homepages/21/d42/htdocs/compta');
+	});
 }
 
 function test_urls()
