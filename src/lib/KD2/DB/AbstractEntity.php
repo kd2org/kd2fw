@@ -1,53 +1,59 @@
 <?php
+/*
+	This file is part of KD2FW -- <http://dev.kd2.org/>
+
+	Copyright (c) 2001-2019 BohwaZ <http://bohwaz.net/>
+	All rights reserved.
+
+	KD2FW is free software: you can redistribute it and/or modify
+	it under the terms of the GNU Affero General Public License as published by
+	the Free Software Foundation, either version 3 of the License, or
+	(at your option) any later version.
+
+	Foobar is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	GNU Affero General Public License for more details.
+
+	You should have received a copy of the GNU Affero General Public License
+	along with Foobar.  If not, see <https://www.gnu.org/licenses/>.
+*/
 
 namespace KD2\DB;
+
+/**
+ * AbstractEntity: a generic entity that can be extended to build your entities
+ * Use the EntityManager to persist entities in a database
+ *
+ * @author bohwaz
+ * @license AGPLv3
+ */
 
 abstract class AbstractEntity
 {
 	protected $id;
+
+	protected $_exists = false;
 
 	protected $_modified = [];
 	protected $_fields = [];
 
 	public function load(array $data): void
 	{
+		foreach ($data as $key => $value) {
+			if (!array_key_exists($key, $this->_fields) || !property_exists($this, $key)) {
+				throw new \RuntimeException(sprintf('"%s" key is not property of entity "%s"', $key, self::class));
+			}
+		}
+
 		foreach ($this->_fields as $key => $type) {
 			if (!array_key_exists($key, $data)) {
 				throw new \RuntimeException('Missing key in array: ' . $key);
 			}
 
 			$value = $data[$key];
-			$nullable = false;
-
-			if ($type[0] == '?') {
-				$nullable = true;
-				$type = substr($type, 1);
-			}
-
-			if (!$nullable && is_null($value)) {
-				throw new \RuntimeException(sprintf('Unexpected NULL value for "%s"', $key));
-			}
-
-			if ($type == 'datetime') {
-				$value = DateTime::createFromFormat('Y-m-d H:i:s', $value);
-			}
-			elseif ($type == 'date') {
-				$value = DateTime::createFromFormat('Y-m-d', $value);
-			}
-
-			$this->$key = $value;
+			$this->set($key, $value, true);
 		}
-
-		foreach ($data as $key => $value) {
-			if (!array_key_exists($key, $this->_fields) || !property_exists($this, $key)) {
-				throw new \RuntimeException(sprintf('"%s" key is not property of entity "%s"', $key, self::class));
-			}
-		}
-	}
-
-	public function save(): bool
-	{
-		return EntityManager::getInstance($this::class)->save($this);
 	}
 
 	public function import(array $data = null): void
@@ -56,7 +62,15 @@ abstract class AbstractEntity
 			$data = $_POST;
 		}
 
-		return $this->load($data);
+		$data = array_intersect_key($data, $this->_fields);
+
+		foreach ($data as $key => $value) {
+			if (!array_key_exists($key, $this->_fields) || !property_exists($this, $key)) {
+				throw new \RuntimeException(sprintf('"%s" key is not property of entity "%s"', $key, self::class));
+			}
+
+			$this->set($key, $value, true);
+		}
 	}
 
 	protected function assert(bool $test, string $message = null): void
@@ -79,7 +93,7 @@ abstract class AbstractEntity
 	public function asArray(): array
 	{
 		$vars = get_object_vars($this);
-		unset($vars['_modified'], $vars['_fields']);
+		unset($vars['_modified'], $vars['_fields'], $vars['_exists']);
 		return $vars;
 	}
 
@@ -97,8 +111,16 @@ abstract class AbstractEntity
 		return $this->id;
 	}
 
-	public function __set(string $key, $value)
+	public function exists(bool $exists = null): bool
 	{
+		if (null !== $exists) {
+			$this->_exists = $exists;
+		}
+
+		return $this->_exists;
+	}
+
+	protected function set(string $key, $value, bool $loose = false) {
 		if (!array_key_exists($key, $this->_fields)) {
 			throw new \InvalidArgumentException(sprintf('Unknown "%s" property: "%s"', static::class, $key));
 		}
@@ -111,12 +133,49 @@ abstract class AbstractEntity
 			$type = substr($type, 1);
 		}
 
-		if (!$this->_checkType($key, $value, $type, $nullable)) {
-			throw new \UnexpectedValueException(sprintf('Value for property \'%s\' is invalid (expected \'%s\')', $key, $type));
+		if ($loose) {
+			if (is_string($value) && trim($value) === '' && $nullable) {
+				$value = null;
+			}
+
+			if ($value !== null) {
+				if ($type == 'integer' && is_string($value) && ctype_digit($value)) {
+					$value = (int)$value;
+				}
+				elseif ($type == 'date' && is_string($value) && ($d = \DateTime::createFromFormat('Y-m-d', $value))) {
+					$d->setTime(0, 0, 0);
+					$value = $d;
+				}
+				elseif ($type == 'datetime' && is_string($value) && ($d = \DateTime::createFromFormat('Y-m-d H:i:s', $value))) {
+					$value = $d;
+				}
+			}
 		}
 
-		if ($this->$key !== $value) {
-			$this->$key = $value;
+		if (!$nullable && null === $value) {
+			throw new \RuntimeException(sprintf('Unexpected NULL value for "%s"', $key));
+		}
+
+		if (null !== $value && !$this->_checkType($key, $value, $type)) {
+			$found_type = gettype($value);
+
+			if ('object' == $found_type) {
+				$found_type = get_class($value);
+			}
+
+			throw new \UnexpectedValueException(sprintf('Value of type \'%s\' for property \'%s\' is invalid (expected \'%s\')', $found_type, $key, $type));
+		}
+
+		$this->$key = $value;
+	}
+
+	public function __set(string $key, $value)
+	{
+		$original_value = $this->$key;
+
+		$this->set($key, $value);
+
+		if ($original_value !== $value) {
 			$this->_modified[$key] = true;
 		}
 	}
@@ -126,18 +185,26 @@ abstract class AbstractEntity
 		return $this->$key;
 	}
 
-	protected function _checkType(string $key, $value, string $type, bool $nullable)
+	protected function _checkType(string $key, $value, string $type)
 	{
-		if (null === $value && $nullable) {
-			return true;
-		}
-
 		switch ($type) {
 			case 'date':
 			case 'datetime':
-				return is_object($value) && $value instanceof DateTime;
+				return is_object($value) && $value instanceof \DateTime;
 			default:
 				return gettype($value) == $type;
 		}
 	}
+
+	// Helpful helpers
+	public function save(): bool
+	{
+		return EntityManager::getInstance(static::class)->save($this);
+	}
+
+	public function delete(): bool
+	{
+		return EntityManager::getInstance(static::class)->delete($this);
+	}
+
 }

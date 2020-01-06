@@ -2,19 +2,25 @@
 
 namespace KD2\DB;
 
-use KD2\AbstractEntity;
-use KD2\DB;
-use KD2\DB_SQLite3;
+use KD2\DB\DB;
+use KD2\DB\DB_SQLite3;
+use KD2\DB\AbstractEntity;
 use PDO;
 
 class EntityManager
 {
 	protected $class;
+	protected $db;
 
 	static protected $_instances = [];
-	static protected $_db;
+	static protected $_global_db;
 
-	static public function getInstance(string $class)
+	/**
+	 * Returns an EntityManager instance linked to a specific Entity class
+	 * @param  string $class Entity class name
+	 * @return EntityManager
+	 */
+	static public function getInstance(string $class): self
 	{
 		// Create a new entity manager for this entity if it does not exist
 		if (!array_key_exists($class, self::$_instances)) {
@@ -31,12 +37,44 @@ class EntityManager
 			self::$_instances[$class] = new EntityManager($class);
 		}
 
-		return self::$_instance[$class];
+		return self::$_instances[$class];
 	}
 
-	static public function setDB(DB $db): void
+	/**
+	 * Sets the database manager used for all entity managers, unless they have a specific one
+	 * @param DB $db
+	 */
+	static public function setGlobalDB(DB $db): void
 	{
-		self::$_db = $db;
+		self::$_global_db = $db;
+	}
+
+	/**
+	 * Set local database object used for this entity manager
+	 * @param DB|null $db Set to NULL to use the global manager
+	 */
+	public function setDB(?DB $db = null): void
+	{
+		$this->db = $db;
+	}
+
+	/**
+	 * Returns the correct database object for this entity manager
+	 */
+	protected function DB(): DB
+	{
+		if (null !== $this->db) {
+			$db = $this->db;
+		}
+		else {
+			$db = self::$_global_db;
+		}
+
+		if (null === $db) {
+			throw new \LogicException('No DB object has been set');
+		}
+
+		return $db;
 	}
 
 	protected function __construct(string $class)
@@ -44,11 +82,23 @@ class EntityManager
 		$this->class = $class;
 	}
 
+	/**
+	 * Returns an Entity according to a query
+	 * @param  string $class  Entity class name
+	 * @param  string $query  SQL query
+	 * @param  mixed ...$params Optional parameters to be used in the query
+	 * @return null|AbstractEntity
+	 */
 	static public function findOne(string $class, string $query, ...$params)
 	{
 		return self::getInstance($class)->one($query, ...$params);
 	}
 
+	/**
+	 * Formats a SQL query by replacing the table name with the entity table name
+	 * @param  string $query SQL query
+	 * @return string
+	 */
 	protected function formatQuery(string $query): string
 	{
 		$class = self::$class;
@@ -70,7 +120,7 @@ class EntityManager
 
 	public function iterate(string $query, ...$params): iterable
 	{
-		$db = self::$_db;
+		$db = $this->DB();
 		$query = $this->formatQuery($query);
 		$res = $db->preparedQuery($query, $params);
 
@@ -78,6 +128,7 @@ class EntityManager
 			while ($row = $res->fetchArray(\SQLITE3_ASSOC)) {
 				$obj = new $this->class;
 				$obj->load($row);
+				$obj->exists(true);
 				yield $row;
 			}
 
@@ -87,6 +138,7 @@ class EntityManager
 			while ($row = $res->fetch(PDO::FETCH_ASSOC)) {
 				$obj = new $this->class;
 				$obj->load($row);
+				$obj->exists(true);
 				yield $row;
 			}
 		}
@@ -94,7 +146,7 @@ class EntityManager
 
 	public function one(string $query, ...$params)
 	{
-		$db = self::$_db;
+		$db = $this->DB();
 
 		$query = $this->formatQuery($query);
 		$res = $db->preparedQuery($query, $params);
@@ -113,37 +165,33 @@ class EntityManager
 
 		$obj = new $this->class;
 		$obj->load($row);
+		$obj->exists(true);
 		return $obj;
 	}
 
 	public function col(string $query, ...$params)
 	{
 		$query = $this->formatQuery($query);
-		return self::$_db->firstColumn($query, ...$params);
-	}
-
-	protected function getSQLFields(array $fields)
-	{
-		foreach ($fields as &$field) {
-			if ($field instanceof DateTime) {
-				$field = $field->format('Y-m-d H:i:s');
-			}
-		}
-
-		return $fields;
+		$db = $this->DB();
+		return $db->firstColumn($query, ...$params);
 	}
 
 	public function save(AbstractEntity $entity): bool
 	{
 		$entity->selfCheck();
-		$data = $entity->modifiedProperties();
-		$data = $this->getSQLFields($data);
-		$db = self::$_db;
+		$db = $this->DB();
 
 		if ($entity->exists()) {
+			$data = $entity->modifiedProperties();
+
+			if (!count($data)) {
+				return true;
+			}
+
 			return $db->update($entity::TABLE, $data, $db->where('id', $entity->id()));
 		}
 		else {
+			$data = $entity->asArray();
 			$return = $db->insert($entity::TABLE, $data);
 
 			if ($return) {
@@ -154,6 +202,7 @@ class EntityManager
 				}
 
 				$entity->id($id);
+				$entity->exists(true);
 			}
 
 			return $return;
@@ -162,7 +211,14 @@ class EntityManager
 
 	public function delete(AbstractEntity $entity): bool
 	{
-		$db = self::$_db;
-		return $db->delete($entity::TABLE, $db->where('id', $entity->id()));
+		$db = $this->DB();
+		$return = $db->delete($entity::TABLE, $db->where('id', $entity->id()));
+
+		if ($return) {
+			$entity->id(null);
+			$entity->exists(false);
+		}
+
+		return $return;
 	}
 }

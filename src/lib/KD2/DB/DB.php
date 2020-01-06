@@ -510,7 +510,7 @@ class DB
 		$query = sprintf('INSERT INTO %s (%s) VALUES (:%s);', $this->quoteIdentifier($table),
 			implode(', ', array_map([$this, 'quoteIdentifier'], $fields_names)), implode(', :', $fields_names));
 
-		return $this->preparedQuery($query, $fields);
+		return (bool) $this->preparedQuery($query, $fields);
 	}
 
 	/**
@@ -562,7 +562,7 @@ class DB
 		$column_updates = implode(', ', $column_updates);
 		$query = sprintf('UPDATE %s SET %s WHERE %s;', $this->quoteIdentifier($table), $column_updates, $where);
 
-		return $this->preparedQuery($query, $args);
+		return (bool) $this->preparedQuery($query, $args);
 	}
 
 	/**
@@ -577,7 +577,7 @@ class DB
 	public function delete(string $table, string $where, ...$args)
 	{
 		$query = sprintf('DELETE FROM %s WHERE %s;', $table, $where);
-		return $this->preparedQuery($query, $args);
+		return (bool) $this->preparedQuery($query, $args);
 	}
 
 	/**
