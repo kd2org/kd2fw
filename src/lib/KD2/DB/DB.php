@@ -2,7 +2,7 @@
 /*
 	This file is part of KD2FW -- <http://dev.kd2.org/>
 
-	Copyright (c) 2001-2019 BohwaZ <http://bohwaz.net/>
+	Copyright (c) 2001-2020 BohwaZ <http://bohwaz.net/>
 	All rights reserved.
 
 	KD2FW is free software: you can redistribute it and/or modify
@@ -16,7 +16,7 @@
 	GNU Affero General Public License for more details.
 
 	You should have received a copy of the GNU Affero General Public License
-	along with Foobar.  If not, see <https://www.gnu.org/licenses/>.
+	along with KD2FW.  If not, see <https://www.gnu.org/licenses/>.
 */
 
 /**
