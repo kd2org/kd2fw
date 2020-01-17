@@ -124,7 +124,7 @@ class DB
 
 			$driver->url = 'sqlite:' . $params['file'];
 
-			if (isset($params['flags'])) {
+			if (isset($params['flags']) && defined('PDO::SQLITE_ATTR_OPEN_FLAGS')) {
 				$driver->options[PDO::SQLITE_ATTR_OPEN_FLAGS] = $params['flags'];
 			}
 		}
