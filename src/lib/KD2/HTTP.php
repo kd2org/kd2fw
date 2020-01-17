@@ -602,9 +602,9 @@ class HTTP
 
 		$r = new HTTP_Response;
 
-		$c = curl_init();
+		$c = \curl_init();
 
-		curl_setopt_array($c, [
+		\curl_setopt_array($c, [
 			CURLOPT_URL            => $url,
 			CURLOPT_HTTPHEADER     => $headers,
 			CURLOPT_RETURNTRANSFER => true,
@@ -621,17 +621,17 @@ class HTTP
 
 		if ($data !== null)
 		{
-			curl_setopt($c, CURLOPT_POSTFIELDS, $data);
+			\curl_setopt($c, CURLOPT_POSTFIELDS, $data);
 		}
 
 		if (!empty($this->ssl_options['cafile']))
 		{
-			curl_setopt($c, CURLOPT_CAINFO, $this->ssl_options['cafile']);
+			\curl_setopt($c, CURLOPT_CAINFO, $this->ssl_options['cafile']);
 		}
 
 		if (!empty($this->ssl_options['capath']))
 		{
-			curl_setopt($c, CURLOPT_CAPATH, $this->ssl_options['capath']);
+			\curl_setopt($c, CURLOPT_CAPATH, $this->ssl_options['capath']);
 		}
 
 		if (count($this->cookies) > 0)
@@ -646,10 +646,10 @@ class HTTP
 
 			$cookies = implode('; ', $cookies);
 
-			curl_setopt($c, CURLOPT_COOKIE, $cookies);
+			\curl_setopt($c, CURLOPT_COOKIE, $cookies);
 		}
 
-		curl_setopt($c, CURLOPT_HEADERFUNCTION, function ($c, $header) use (&$r) {
+		\curl_setopt($c, CURLOPT_HEADERFUNCTION, function ($c, $header) use (&$r) {
 			$name = trim(strtok($header, ':'));
 			$value = strtok('');
 
@@ -681,10 +681,10 @@ class HTTP
 
 		$r->url = $url;
 
-		$r->body = curl_exec($c);
-		$r->request = curl_getinfo($c, CURLINFO_HEADER_OUT) . $data;
+		$r->body = \curl_exec($c);
+		$r->request = \curl_getinfo($c, CURLINFO_HEADER_OUT) . $data;
 
-		if ($error = curl_error($c))
+		if ($error = \curl_error($c))
 		{
 			if (!empty($this->http_options['ignore_errors']))
 			{
@@ -702,9 +702,9 @@ class HTTP
 
 		$r->fail = false;
 		$r->size = strlen($r->body);
-		$r->status = curl_getinfo($c, CURLINFO_HTTP_CODE);
+		$r->status = \curl_getinfo($c, CURLINFO_HTTP_CODE);
 
-		curl_close($c);
+		\curl_close($c);
 
 		return $r;
 	}
