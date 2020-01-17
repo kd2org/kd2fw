@@ -21,6 +21,8 @@
 
 namespace KD2\DB;
 
+use KD2\Form;
+
 /**
  * AbstractEntity: a generic entity that can be extended to build your entities
  * Use the EntityManager to persist entities in a database
@@ -36,17 +38,18 @@ abstract class AbstractEntity
 	protected $_exists = false;
 
 	protected $_modified = [];
-	protected $_fields = [];
+	protected $_types = [];
+	protected $_validation_rules = [];
 
 	public function load(array $data): void
 	{
 		foreach ($data as $key => $value) {
-			if (!array_key_exists($key, $this->_fields) || !property_exists($this, $key)) {
+			if (!array_key_exists($key, $this->_types) || !property_exists($this, $key)) {
 				throw new \RuntimeException(sprintf('"%s" key is not property of entity "%s"', $key, self::class));
 			}
 		}
 
-		foreach ($this->_fields as $key => $type) {
+		foreach ($this->_types as $key => $type) {
 			if (!array_key_exists($key, $data)) {
 				throw new \RuntimeException('Missing key in array: ' . $key);
 			}
@@ -56,21 +59,43 @@ abstract class AbstractEntity
 		}
 	}
 
-	public function import(array $data = null): void
+	/**
+	 * Import data from an array of user-supplied values, only keys corresponding to entity properties
+	 * will be used, others will be ignored.
+	 * @param  array|null $source Source data array, if none is supplied $_POST will be used
+	 * @return void
+	 */
+	public function import(array $source = null): void
 	{
-		if (null === $data) {
-			$data = $_POST;
+		if (null === $source) {
+			$source = $_POST;
 		}
 
-		$data = array_intersect_key($data, $this->_fields);
+		$data = array_intersect_key($source, $this->_types);
 
 		foreach ($data as $key => $value) {
-			if (!array_key_exists($key, $this->_fields) || !property_exists($this, $key)) {
+			if (!array_key_exists($key, $this->_types) || !property_exists($this, $key)) {
 				throw new \RuntimeException(sprintf('"%s" key is not property of entity "%s"', $key, self::class));
 			}
 
+			$value = $this->filterUserValue($key, $value, $source);
+
 			$this->set($key, $value, true);
 		}
+	}
+
+	protected function filterUserValue(string $key, $value, array $source)
+	{
+		if (isset($this->_validation_rules[$key])) {
+			$errors = Form::validateField($key, $this->_validation_rules[$key], $source);
+
+			if (0 !== count($errors)) {
+				throw new \UnexpectedValueException('Validation error');
+			}
+		}
+
+		$value = Form::filterField($value, $this->_types[$key]);
+		return $value;
 	}
 
 	protected function assert(bool $test, string $message = null): void
@@ -93,7 +118,14 @@ abstract class AbstractEntity
 	public function asArray(): array
 	{
 		$vars = get_object_vars($this);
-		unset($vars['_modified'], $vars['_fields'], $vars['_exists']);
+
+		// Remove internal stuff
+		foreach ($vars as $key => $value) {
+			if ($key[0] == '_') {
+				unset($vars[$key]);
+			}
+		}
+
 		return $vars;
 	}
 
@@ -121,11 +153,11 @@ abstract class AbstractEntity
 	}
 
 	protected function set(string $key, $value, bool $loose = false) {
-		if (!array_key_exists($key, $this->_fields)) {
+		if (!array_key_exists($key, $this->_types)) {
 			throw new \InvalidArgumentException(sprintf('Unknown "%s" property: "%s"', static::class, $key));
 		}
 
-		$type = $this->_fields[$key];
+		$type = $this->_types[$key];
 		$nullable = false;
 
 		if ($type[0] == '?') {
