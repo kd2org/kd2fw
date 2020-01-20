@@ -450,9 +450,9 @@ class ErrorManager
 
 						$args[$name] = self::dump($value);
 
-						if (strlen($args[$name]) > 200)
+						if (strlen($args[$name]) > 2000)
 						{
-							$args[$name] = substr($args[$name], 0, 199) . '…';
+							$args[$name] = substr($args[$name], 0, 1999) . '…';
 						}
 					}
 				}
