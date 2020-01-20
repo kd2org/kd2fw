@@ -27,7 +27,7 @@
 
 namespace KD2;
 
-use KD2\DB;
+use KD2\DB\DB;
 use KD2\QRCode;
 use KD2\Security_OTP;
 
