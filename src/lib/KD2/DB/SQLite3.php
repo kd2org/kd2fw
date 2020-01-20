@@ -43,6 +43,11 @@ class SQLite3 extends DB
 	 */
 	protected $transaction = false;
 
+	/**
+	 * @var integer|null
+	 */
+	protected $flags = null;
+
 	const DATE_FORMAT = 'Y-m-d H:i:s';
 
 	public function close(): void
@@ -51,16 +56,30 @@ class SQLite3 extends DB
 		$this->db = null;
 	}
 
+	public function __construct(string $driver, array $params)
+	{
+		if (!defined('\SQLITE3_OPEN_READWRITE'))
+		{
+			throw new \Exception('SQLite3 PHP module is not installed.');
+		}
+
+		if (isset($params['flags'])) {
+			$this->flags = $params['flags'];
+		}
+
+		parent::__construct($driver, $params);
+	}
+
 	public function connect(): void
 	{
-		if ($this->db) {
+		if (null !== $this->db) {
 			return;
 		}
 
 		$file = str_replace('sqlite:', '', $this->driver->url);
 
-		if (isset($this->driver->options[PDO::SQLITE_ATTR_OPEN_FLAGS])) {
-			$flags = $this->driver->options[PDO::SQLITE_ATTR_OPEN_FLAGS];
+		if (null !== $this->flags) {
+			$flags = $this->flags;
 		}
 		else {
 			$flags = \SQLITE3_OPEN_READWRITE | \SQLITE3_OPEN_CREATE;
@@ -157,7 +176,7 @@ class SQLite3 extends DB
 		return true;
 	}
 
-	public function getArgType(string &$arg, string $name = ''): int
+	public function getArgType(&$arg, string $name = ''): int
 	{
 		switch (gettype($arg))
 		{
@@ -508,60 +527,4 @@ class SQLite3 extends DB
 		return compact('user_version', 'application_id');
 	}
 
-    public function deleteUndoTriggers()
-    {
-        $triggers = $this->getAssoc('SELECT name, name FROM sqlite_master
-            WHERE type = \'trigger\' AND name LIKE \'!_%!_undolog!__t\' ESCAPE \'!\';');
-
-        foreach ($triggers as $trigger)
-        {
-            $this->exec(sprintf('DROP TRIGGER %s;', $this->quoteIdentifier($trigger)));
-        }
-    }
-
-    public function createUndoTriggers(array $tables)
-    {
-        $this->exec('CREATE TABLE IF NOT EXISTS undolog (
-            seq INTEGER PRIMARY KEY,
-            table TEXT NOT NULL,
-            action TEXT NOT NULL
-            sql TEXT NOT NULL,
-            date TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        );');
-
-        $query = 'CREATE TRIGGER _%table_log_it AFTER INSERT ON %table BEGIN
-                DELETE FROM undolog WHERE rowid IN (SELECT rowid FROM undolog LIMIT 500,1000);
-                INSERT INTO undolog (table, action, sql) VALUES (\'%table\', \'I\', \'DELETE FROM %table WHERE rowid=\'||new.rowid);
-            END;
-            CREATE TRIGGER _%table_log_ut AFTER UPDATE ON %table BEGIN
-                DELETE FROM undolog WHERE rowid IN (SELECT rowid FROM undolog LIMIT 500,1000);
-                INSERT INTO undolog (table, action, sql) VALUES (\'%table\', \'U\',  \'UPDATE %table SET %columns_update WHERE rowid = \'||old.rowid);
-            END;
-            CREATE TRIGGER _%table_log_dt BEFORE DELETE ON %table BEGIN
-                DELETE FROM undolog WHERE rowid IN (SELECT rowid FROM undolog LIMIT 500,1000);
-                INSERT INTO undolog (table, action, sql) VALUES (\'%table\', \'D\', \'INSERT INTO %table (rowid, %columns_list) VALUES(\'||old.rowid||\', %columns_insert)\');
-            END;';
-
-        foreach ($tables as $table)
-        {
-            $columns = $this->getAssoc(sprintf('PRAGMA table_info(%s);', $this->quoteIdentifier($table)));
-            $columns_insert = [];
-            $columns_update = [];
-
-            foreach ($columns as &$name)
-            {
-                $columns_update[] = sprintf('%s = \'||quote(old.%1$s)||\'', $name);
-                $columns_insert[] = sprintf('\'||quote(old.%s)||\'', $name);
-            }
-
-            $sql = strtr($query, [
-                '%table' => $table,
-                '%columns_list' => implode(', ', $columns),
-                '%columns_update' => implode(', ', $columns_update),
-                '%columns_insert' => implode(', ', $columns_insert),
-            ]);
-
-            $this->exec($sql);
-        }
-    }
 }
