@@ -3,7 +3,7 @@
 namespace KD2\DB;
 
 use KD2\DB\DB;
-use KD2\DB\DB_SQLite3;
+use KD2\DB\SQLite3;
 use KD2\DB\AbstractEntity;
 use PDO;
 
@@ -101,8 +101,8 @@ class EntityManager
 	 */
 	protected function formatQuery(string $query): string
 	{
-		$class = self::$class;
-		$query = str_replace('{$table}', $class::TABLE, $query);
+		$class = $this->class;
+		$query = str_replace('@TABLE', $class::TABLE, $query);
 		return $query;
 	}
 
@@ -124,7 +124,7 @@ class EntityManager
 		$query = $this->formatQuery($query);
 		$res = $db->preparedQuery($query, $params);
 
-		if ($db instanceof DB_SQLite3) {
+		if ($db instanceof SQLite3) {
 			while ($row = $res->fetchArray(\SQLITE3_ASSOC)) {
 				$obj = new $this->class;
 				$obj->load($row);
@@ -151,7 +151,7 @@ class EntityManager
 		$query = $this->formatQuery($query);
 		$res = $db->preparedQuery($query, $params);
 
-		if ($db instanceof DB_SQLite3) {
+		if ($db instanceof SQLite3) {
 			$row = $res->fetchArray(\SQLITE3_ASSOC);
 			$res->finalize();
 		}
