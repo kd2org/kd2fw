@@ -656,6 +656,7 @@ class ErrorManager
 		if (self::$enabled)
 			return true;
 
+
 		self::$enabled = $type;
 
 		self::$term_color = function_exists('posix_isatty') && @posix_isatty(STDOUT);
@@ -663,6 +664,7 @@ class ErrorManager
 		ini_set('display_errors', false);
 		ini_set('log_errors', false);
 		ini_set('html_errors', false);
+		ini_set('zend.exception_ignore_args', false); // We want to get the args in exceptions (since PHP 7.4)
 		error_reporting($type == self::DEVELOPMENT ? -1 : E_ALL & ~E_DEPRECATED & ~E_STRICT);
 
 		if ($type == self::DEVELOPMENT && PHP_SAPI != 'cli')
