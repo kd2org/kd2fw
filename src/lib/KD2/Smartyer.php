@@ -818,7 +818,7 @@ class Smartyer
 		}
 
 		// This is just PHP, this is easy
-		if ($raw_args[0] == '(' && substr($raw_args, -1) == ')')
+		if (substr($raw_args, 0, 1) == '(' && substr($raw_args, -1) == ')')
 		{
 			$raw_args = $this->parseMagicVariables($raw_args);
 
