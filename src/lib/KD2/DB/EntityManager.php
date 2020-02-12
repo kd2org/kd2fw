@@ -95,6 +95,18 @@ class EntityManager
 	}
 
 	/**
+	 * Returns an Entity from its ID
+	 * @param  string $class  Entity class name
+	 * @param  int $id  Entity ID
+	 * @return null|AbstractEntity
+	 */
+	static public function findOneById(string $class, int $id)
+	{
+		$query = sprintf('SELECT * FROM %s WHERE id = ?;', $class::TABLE);
+		return self::findOne($class, $query, $id);
+	}
+
+	/**
 	 * Formats a SQL query by replacing the table name with the entity table name
 	 * @param  string $query SQL query
 	 * @return string
