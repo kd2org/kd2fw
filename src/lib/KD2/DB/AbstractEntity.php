@@ -1,4 +1,6 @@
 <?php
+declare(strict_types=1);
+
 /*
 	This file is part of KD2FW -- <http://dev.kd2.org/>
 
@@ -41,15 +43,62 @@ abstract class AbstractEntity
 	protected $_types = [];
 	protected $_validation_rules = [];
 
+	/**
+	 * Default constructor
+	 */
+	public function __construct()
+	{
+		// Generate _types array
+		if (version_compare(PHP_VERSION, '7.4', '>=') && empty($this->_types)) {
+			$r = new \ReflectionClass(static::class);
+			foreach ($r->getProperties(\ReflectionProperty::IS_PROTECTED) as $p) {
+				if ($p->name[0] == '_') {
+					// Skip internal stuff
+					continue;
+				}
+
+				if ($p->name == 'id') {
+					$type = 'integer';
+				}
+				else {
+					$t = $p->getType();
+
+					if (null === $t) {
+						throw new \LogicException(sprintf('Property "%s" of entity "%s" has no type', $p->name, static::class));
+					}
+
+					$type = $t->getName();
+
+					// Make sure type names are consistent (not the case in PHP...)
+					if ($type == 'int') {
+						$type = 'integer';
+					}
+
+					$type = ($t->allowsNull() ? '?' : '') . $type;
+				}
+
+				$this->_types[$p->name] = $type;
+			}
+		}
+	}
+
+	/**
+	 * Loads data from an array into the entity properties
+	 * Used for example to load data from a database. This will convert string values to typed properties.
+	 * @param  array  $data
+	 * @return void
+	 */
 	public function load(array $data): void
 	{
+		$properties = array_keys($this->_types);
+
 		foreach ($data as $key => $value) {
-			if (!array_key_exists($key, $this->_types) || !property_exists($this, $key)) {
-				throw new \RuntimeException(sprintf('"%s" key is not property of entity "%s"', $key, self::class));
+			if (!in_array($key, $properties)) {
+				throw new \RuntimeException(sprintf('"%s" is not a property of the entity "%s"', $key, static::class));
 			}
 		}
 
-		foreach ($this->_types as $key => $type) {
+		foreach ($properties as $key) {
 			if (!array_key_exists($key, $data)) {
 				throw new \RuntimeException('Missing key in array: ' . $key);
 			}
@@ -71,13 +120,10 @@ abstract class AbstractEntity
 			$source = $_POST;
 		}
 
-		$data = array_intersect_key($source, $this->_types);
+		$properties = array_keys($this->_types);
+		$data = array_intersect_key($source, $properties);
 
 		foreach ($data as $key => $value) {
-			if (!array_key_exists($key, $this->_types) || !property_exists($this, $key)) {
-				throw new \RuntimeException(sprintf('"%s" key is not property of entity "%s"', $key, self::class));
-			}
-
 			$value = $this->filterUserValue($key, $value, $source);
 
 			$this->set($key, $value, true);
@@ -153,7 +199,7 @@ abstract class AbstractEntity
 	}
 
 	protected function set(string $key, $value, bool $loose = false) {
-		if (!array_key_exists($key, $this->_types)) {
+		if (!property_exists($this, $key)) {
 			throw new \InvalidArgumentException(sprintf('Unknown "%s" property: "%s"', static::class, $key));
 		}
 
@@ -174,11 +220,7 @@ abstract class AbstractEntity
 				if ($type == 'integer' && is_string($value) && ctype_digit($value)) {
 					$value = (int)$value;
 				}
-				elseif ($type == 'date' && is_string($value) && ($d = \DateTime::createFromFormat('Y-m-d', $value))) {
-					$d->setTime(0, 0, 0);
-					$value = $d;
-				}
-				elseif ($type == 'datetime' && is_string($value) && ($d = \DateTime::createFromFormat('Y-m-d H:i:s', $value))) {
+				elseif ($type == 'DateTime' && is_string($value) && ($d = \DateTime::createFromFormat('Y-m-d H:i:s', $value))) {
 					$value = $d;
 				}
 			}
@@ -203,7 +245,12 @@ abstract class AbstractEntity
 
 	public function __set(string $key, $value)
 	{
-		$original_value = $this->$key;
+		if (isset($this->$key)) {
+			$original_value = $this->$key;
+		}
+		else {
+			$original_value = null;
+		}
 
 		$this->set($key, $value);
 
@@ -220,8 +267,7 @@ abstract class AbstractEntity
 	protected function _checkType(string $key, $value, string $type)
 	{
 		switch ($type) {
-			case 'date':
-			case 'datetime':
+			case 'DateTime':
 				return is_object($value) && $value instanceof \DateTime;
 			default:
 				return gettype($value) == $type;
