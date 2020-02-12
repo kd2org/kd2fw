@@ -334,6 +334,14 @@ class HTTP
 		$document_root = rtrim($document_root, '/');
 		$app_root = rtrim($app_root, '/');
 
+		if ('' === trim($app_root)) {
+			throw new \UnexpectedValueException('Invalid document root: empty app root');
+		}
+
+		if ('' === trim($document_root)) {
+			throw new \UnexpectedValueException('Invalid document root: empty document root');
+		}
+
 		// Find the relative path inside the server document root
 		if (0 === strpos($document_root, $app_root)) {
 			// document root is below the app root: great!
@@ -367,6 +375,10 @@ class HTTP
 	 */
 	static public function getHost()
 	{
+		if (!isset($_SERVER['HTTP_HOST']) || !isset($_SERVER['SERVER_NAME']) || !isset($_SERVER['SERVER_ADDR'])) {
+			return 'host.unknown';
+		}
+
 		$host = isset($_SERVER['HTTP_HOST'])
 			? $_SERVER['HTTP_HOST']
 			: (isset($_SERVER['SERVER_NAME']) ? $_SERVER['SERVER_NAME'] : $_SERVER['SERVER_ADDR']);
