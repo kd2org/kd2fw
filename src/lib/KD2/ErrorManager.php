@@ -518,7 +518,7 @@ class ErrorManager
 	static public function htmlException(\stdClass $e)
 	{
 		printf('<section><header><h1>%s</h1><h2>%s</h2></header>',
-			$e->type, htmlspecialchars($e->message));
+			$e->type, nl2br(htmlspecialchars($e->message)));
 
 		foreach ($e->backtrace as $i=>$t)
 		{
