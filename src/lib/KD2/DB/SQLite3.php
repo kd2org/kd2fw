@@ -525,13 +525,14 @@ class SQLite3 extends DB
     {
         $sql = file_get_contents($file);
         $sql = str_replace("\r\n", "\n", $sql);
-        $sql = explode("\n", $sql);
+        $sql = preg_split("/\n{2,}/", $sql, -1, PREG_SPLIT_NO_EMPTY);
 
         $statement = '';
+        $i = 0;
 
         $dir = realpath(dirname($file));
 
-        foreach ($sql as $i => $line) {
+        foreach ($sql as $line) {
             $line = trim($line);
 
             // Sub-import statements
@@ -551,7 +552,7 @@ class SQLite3 extends DB
                 $this->exec($statement);
             }
             catch (\Exception $e) {
-                throw new \Exception(sprintf("Error in '%s' on line %d: %s\n%s", basename($file), $i, $e->getMessage(), $statement), 0, $e);
+                throw new \Exception(sprintf("Error in '%s': %s\n%s", basename($file), $e->getMessage(), $statement), 0, $e);
             }
 
             $statement = '';
