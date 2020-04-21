@@ -561,6 +561,43 @@ class SQLite3 extends DB
         return true;
     }
 
+    /**
+     * Performs a foreign key check and throws an exception if any error is found
+     * @return void
+     * @throws \LogicException
+     * @see https://www.sqlite.org/pragma.html#pragma_foreign_key_check
+     */
+    public function foreignKeyCheck(): void
+    {
+    	$result = $this->get('PRAGMA foreign_key_check;');
+
+    	// No error
+    	if (!count($result)) {
+    		return;
+    	}
+
+    	$errors = [];
+    	$tables = [];
+
+    	foreach ($result as $row) {
+    		if (!array_key_exists($row->table, $tables)) {
+    			$tables[$row->table] = $this->get(sprintf('PRAGMA foreign_key_list(%s);', $row->table));
+    		}
+
+    		// Findinf the referenced foreign key
+    		foreach ($tables[$row->table] as $fk) {
+    			if ($fk->id == $row->fkid) {
+    				$ref = $fk;
+    				break;
+    			}
+    		}
+
+    		$errors[] = sprintf('%s (%s): row %d has an invalid reference to %s (%s)', $row->table, $ref->from, $row->rowid, $row->parent, $ref->to);
+    	}
+
+    	throw new \LogicException(sprintf("Foreign key check: %d errors found\n", count($errors)) . implode("\n", $errors));
+    }
+
 	static public function getDatabaseDetailsFromString(string $source_string): array
 	{
 		if (substr($source_string, 0, 16) !== "SQLite format 3\0" || strlen($source_string) < 100) {
