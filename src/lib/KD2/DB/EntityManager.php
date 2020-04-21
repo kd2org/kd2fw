@@ -141,7 +141,7 @@ class EntityManager
 				$obj = new $this->class;
 				$obj->load($row);
 				$obj->exists(true);
-				yield $row;
+				yield $obj;
 			}
 
 			$res->finalize();
@@ -151,7 +151,7 @@ class EntityManager
 				$obj = new $this->class;
 				$obj->load($row);
 				$obj->exists(true);
-				yield $row;
+				yield $obj;
 			}
 		}
 	}
