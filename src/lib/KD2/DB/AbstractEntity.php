@@ -120,8 +120,7 @@ abstract class AbstractEntity
 			$source = $_POST;
 		}
 
-		$properties = array_keys($this->_types);
-		$data = array_intersect_key($source, $properties);
+		$data = array_intersect_key($source, $this->_types);
 
 		foreach ($data as $key => $value) {
 			$value = $this->filterUserValue($key, $value, $source);

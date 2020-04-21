@@ -17,11 +17,11 @@ class TestEntity extends AbstractEntity
 	protected $birth;
 	protected $updated;
 
-	protected $_fields = [
-		'name' => 'string',
-		'age' => '?integer',
-		'birth' => 'date',
-		'updated' => '?datetime',
+	protected $_types = [
+		'name'    => 'string',
+		'age'     => '?integer',
+		'birth'   => 'DateTime',
+		'updated' => '?DateTime',
 	];
 }
 
@@ -43,13 +43,13 @@ function test_entity()
 	Test::assert($a instanceof AbstractEntity);
 
 	$data = [
-		'name' => 'Test Mike',
-		'age' => null,
-		'birth' => new \DateTime('1990-01-02'),
+		'name'    => 'Test Mike',
+		'age'     => null,
+		'birth'   => new \DateTime('1990-01-02'),
 		'updated' => new \DateTime,
 	];
 
-	$a->import($data);
+	$a->load($data);
 
 	foreach ($data as $key => $value) {
 		Test::strictlyEquals($value, $a->$key);
