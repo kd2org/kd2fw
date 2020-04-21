@@ -4,7 +4,6 @@ use KD2\Test;
 use KD2\DB\DB;
 use KD2\DB\AbstractEntity;
 use KD2\DB\EntityManager;
-use KD2\DB\SQLite3;
 
 require __DIR__ . '/../_assert.php';
 
@@ -26,7 +25,7 @@ class TestEntity extends AbstractEntity
 }
 
 
-$db = new DB('sqlite', ['file' => '/tmp/lol.db']);//:memory:']);
+$db = new DB('sqlite', ['file' => ':memory:']);
 
 Test::assert($db instanceof DB);
 

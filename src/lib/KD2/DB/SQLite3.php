@@ -515,6 +515,51 @@ class SQLite3 extends DB
 		}
 	}
 
+    /**
+     * Import a file containing SQL commands
+     * Allows to use the statement ".read other_file.sql" to load other files
+     * @param  string $file Path to file containing SQL commands
+     * @return boolean
+     */
+    public function import(string $file)
+    {
+        $sql = file_get_contents($file);
+        $sql = str_replace("\r\n", "\n", $sql);
+        $sql = explode("\n", $sql);
+
+        $statement = '';
+
+        $dir = realpath(dirname($file));
+
+        foreach ($sql as $i => $line) {
+            $line = trim($line);
+
+            // Sub-import statements
+            if (preg_match('/^\.read (.+\.sql)$/', $line, $match)) {
+                $this->import($dir . DIRECTORY_SEPARATOR . $match[1]);
+                $statement = '';
+                continue;
+            }
+
+            $statement .= $line . "\n";
+
+            if (substr($line, -1) !== ';') {
+            	continue;
+            }
+
+            try {
+                $this->exec($statement);
+            }
+            catch (\Exception $e) {
+                throw new \Exception(sprintf("Error in '%s' on line %d: %s\n%s", basename($file), $i, $e->getMessage(), $statement), 0, $e);
+            }
+
+            $statement = '';
+        }
+
+        return true;
+    }
+
 	static public function getDatabaseDetailsFromString(string $source_string): array
 	{
 		if (substr($source_string, 0, 16) !== "SQLite format 3\0" || strlen($source_string) < 100) {
