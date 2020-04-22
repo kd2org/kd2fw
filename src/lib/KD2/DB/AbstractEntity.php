@@ -80,6 +80,16 @@ abstract class AbstractEntity
 				$this->_types[$p->name] = $type;
 			}
 		}
+		else {
+			foreach ($this->_types as &$type) {
+				if ($type === 'int') {
+					$type = 'integer';
+				}
+				elseif ($type === '?int') {
+					$type = '?integer';
+				}
+			}
+		}
 	}
 
 	/**
