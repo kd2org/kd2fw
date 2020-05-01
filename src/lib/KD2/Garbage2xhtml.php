@@ -730,7 +730,7 @@ class Garbage2xhtml
 
                             $in_forbidden_tag = false;
 
-                            continue;
+                            break;
                         }
 
                         if (!$this->check_only)
@@ -751,7 +751,7 @@ class Garbage2xhtml
                             if (!$this->remove_forbidden_tags)
                                 $nodes[] = '&lt;/'.$this->escape($value).'&gt;';
 
-                            continue;
+                            break;
                         }
 
                         $open = array_pop($this->opened);
@@ -780,7 +780,7 @@ class Garbage2xhtml
 
                             $in_forbidden_tag = true;
 
-                            continue;
+                            break;
                         }
 
                         if (!$this->check_only)
