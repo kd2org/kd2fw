@@ -220,12 +220,13 @@ class SQLite3 extends DB
 	 * in SQLite3/PHP where you can re-run a query by calling fetchResult
 	 * on a statement. This could cause double writing.
 	 */
-	public function preparedQuery(string $query, array $args = [])
+	public function preparedQuery(string $query, ...$args)
 	{
 		assert(is_string($query));
 		assert(is_array($args) || is_object($args));
 
 		// Forcer en tableau
+		if (!is_array($args)) { var_dump($args); exit;}
 		$args = (array) $args;
 
 		$this->connect();
@@ -357,7 +358,7 @@ class SQLite3 extends DB
 
 	public function iterate(string $statement, ...$args): iterable
 	{
-		$res = $this->preparedQuery($statement, $args);
+		$res = $this->preparedQuery($statement, ...$args);
 
 		while ($row = $res->fetchArray(\SQLITE3_ASSOC))
 		{
@@ -371,7 +372,7 @@ class SQLite3 extends DB
 
 	public function get(string $statement, ...$args): array
 	{
-		$res = $this->preparedQuery($statement, $args);
+		$res = $this->preparedQuery($statement, ...$args);
 		$out = [];
 
 		while ($row = $res->fetchArray(\SQLITE3_ASSOC))
@@ -384,7 +385,7 @@ class SQLite3 extends DB
 
 	public function getAssoc(string $statement, ...$args): array
 	{
-		$res = $this->preparedQuery($statement, $args);
+		$res = $this->preparedQuery($statement, ...$args);
 		$out = [];
 
 		while ($row = $res->fetchArray(\SQLITE3_NUM))
@@ -397,7 +398,7 @@ class SQLite3 extends DB
 
 	public function getGrouped(string $statement, ...$args): array
 	{
-		$res = $this->preparedQuery($statement, $args);
+		$res = $this->preparedQuery($statement, ...$args);
 		$out = [];
 
 		while ($row = $res->fetchArray(\SQLITE3_ASSOC))
@@ -444,7 +445,7 @@ class SQLite3 extends DB
 	 */
 	public function first(string $query, ...$args)
 	{
-		$res = $this->preparedQuery($query, $args);
+		$res = $this->preparedQuery($query, ...$args);
 
 		$row = $res->fetchArray(\SQLITE3_ASSOC);
 		$res->finalize();
@@ -461,7 +462,7 @@ class SQLite3 extends DB
 	 */
 	public function firstColumn(string $query, ...$args)
 	{
-		$res = $this->preparedQuery($query, $args);
+		$res = $this->preparedQuery($query, ...$args);
 
 		$row = $res->fetchArray(\SQLITE3_NUM);
 
