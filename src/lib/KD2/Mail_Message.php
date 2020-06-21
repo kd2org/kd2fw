@@ -137,6 +137,36 @@ class Mail_Message
 		return false;
 	}
 
+	/**
+	 * Returns a HTTP(S) URL to request unsubscribe
+	 * You should submit a POST request to that URL with "List-Unsubscribe=One-Click" in the body
+	 * @see https://www.bortzmeyer.org/8058.html
+	 * @return array
+	 */
+	public function getUnsubscribeURL(): ?string
+	{
+		$header = $this->getHeader('list-unsubscribe');
+
+		if (!$header) {
+			return null;
+		}
+
+		if (preg_match_all('/<([^>]+)>/', $header, $matches, PREG_PATTERN_ORDER)) {
+			foreach ($matches[1] as $match) {
+				if (substr($match, 0, 4) === 'http' && filter_var($match, FILTER_VALIDATE_URL, FILTER_FLAG_PATH_REQUIRED)) {
+					return $match;
+				}
+			}
+		}
+		elseif (filter_var($header, FILTER_VALIDATE_URL, FILTER_FLAG_PATH_REQUIRED)) {
+			if (substr($header, 0, 4) === 'http') {
+				return $header;
+			}
+		}
+
+		return null;
+	}
+
 	public function getFrom()
 	{
 		return $this->getMultipleAddressHeader('from');
