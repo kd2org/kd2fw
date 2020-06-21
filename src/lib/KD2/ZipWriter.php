@@ -100,23 +100,28 @@ class ZipWriter
 	 *
 	 * @param string $file File name
 	 * @param string|null $data binary content of the file to add
+	 * @param string|null $source Source file to use if no data is supplied
 	 * @throws LogicException
 	 * @throws RuntimeException
 	 */
-	public function add($file, $data = null)
+	public function add($file, $data = null, $source = null)
 	{
 		if ($this->closed)
 		{
 			throw new LogicException('Archive has been closed, files can no longer be added');
 		}
 
+		if (null === $data && null === $source) {
+			throw new LogicException('No source file or data has been supplied');
+		}
+
 		$source_handle = null;
 
 		if ($data === null)
 		{
-			$csize = $size = filesize($file);
-			list(, $crc) = unpack('N', hash_file('crc32b', $file, true));
-			$source_handle = fopen($file, 'r');
+			$csize = $size = filesize($source);
+			list(, $crc) = unpack('N', hash_file('crc32b', $source, true));
+			$source_handle = fopen($source, 'r');
 
 			if ($this->compression)
 			{
