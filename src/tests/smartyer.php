@@ -161,6 +161,12 @@ function test_literals(Smartyer $smartyer)
 	$output = Smartyer::fromString($code, $smartyer)->fetch();
 	Test::equals($expected, $output, 'Javascript literal');
 
+	$js = 'function () {	return str.replace(/ab(c)/, "\\0$0"); }';
+	$code = '{literal}' . $js . '{/literal}';
+	$expected = $js;
+	$output = Smartyer::fromString($code, $smartyer)->fetch();
+	Test::equals($expected, $output, 'Javascript literal with backreferences');
+
 	$tpl = Smartyer::fromString($js, $smartyer);
 	$tpl->error_on_invalid_block = false;
 	$expected = $js;
@@ -299,6 +305,7 @@ function test_namespace(Smartyer $smartyer)
 	$expected = '//';
 	Test::equals($expected, $tpl->fetch(), 'default namespace');
 
+	$tpl = Smartyer::fromString($code, $smartyer);
 	$tpl->setNamespace('KD2');
 	$expected = '/KD2/';
 	Test::equals($expected, $tpl->fetch(), 'custom namespace');	

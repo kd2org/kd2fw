@@ -373,17 +373,20 @@ class Smartyer
 			throw new \RuntimeException('Template file doesn\'t exist or is not readable: ' . $this->template_path);
 		}
 
-		if (is_null($this->template_path))
-		{
-			// Anonymous templates
-			$hash = sha1($this->source . $this->namespace);
-		}
-		else
-		{
-			$hash = sha1($this->template_path . $this->namespace);
+		if (is_null($this->compiled_template_path)) {
+			if (is_null($this->template_path))
+			{
+				// Anonymous templates
+				$hash = sha1($this->source . $this->namespace);
+			}
+			else
+			{
+				$hash = sha1($this->template_path . $this->namespace);
+			}
+
+			$this->compiled_template_path = $this->compiled_dir . DIRECTORY_SEPARATOR . $hash . '.tpl.php';
 		}
 
-		$this->compiled_template_path = $this->compiled_dir . DIRECTORY_SEPARATOR . $hash . '.tpl.php';
 
 		$time = @filemtime($this->compiled_template_path);
 
@@ -782,7 +785,10 @@ class Smartyer
 				// PHP code, leave as is
 			}
 
-			$compiled = preg_replace('/<\?php\/\*#' . $i . '#\s*?#\*\/\?>/', $literal, $compiled);
+			// We need to match the number of lines in literals
+			$lines = substr_count($literal, "\n");
+			$match = sprintf('<?php/*#%d#%s#*/?>', $i, str_repeat("\n", $lines));
+			$compiled = str_replace($match, $literal, $compiled);
 		}
 
 		return $compiled;
