@@ -391,7 +391,7 @@ class DB
 		}
 	}
 
-	public function preparedQuery(string $query, array $args = [])
+	public function preparedQuery(string $query, ...$args)
 	{
         assert(is_string($query));
 
@@ -423,7 +423,7 @@ class DB
 
 	public function iterate(string $query, ...$args): iterable
 	{
-		$st = $this->preparedQuery($query, $args);
+		$st = $this->preparedQuery($query, ...$args);
 
 		while ($row = $st->fetch())
 		{
@@ -437,12 +437,12 @@ class DB
 
 	public function get(string $query, ...$args): array
 	{
-		return $this->preparedQuery($query, $args)->fetchAll();
+		return $this->preparedQuery($query, ...$args)->fetchAll();
 	}
 
 	public function getAssoc(string $query, ...$args): array
 	{
-		$st = $this->preparedQuery($query, $args);
+		$st = $this->preparedQuery($query, ...$args);
 		$out = [];
 
 		while ($row = $st->fetch(PDO::FETCH_NUM))
@@ -455,7 +455,7 @@ class DB
 
 	public function getGrouped(string $query, ...$args): array
 	{
-		$st = $this->preparedQuery($query, $args);
+		$st = $this->preparedQuery($query, ...$args);
 		$out = [];
 
 		while ($row = $st->fetch(PDO::FETCH_ASSOC))
@@ -475,7 +475,7 @@ class DB
 	 */
 	public function first(string $query, ...$args)
 	{
-		$st = $this->preparedQuery($query, $args);
+		$st = $this->preparedQuery($query, ...$args);
 
 		return $st->fetch();
 	}
@@ -489,28 +489,49 @@ class DB
 	 */
 	public function firstColumn(string $query, ...$args)
 	{
-		$st = $this->preparedQuery($query, $args);
+		$st = $this->preparedQuery($query, ...$args);
 
 		return $st->fetchColumn();
 	}
 
 	/**
 	 * Inserts a row in $table, using $fields as data to fill
-	 * @param  string $table  Table où insérer
-	 * @param  array|object $fields Champs à remplir
+	 * @param  string $table  Table name
+	 * @param  array|object $fields List of columns as an associative array
 	 * @return boolean
 	 */
-	public function insert(string $table, $fields)
+	public function insert(string $table, $fields, string $clause = null)
 	{
 		assert(is_array($fields) || is_object($fields));
 
 		$fields = (array) $fields;
 
 		$fields_names = array_keys($fields);
-		$query = sprintf('INSERT INTO %s (%s) VALUES (:%s);', $this->quoteIdentifier($table),
+		$query = sprintf('INSERT %s INTO %s (%s) VALUES (:%s);', (string) $clause, $this->quoteIdentifier($table),
 			implode(', ', array_map([$this, 'quoteIdentifier'], $fields_names)), implode(', :', $fields_names));
 
 		return (bool) $this->preparedQuery($query, $fields);
+	}
+
+	/**
+	 * Insert a row in $table, or if it already exists (according to primary key/unique constraint), it is ignored
+	 * @param  string $table  Table name
+	 * @param  array|object $fields List of columns as an associative array
+	 * @return boolean
+	 */
+	public function insertIgnore(string $table, $fields)
+	{
+		if ($this->driver->type == 'mysql') {
+			$clause = 'IGNORE';
+		}
+		elseif ($this->driver->type == 'sqlite') {
+			$clause = 'OR IGNORE';
+		}
+		else {
+			throw new \RuntimeException('Unsupported driver for INSERT IGNORE');
+		}
+
+		return $this->insert($table, $fields, $clause);
 	}
 
 	/**
@@ -521,16 +542,22 @@ class DB
 	 * @param  array|object $args   Arguments for the WHERE clause
 	 * @return boolean
 	 */
-	public function update(string $table, $fields, string $where = null, $args = [])
+	public function update(string $table, $fields, string $where = null, $args)
 	{
 		assert(is_string($table));
 		assert((is_string($where) && strlen($where)) || is_null($where));
 		assert(is_array($fields) || is_object($fields));
-		assert(is_array($args) || is_object($args), 'Arguments for the WHERE clause must be a named array or object');
+		assert(is_array($args) || is_object($args), 'Arguments for the WHERE clause must be an array or object');
 
 		// Convert to array
 		$fields = (array) $fields;
 		$args = (array) $args;
+
+		foreach ($args as $key => $arg) {
+			if (is_int($key)) {
+				throw new \LogicException('Arguments must be a named array, not an indexed array');
+			}
+		}
 
 		// No fields to update? no need to do a query
 		if (empty($fields))
@@ -577,7 +604,7 @@ class DB
 	public function delete(string $table, string $where, ...$args)
 	{
 		$query = sprintf('DELETE FROM %s WHERE %s;', $table, $where);
-		return (bool) $this->preparedQuery($query, $args);
+		return (bool) $this->preparedQuery($query, ...$args);
 	}
 
 	/**
