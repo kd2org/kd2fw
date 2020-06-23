@@ -1279,7 +1279,7 @@ class Smartyer
 					return constant(get_class($var) . '::' . $key);
 				}
 
-				if (!isset($var->$key))
+				if (!property_exists($var, $key))
 				{
 					return null;
 				}
@@ -1312,7 +1312,7 @@ class Smartyer
 
 		if (is_array($str) || (is_object($str) && !method_exists($str, '__toString')))
 		{
-			throw new \InvalidArgumentException('Invalid argument type for escape modifier: ' . gettype($str));
+			throw new \InvalidArgumentException('Invalid parameter type for "escape" modifier: ' . gettype($str));
 		}
 
 		$str = (string) $str;
