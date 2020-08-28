@@ -787,7 +787,7 @@ class Smartyer
 
 			// We need to match the number of lines in literals
 			$lines = substr_count($literal, "\n");
-			$match = sprintf('<?php/*#%d#%s#*/?>', $i, str_repeat("\n", $lines));
+			$match = sprintf('<?php /*#%d#%s#*/?>', $i, str_repeat("\n", $lines));
 			$compiled = str_replace($match, $literal, $compiled);
 		}
 
