@@ -697,7 +697,7 @@ class Smartyer
 			$nb = count($literals);
 			$literals[$nb] = $match[0];
 			$lines = substr_count($match[0], "\n");
-			return '<?php/*#' . $nb . '#' . str_repeat("\n", $lines) . '#*/?>';
+			return '<?php /*#' . $nb . '#' . str_repeat("\n", $lines) . '#*/?>';
 		}, $source);
 
 		// Create block matching pattern
@@ -788,7 +788,12 @@ class Smartyer
 			// We need to match the number of lines in literals
 			$lines = substr_count($literal, "\n");
 			$match = sprintf('<?php /*#%d#%s#*/?>', $i, str_repeat("\n", $lines));
-			$compiled = str_replace($match, $literal, $compiled);
+
+			// replace strings
+			$pos = strpos($compiled, $match);
+			if ($pos !== false) {
+				$compiled = substr_replace($compiled, $literal, $pos, strlen($match));
+			}
 		}
 
 		return $compiled;
