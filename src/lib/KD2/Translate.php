@@ -348,7 +348,7 @@ class Translate
 			// Slovak, Czech
 			case 'sk':
 			case 'cs':
-				return ($n == 1) ? 1 : ($n >= 2 && $n <= 4) ? 2 : 0;
+				return ($n == 1) ? 1 : (($n >= 2 && $n <= 4) ? 2 : 0);
 				break;
 			// Arabic: 6 forms
 			case 'ar':

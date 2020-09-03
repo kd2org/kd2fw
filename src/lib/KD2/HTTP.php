@@ -375,7 +375,7 @@ class HTTP
 	 */
 	static public function getHost()
 	{
-		if (!isset($_SERVER['HTTP_HOST']) || !isset($_SERVER['SERVER_NAME']) || !isset($_SERVER['SERVER_ADDR'])) {
+		if (isset($_SERVER['HTTP_HOST']) && !isset($_SERVER['SERVER_NAME']) && !isset($_SERVER['SERVER_ADDR'])) {
 			return 'host.unknown';
 		}
 
