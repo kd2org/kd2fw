@@ -462,11 +462,23 @@ class Form
 			case 'lte':
 				return isset($params[0]) && isset($source[$params[0]]) && $value <= $source[$params[0]];
 			case 'max':
-				$size = is_array($value) ? count($value) : (is_numeric($value) ? $value : strlen($value));
-				return isset($params[0]) && $size <= $params[0];
 			case 'min':
-				$size = is_array($value) ? count($value) : (is_numeric($value) ? $value : strlen($value));
-				return isset($params[0]) && $size >= $params[0];
+				if (is_array($value)) {
+					$size = count($value);
+				}
+				elseif (isset($rules['numeric']) || isset($rules['int']) || isset($rules['integer'])) {
+					$size = (int) $value;
+				}
+				else {
+					$size = strlen($value);
+				}
+
+				if ($rule_name == 'max') {
+					return isset($params[0]) && $size <= $params[0];
+				}
+				else {
+					return isset($params[0]) && $size >= $params[0];
+				}
 			case 'not_in':
 				return !in_array($value, $params);
 			case 'numeric':
