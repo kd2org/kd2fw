@@ -141,11 +141,14 @@ abstract class AbstractEntity
 
 	protected function filterUserValue(string $key, $value, array $source)
 	{
+		$data = $source;
+		$data[$key] = $value;
+
 		if (isset($this->_validation_rules[$key])) {
-			$errors = Form::validateField($key, $this->_validation_rules[$key], $source);
+			$errors = Form::validateField($key, $this->_validation_rules[$key], $data);
 
 			if (0 !== count($errors)) {
-				throw new \UnexpectedValueException('Validation error');
+				throw new \UnexpectedValueException('Validation error: ' . json_encode($errors));
 			}
 		}
 
@@ -170,23 +173,32 @@ abstract class AbstractEntity
 		$this->assert(is_null($this->id) || (is_numeric($this->id) && $this->id > 0));
 	}
 
-	public function asArray(): array
+	public function asArray($for_database = false): array
 	{
 		$vars = get_object_vars($this);
 
 		// Remove internal stuff
-		foreach ($vars as $key => $value) {
+		foreach ($vars as $key => &$value) {
 			if ($key[0] == '_') {
 				unset($vars[$key]);
+				continue;
+			}
+
+			// Export dates
+			if ($this->_types[$key] === 'date') {
+				$value = $value->format('Y-m-d');
+			}
+			elseif ($this->_types[$key] === 'DateTime') {
+				$value = $value->format('Y-m-d H:i:s');
 			}
 		}
 
 		return $vars;
 	}
 
-	public function modifiedProperties(): array
+	public function modifiedProperties($for_database = false): array
 	{
-		return array_intersect_key($this->asArray(), $this->_modified);
+		return array_intersect_key($this->asArray($for_database), $this->_modified);
 	}
 
 	public function id(int $id = null): int
@@ -229,8 +241,15 @@ abstract class AbstractEntity
 				if ($type == 'integer' && is_string($value) && ctype_digit($value)) {
 					$value = (int)$value;
 				}
-				elseif ($type == 'DateTime' && is_string($value) && ($d = \DateTime::createFromFormat('Y-m-d H:i:s', $value))) {
+				elseif ($type == 'DateTime' && is_string($value) && strlen($value) === 20 && ($d = \DateTime::createFromFormat('Y-m-d H:i:s', $value))) {
 					$value = $d;
+				}
+				elseif ($type == 'date' && is_string($value) && strlen($value) === 10 && ($d = \DateTime::createFromFormat('Y-m-d', $value))) {
+					$type = 'DateTime';
+					$value = $d;
+				}
+				elseif ($type == 'date' && is_object($value) && $value instanceof \DateTimeInterface) {
+					$type = 'DateTime';
 				}
 			}
 		}

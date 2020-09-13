@@ -61,7 +61,7 @@ class EntityManager
 	/**
 	 * Returns the correct database object for this entity manager
 	 */
-	protected function DB(): DB
+	public function DB(): DB
 	{
 		if (null !== $this->db) {
 			$db = $this->db;
@@ -111,7 +111,7 @@ class EntityManager
 	 * @param  string $query SQL query
 	 * @return string
 	 */
-	protected function formatQuery(string $query): string
+	public function formatQuery(string $query): string
 	{
 		$class = $this->class;
 		$query = str_replace('@TABLE', $class::TABLE, $query);
@@ -193,8 +193,9 @@ class EntityManager
 		$entity->selfCheck();
 		$db = $this->DB();
 
+
 		if ($entity->exists()) {
-			$data = $entity->modifiedProperties();
+			$data = $entity->modifiedProperties(true);
 
 			if (!count($data)) {
 				return true;
@@ -203,7 +204,7 @@ class EntityManager
 			return $db->update($entity::TABLE, $data, $db->where('id', $entity->id()));
 		}
 		else {
-			$data = $entity->asArray();
+			$data = $entity->asArray(true);
 			$return = $db->insert($entity::TABLE, $data);
 
 			if ($return) {
