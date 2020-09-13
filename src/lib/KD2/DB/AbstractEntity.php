@@ -23,8 +23,6 @@ declare(strict_types=1);
 
 namespace KD2\DB;
 
-use KD2\Form;
-
 /**
  * AbstractEntity: a generic entity that can be extended to build your entities
  * Use the EntityManager to persist entities in a database
@@ -41,7 +39,6 @@ abstract class AbstractEntity
 
 	protected $_modified = [];
 	protected $_types = [];
-	protected $_validation_rules = [];
 
 	/**
 	 * Default constructor
@@ -133,26 +130,29 @@ abstract class AbstractEntity
 		$data = array_intersect_key($source, $this->_types);
 
 		foreach ($data as $key => $value) {
-			$value = $this->filterUserValue($key, $value, $source);
-
+			$value = $this->filterUserValue($this->_types[$key], $value);
 			$this->set($key, $value, true);
 		}
 	}
 
-	protected function filterUserValue(string $key, $value, array $source)
+	protected function filterUserValue(string $type, $value)
 	{
-		$data = $source;
-		$data[$key] = $value;
-
-		if (isset($this->_validation_rules[$key])) {
-			$errors = Form::validateField($key, $this->_validation_rules[$key], $data);
-
-			if (0 !== count($errors)) {
-				throw new \UnexpectedValueException('Validation error: ' . json_encode($errors));
-			}
+		switch ($type)
+		{
+			case 'date':
+				return \DateTime::createFromFormat('Y-m-d', $value);
+			case 'DateTime':
+				return new \DateTime($value);
+			case 'int':
+			case 'integer':
+				return (int) $value;
+			case 'bool':
+			case 'boolean':
+				return (bool) $value;
+			case 'string':
+				return trim($value);
 		}
 
-		$value = Form::filterField($value, $this->_types[$key]);
 		return $value;
 	}
 
