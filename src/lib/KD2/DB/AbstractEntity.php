@@ -121,7 +121,7 @@ abstract class AbstractEntity
 	 * @param  array|null $source Source data array, if none is supplied $_POST will be used
 	 * @return void
 	 */
-	public function import(array $source = null): void
+	public function import(array $source = null): self
 	{
 		if (null === $source) {
 			$source = $_POST;
@@ -133,6 +133,8 @@ abstract class AbstractEntity
 			$value = $this->filterUserValue($this->_types[$key], $value);
 			$this->set($key, $value, true);
 		}
+
+		return $this;
 	}
 
 	protected function filterUserValue(string $type, $value)
