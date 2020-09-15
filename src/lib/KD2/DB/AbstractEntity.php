@@ -55,7 +55,7 @@ abstract class AbstractEntity
 				}
 
 				if ($p->name == 'id') {
-					$type = 'integer';
+					$type = 'int';
 				}
 				else {
 					$t = $p->getType();
@@ -65,26 +65,10 @@ abstract class AbstractEntity
 					}
 
 					$type = $t->getName();
-
-					// Make sure type names are consistent (not the case in PHP...)
-					if ($type == 'int') {
-						$type = 'integer';
-					}
-
 					$type = ($t->allowsNull() ? '?' : '') . $type;
 				}
 
 				$this->_types[$p->name] = $type;
-			}
-		}
-		else {
-			foreach ($this->_types as &$type) {
-				if ($type === 'int') {
-					$type = 'integer';
-				}
-				elseif ($type === '?int') {
-					$type = '?integer';
-				}
 			}
 		}
 	}
@@ -146,10 +130,8 @@ abstract class AbstractEntity
 			case 'DateTime':
 				return new \DateTime($value);
 			case 'int':
-			case 'integer':
 				return (int) $value;
 			case 'bool':
-			case 'boolean':
 				return (bool) $value;
 			case 'string':
 				return trim($value);
@@ -186,12 +168,19 @@ abstract class AbstractEntity
 				continue;
 			}
 
+			if (!$for_database) {
+				continue;
+			}
+
 			// Export dates
 			if ($this->_types[$key] === 'date') {
 				$value = $value->format('Y-m-d');
 			}
 			elseif ($this->_types[$key] === 'DateTime') {
 				$value = $value->format('Y-m-d H:i:s');
+			}
+			elseif ($this->_types[$key] === 'bool') {
+				$value = (int) $value;
 			}
 		}
 
@@ -240,7 +229,7 @@ abstract class AbstractEntity
 			}
 
 			if ($value !== null) {
-				if ($type == 'integer' && is_string($value) && ctype_digit($value)) {
+				if ($type == 'int' && is_string($value) && ctype_digit($value)) {
 					$value = (int)$value;
 				}
 				elseif ($type == 'DateTime' && is_string($value) && strlen($value) === 20 && ($d = \DateTime::createFromFormat('Y-m-d H:i:s', $value))) {
@@ -253,6 +242,9 @@ abstract class AbstractEntity
 				elseif ($type == 'date' && is_object($value) && $value instanceof \DateTimeInterface) {
 					$type = 'DateTime';
 				}
+				elseif ($type == 'bool' && is_int($value) && ($value === 0 || $value === 1)) {
+					$value = (bool) $value;
+				}
 			}
 		}
 
@@ -261,7 +253,7 @@ abstract class AbstractEntity
 		}
 
 		if (null !== $value && !$this->_checkType($key, $value, $type)) {
-			$found_type = gettype($value);
+			$found_type = $this->_getType($value);
 
 			if ('object' == $found_type) {
 				$found_type = get_class($value);
@@ -300,8 +292,18 @@ abstract class AbstractEntity
 			case 'DateTime':
 				return is_object($value) && $value instanceof \DateTime;
 			default:
-				return gettype($value) == $type;
+				return $this->_getType($value) == $type;
 		}
+	}
+
+	protected function _getType($value)
+	{
+		$type = gettype($value);
+
+		// Type names are not consistent in PHP...
+		// see https://mlocati.github.io/articles/php-type-hinting.html
+		$type = strtr($type, ['boolean' => 'bool', 'integer' => 'int', 'double' => 'float']);
+		return $type;
 	}
 
 	// Helpful helpers
