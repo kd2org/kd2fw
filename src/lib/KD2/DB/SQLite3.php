@@ -499,7 +499,7 @@ class SQLite3 extends DB
 		return $this->db->prepare($statement);
 	}
 
-	public function openBlob(string $table, string $column, int $rowid, string $dbname = 'main', int $flags = \SQLITE3_OPEN_READONLY): resource
+	public function openBlob(string $table, string $column, int $rowid, string $dbname = 'main', int $flags = \SQLITE3_OPEN_READONLY)
 	{
 		if (\PHP_VERSION_ID >= 70200)
 		{
