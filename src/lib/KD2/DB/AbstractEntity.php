@@ -95,7 +95,7 @@ abstract class AbstractEntity
 			}
 
 			$value = $data[$key];
-			$this->set($key, $value, true);
+			$this->set($key, $value, true, false);
 		}
 	}
 
@@ -114,8 +114,14 @@ abstract class AbstractEntity
 		$data = array_intersect_key($source, $this->_types);
 
 		foreach ($data as $key => $value) {
-			$value = $this->filterUserValue($this->_types[$key], $value);
-			$this->set($key, $value, true);
+			$type = $this->_types[$key];
+
+			if (substr($type, 0, 1) == '?') {
+				$type = substr($type, 1);
+			}
+
+			$value = $this->filterUserValue($type, $value);
+			$this->set($key, $value, true, true);
 		}
 
 		return $this;
@@ -123,6 +129,10 @@ abstract class AbstractEntity
 
 	protected function filterUserValue(string $type, $value)
 	{
+		if (is_null($value)) {
+			return $value;
+		}
+
 		switch ($type)
 		{
 			case 'date':
@@ -172,19 +182,26 @@ abstract class AbstractEntity
 				continue;
 			}
 
-			// Export dates
-			if ($this->_types[$key] === 'date') {
-				$value = $value->format('Y-m-d');
-			}
-			elseif ($this->_types[$key] === 'DateTime') {
-				$value = $value->format('Y-m-d H:i:s');
-			}
-			elseif ($this->_types[$key] === 'bool') {
-				$value = (int) $value;
-			}
+			$value = $this->getAsString($key);
 		}
 
 		return $vars;
+	}
+
+	public function getAsString(string $key)
+	{
+		// Export dates
+		if ($this->_types[$key] === 'date') {
+			return $this->$key->format('Y-m-d');
+		}
+		elseif ($this->_types[$key] === 'DateTime') {
+			return $this->$key->format('Y-m-d H:i:s');
+		}
+		elseif ($this->_types[$key] === 'bool') {
+			return (int) $this->$key;
+		}
+
+		return $this->$key;
 	}
 
 	public function modifiedProperties($for_database = false): array
@@ -210,9 +227,16 @@ abstract class AbstractEntity
 		return $this->_exists;
 	}
 
-	protected function set(string $key, $value, bool $loose = false) {
+	protected function set(string $key, $value, bool $loose = false, bool $check_for_changes = true) {
 		if (!property_exists($this, $key)) {
 			throw new \InvalidArgumentException(sprintf('Unknown "%s" property: "%s"', static::class, $key));
+		}
+
+		if (isset($this->$key)) {
+			$original_value = $this->getAsString($key);
+		}
+		else {
+			$original_value = null;
 		}
 
 		$type = $this->_types[$key];
@@ -263,27 +287,25 @@ abstract class AbstractEntity
 		}
 
 		$this->$key = $value;
+
+		if ($check_for_changes && $original_value !== $this->getAsString($key)) {
+			$this->_modified[$key] = true;
+		}
 	}
 
 	public function __set(string $key, $value)
 	{
-		if (isset($this->$key)) {
-			$original_value = $this->$key;
-		}
-		else {
-			$original_value = null;
-		}
-
-		$this->set($key, $value);
-
-		if ($original_value !== $value) {
-			$this->_modified[$key] = true;
-		}
+		$this->set($key, $value, false, true);
 	}
 
 	public function __get(string $key)
 	{
 		return $this->$key;
+	}
+
+	public function __isset($key)
+	{
+		return isset($this->$key);
 	}
 
 	protected function _checkType(string $key, $value, string $type)
