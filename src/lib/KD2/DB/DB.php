@@ -542,12 +542,12 @@ class DB
 	 * @param  array|object $args   Arguments for the WHERE clause
 	 * @return boolean
 	 */
-	public function update(string $table, $fields, string $where = null, $args)
+	public function update(string $table, $fields, string $where = null, $args = null)
 	{
 		assert(is_string($table));
 		assert((is_string($where) && strlen($where)) || is_null($where));
 		assert(is_array($fields) || is_object($fields));
-		assert(is_array($args) || is_object($args), 'Arguments for the WHERE clause must be an array or object');
+		assert(is_null($args) || is_array($args) || is_object($args), 'Arguments for the WHERE clause must be an array or object');
 
 		// Convert to array
 		$fields = (array) $fields;
