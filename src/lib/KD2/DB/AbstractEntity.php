@@ -120,14 +120,14 @@ abstract class AbstractEntity
 				$type = substr($type, 1);
 			}
 
-			$value = $this->filterUserValue($type, $value);
+			$value = $this->filterUserValue($type, $value, $key);
 			$this->set($key, $value, true, true);
 		}
 
 		return $this;
 	}
 
-	protected function filterUserValue(string $type, $value)
+	protected function filterUserValue(string $type, $value, string $key)
 	{
 		if (is_null($value)) {
 			return $value;
@@ -308,6 +308,15 @@ abstract class AbstractEntity
 		return isset($this->$key);
 	}
 
+	/**
+	 * Make sure the cloned object doesn't have the same ID, it's a brand new entity!
+	 */
+	public function __clone()
+	{
+		$this->id = null;
+		$this->_exists = false;
+	}
+
 	protected function _checkType(string $key, $value, string $type)
 	{
 		switch ($type) {
@@ -338,5 +347,4 @@ abstract class AbstractEntity
 	{
 		return EntityManager::getInstance(static::class)->delete($this);
 	}
-
 }
