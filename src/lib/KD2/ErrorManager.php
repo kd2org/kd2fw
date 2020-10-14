@@ -322,6 +322,11 @@ class ErrorManager
 		}
 		else
 		{
+			if (!headers_sent()) {
+				header_remove();
+				header('Content-Type: text/html; charset=UTF-8', true);
+			}
+
 			// Display debug
 			echo self::htmlTemplate(ini_get('error_prepend_string'), $report);
 
@@ -614,9 +619,10 @@ class ErrorManager
 
 	static public function htmlProduction(\stdClass $report)
 	{
-		if (!headers_sent())
-		{
+		if (!headers_sent()) {
+			header_remove();
 			header('HTTP/1.1 500 Internal Server Error', true, 500);
+			header('Content-Type: text/html; charset=UTF-8', true);
 		}
 
 		echo self::htmlTemplate(self::$production_error_template, $report);
@@ -876,6 +882,10 @@ class ErrorManager
 				}
 
 				$level++;
+
+				if ($var instanceof \Traversable) {
+					$var = $var->valid() ? iterator_to_array($var) : [];
+				}
 
 				foreach ($var as $key=>$value)
 				{
