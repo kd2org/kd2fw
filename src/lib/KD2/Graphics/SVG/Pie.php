@@ -35,7 +35,7 @@ class Pie
 		$this->height = (int) $height;
 	}
 
-	public function add(SVGPie_Data $data)
+	public function add(Pie_Data $data)
 	{
 		$this->data[] = $data;
 		return true;
@@ -153,7 +153,7 @@ class Pie
 	}
 }
 
-class SVGPie_Data
+class Pie_Data
 {
 	public $fill = 'blue';
 	public $data = 0.0;
@@ -166,5 +166,3 @@ class SVGPie_Data
 		$this->label = $label;
 	}
 }
-
-?>

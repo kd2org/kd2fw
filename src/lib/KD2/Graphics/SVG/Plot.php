@@ -29,6 +29,7 @@ class Plot
 	protected $title = null;
 	protected $labels = array();
 	protected $legend = true;
+	protected $count, $min, $max, $margin_top, $margin_left;
 
 	public function __construct($width = 600, $height = 400)
 	{
@@ -53,7 +54,7 @@ class Plot
 		return true;
 	}
 
-	public function add(SVGPlot_Data $data)
+	public function add(Plot_Data $data)
 	{
 		$this->data[] = $data;
 		return true;
@@ -126,71 +127,72 @@ class Plot
 			return $out;
 		}
 
-		// Figure out the maximum Y-axis value
-		$max_value = 0;
-		$nb_elements = 0;
-
+		// Figure out the minimum/maximum Y-axis value
 		foreach ($this->data as $row)
 		{
-			if (count($row->get()) < 1)
+			if (count($row->get()) < 1) {
 				continue;
-
-			if ($max_value == 0)
-			{
-				$nb_elements = count($row->get());
 			}
 
-			$max = max($row->get());
-
-			if ($max > $max_value)
-			{
-				$max_value = $max;
+			if (null === $this->count) {
+				$this->count = count($row->get());
 			}
+
+			$this->max = max((int)$this->max, max($row->get()));
+			$this->min = min((int)$this->min, min($row->get()));
 		}
 
-		if ($nb_elements < 1)
-		{
+		if ($this->count < 1) {
 			return $out;
 		}
 
-		$divide = round($max_value / ($this->height * 0.8), 2) ?: 1;
-		$y_axis_val = ceil(abs($max_value) / ($this->height * 0.8)) * 50;
-		$space = round(($this->width - ($this->width * 0.1)) / $nb_elements, 2);
+		$this->margin_left = $this->width * 0.1;
+		$this->margin_top = $this->height * 0.1;
+		$column_space = ($this->width - $this->margin_left) / ($this->count - 1);
 
-		for ($i = 0; $i < 10; $i++)
-		{
-			if (($y_axis_val * $i) <= $max_value)
-			{
-				$line_y = ($this->height * 0.93) - (($y_axis_val / $divide) * $i);
-				$out .= '<line x1="'.($this->width * 0.1).'" y1="'.($line_y).'" x2="'.$this->width.'" y2="'.($line_y).'" stroke-width="1" stroke="#ccc" />' . PHP_EOL;
-				$out .= '<g><text x="'.($this->width * 0.08).'" y="'.($line_y).'" font-size="'.($this->height * 0.04).'" fill="gray" text-anchor="end" style="font-family: Verdana, Arial, sans-serif;">'.($y_axis_val * $i).'</text></g>' . PHP_EOL;
-			}
+		$lines = [];
+		$step = ($this->max - $this->min) / 7;
+
+		for ($i = $this->min; $i < $this->max; $i += $step) {
+			$lines[] = round($i);
+		}
+
+		$lines[] = $this->max;
+
+		// Horizontal lines and Y axis legends
+		foreach ($lines as $k => $v) {
+			$v = ($k*($this->max-$this->min))/count($lines);
+			$v += $this->min;
+			$y = $this->y($v);
+			$out .= sprintf('<line x1="%f" y1="%f" x2="%f" y2="%f" stroke-width="1" stroke="#ccc" />' . PHP_EOL, $this->margin_left, $y, $this->width, $y);
+			$out .= sprintf('<g><text x="%f" y="%f" font-size="%f" fill="gray" text-anchor="end" style="font-family: Verdana, Arial, sans-serif;">%s</text></g>' . PHP_EOL, $this->width * 0.08, $y, $this->height * 0.04, round($v));
 		}
 
 		// X-axis lines
-		$y = $this->height - ($this->height * 0.07);
+		$y = 10 + $this->height - ($this->margin_top);
 		$x = $this->width * 0.1;
 		$i = 0;
+		$step = max(1, round($this->count / ($this->width / 50)));
 
 		foreach ($this->data[0]->get() as $k=>$v)
 		{
 			if ($x >= $this->width)
 				break;
 
-			$out .= '<line x1="'.$x.'" y1="'.($y).'" x2="'.$x.'" y2="'.($this->height * 0.1).'" stroke-width="1" stroke="#ccc" />' . PHP_EOL;
-			$x += $space + $this->data[0]->width;
+			$out .= sprintf('<line x1="%d" y1="%d" x2="%d" y2="%d" stroke-width="1" stroke="%s" />', $x, $y, $x, 0, !($i++ % $step) ? '#ccc' : '#eee');
+			$x += $column_space + $this->data[0]->width;
 		}
 
 		if (!empty($this->labels))
 		{
 			// labels for x axis
-			$y = $this->height - ($this->height * 0.07);
+			$y = $this->height - $this->margin_top + 10;
 			$i = 0;
-			$step = max(1, round($nb_elements / 5));
+			$step = max(1, round($this->count / ($this->width / 50)));
 
-			for ($i = 0; $i <= $nb_elements; $i += $step)
+			for ($i = 0; $i <= $this->count; $i += $step)
 			{
-				$x = ($i * ($space + $this->data[0]->width)) + ($this->width * 0.1);
+				$x = ($i * ($column_space + $this->data[0]->width)) + ($this->width * 0.1);
 
 				if ($x >= $this->width)
 					break;
@@ -205,8 +207,6 @@ class Plot
 			}
 		}
 
-		$y = ($this->height * 0.1);
-		$w = $this->width - ($this->width * 0.1);
 		$h = $this->height - ($this->height * 0.17);
 
 		foreach ($this->data as $row)
@@ -214,13 +214,12 @@ class Plot
 			$out .= '<polyline fill="none" stroke="'.$row->color.'" stroke-width="'.$row->width.'" '
 				.'stroke-linecap="round" points="';
 
-			$x = ($this->width * 0.1);
+			$i = 0;
 
-			foreach ($row->get() as $k=>$v)
+			foreach ($row->get() as $v)
 			{
-				$_y = $y + ($h - round($v / $divide, 2)) + round($row->width / 2);
-				$out.= $x.','.$_y.' ';
-				$x += $space + $row->width;
+				$x = $this->margin_left + ($column_space * $i++);
+				$out.= sprintf('%f,%f ', $x, $this->y($v));
 			}
 
 			$out .= '" />' . PHP_EOL;
@@ -228,9 +227,14 @@ class Plot
 
 		return $out;
 	}
+
+	protected function y($value)
+	{
+		return 10 + $this->height - $this->margin_top - (($value - $this->min)*($this->height - $this->margin_top))/(($this->max - $this->min)?:1);
+	}
 }
 
-class SVGPlot_Data
+class Plot_Data
 {
 	public $color = 'blue';
 	public $width = '10';
