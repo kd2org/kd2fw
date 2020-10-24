@@ -33,7 +33,7 @@ trait HTML_Query_Selector
 	 * @param  null $xpath_query Will be populated by XPath query translated from CSS selector
 	 * @return DOMNode
 	 */
-	public function querySelector($selector, &$xpath_query = '')
+	public function querySelector(string $selector, &$xpath_query = '')
 	{
 		$result = $this->querySelectorAll($selector, $xpath_query);
 
@@ -51,13 +51,18 @@ trait HTML_Query_Selector
 	 * @param  null $xpath_query Will be populated by XPath query translated from CSS selector
 	 * @return DOMNodeList
 	 */
-	public function querySelectorAll($selector, &$xpath_query = '')
+	public function querySelectorAll(string $selector, &$xpath_query = '')
 	{
 		$xpath_query = self::cssSelectorToXPath($selector);
 
 		$xpath = new \DOMXPath($this instanceOf \DOMDocument ? $this : $this->ownerDocument);
 
-		return $xpath->query($xpath_query, $this);
+		try {
+			return $xpath->query($xpath_query, $this);
+		}
+		catch (\Exception $e) {
+			throw new \Exception(sprintf('%s (for selector: "%s" = "%s")', $e->getMessage(), $selector, $xpath_query), $e->getCode(), $e);
+		}
 	}
 
 	/**
