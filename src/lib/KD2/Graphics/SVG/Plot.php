@@ -122,7 +122,7 @@ class Plot
 	{
 		$out = '';
 
-		if (empty($this->data))
+		if (!count($this->data))
 		{
 			return $out;
 		}
@@ -148,7 +148,7 @@ class Plot
 
 		$this->margin_left = $this->width * 0.1;
 		$this->margin_top = $this->height * 0.1;
-		$column_space = ($this->width - $this->margin_left) / ($this->count - 1);
+		$column_space = ($this->width - $this->margin_left) / (($this->count - 1) ?: 1);
 
 		$lines = [];
 		$step = ($this->max - $this->min) / 7;
