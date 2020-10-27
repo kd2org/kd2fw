@@ -190,18 +190,27 @@ abstract class AbstractEntity
 
 	public function getAsString(string $key)
 	{
-		// Export dates
-		if ($this->_types[$key] === 'date') {
-			return $this->$key->format('Y-m-d');
-		}
-		elseif ($this->_types[$key] === 'DateTime') {
-			return $this->$key->format('Y-m-d H:i:s');
-		}
-		elseif ($this->_types[$key] === 'bool') {
-			return (int) $this->$key;
+		if (null === $this->$key) {
+			return null;
 		}
 
-		return $this->$key;
+		$type = $this->_types[$key];
+
+		if (substr($type, 0, 1) == '?') {
+			$type = substr($type, 1);
+		}
+
+		switch ($type) {
+			// Export dates
+			case 'date':
+				return $this->$key->format('Y-m-d');
+			case 'DateTime':
+				return $this->$key->format('Y-m-d H:i:s');
+			case 'bool':
+				return (int) $this->$key;
+			default:
+				return $this->$key;
+		}
 	}
 
 	public function modifiedProperties($for_database = false): array
