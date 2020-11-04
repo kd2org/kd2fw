@@ -582,7 +582,7 @@ class Smartyer
 	public function register_compile_function($name, Callable $callback)
 	{
 		// Try to bind the closure to the current smartyer object if possible
-		$is_bindable = (new \ReflectionFunction(@\Closure::bind($callback, $this)))->getClosureThis() != null; 
+		$is_bindable = $callback instanceof \Closure && (new \ReflectionFunction(@\Closure::bind($callback, $this)))->getClosureThis() != null; 
 
 		if ($is_bindable)
 		{
@@ -923,7 +923,8 @@ class Smartyer
 			if (array_key_exists($name, $this->blocks))
 			{
 				$args = $this->parseArguments($raw_args);
-				$code = 'ob_start(); $_blocks[] = [' . var_export($name, true) . ', ' . $this->exportArguments($args) . '];'; // FIXME
+				$code = sprintf('$_blocks[] = [%s, %s]; echo $this->blocks[%1$s](%2$s, null, $this); ob_start();',
+					var_export($name, true), $this->exportArguments($args));
 			}
 			elseif (array_key_exists($name, $this->functions))
 			{
@@ -1000,7 +1001,11 @@ class Smartyer
 			{
 				if (array_key_exists($name, $this->blocks))
 				{
-					$code = '$_b = array_pop($_blocks); echo $this->blocks[$_b[0]](ob_get_clean(), $_b[1]);';
+					$code = '$_b_content = ob_get_contents(); ob_end_clean(); $_b = array_pop($_blocks); echo $this->blocks[$_b[0]]($_b[1], $_b_content, $this); unset($_b, $_b_content);';
+				}
+				elseif (array_key_exists($name, $this->compile_functions))
+				{
+					$code = call_user_func($this->compile_functions[$name], $line, $block, $name);
 				}
 				else
 				{
