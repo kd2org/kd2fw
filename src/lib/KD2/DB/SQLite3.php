@@ -343,7 +343,6 @@ class SQLite3 extends DB
 		assert(is_array($args) || is_object($args));
 
 		// Forcer en tableau
-		if (!is_array($args)) { var_dump($args); exit;}
 		$args = (array) $args;
 
 		$this->connect();
