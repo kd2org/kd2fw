@@ -212,6 +212,123 @@ class SQLite3 extends DB
 	}
 
 	/**
+	 * Returns a statement after having checked a query is a SELECT,
+	 * doesn't seem to contain anything that could help an attacker,
+	 * and if $allowed is not NULL, will try to restrict the query to tables
+	 * specified as array keys, and to columns (PHP8+ only) of these tables.
+	 *
+	 * Note that before PHP8+ this is less secure and doesn't restrict columns.
+	 *
+	 * @param  array  $allowed List of allowed tables and columns
+	 * @param  string $query   SQL query
+	 * @return \SQLite3Stmt
+	 */
+	public function protectSelect(?array $allowed, string $query)
+	{
+		if (preg_match('/;\s*(.+?)$/', $query))
+		{
+			throw new \LogicException('Only one single statement can be executed at the same time.');
+		}
+
+		// Forbid use of some strings that could give hints to an attacker:
+		// PRAGMA, sqlite_version(), sqlite_master table, comments
+		if (preg_match('/PRAGMA\s+|sqlite_version|sqlite_master|--|\/\*|\*\/|load_extension|ATTACH\s+|randomblob|sqlite_compileoption_|sqlite_offset|sqlite_source_|zeroblob|X\'\w|0x\w|sqlite_dbpage|fts3_tokenizer/i', $query, $match))
+		{
+			throw new \LogicException('Invalid SQL query.');
+		}
+
+		if (null !== $allowed) {
+			// PHP 8+
+			if (method_exists($this->db, 'setAuthorizer')) {
+				$this->db->setAuthorizer(function (int $action, ...$args) use ($allowed) {
+					if ($action !== SQLite3::READ) {
+						return SQLite3::DENY;
+					}
+
+					list($table, $column) = $args;
+
+					if (!array_key_exists($table, $allowed)) {
+						return SQLite3::DENY;
+					}
+
+					if (null !== $allowed[$table] && !in_array($column, $allowed[$table])) {
+						return SQLite3::IGNORE;
+					}
+
+					return SQLite3::OK;
+				});
+			}
+			else {
+				static $forbidden = ['ALTER', 'ADD', 'ATTACH', 'CREATE', 'COMMIT', 'CREATE', 'DELETE', 'DETACH', 'DROP', 'INSERT', 'PRAGMA', 'REINDEX', 'RENAME', 'REPLACE', 'ROLLBACK', 'SAVEPOINT', 'SET', 'TRIGGER', 'UPDATE', 'VACUUM', 'WITH'];
+
+				$parsed = $this->parseQuery($query);
+
+				foreach ($parsed as $keyword) {
+					if (in_array($keyword, $forbidden)) {
+						throw new \RuntimeException('Unauthorized keyword: ' . $keyword);
+					}
+
+					foreach ($keyword->tables as $table) {
+						if (!array_key_exists($table, $allowed)) {
+							throw new \RuntimeException('Unauthorized table: ' . $table);
+						}
+
+						if (null !== $allowed[$table]) {
+							//throw new \InvalidArgumentException('Cannot protect columns without PHP 8+');
+						}
+					}
+				}
+			}
+		}
+
+		$st = $this->db->prepare($query);
+		if (!$st->readOnly())
+		{
+			throw new \LogicException('Only read-only queries are accepted.');
+		}
+
+		if (method_exists($this->db, 'setAuthorizer')) {
+			$this->db->setAuthorizer(null);
+		}
+
+		return $st;
+	}
+
+	public function parseQuery(string $query): array
+	{
+		static $keywords = 'ABORT ACTION ADD AFTER ALL ALTER ALWAYS ANALYZE AND AS ASC ATTACH AUTOINCREMENT BEFORE BEGIN BETWEEN BY CASCADE CASE CAST CHECK COLLATE COLUMN COMMIT CONFLICT CONSTRAINT CREATE CROSS CURRENT CURRENT_DATE CURRENT_TIME CURRENT_TIMESTAMP DATABASE DEFAULT DEFERRABLE DEFERRED DELETE DESC DETACH DISTINCT DO DROP EACH ELSE END ESCAPE EXCEPT EXCLUDE EXCLUSIVE EXISTS EXPLAIN FAIL FILTER FIRST FOLLOWING FOR FOREIGN FROM FULL GENERATED GLOB GROUP GROUPS HAVING IF IGNORE IMMEDIATE IN INDEX INDEXED INITIALLY INNER INSERT INSTEAD INTERSECT INTO IS ISNULL JOIN KEY LAST LEFT LIKE LIMIT MATCH NATURAL NO NOT NOTHING NOTNULL NULL NULLS OF OFFSET ON OR ORDER OTHERS OUTER OVER PARTITION PLAN PRAGMA PRECEDING PRIMARY QUERY RAISE RANGE RECURSIVE REFERENCES REGEXP REINDEX RELEASE RENAME REPLACE RESTRICT RIGHT ROLLBACK ROW ROWS SAVEPOINT SELECT SET TABLE TEMP TEMPORARY THEN TIES TO TRANSACTION TRIGGER UNBOUNDED UNION UNIQUE UPDATE USING VACUUM VALUES VIEW VIRTUAL WHEN WHERE WINDOW WITH WITHOUT';
+
+			$keywords = explode(' ', $keywords);
+			$keywords = str_replace(' ', '|', $keywords);
+
+			$query = rtrim($query, ';');
+
+			preg_match_all('/((["\'])(?:\\\2|.)*?\2|\b(?:' . implode('|', $keywords) . ')\b|[\w]+(?:\s*\.\s*[\w]+)*)/ims', $query, $match);
+
+			$current = null;
+			$query = [];
+
+			foreach ($match[0] as $v) {
+				$kw = strtoupper($v);
+
+				if (in_array($kw, $keywords)) {
+					$query[$kw] = (object) ['tables' => [], 'content' => []];
+					$current = $kw;
+				}
+				elseif (null !== $current) {
+					if ($current == 'FROM' || $current == 'JOIN') {
+						$query[$current]->tables[] = $v;
+					}
+					else {
+						$query[$current]->content[] = $v;
+					}
+				}
+			}
+
+		return $query;
+	}
+
+	/**
 	 * Executes a prepared query using $args array
 	 * @return \SQLite3Stmt|boolean Returns a boolean if the query is writing
 	 * to the database, or a statement if it's a read-only query.
@@ -297,63 +414,6 @@ class SQLite3 extends DB
 		$this->connect();
 		$statement = $this->applyTablePrefix($statement);
 		return $this->db->query($statement);
-	}
-
-	/**
-	 * Performs a user SELECT query in the database
-	 *
-	 * This is meant to allow users to make SELECT statements without altering the database
-	 * and staying as safe as possible.
-	 *
-	 * Warning! There are probably still some ways to extract valuable information
-	 * for a hacker. This feature should not be available to all your users!
-	 *
-	 * @param  string $query SQL SELECT query
-	 * @return array Rows of the result, as stdClass objects
-	 */
-	public function userSelectStatement(string $statement)
-	{
-		if (preg_match('/;\s*(.+?)$/', $statement))
-		{
-			throw new \LogicException('Only one single statement can be executed at the same time.');
-		}
-
-		// Forbid use of some strings that could allow give hints to an attacker:
-		// PRAGMA, sqlite_version(), sqlite_master table, comments
-		if (preg_match('/PRAGMA\s+|sqlite_version|sqlite_master|--|\/\*|\*\/|load_extension|ATTACH\s+|randomblob|sqlite_compileoption_|sqlite_offset|sqlite_source_|zeroblob|X\'\w|0x\w|sqlite_dbpage|fts3_tokenizer/i', $statement, $match))
-		{
-			throw new \LogicException('Invalid SQL query.');
-		}
-
-		if (!preg_match('/^\s*SELECT\s+/i', $statement))
-		{
-			$query = 'SELECT ' . $statement;
-		}
-
-		$st = $this->db->prepare($statement);
-
-		if (!$st->readOnly())
-		{
-			throw new \LogicException('Only read-only queries are accepted.');
-		}
-
-		return $st;
-	}
-
-	public function userSelectGet(string $statement): array
-	{
-		$st = $this->userSelectStatement($statement);
-
-		$res = $st->execute();
-
-		$out = [];
-
-		while ($row = $res->fetchArray(\SQLITE3_ASSOC))
-		{
-			$out[] = (object) $row;
-		}
-
-		return $out;
 	}
 
 	public function iterate(string $statement, ...$args): iterable
