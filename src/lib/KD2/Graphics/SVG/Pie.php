@@ -102,8 +102,9 @@ class Pie
 			}
 
 			$percents = '';
+			$count = count($this->data);
 
-			foreach ($this->data as $row)
+			foreach ($this->data as $i => $row)
 			{
 				$row->angle = ceil(360 * $row->data / $sum);
 
@@ -128,10 +129,11 @@ class Pie
 					$a1 = deg2rad($start_angle);
 					$a2 = deg2rad($end_angle);
 					$a = ($a1 + ($a2 > $a1 ? $a2 : $a2 + pi()*2)) * 0.5;
-					$x = $cx + cos($a) * ($radius * 0.7);
-					$y = $cy + sin($a) * ($radius * 0.7);
-					$percents .= $this->text($x, $y, $percent . '%', '#fff', $this->height * 0.05, 'white', 'center');
-					$percents .= $this->text($x, $y, $percent . '%', 'black', $this->height * 0.05, null, 'center');
+					$r = ($radius * (0.5 + ($i / $count) * 0.7));
+					$x = $cx + cos($a) * $r;
+					$y = $cy + sin($a) * $r;
+					$percents .= $this->text($x, $y, $percent . '%', '#fff', $this->height * 0.05, 'white', 'middle');
+					$percents .= $this->text($x, $y, $percent . '%', 'black', $this->height * 0.05, null, 'middle');
 				}
 			}
 
