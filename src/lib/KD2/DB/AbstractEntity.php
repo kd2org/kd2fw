@@ -136,7 +136,7 @@ abstract class AbstractEntity
 		switch ($type)
 		{
 			case 'date':
-				return \DateTime::createFromFormat('Y-m-d', $value);
+				return \DateTime::createFromFormat('!Y-m-d', $value);
 			case 'DateTime':
 				return new \DateTime($value);
 			case 'int':
@@ -152,14 +152,18 @@ abstract class AbstractEntity
 
 	protected function assert(bool $test, string $message = null): void
 	{
-		if (!$test) {
-			if (null === $message) {
-				$caller = array_shift(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 1));
-				$message = sprintf('Entity check fail from class %s on line %d', $caller['class'], $caller['line']);
-			}
-
-			throw new \UnexpectedValueException($message);
+		if ($test) {
+			return;
 		}
+
+		if (null === $message) {
+			$backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 2);
+			$caller_class = array_pop($backtrace);
+			$caller = array_pop($backtrace);
+			$message = sprintf('Entity assertion fail from class %s on line %d', $caller_class['class'], $caller['line']);
+		}
+
+		throw new \UnexpectedValueException($message);
 	}
 
 	public function selfCheck(): void
@@ -268,12 +272,8 @@ abstract class AbstractEntity
 				elseif ($type == 'DateTime' && is_string($value) && strlen($value) === 20 && ($d = \DateTime::createFromFormat('Y-m-d H:i:s', $value))) {
 					$value = $d;
 				}
-				elseif ($type == 'date' && is_string($value) && strlen($value) === 10 && ($d = \DateTime::createFromFormat('Y-m-d', $value))) {
-					$type = 'DateTime';
+				elseif ($type == 'date' && is_string($value) && strlen($value) === 10 && ($d = \DateTime::createFromFormat('!Y-m-d', $value))) {
 					$value = $d;
-				}
-				elseif ($type == 'date' && is_object($value) && $value instanceof \DateTimeInterface) {
-					$type = 'DateTime';
 				}
 				elseif ($type == 'bool' && is_int($value) && ($value === 0 || $value === 1)) {
 					$value = (bool) $value;
@@ -329,8 +329,10 @@ abstract class AbstractEntity
 	protected function _checkType(string $key, $value, string $type)
 	{
 		switch ($type) {
+			case 'date':
+				return is_object($value) && $value instanceof \DateTimeInterface;
 			case 'DateTime':
-				return is_object($value) && $value instanceof \DateTime;
+				return is_object($value) && $value instanceof \DateTimeInterface;
 			default:
 				return $this->_getType($value) == $type;
 		}
