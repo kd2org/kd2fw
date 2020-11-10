@@ -54,10 +54,12 @@ class Writer
 		$height = 1;
 
 		// Try to find the tallest cell
-		foreach ($columns as $column_index => &$cell)
+		foreach ($columns as $column_index => $cell)
 		{
-			if (!is_string($cell))
-			{
+			if (is_object($cell) && ($cell instanceof \DateTimeInterface)) {
+				$cell = $cell->format('Y-m-d');
+			}
+			elseif (!is_string($cell) && !is_int($cell) && !is_float($cell)) {
 				continue;
 			}
 
@@ -66,7 +68,7 @@ class Writer
 			$height = max($height, count($lines));
 
 			// Calculate maximum row width
-			$max_line_length = max(array_map('strlen', $lines));
+			$max_line_length = max(array_map('strlen', $lines)) + 2;
 
 			if (!isset($this->columns_width[$column_index]))
 			{
