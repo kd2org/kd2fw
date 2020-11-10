@@ -89,6 +89,14 @@ class Writer
 			<style:style style:family="table" style:name="ta1">
 				<style:table-properties style:writing-mode="lr-tb" table:display="true" />
 			</style:style>
+			<number:date-style number:automatic-order="true" style:name="N37">
+				<number:day number:style="long"/>
+				<number:text>/</number:text>
+				<number:month number:style="long"/>
+				<number:text>/</number:text>
+				<number:year/>
+			</number:date-style>
+			<style:style style:data-style-name="N37" style:family="table-cell" style:name="ce1" style:parent-style-name="Default"/>
 			<style:style style:family="table-column" style:name="co-default">
 				<style:table-column-properties fo:break-before="auto" style:use-optimal-column-width="true"/>
 			</style:style>';
@@ -127,15 +135,15 @@ class Writer
 
 			foreach ($row as $column)
 			{
-				if (is_int($column) || is_float($column))
+				if (is_object($column) && $column instanceof \DateTimeInterface)
 				{
-					$params = sprintf('calcext:value-type="float" office:value="%s" office:value-type="float"', $column);
-				}
-				elseif (is_object($column) && $column instanceof \DateTimeInterface)
-				{
-					$format = ($column->format('hi') == '0000') ? 'Y-m-d' : 'Y-m-d\TH:i:s';
-					$params = sprintf('calcext:value-type="date" office:date-value="%s" office:value-type="date"', $column->format($format));
+					$format = !intval($column->format('His')) ? 'Y-m-d' : 'Y-m-d\TH:i:s';
+					$params = sprintf('calcext:value-type="date" office:date-value="%s" office:value-type="date" table:style-name="ce1"', $column->format($format));
 					$column = $column->format($format);
+				}
+				elseif (is_int($column) || preg_match('/^-?\d+(?:[,.]\d+)?$/', $column))
+				{
+					$params = sprintf('calcext:value-type="float" office:value="%s" office:value-type="float"', (float) $column);
 				}
 				else
 				{
