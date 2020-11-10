@@ -28,11 +28,17 @@ class Pie
 	protected $data = array();
 	protected $title = null;
 	protected $legend = true;
+	protected $percentage = false;
 
 	public function __construct($width = 600, $height = 400)
 	{
 		$this->width = (int) $width;
 		$this->height = (int) $height;
+	}
+
+	public function togglePercentage(bool $p)
+	{
+		$this->percentage = $p;
 	}
 
 	public function add(Pie_Data $data)
@@ -69,6 +75,8 @@ class Pie
 		$out.= '<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN" "http://www.w3.org/TR/SVG/DTD/svg10.dtd">' . PHP_EOL;
 		$out.= '<svg width="'.$this->width.'" height="'.$this->height.'" viewBox="0 0 '.$this->width.' '.$this->height.'" xmlns="http://www.w3.org/2000/svg" version="1.1">' . PHP_EOL;
 
+		$out .= '<filter id="blur"><feGaussianBlur in="SourceGraphic" stdDeviation="2" /></filter>' . PHP_EOL;
+
 		$circle_size = min($this->width, $this->height);
 		$cx = $circle_size / 2;
 		$cy = $this->height / 2;
@@ -93,6 +101,8 @@ class Pie
 				$sum += $row->data;
 			}
 
+			$percents = '';
+
 			foreach ($this->data as $row)
 			{
 				$row->angle = ceil(360 * $row->data / $sum);
@@ -111,7 +121,21 @@ class Pie
 				$out .= "<path d=\"M{$cx},{$cy} L{$x1},{$y1} A{$radius},{$radius} 0 {$arc},1 {$x2},{$y2} Z\" 
 					fill=\"{$row->fill}\" stroke=\"white\" stroke-width=\"".($circle_size * 0.005)."\" stroke-linecap=\"round\" 
 					stroke-linejoin=\"round\" />";
+
+				if ($this->percentage) {
+					// https://stackoverflow.com/questions/48710188/calculate-the-center-point-of-a-arc-wedge
+					$percent = ceil(($row->data / $sum) * 100);
+					$a1 = deg2rad($start_angle);
+					$a2 = deg2rad($end_angle);
+					$a = ($a1 + ($a2 > $a1 ? $a2 : $a2 + pi()*2)) * 0.5;
+					$x = $cx + cos($a) * ($radius * 0.7);
+					$y = $cy + sin($a) * ($radius * 0.7);
+					$percents .= $this->text($x, $y, $percent . '%', '#fff', $this->height * 0.05, 'white', 'center');
+					$percents .= $this->text($x, $y, $percent . '%', 'black', $this->height * 0.05, null, 'center');
+				}
 			}
+
+			$out .= $percents;
 		}
 
 		if ($this->title)
@@ -130,26 +154,31 @@ class Pie
 
 			foreach ($this->data as $row)
 			{
-				$out .= '<rect x="'.$x.'" y="'.($y - $this->height * 0.01).'" width="'.($this->width * 0.04).'" height="'.($this->height * 0.04).'" fill="'.$row->fill.'" stroke="black" stroke-width="1" rx="2" />' . PHP_EOL;
+				$out .= '<rect x="'.($x - $this->width * 0.01).'" y="'.($y - $this->height * 0.02).'" width="'.($this->width * 0.04).'" height="'.($this->height * 0.05).'" fill="'.$row->fill.'" stroke="black" stroke-width="1" rx="2" />' . PHP_EOL;
 
-				if ($row->label)
-				{
-					$out .= '<text x="'.($x-($this->width * 0.02)).'" y="'.($y+($this->height * 0.025)).'" '
-						.	'font-size="'.($this->height * 0.05).'" fill="white" stroke="white" '
-						.	'stroke-width="'.($this->height * 0.01).'" stroke-linejoin="round" '
-						.	'stroke-linecap="round" text-anchor="end" style="font-family: Verdana, '
-						.	'Arial, sans-serif;">'.$this->encodeText($row->label).'</text>' . PHP_EOL;
-					$out .= '<text x="'.($x-($this->width * 0.02)).'" y="'.($y+($this->height * 0.025)).'" '
-						.	'font-size="'.($this->height * 0.05).'" fill="black" text-anchor="end" '
-						.	'style="font-family: Verdana, Arial, sans-serif;">'.$this->encodeText($row->label).'</text>' . PHP_EOL;
+				if ($row->label) {
+					$out .= $this->text($x-($this->width * 0.02), $y+($this->height * 0.025), $row->label, 'white', null, 'white', 'end');
+					$out .= $this->text($x-($this->width * 0.02), $y+($this->height * 0.025), $row->label, 'black', null, null, 'end');
 				}
 
-				$y += ($this->height * 0.05);
+				$y += ($this->height * 0.08);
 			}
 		}
 
 		$out .= '</svg>';
 		return $out;
+	}
+
+	protected function text($x, $y, $content, $color, ?float $size = null, ?string $stroke_color = null, $anchor = 'start')
+	{
+		$stroke = '';
+
+		if ($stroke_color) {
+			$stroke = sprintf('stroke-width="%f" stroke-linejoin="round" stroke-linecap="round" stroke="%s" filter="url(#blur)"', $this->height * 0.01, $stroke_color);
+		}
+
+		return sprintf('<text x="%f" y="%f" font-size="%f" fill="%s" text-anchor="%s" style="font-family: Verdana, Arial, sans-serif;" %s>%s</text>' . PHP_EOL,
+			$x, $y, $size ?: $this->height * 0.05, $color, $anchor, $stroke, $this->encodeText($content));
 	}
 }
 
