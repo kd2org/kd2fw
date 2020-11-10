@@ -156,7 +156,7 @@ class Pie
 
 			foreach ($this->data as $row)
 			{
-				$out .= '<rect x="'.($x - $this->width * 0.01).'" y="'.($y - $this->height * 0.02).'" width="'.($this->width * 0.04).'" height="'.($this->height * 0.05).'" fill="'.$row->fill.'" stroke="black" stroke-width="1" rx="2" />' . PHP_EOL;
+				$out .= '<rect x="'.($x - $this->width * 0.01).'" y="'.($y - $this->height * 0.015).'" width="'.($this->width * 0.04).'" height="'.($this->height * 0.05).'" fill="'.$row->fill.'" stroke="black" stroke-width="1" rx="2" />' . PHP_EOL;
 
 				if ($row->label) {
 					$out .= $this->text($x-($this->width * 0.02), $y+($this->height * 0.025), $row->label, 'white', null, 'white', 'end');
