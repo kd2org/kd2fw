@@ -499,8 +499,8 @@ class UserSession
 	 */
 	protected function createRememberMeSelector($user_id, $user_password)
 	{
-		$selector = hash($this::HASH_ALGO, Security::random_bytes(10));
-		$verifier = hash($this::HASH_ALGO, Security::random_bytes(10));
+		$selector = hash($this::HASH_ALGO, random_bytes(10));
+		$verifier = hash($this::HASH_ALGO, random_bytes(10));
 		$expiry = (new \DateTime)->modify($this->remember_me_expiry);
 		$expiry = $expiry->getTimestamp();
 

@@ -190,9 +190,7 @@ class Security_OTP
 
 		for ($i = 0; $i < $length; $i++)
 		{
-			// Try PHP7 random_int (or poyfill, see https://github.com/paragonie/random_compat)
-			// or fallback to mt_rand() not secure but will work
-			$rand = function_exists('random_int') ? random_int(0, 31) : mt_rand(0, 31);
+			$rand = random_int(0, 31);
 			$string .= $keys[$rand];
 		}
 

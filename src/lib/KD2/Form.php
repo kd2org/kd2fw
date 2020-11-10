@@ -70,7 +70,7 @@ class Form
 
 		$action = self::tokenAction($action);
 
-		$random = Security::random_int();
+		$random = random_int(0, PHP_INT_MAX);
 		$expire = floor(time() / 3600) + $expire;
 		$value = $expire . $random . $action;
 
