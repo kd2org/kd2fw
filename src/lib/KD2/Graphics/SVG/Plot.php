@@ -165,6 +165,12 @@ class Plot
 			$v += $this->min;
 			$y = $this->y($v);
 			$out .= sprintf('<line x1="%f" y1="%f" x2="%f" y2="%f" stroke-width="1" stroke="#ccc" />' . PHP_EOL, $this->margin_left, $y, $this->width, $y);
+
+			if ($k > 0 && $step > 100) {
+				$v = round($v / 100) * 100;
+				//$v = $k < count($lines) - 1;
+			}
+
 			$out .= sprintf('<g><text x="%f" y="%f" font-size="%f" fill="gray" text-anchor="end" style="font-family: Verdana, Arial, sans-serif;">%s</text></g>' . PHP_EOL, $this->width * 0.08, $y, $this->height * 0.04, round($v));
 		}
 
