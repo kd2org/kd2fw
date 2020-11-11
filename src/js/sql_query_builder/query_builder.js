@@ -192,7 +192,6 @@
 	qb.prototype.switchColumn = function (columnSelect) {
 		var row = columnSelect.parentNode.parentNode;
 		row.childNodes[2].innerHTML = '';
-		row.childNodes[3].innerHTML = '';
 
 		if (!columnSelect.value)
 		{
@@ -232,9 +231,10 @@
 	qb.prototype.switchOperator = function (operatorSelect, values) {
 		var row = operatorSelect.parentNode.parentNode;
 
-		// Clear the content, it's not the best for the user as if a text field is already
-		// filled-in it will disappear if you change the operator, but it's a bit hard
-		// to keep the first value, so for now we just clear everything (FIXME)
+		if (!values && row.childNodes[3].firstChild) {
+			values = [row.childNodes[3].firstChild.value];
+		}
+
 		row.childNodes[3].innerHTML = '';
 
 		var parent = row.childNodes[3];
@@ -255,7 +255,7 @@
 
 		if (params && operator.match(/\?\?/))
 		{
-			number = values ? values.length : 3;
+			number = values ? values.length : 1;
 			buttons = true;
 		}
 		else if (params && params.length >= 1)
@@ -437,12 +437,6 @@
 				if (!row.operator)
 				{
 					continue;
-				}
-
-				if (row.operator.match(/\?\?/))
-				{
-					// Remove last two values, which are the +/- buttons
-					row.values = row.values.slice(0, -2);
 				}
 
 				conditions.push(row);
