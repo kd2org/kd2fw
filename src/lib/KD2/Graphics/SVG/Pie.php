@@ -129,7 +129,7 @@ class Pie
 					$a1 = deg2rad($start_angle);
 					$a2 = deg2rad($end_angle);
 					$a = ($a1 + ($a2 > $a1 ? $a2 : $a2 + pi()*2)) * 0.5;
-					$r = ($radius * (0.5 + ($i / $count) * 0.7));
+					$r = ($radius * (0.5 + ($i / $count) * 0.5)); // Spiral of percentages to avoid overlap
 					$x = $cx + cos($a) * $r;
 					$y = $cy + sin($a) * $r;
 					$percents .= $this->text($x, $y, $percent . '%', '#fff', $this->height * 0.05, 'white', 'middle');
