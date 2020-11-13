@@ -148,69 +148,58 @@ class Plot
 
 		$this->margin_left = $this->width * 0.1;
 		$this->margin_top = $this->height * 0.1;
-		$column_space = ($this->width - $this->margin_left) / (($this->count - 1) ?: 1);
+
+
+		$range = $this->max - $this->min;
+		$step = $this->stepValue($range, 7);
 
 		$lines = [];
-		$step = ($this->max - $this->min) / 7;
+		$min = round($this->min / $step)*$step;
 
-		for ($i = $this->min; $i < $this->max; $i += $step) {
-			$lines[] = round($i);
+		for ($i = $min; $i <= $this->max; $i += $step) {
+			$lines[] = $i;
 		}
 
-		$lines[] = $this->max;
+		$y = 10 + $this->height - $this->margin_top;
+		$axis_height = $y / count($lines);
 
 		// Horizontal lines and Y axis legends
 		foreach ($lines as $k => $v) {
-			$v = ($k*($this->max-$this->min))/count($lines);
-			$v += $this->min;
-			$y = $this->y($v);
 			$out .= sprintf('<line x1="%f" y1="%f" x2="%f" y2="%f" stroke-width="1" stroke="#ccc" />' . PHP_EOL, $this->margin_left, $y, $this->width, $y);
 
-			if ($k > 0 && $step > 100) {
-				$v = round($v / 100) * 100;
-				//$v = $k < count($lines) - 1;
-			}
-
 			$out .= sprintf('<g><text x="%f" y="%f" font-size="%f" fill="gray" text-anchor="end" style="font-family: Verdana, Arial, sans-serif;">%s</text></g>' . PHP_EOL, $this->width * 0.08, $y, $this->height * 0.04, round($v));
+			$y -= $axis_height + 1;
 		}
 
 		// X-axis lines
 		$y = 10 + $this->height - ($this->margin_top);
-		$x = $this->width * 0.1;
+		$x = $this->margin_left;
+
+		$axis_width = $this->width - $x;
+		$column_width = 70 + $this->data[0]->width;
+		$nb_items = ceil($axis_width / $column_width);
+		$item_width = $axis_width / $this->count;
+		$step = max(1, $this->count / $nb_items);
+
 		$i = 0;
-		$step = max(1, round($this->count / ($this->width / 50)));
 
 		foreach ($this->data[0]->get() as $k=>$v)
 		{
 			if ($x >= $this->width)
 				break;
 
-			$out .= sprintf('<line x1="%d" y1="%d" x2="%d" y2="%d" stroke-width="1" stroke="%s" />', $x, $y, $x, 0, !($i++ % $step) ? '#ccc' : '#eee');
-			$x += $column_space + $this->data[0]->width;
-		}
+			$out .= sprintf('<line x1="%d" y1="%d" x2="%d" y2="%d" stroke-width="1" stroke="%s" />', $x, $y, $x, 0, !($i % $step) ? '#ccc' : '#eee');
 
-		if (!empty($this->labels))
-		{
-			// labels for x axis
-			$y = $this->height - $this->margin_top + 10;
-			$i = 0;
-			$step = max(1, round($this->count / ($this->width / 50)));
-
-			for ($i = 0; $i <= $this->count; $i += $step)
+			if (!($i % $step) && isset($this->labels[$i+1]))
 			{
-				$x = ($i * ($column_space + $this->data[0]->width)) + ($this->width * 0.1);
-
-				if ($x >= $this->width)
-					break;
-
-				if (isset($this->labels[$i]))
-				{
-					$out .= '<g><text x="'.$x.'" y="'.($y+($this->height * 0.06)).'" '
-						.	'font-size="'.($this->height * 0.04).'" fill="gray" text-anchor="middle" '
-						.	'style="font-family: Verdana, Arial, sans-serif;">'
-						.	$this->encodeText($this->labels[$i]).'</text></g>' . PHP_EOL;
-				}
+				$label = $this->encodeText($this->labels[$i+1]);
+				$anchor = $x >= ($this->width - ($column_width / 3)) ? 'end': 'middle';
+				$out .= sprintf('<g><text x="%f" y="%f" font-size="%s" fill="gray" text-anchor="%s" style="font-family: Verdana, Arial, sans-serif;">%s</text></g>' . PHP_EOL, $x, $y+($this->height * 0.06), $this->height * 0.04, $anchor, $label);
 			}
+
+			$i++;
+
+			$x += $item_width;
 		}
 
 		$h = $this->height - ($this->height * 0.17);
@@ -224,7 +213,7 @@ class Plot
 
 			foreach ($row->get() as $v)
 			{
-				$x = $this->margin_left + ($column_space * $i++);
+				$x = $this->margin_left + ($item_width * $i++);
 				$out.= sprintf('%f,%f ', $x, $this->y($v));
 			}
 
@@ -232,6 +221,23 @@ class Plot
 		}
 
 		return $out;
+	}
+
+	protected function stepValue(float $range, float $targetSteps)
+	{
+		$tempStep = $range / $targetSteps;
+		$mag = floor(log10($tempStep));
+		$magPow = pow(10, $mag);
+		$magMsd = (int)($tempStep/$magPow + 0.5);
+
+		if ($magMsd > 5)
+			$magMsd = 10;
+		else if ($magMsd > 2)
+			$magMsd = 5;
+		else if ($magMsd > 1)
+			$magMsd = 2;
+
+		return $magMsd*$magPow;
 	}
 
 	protected function y($value)
