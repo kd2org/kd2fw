@@ -278,7 +278,7 @@ class Image
 		}
 		else
 		{
-			call_user_func([$this, $this->library . '_blob']);
+			call_user_func([$this, $this->library . '_blob'], $this->blob);
 			$this->blob = null;
 		}
 
@@ -796,13 +796,15 @@ class Image
 
 		if ($format == 'png')
 		{
-			$this->pointer->setCompression(\Imagick::COMPRESSION_LZW);
-			$this->pointer->setCompressionQuality($this->compression * 10);
+			$this->pointer->setOption('png:compression-level', 9);
+			$this->pointer->setImageCompression(\Imagick::COMPRESSION_LZW);
+			$this->pointer->setImageCompressionQuality($this->compression * 10);
+			$this->pointer->stripImage();
 		}
 		else if ($format == 'jpeg')
 		{
-			$this->pointer->setCompression(\Imagick::COMPRESSION_JPEG);
-			$this->pointer->setCompressionQuality($this->jpeg_quality);
+			$this->pointer->setImageCompression(\Imagick::COMPRESSION_JPEG);
+			$this->pointer->setImageCompressionQuality($this->jpeg_quality);
 			$this->pointer->setInterlaceScheme($this->progressive_jpeg ? \Imagick::INTERLACE_PLANE : \Imagick::INTERLACE_NO);
 		}
 
@@ -818,13 +820,15 @@ class Image
 
 		if ($format == 'png')
 		{
-			$this->pointer->setCompression(\Imagick::COMPRESSION_LZW);
-			$this->pointer->setCompressionQuality($this->compression * 10);
+			$this->pointer->setOption('png:compression-level', 9);
+			$this->pointer->setImageCompression(\Imagick::COMPRESSION_LZW);
+			$this->pointer->setImageCompressionQuality($this->compression * 10);
+			$this->pointer->stripImage();
 		}
 		else if ($format == 'jpeg')
 		{
-			$this->pointer->setCompression(\Imagick::COMPRESSION_JPEG);
-			$this->pointer->setCompressionQuality($this->jpeg_quality);
+			$this->pointer->setImageCompression(\Imagick::COMPRESSION_JPEG);
+			$this->pointer->setImageCompressionQuality($this->jpeg_quality);
 			$this->pointer->setInterlaceScheme($this->progressive_jpeg ? \Imagick::INTERLACE_PLANE : \Imagick::INTERLACE_NO);
 		}
 
