@@ -227,7 +227,7 @@ class Plot
 	{
 		$tempStep = $range / $targetSteps;
 		$mag = floor(log10($tempStep));
-		$magPow = pow(10, $mag);
+		$magPow = pow(10, $mag) ?: 1;
 		$magMsd = (int)($tempStep/$magPow + 0.5);
 
 		if ($magMsd > 5)
