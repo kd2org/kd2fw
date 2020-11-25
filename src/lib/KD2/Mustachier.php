@@ -140,7 +140,7 @@ class Mustachier
 	 * @param  string $template  Template file name
 	 * @param  Array  $variables Variables to assign to this template
 	 * @return string
-	 * @throws MustacheException
+	 * @throws MustachierException
 	 */
 	public function fetch($template, Array $variables = [])
 	{
@@ -153,7 +153,7 @@ class Mustachier
 	 * @param  Array   $variables Variables to assign to this template
 	 * @param  boolean $return    TRUE to get the output returned, FALSE to get it printed
 	 * @return string
-	 * @throws MustacheException
+	 * @throws MustachierException
 	 * @throws \InvalidArgumentException
 	 */
 	public function display($template, Array $variables = [], $return = false)
@@ -391,14 +391,28 @@ class Mustachier
 	{
 		$var = $this->_get($key);
 
-		if (is_array($var) || is_object($var))
+		if (is_array($var) || is_object($var) || is_iterable($var))
 		{
 			return $var;
 		}
 
 		// Return an array with only one item
 		// this is for conditional tags that are not loops
-		return [0];
+		return $var ? [0] : [];
+	}
+
+	protected function _notloop($key)
+	{
+		$var = $this->_get($key);
+
+		if (is_array($var) || is_object($var) || is_iterable($var))
+		{
+			return !count($var);
+		}
+
+		// Return an array with only one item
+		// this is for conditional tags that are not loops
+		return $var ? [] : [0];
 	}
 
 	/**
@@ -471,7 +485,7 @@ class Mustachier
 			// positive condition (section)
 			elseif ($a == '#')
 			{
-				$out .= sprintf('if (!$this->_empty(%s)): foreach ($this->_loop(%1$s) as $key=>$loop): $this->_append($loop, $key);', $b);
+				$out .= sprintf('foreach ($this->_loop(%s) as $loop): $this->_append($loop, %1$s);', $b);
 				$this->_loop_stack[] = $b;
 			}
 			// end of condition
@@ -479,17 +493,17 @@ class Mustachier
 			{
 				if (array_pop($this->_loop_stack) != $b)
 				{
-					throw new MustachierException($line, 'Unexpected closing tag for section: ' . $b, $template ?: $code);
+					throw new MustachierException($line, 'Unexpected closing tag for section: ' . $b, $template, $code);
 				}
 
 				// how do you know if you are closing a loop or a condition?
 				// you don't! that's why we treat conditions as one-iteration loop!
-				$out .= '$this->_pop(); endforeach; endif;';
+				$out .= '$this->_pop(); endforeach;';
 			}
 			// inverted sections (negative condition)
 			elseif ($a == '^')
 			{
-				$out .= sprintf('if ($this->_empty(%s)): foreach ([0] as $ignore): $this->_append([false]);', $b);
+				$out .= sprintf('foreach ($this->_notloop(%s) as $ignore): $this->_append([null]);', $b);
 				$this->_loop_stack[] = $b;
 			}
 			// include (= partials)
@@ -514,7 +528,7 @@ class Mustachier
 
 		if (count($this->_loop_stack) > 0)
 		{
-			throw new MustachierException($line, 'Missing closing tag for section: ' . array_pop($this->_loop_stack), $template ?: $str);
+			throw new MustachierException($line, 'Missing closing tag for section: ' . array_pop($this->_loop_stack), $template, $code);
 		}
 
 		$out .= 'return $o;' . PHP_EOL;
@@ -531,10 +545,11 @@ class MustachierException extends \Exception
 	 * @param string $message Error message
 	 * @param string $code    Either path to Mustache template file or code used for run() method
 	 */
-	public function __construct($line, $message, $code)
+	public function __construct($line, $message, $file, $code)
 	{
 		parent::__construct($message);
 		$this->line = $line;
-		$this->file = $code;
+		$this->file = $file;
+		$this->code = $code;
 	}
 }
