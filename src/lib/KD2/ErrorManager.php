@@ -598,6 +598,10 @@ class ErrorManager
 		$out = [];
 		$start = max(0, $line - 5);
 
+		if (!file_exists($file)) {
+			return [$line => 'Source file not found'];
+		}
+
 		$file = new \SplFileObject($file);
 		$file->seek($start);
 
@@ -884,7 +888,7 @@ class ErrorManager
 				$level++;
 
 				if ($var instanceof \Traversable) {
-					$var = $var->valid() ? iterator_to_array($var) : [];
+					$var = @$var->valid() ? @iterator_to_array($var) : [];
 				}
 
 				foreach ($var as $key=>$value)
