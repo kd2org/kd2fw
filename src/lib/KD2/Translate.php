@@ -795,7 +795,7 @@ class Translate
 
 		// Fallback to IntlDateFormatter if the date locale is not installed/correctly set
 		// (and if Intl extension is installed)
-		if (class_exists('IntlDateFormatter') && $system_locale != $locale)
+		if (class_exists('IntlDateFormatter', false) && $system_locale != $locale)
 		{
 			// helpful for conversion to ISO format
 			$format = str_replace('%r', '%I:%M:%S %p', $format);
