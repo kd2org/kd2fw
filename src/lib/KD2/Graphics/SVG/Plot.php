@@ -151,7 +151,7 @@ class Plot
 
 
 		$range = $this->max - $this->min;
-		$step = $this->stepValue($range, 7);
+		$step = $this->stepValue($range, 7) ?: 1;
 
 		$lines = [];
 		$min = round($this->min / $step)*$step;
