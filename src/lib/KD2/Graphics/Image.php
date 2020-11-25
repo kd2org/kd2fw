@@ -904,6 +904,11 @@ class Image
 	protected function gd_open()
 	{
 		$this->pointer = call_user_func('imagecreatefrom' . $this->format, $this->path);
+
+		if ($this->format == 'png' || $this->format == 'gif') {
+			imagealphablending($this->pointer, false);
+			imagesavealpha($this->pointer, true);
+		}
 	}
 
 	protected function gd_formats()
@@ -911,19 +916,19 @@ class Image
 		$supported = imagetypes();
 		$formats = [];
 
-		if (IMG_PNG & $supported)
+		if (\IMG_PNG & $supported)
 			$formats[] = 'png';
 
-		if (IMG_GIF & $supported)
+		if (\IMG_GIF & $supported)
 			$formats[] = 'gif';
 
-		if (IMG_JPEG & $supported)
+		if (\IMG_JPEG & $supported)
 			$formats[] = 'jpeg';
 
-		if (IMG_WBMP & $supported)
+		if (\IMG_WBMP & $supported)
 			$formats[] = 'wbmp';
 
-		if (IMG_XPM & $supported)
+		if (\IMG_XPM & $supported)
 			$formats[] = 'xpm';
 
 		if (function_exists('imagecreatefromwebp'))
@@ -935,7 +940,11 @@ class Image
 	protected function gd_blob($data)
 	{
 		$this->pointer = imagecreatefromstring($data);
-	}
+
+		if ($this->format == 'png' || $this->format == 'gif') {
+			imagealphablending($this->pointer, false);
+			imagesavealpha($this->pointer, true);
+		}	}
 
 	protected function gd_size()
 	{
@@ -992,8 +1001,8 @@ class Image
 		if ($this->format == 'png' || $this->format == 'gif')
 		{
 			imagealphablending($new, false);
-			imagecolortransparent($new, imagecolorallocatealpha($new, 255, 255, 255, 127));
 			imagesavealpha($new, true);
+			imagefilledrectangle($new, 0, 0, $w, $h, imagecolorallocatealpha($new, 255, 255, 255, 127));
 		}
 
 		return $new;
