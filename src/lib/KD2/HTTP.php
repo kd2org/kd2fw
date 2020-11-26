@@ -304,6 +304,11 @@ class HTTP
 			// Don't propagate query params between redirects
 			unset($a['query']);
 		}
+		else {
+			parse_str($a['query'], $a_query);
+			parse_str($b['query'], $b_query);
+			$b['query'] = http_build_query(array_merge($a_query, $b_query));
+		}
 
 		// Relative URL
 		if (!isset($b['host']) && isset($b['path']) && substr(trim($b['path']), 0, 1) != '/')
