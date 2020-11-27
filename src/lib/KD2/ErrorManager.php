@@ -393,7 +393,7 @@ class ErrorManager
 			'errors' => [],
 		];
 
-		while ($e)
+		while ($e !== null)
 		{
 			$class = get_class($e);
 
@@ -437,7 +437,7 @@ class ErrorManager
 
 						$params = $r->getParameters();
 					}
-					catch (\Exception $e) {
+					catch (\Exception $_ignore) {
 						$params = [];
 					}
 
@@ -493,6 +493,8 @@ class ErrorManager
 			$report->errors[] = $error;
 			$e = $e->getPrevious();
 		}
+
+		$report->errors = array_reverse($report->errors);
 
 		unset($error, $e, $params, $t);
 
@@ -669,7 +671,7 @@ class ErrorManager
 
 		self::$enabled = $type;
 
-		self::$term_color = function_exists('posix_isatty') && @posix_isatty(STDOUT);
+		self::$term_color = function_exists('posix_isatty') && defined('\STDOUT') && @posix_isatty(\STDOUT);
 
 		ini_set('display_errors', false);
 		ini_set('log_errors', false);
