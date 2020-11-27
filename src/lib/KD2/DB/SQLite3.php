@@ -240,22 +240,26 @@ class SQLite3 extends DB
 		if (null !== $allowed) {
 			// PHP 8+
 			if (method_exists($this->db, 'setAuthorizer')) {
-				$this->db->setAuthorizer(function (int $action, ...$args) use ($allowed) {
-					if ($action !== SQLite3::READ) {
-						return SQLite3::DENY;
+				$this->setAuthorizer(function (int $action, ...$args) use ($allowed) {
+					if ($action === \SQLite3::SELECT || $action === \SQLite3::FUNCTION) {
+						return \SQLite3::OK;
+					}
+
+					if ($action !== \SQLite3::READ) {
+						return \SQLite3::DENY;
 					}
 
 					list($table, $column) = $args;
 
 					if (!array_key_exists($table, $allowed)) {
-						return SQLite3::DENY;
+						return \SQLite3::DENY;
 					}
 
 					if (null !== $allowed[$table] && !in_array($column, $allowed[$table])) {
-						return SQLite3::IGNORE;
+						return \SQLite3::IGNORE;
 					}
 
-					return SQLite3::OK;
+					return \SQLite3::OK;
 				});
 			}
 			else {
@@ -281,17 +285,37 @@ class SQLite3 extends DB
 			}
 		}
 
-		$st = $this->db->prepare($query);
+		try {
+			$st = $this->prepare($query);
+		}
+		catch (\Exception $e) {
+			if ($this->db->lastErrorCode() == 23) {
+				throw new \RuntimeException($this->db->lastErrorMsg(), $this->db->lastErrorCode(), $e);
+			}
+
+			throw $e;
+		}
+		finally {
+			$this->setAuthorizer(null);
+		}
+
 		if (!$st->readOnly())
 		{
 			throw new \LogicException('Only read-only queries are accepted.');
 		}
 
-		if (method_exists($this->db, 'setAuthorizer')) {
-			$this->db->setAuthorizer(null);
+		return $st;
+	}
+
+	public function setAuthorizer(?callable $fn): bool
+	{
+		if (method_exists(\SQLite3::class, 'setAuthorizer')) {
+			$this->connect();
+			$this->db->setAuthorizer($fn);
+			return true;
 		}
 
-		return $st;
+		return false;
 	}
 
 	public function parseQuery(string $query): array
