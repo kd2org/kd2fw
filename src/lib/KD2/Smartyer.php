@@ -42,7 +42,7 @@
  *
  * @author  bohwaz  http://bohwaz.net/
  * @license BSD
- * @version 0.1
+ * @version 0.2
  */
 
 namespace KD2;
@@ -172,20 +172,6 @@ class Smartyer
 	protected $namespace;
 
 	/**
-	 * Global parent path to compiled code
-	 * @var string
-	 * * @deprecated FIXME remove
-	 */
-	static protected $legacy_cache_dir = null;
-
-	/**
-	 * Global parent path to existing templates
-	 * @var string
-	 * @deprecated FIXME remove
-	 */
-	static protected $legacy_templates_dir = null;
-
-	/**
 	 * Directory used to store the compiled code
 	 * @var string
 	 */
@@ -196,46 +182,6 @@ class Smartyer
 	 * @var string
 	 */
 	protected $templates_dir;
-
-	/**
-	 * Sets the path where compiled templates will be stored
-	 * @param string $path
-	 * @deprecated FIXME remove this method; use Smartyer->setCompiledDir
-	 */
-	static public function setCompileDir($path)
-	{
-		if (!is_dir($path))
-		{
-			throw new \RuntimeException($path . ' is not a directory.');
-		}
-
-		if (!is_writable($path))
-		{
-			throw new \RuntimeException($path . ' is not writeable by ' . __CLASS__);
-		}
-
-		self::$legacy_cache_dir = $path;
-	}
-
-	/**
-	 * Sets the parent path containing all templates
-	 * @param string $path
-	 * @deprecated FIXME remove this method; use Smartyer->setTemplatesDir
-	 */
-	static public function setTemplateDir($path)
-	{
-		if (!is_dir($path))
-		{
-			throw new \RuntimeException($path . ' is not a directory.');
-		}
-
-		if (!is_readable($path))
-		{
-			throw new \RuntimeException($path . ' is not readable by ' . __CLASS__);
-		}
-
-		self::$legacy_templates_dir = $path;
-	}
 
 	/**
 	 * Sets the path where compiled templates will be stored
@@ -303,12 +249,6 @@ class Smartyer
 			{
 				$this->{$key} = $parent->{$key};
 			}
-		}
-		else
-		{
-			// FIXME remove deprecated global set
-			$this->templates_dir = self::$legacy_templates_dir;
-			$this->compiled_dir = self::$legacy_cache_dir;
 		}
 	}
 
