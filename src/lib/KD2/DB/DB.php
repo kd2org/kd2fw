@@ -710,7 +710,7 @@ class DB
 			$value = array_values($value);
 
 			array_walk($value, function (&$row) {
-				$row = $this->quote($row);
+				$row = is_int($row) || is_float($row) ? $row : $this->quote($row);
 			});
 
 			$value = sprintf('(%s)', implode(', ', $value));
