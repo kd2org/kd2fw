@@ -747,7 +747,7 @@ class HTTP_Response
 
 	public function __toString()
 	{
-		return $this->body;
+		return (string)$this->body;
 	}
 }
 
