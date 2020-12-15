@@ -205,6 +205,7 @@ class EntityManager
 		}
 		else {
 			$data = $entity->asArray(true);
+			$data = array_filter($data, static function($v) { return $v !== null; });
 			$return = $db->insert($entity::TABLE, $data);
 
 			if ($return) {
