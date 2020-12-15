@@ -273,13 +273,13 @@ abstract class AbstractEntity
 				if ($type == 'int' && is_string($value) && ctype_digit($value)) {
 					$value = (int)$value;
 				}
-				elseif ($type == 'DateTime' && is_string($value) && strlen($value) === 20 && ($d = \DateTime::createFromFormat('Y-m-d H:i:s', $value))) {
+				elseif ($type == 'DateTime' && is_string($value) && strlen($value) === 19 && ($d = \DateTime::createFromFormat('Y-m-d H:i:s', $value))) {
 					$value = $d;
 				}
 				elseif ($type == 'date' && is_string($value) && strlen($value) === 10 && ($d = \DateTime::createFromFormat('!Y-m-d', $value))) {
 					$value = $d;
 				}
-				elseif ($type == 'bool' && is_int($value) && ($value === 0 || $value === 1)) {
+				elseif ($type == 'bool' && is_numeric($value) && ($value == 0 || $value == 1)) {
 					$value = (bool) $value;
 				}
 			}
@@ -304,6 +304,11 @@ abstract class AbstractEntity
 		if ($check_for_changes && $original_value !== $this->getAsString($key)) {
 			$this->_modified[$key] = true;
 		}
+	}
+
+	public function get(string $key)
+	{
+		return $this->$key;
 	}
 
 	public function __set(string $key, $value)
@@ -349,6 +354,11 @@ abstract class AbstractEntity
 		// Type names are not consistent in PHP...
 		// see https://mlocati.github.io/articles/php-type-hinting.html
 		$type = strtr($type, ['boolean' => 'bool', 'integer' => 'int', 'double' => 'float']);
+
+		if ($type === 'object') {
+			$type = get_class($value);
+		}
+
 		return $type;
 	}
 
