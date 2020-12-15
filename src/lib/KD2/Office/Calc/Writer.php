@@ -145,7 +145,7 @@ class Writer
 				}
 				elseif (is_int($column) || preg_match('/^-?\d+(?:[,.]\d+)?$/', $column))
 				{
-					$params = sprintf('calcext:value-type="float" office:value="%s" office:value-type="float"', (float) $column);
+					$params = sprintf('calcext:value-type="float" office:value="%s" office:value-type="float"', str_replace(',', '.', $column));
 				}
 				else
 				{
