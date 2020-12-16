@@ -749,6 +749,9 @@ class Translate
 			$timestamp = time();
 		}
 
+		if (is_object($timestamp) && $timestamp instanceof \DateTimeInterface) {
+			$timestamp = $timestamp->getTimestamp();
+		}
 		if (!is_numeric($timestamp))
 		{
 			$timestamp = strtotime($timestamp);

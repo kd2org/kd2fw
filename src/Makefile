@@ -1,3 +1,12 @@
+.PHONY: all release phpstan
+
+test: phpstan
+
+phpstan:
+	phpstan.phar analyze -c phpstan.neon lib/KD2
+
+all:
+
 release:
 	cd lib && zip -r KD2-7.2.zip KD2
 	fossil uv rm KD2-7.2.zip

@@ -662,6 +662,7 @@ class SQLite3 extends DB
 
     	$errors = [];
     	$tables = [];
+    	$ref = null;
 
     	foreach ($result as $row) {
     		if (!array_key_exists($row->table, $tables)) {
@@ -676,7 +677,7 @@ class SQLite3 extends DB
     			}
     		}
 
-    		$errors[] = sprintf('%s (%s): row %d has an invalid reference to %s (%s)', $row->table, $ref->from, $row->rowid, $row->parent, $ref->to);
+    		$errors[] = sprintf('%s (%s): row %d has an invalid reference to %s (%s)', $row->table, $ref->from, $row->rowid, $row->parent, $ref ? $ref->to : null);
     	}
 
     	throw new \LogicException(sprintf("Foreign key check: %d errors found\n", count($errors)) . implode("\n", $errors));
