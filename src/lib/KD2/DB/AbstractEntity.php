@@ -169,6 +169,17 @@ abstract class AbstractEntity
 	public function selfCheck(): void
 	{
 		$this->assert(is_null($this->id) || (is_numeric($this->id) && $this->id > 0));
+
+		foreach ($this->_types as $key => $type) {
+			// Skip ID
+			if ($key == 'id') {
+				continue;
+			}
+
+			if (is_null($this->$key) && substr($type, 0, 1) != '?') {
+				throw new \UnexpectedValueException(sprintf('Entity property "%s" cannot be left null', $key));
+			}
+		}
 	}
 
 	public function asArray($for_database = false): array
