@@ -311,7 +311,7 @@
 
 	codeEditor.prototype.search = function()
 	{
-		if (!(this.search_str = window.prompt(this.params.lang.search, this.search_str)))
+		if (!(this.search_str = window.prompt(this.params.lang.search, this.search_str ? this.search_str : '')))
 			return;
 
 		this.search_pos = 0;
@@ -378,7 +378,7 @@
 		var selection = this.getSelection();
 		var search_prompt = selection.length != 0 ? this.params.lang.search_selection : this.params.lang.search;
 
-		if (!(s = window.prompt(search_prompt, this.search_str))
+		if (!(s = window.prompt(search_prompt, this.search_str ? this.search_str : ''))
 			|| !(r = window.prompt(that.params.lang.replace)))
 		{
 			return true;
