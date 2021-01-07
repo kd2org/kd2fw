@@ -255,7 +255,7 @@ abstract class AbstractEntity
 		return $this->_exists;
 	}
 
-	protected function set(string $key, $value, bool $loose = false, bool $check_for_changes = true) {
+	public function set(string $key, $value, bool $loose = false, bool $check_for_changes = true) {
 		if (!property_exists($this, $key)) {
 			throw new \InvalidArgumentException(sprintf('Unknown "%s" property: "%s"', static::class, $key));
 		}
