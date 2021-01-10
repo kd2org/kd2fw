@@ -150,7 +150,7 @@ abstract class AbstractEntity
 		return $value;
 	}
 
-	protected function assert(bool $test, string $message = null): void
+	protected function assert(?bool $test, string $message = null): void
 	{
 		if ($test) {
 			return;
