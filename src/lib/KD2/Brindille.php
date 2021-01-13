@@ -2,7 +2,7 @@
 
 namespace KD2;
 
-class Dumbyer
+class Brindille
 {
 	const NONE = 0;
 	const LITERAL = 1;
@@ -35,18 +35,19 @@ class Dumbyer
 	protected $_stack = [];
 
 	protected $_sections = [];
-	protected $_modifiers = [];
+	// Escape is the only mandatory modifier
+	protected $_modifiers = ['escape' => 'htmlspecialchars'];
 	protected $_functions = [];
 
 	protected $_variables = [0 => []];
 
 	public function registerDefaults()
 	{
-		$this->registerModifier('escape', 'htmlspecialchars');
 		$this->registerModifier('args', 'sprintf');
 		$this->registerModifier('nl2br', 'nl2br');
 		$this->registerModifier('strip_tags', 'strip_tags');
 		$this->registerModifier('count', 'count');
+		$this->registerModifier('xml', function ($str) { return htmlspecialchars($str, ENT_XML1); });
 		$this->registerModifier('concatenate', function() { return implode('', func_get_args()); });
 		$this->registerModifier('date_format', function ($date, $format = '%d/%m/%Y %H:%M') {
 			$tz = null;
@@ -109,7 +110,7 @@ class Dumbyer
 		catch (\Throwable $e) {
 			$lines = explode("\n", $code);
 			$code = $lines[$e->getLine()-1] ?? $code;
-			throw new Dumbyer_Exception(sprintf("[%s] Line %d: %s\n%s", get_class($e), $e->getLine(), $e->getMessage(), $code), 0, $e);
+			throw new Brindille_Exception(sprintf("[%s] Line %d: %s\n%s", get_class($e), $e->getLine(), $e->getMessage(), $code), 0, $e);
 		}
 	}
 
@@ -134,8 +135,8 @@ class Dumbyer
 
 				return $this->_walk($all, $start, $name, $params, $line);
 			}
-			catch (Dumbyer_Exception $e) {
-				throw new Dumbyer_Exception(sprintf('Line %d: %s', $line, $e->getMessage()), 0, $e);
+			catch (Brindille_Exception $e) {
+				throw new Brindille_Exception(sprintf('Line %d: %s', $line, $e->getMessage()), 0, $e);
 			}
 		}, $code, -1, $count, PREG_OFFSET_CAPTURE);
 	}
@@ -238,7 +239,7 @@ class Dumbyer
 		}
 		elseif ($start == '/' && $name == 'literal') {
 			if ($this->_lastType() != self::LITERAL) {
-				throw new Dumbyer_Exception('closing of a literal block that wasn\'t opened');
+				throw new Brindille_Exception('closing of a literal block that wasn\'t opened');
 			}
 
 			$this->_pop();
@@ -274,7 +275,7 @@ class Dumbyer
 		}
 		elseif ($start == 'elseif') {
 			if ($this->_lastType() != self::IF) {
-				throw new Dumbyer_Exception('"elseif" block is not following a "if" block');
+				throw new Brindille_Exception('"elseif" block is not following a "if" block');
 			}
 
 			$this->_pop();
@@ -285,7 +286,7 @@ class Dumbyer
 			$type = $this->_lastType();
 
 			if ($type != self::IF && $type != self::SECTION) {
-				throw new Dumbyer_Exception('"else" block is not following a "if" or section block');
+				throw new Brindille_Exception('"else" block is not following a "if" or section block');
 			}
 
 			$name = $this->_lastName();
@@ -301,7 +302,7 @@ class Dumbyer
 		}
 		elseif ($start == '/') {
 			if (($start == 'if' && $this->_lastName() != $start) || ($name && $this->_lastName() != $name)) {
-				throw new Dumbyer_Exception(sprintf('"%s": block closing does not match last block "%s" opened', $all, $this->_lastName()));
+				throw new Brindille_Exception(sprintf('"%s": block closing does not match last block "%s" opened', $all, $this->_lastName()));
 			}
 
 			return $this->_close($name);
@@ -310,12 +311,12 @@ class Dumbyer
 			return $this->_function($name, $params, $line);
 		}
 
-		throw new Dumbyer_Exception('Unknown block: ' . $all);
+		throw new Brindille_Exception('Unknown block: ' . $all);
 	}
 
 	protected function _function(string $name, string $params, int $line) {
 		if (!isset($this->_functions[$name])) {
-			throw new Dumbyer_Exception(sprintf('unknown function "%s"', $name));
+			throw new Brindille_Exception(sprintf('unknown function "%s"', $name));
 		}
 
 		$params = $this->_parseArguments($params);
@@ -420,9 +421,10 @@ class Dumbyer
 				else if ($mod_name == 'escape') {
 					$escape = false;
 				}
+
 				// Modifiers MUST be registered at compile time
-				else if (!array_key_exists($mod_name, $this->_modifiers)) {
-					throw new Dumbyer_Exception('Unknown modifier name: ' . $mod_name);
+				if (!array_key_exists($mod_name, $this->_modifiers)) {
+					throw new Brindille_Exception('Unknown modifier name: ' . $mod_name);
 				}
 
 				$post = $_post . ')' . $post;
@@ -481,14 +483,14 @@ class Dumbyer
 			{
 				if ($value != '=')
 				{
-					throw new Dumbyer_Exception('Expecting \'=\' after \'' . $last_value . '\'');
+					throw new Brindille_Exception('Expecting \'=\' after \'' . $last_value . '\'');
 				}
 			}
 			elseif ($state == 2)
 			{
 				if ($value == '=')
 				{
-					throw new Dumbyer_Exception('Unexpected \'=\' after \'' . $last_value . '\'');
+					throw new Brindille_Exception('Unexpected \'=\' after \'' . $last_value . '\'');
 				}
 
 				$args[$name] = $value;
@@ -570,7 +572,7 @@ class Dumbyer
 	}
 }
 
-class Dumbyer_Exception extends \RuntimeException
+class Brindille_Exception extends \RuntimeException
 {
 
 }
