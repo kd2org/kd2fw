@@ -10,11 +10,33 @@ class Dumbyer
 	const IF = 11;
 	const ELSE = 12;
 
+	const PARSE_PATTERN = '%
+		# start of block
+		\{\{
+		# ignore spaces at start of block
+		\s*
+		# capture block type/name
+		(if|else\s?if|else|endif|literal|
+		# comments
+		\*|
+		# sections, variables, functions, MUST have a valid name
+		[:$#/]([\w._]+)|
+		# quoted strings can be chained to modifiers as well
+		[\'"]
+		# end of capture group
+		)
+		# Arguments etc.
+		((?!\}\}).*?)?
+		# end of block
+		\}\}
+		# regexp modifiers
+		%sx';
+
 	protected $_stack = [];
 
 	protected $_sections = [];
 	protected $_modifiers = [];
-	protected $_default_modifier = null;
+	protected $_functions = [];
 
 	protected $_variables = [0 => []];
 
@@ -45,38 +67,14 @@ class Dumbyer
 		$this->_sections[$name] = $callback;
 	}
 
-	public function __construct()
+	public function registerFunction(string $name, callable $callback): void
 	{
-		$this->registerDefaultModifier([$this, 'defaultModifier']);
-	}
-
-	public function defaultModifier(string $name, $var1, array $params): bool
-	{
-		$var2 = reset($params);
-
-		switch ($name) {
-			case '==': return $var1 == $var2;
-			case '!=': return $var1 != $var2;
-			case '>=': return $var1 >= $var2;
-			case '<=': return $var1 <= $var2;
-			case '>': return $var1 > $var2;
-			case '<': return $var1 < $var2;
-			case '===': return $var1 === $var2;
-			case '!==': return $var1 !== $var2;
-			default:
-				throw new Dumbyer_Exception(sprintf('unknown function "%s"', $name));
-		}
-	}
-
-	public function registerDefaultModifier(callable $callback): void
-	{
-		$this->_default_modifier = $callback;
+		$this->_functions[$name] = $callback;
 	}
 
 	public function render(string $code): string
 	{
 		$code = $this->compile($code);
-		var_dump($code);
 
 		try {
 			ob_start();
@@ -85,16 +83,15 @@ class Dumbyer
 
 			return ob_get_clean();
 		}
-		catch (\Exception $e) {
-			throw new Dumbyer_Exception('Syntax error', 0, $e);
+		catch (\Throwable $e) {
+			$lines = explode("\n", $code);
+			$code = $lines[$e->getLine()-1] ?? $code;
+			throw new Dumbyer_Exception(sprintf("[%s] Line %d: %s\n%s", get_class($e), $e->getLine(), $e->getMessage(), $code), 0, $e);
 		}
 	}
 
 	public function compile(string $code): string
 	{
-		// Remove comments
-		$code = preg_replace('!\{\{\*.*\}\}!', '', $code);
-
 		// Remove PHP tags
 		$code = strtr($code, [
 			'<?php' => '<?=\'<?php\'?>',
@@ -102,19 +99,20 @@ class Dumbyer
 			'?>' => '<?=\'?>\'?>'
 		]);
 
-		return preg_replace_callback('!\{\{\s*(if|else\s?if|include|else|endif|literal|[$#/])(?:\s+(.+))?\s*(.*)\s*\}\}!mUs', function ($match) use ($code) {
+		return preg_replace_callback(self::PARSE_PATTERN, function ($match) use ($code) {
+			$offset = $match[0][1];
+			$line = 1 + substr_count($code, "\n", 0, $offset);
+
 			try {
 				$all = $match[0][0];
-				$start = $match[1][0];
-				$name = $match[2][0] ?? null;
+				$start = !empty($match[2][0]) ? substr($match[1][0], 0, 1) : $match[1][0];
+				$name = $match[2][0] ?? $match[1][0];
 				$params = $match[3][0] ?? null;
 
-				return $this->_walk($all, $start, $name, $params);
+				return $this->_walk($all, $start, $name, $params, $line);
 			}
 			catch (Dumbyer_Exception $e) {
-				$offset = $match[0][1];
-				$line = substr_count($code, "\n", 0, $offset);
-				throw new Dumbyer_Exception(sprintf('Line %d: %s', $line, $e->getMessage()));
+				throw new Dumbyer_Exception(sprintf('Line %d: %s', $line, $e->getMessage()), 0, $e);
 			}
 		}, $code, -1, $count, PREG_OFFSET_CAPTURE);
 	}
@@ -138,7 +136,7 @@ class Dumbyer
 		return null;
 	}
 
-	protected function _magic(string $expr, $var, &$found)
+	protected function _magic(string $expr, $var, &$found = null)
 	{
 		$i = 0;
 		$keys = explode('.', $expr);
@@ -209,7 +207,7 @@ class Dumbyer
 		return null;
 	}
 
-	protected function _walk(string $all, ?string $start, string $name, ?string $params): string
+	protected function _walk(string $all, ?string $start, string $name, ?string $params, int $line): string
 	{
 		if (!$start && $name == 'literal') {
 			$this->_push(self::LITERAL, $name);
@@ -227,19 +225,25 @@ class Dumbyer
 			return $all;
 		}
 
-		// Variable
-		if ($start == '$') {
-			return sprintf('<?=%s?>', $this->_variable($name, $params, true));
+		// Comments
+		if ($start == '*') {
+			return '';
 		}
 
-		// Include
-		if ($start == 'include') {
-			return sprintf('<?=$this->fetch(%s);?>', var_export(trim($params), true));
+		$params = trim($params);
+
+		// Variable
+		if ($start == '$') {
+			return sprintf('<?=%s?>', $this->_variable('$' . $name . $params, true));
+		}
+
+		if ($start == '"' || $start == '\'') {
+			return sprintf('<?=%s?>', $this->_variable($start . $name . $params, true));
 		}
 
 		if ($start == '#') {
 			$this->_push(self::SECTION, $name);
-			return $this->_section($name, $params);
+			return $this->_section($name, $params, $line);
 		}
 		elseif ($start == 'if') {
 			$this->_push(self::IF, 'if');
@@ -258,14 +262,15 @@ class Dumbyer
 			$type = $this->_lastType();
 
 			if ($type != self::IF && $type != self::SECTION) {
-				throw new Dumbyer_Exception('"elseif" block is not following a "if" or section block');
+				throw new Dumbyer_Exception('"else" block is not following a "if" or section block');
 			}
 
+			$name = $this->_lastName();
 			$this->_pop();
-			$this->_push(self::ELSE);
+			$this->_push(self::ELSE, $name);
 
 			if ($type == self::SECTION) {
-				return '<?php endforeach; else: ?>';
+				return '<?php $last = array_pop($this->_variables); endforeach; if (!isset($last) || !count($last)): ?>';
 			}
 			else {
 				return '<?php else: ?>';
@@ -276,17 +281,40 @@ class Dumbyer
 				throw new Dumbyer_Exception(sprintf('"%s": block closing does not match last block "%s" opened', $all, $this->_lastName()));
 			}
 
-			return $this->_close($name, $params);
+			return $this->_close($name);
+		}
+		elseif ($start == ':') {
+			return $this->_function($name, $params, $line);
 		}
 
 		throw new Dumbyer_Exception('Unknown block: ' . $all);
 	}
 
-	protected function _section(string $name, string $params): string
+	protected function _function(string $name, string $params, int $line) {
+		if (!isset($this->_functions[$name])) {
+			throw new Dumbyer_Exception(sprintf('unknown function "%s"', $name));
+		}
+
+		$params = $this->_parseArguments($params);
+		$params = $this->_exportArguments($params);
+
+		return sprintf('<?=call_user_func($this->_functions[%s], %s, $this, %d)?>',
+			var_export($name, true),
+			$params,
+			$line
+		);
+	}
+
+	protected function _section(string $name, string $params, int $line): string
 	{
-		$params = $this->_parseParams($params);
-		return sprintf('<?php foreach (call_user_func_array(%s, %s) as $key => $value): $this->_variables[] = []; $this->assignArray($value); ?>',
-			var_export($this->_sections[$name], true), var_export($params, true));
+		$params = $this->_parseArguments($params);
+		$params = $this->_exportArguments($params);
+
+		return sprintf('<?php unset($last); foreach (call_user_func($this->_sections[%s], %s, $this, %d) as $key => $value): $this->_variables[] = []; $this->assignArray($value + [\'_\' => $key]); ?>',
+			var_export($name, true),
+			$params,
+			$line
+		);
 	}
 
 	protected function _if(string $name, string $params, string $tag_name = 'if')
@@ -299,7 +327,7 @@ class Dumbyer
 			$condition = trim($condition);
 
 			if (substr($condition, 0, 1) == '$') {
-				$conditions[] = $this->_variable($condition, '', false);
+				$conditions[] = $this->_variable($condition, false);
 			}
 			else {
 				$conditions[] = $condition;
@@ -309,7 +337,7 @@ class Dumbyer
 		return sprintf('<?php %s (%s): ?>', $tag_name, implode(' ', $conditions));
 	}
 
-	protected function _close(string $name, string $params)
+	protected function _close(string $name)
 	{
 		$type = $this->_lastType();
 		$this->_pop();
@@ -318,154 +346,213 @@ class Dumbyer
 			return '<?php endif; ?>';
 		}
 		else {
-			return '<?php array_pop($this->_variables); endforeach; endif; ?>';
+			return '<?php array_pop($this->_variables); endforeach; ?>';
 		}
 	}
 
 	/**
 	 * Parse a variable, either from a {$block} or from an argument: {block arg=$bla|rot13}
 	 */
-	protected function _variable(string $name, string $params = '', bool $escape = true): string
+	protected function _variable(string $raw, bool $escape = true): string
 	{
-		$name = ltrim($name, '$');
-
 		// Split by pipe (|) except if enclosed in quotes
-		$modifiers = preg_split('/\|(?=(([^\'"]*["\']){2})*[^\'"]*$)/', $name . $params);
+		$modifiers = preg_split('/\|(?=(([^\'"]*["\']){2})*[^\'"]*$)/', $raw);
 		$var = array_shift($modifiers);
-
-
-		// No modifiers: easy!
-		if (count($modifiers) == 0)
-		{
-			$str = sprintf('$this->get(%s)', var_export($var, true));
-
-			if ($escape) {
-				return '$this->escape(' . $str . ')';
-			}
-			else {
-				return $str;
-			}
-		}
-
-		$modifiers = array_reverse($modifiers);
 
 		$pre = $post = '';
 
-		foreach ($modifiers as &$modifier)
+		if (count($modifiers))
 		{
-			$_post = '';
+			$modifiers = array_reverse($modifiers);
 
-			$pos = strpos($modifier, ':');
-
-			// Arguments
-			if ($pos !== false)
+			foreach ($modifiers as &$modifier)
 			{
-				$mod_name = trim(substr($modifier, 0, $pos));
-				$raw_args = substr($modifier, $pos+1);
-				$arguments = [];
+				$_post = '';
 
-				// Split by two points (:) except if enclosed in quotes
-				$arguments = preg_split('/\s*:\s*|("(?:\\\\.|[^"])*?"|\'(?:\\\\.|[^\'])*?\'|[^:\'"\s]+)/', trim($raw_args), 0, PREG_SPLIT_NO_EMPTY | PREG_SPLIT_DELIM_CAPTURE);
-				$arguments = array_map([$this, 'exportArgument'], $arguments);
+				$pos = strpos($modifier, ':');
 
-				$_post .= ', ' . implode(', ', $arguments);
+				// Arguments
+				if ($pos !== false)
+				{
+					$mod_name = trim(substr($modifier, 0, $pos));
+					$raw_args = substr($modifier, $pos+1);
+					$arguments = [];
+
+					// Split by two points (:) except if enclosed in quotes
+					$arguments = preg_split('/\s*:\s*|("(?:\\\\.|[^"])*?"|\'(?:\\\\.|[^\'])*?\'|[^:\'"\s]+)/', trim($raw_args), 0, PREG_SPLIT_NO_EMPTY | PREG_SPLIT_DELIM_CAPTURE);
+					$arguments = array_map([$this, '_exportArgument'], $arguments);
+
+					$_post .= ', ' . implode(', ', $arguments);
+				}
+				else
+				{
+					$mod_name = trim($modifier);
+				}
+
+				// Disable autoescaping
+				if ($mod_name == 'raw') {
+					$escape = false;
+					continue;
+				}
+				else if ($mod_name == 'escape') {
+					$escape = false;
+				}
+				// Modifiers MUST be registered at compile time
+				else if (!array_key_exists($mod_name, $this->_modifiers)) {
+					throw new Dumbyer_Exception('Unknown modifier name: ' . $mod_name);
+				}
+
+				$post = $_post . ')' . $post;
+				$pre .= '$this->_modifiers[' . var_export($mod_name, true) . '](';
 			}
-			else
-			{
-				$mod_name = trim($modifier);
-			}
-
-			// Disable autoescaping
-			if ($mod_name == 'raw')
-			{
-				$escape = false;
-				continue;
-			}
-
-			if ($mod_name == 'escape')
-			{
-				$escape = false;
-			}
-
-			// Modifiers MUST be registered at compile time
-			if (!array_key_exists($mod_name, $this->modifiers))
-			{
-				$this->parseError($line, 'Unknown modifier name: ' . $mod_name);
-			}
-
-			$post = $_post . ')' . $post;
-			$pre .= '$this->modifiers[' . var_export($mod_name, true) . '](';
 		}
 
-		$var = $pre . $this->parseMagicVariables($var) . $post;
+		$search = false;
+
+		if (substr($var, 0, 1) == '$') {
+			$first_var = strtok($var, '.');
+			$search = strtok('');
+		}
+
+		if ($search) {
+			$var = sprintf('$this->_magic(%s, %s)', var_export((string) $search, true), $this->_exportArgument($first_var));
+		}
+		else {
+			$var = $this->_exportArgument($var);
+		}
+
+		$var = $pre . $var . $post;
 
 		unset($pre, $post, $arguments, $mod_name, $modifier, $modifiers, $pos, $_post);
 
 		// auto escape
 		if ($escape)
 		{
-			$var = 'self::escape(' . $var . ', $this->escape_type)';
+			$var = '$this->escape(' . $var . ')';
 		}
 
 		return $var;
 	}
 
+	/**
+	 * Parse block arguments, this is similar to parsing HTML arguments
+	 * @param  string $str List of arguments
+	 * @param  integer $line Source code line
+	 * @return array
+	 */
+	protected function _parseArguments(string $str)
+	{
+		$args = [];
+		$state = 0;
+		$last_value = '';
+
+		preg_match_all('/(?:"(?:\\.|[^\"])*?"|\'(?:\\.|[^\'])*?\'|(?>[^"\'=\s]+))+|[=]/i', $str, $match);
+
+		foreach ($match[0] as $value)
+		{
+			if ($state == 0)
+			{
+				$name = $value;
+			}
+			elseif ($state == 1)
+			{
+				if ($value != '=')
+				{
+					throw new Dumbyer_Exception('Expecting \'=\' after \'' . $last_value . '\'');
+				}
+			}
+			elseif ($state == 2)
+			{
+				if ($value == '=')
+				{
+					throw new Dumbyer_Exception('Unexpected \'=\' after \'' . $last_value . '\'');
+				}
+
+				$args[$name] = $value;
+				$name = null;
+				$state = -1;
+			}
+
+			$last_value = $value;
+			$state++;
+		}
+
+		unset($state, $last_value, $name, $str, $match);
+
+		return $args;
+	}
+
+	protected function _exportArgument(string $raw_arg): string
+	{
+		if ($raw_arg[0] == '$') {
+			return sprintf('$this->get(%s)', var_export(substr($raw_arg, 1), true));
+		}
+
+		return var_export($this->getValueFromArgument($raw_arg), true);
+	}
+
+	/**
+	 * Export an array to a string, like var_export but without escaping of strings
+	 *
+	 * This is used to reference variables and code in arrays
+	 *
+	 * @param  array   $args      Arguments to export
+	 * @return string
+	 */
+	protected function _exportArguments(array $args): string
+	{
+		if (!count($args)) {
+			return '[]';
+		}
+
+		$out = '[';
+
+		foreach ($args as $key=>$value)
+		{
+			$out .= var_export($key, true) . ' => ' . $this->_exportArgument($value) . ', ';
+		}
+
+		$out = substr($out, 0, -2);
+
+		$out .= ']';
+
+		return $out;
+	}
+
+	/**
+	 * Returns string value from a quoted or unquoted block argument
+	 * @param  string $arg Extracted argument ({foreach from=$loop item="value"} => [from => "$loop", item => "\"value\""])
+	 */
+	protected function getValueFromArgument(string $arg)
+	{
+		if ($arg[0] == '"' || $arg[0] == "'")
+		{
+			return stripslashes(substr($arg, 1, -1));
+		}
+
+		switch ($arg) {
+			case 'true':
+				return true;
+			case 'false':
+				return false;
+			case 'null':
+				return null;
+			default:
+				if (ctype_digit($arg)) {
+					return (int)$arg;
+				}
+
+				return $arg;
+		}
+	}
 
 	/**
 	 * Native default escape modifier
 	 */
-	static protected function escape($str, $type = 'html')
+	static protected function escape($str)
 	{
-		if ($type == 'json')
-		{
-			$str = json_encode($str);
-		}
-
-		if (is_array($str) || (is_object($str) && !method_exists($str, '__toString')))
-		{
-			throw new \InvalidArgumentException('Invalid parameter type for "escape" modifier: ' . gettype($str));
-		}
-
-		$str = (string) $str;
-
-		switch ($type)
-		{
-			case 'html':
-			case null:
-				return htmlspecialchars($str, ENT_QUOTES, 'UTF-8');
-			case 'xml':
-				return htmlspecialchars($str, ENT_XML1, 'UTF-8');
-			case 'htmlall':
-			case 'entities':
-				return htmlentities($str, ENT_QUOTES, 'UTF-8');
-			case 'url':
-				return rawurlencode($str);
-			case 'quotes':
-				return addslashes($str);
-			case 'hex':
-				return preg_replace_callback('/./', function ($match) {
-					return '%' . ord($match[0]);
-				}, $str);
-			case 'hexentity':
-				return preg_replace_callback('/./', function ($match) {
-					return '&#' . ord($match[0]) . ';';
-				}, $str);
-			case 'mail':
-				return str_replace('.', '[dot]', $str);
-			case 'json':
-				return $str;
-			case 'js':
-			case 'javascript':
-				return strtr($str, [
-					"\x08" => '\\b', "\x09" => '\\t', "\x0a" => '\\n', 
-					"\x0b" => '\\v', "\x0c" => '\\f', "\x0d" => '\\r', 
-					"\x22" => '\\"', "\x27" => '\\\'', "\x5c" => '\\'
-				]);
-			default:
-				return $str;
-		}
+		return htmlspecialchars($str);
 	}
-
 }
 
 class Dumbyer_Exception extends \RuntimeException
