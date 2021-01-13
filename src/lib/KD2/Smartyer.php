@@ -613,8 +613,7 @@ class Smartyer
 
 		$this->source = null;
 
-		// Atomic update if everything worked
-		@unlink($this->compiled_template_path);
+		// Atomic update if everything worked, destination will be overwritten
 		rename($this->compiled_template_path . '.tmp', $this->compiled_template_path);
 
 		unset($source, $compiled);
