@@ -40,6 +40,29 @@ class Dumbyer
 
 	protected $_variables = [0 => []];
 
+	public function registerDefaults()
+	{
+		$this->registerModifier('escape', 'htmlspecialchars');
+		$this->registerModifier('args', 'sprintf');
+		$this->registerModifier('nl2br', 'nl2br');
+		$this->registerModifier('strip_tags', 'strip_tags');
+		$this->registerModifier('count', 'count');
+		$this->registerModifier('concatenate', function() { return implode('', func_get_args()); });
+		$this->registerModifier('date_format', function ($date, $format = '%d/%m/%Y %H:%M') {
+			$tz = null;
+
+			if (is_object($date)) {
+				$date = $date->getTimestamp();
+				$tz = $date->getTimezone();
+			}
+			elseif (!ctype_digit($date)) {
+				$date = strtotime($date);
+			}
+
+			return Translate::strftime($format, $date, $tz);
+		});
+	}
+
 	public function assign(string $key, $value): void
 	{
 		if (!count($this->_variables)) {
@@ -428,7 +451,7 @@ class Dumbyer
 		// auto escape
 		if ($escape)
 		{
-			$var = '$this->escape(' . $var . ')';
+			$var = '$this->_modifiers[\'escape\'](' . $var . ')';
 		}
 
 		return $var;
@@ -544,14 +567,6 @@ class Dumbyer
 
 				return $arg;
 		}
-	}
-
-	/**
-	 * Native default escape modifier
-	 */
-	static protected function escape($str)
-	{
-		return htmlspecialchars($str);
 	}
 }
 
