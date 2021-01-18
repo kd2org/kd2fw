@@ -320,34 +320,34 @@ class SQLite3 extends DB
 
 	public function parseQuery(string $query): array
 	{
-		static $keywords = 'ABORT ACTION ADD AFTER ALL ALTER ALWAYS ANALYZE AND AS ASC ATTACH AUTOINCREMENT BEFORE BEGIN BETWEEN BY CASCADE CASE CAST CHECK COLLATE COLUMN COMMIT CONFLICT CONSTRAINT CREATE CROSS CURRENT CURRENT_DATE CURRENT_TIME CURRENT_TIMESTAMP DATABASE DEFAULT DEFERRABLE DEFERRED DELETE DESC DETACH DISTINCT DO DROP EACH ELSE END ESCAPE EXCEPT EXCLUDE EXCLUSIVE EXISTS EXPLAIN FAIL FILTER FIRST FOLLOWING FOR FOREIGN FROM FULL GENERATED GLOB GROUP GROUPS HAVING IF IGNORE IMMEDIATE IN INDEX INDEXED INITIALLY INNER INSERT INSTEAD INTERSECT INTO IS ISNULL JOIN KEY LAST LEFT LIKE LIMIT MATCH NATURAL NO NOT NOTHING NOTNULL NULL NULLS OF OFFSET ON OR ORDER OTHERS OUTER OVER PARTITION PLAN PRAGMA PRECEDING PRIMARY QUERY RAISE RANGE RECURSIVE REFERENCES REGEXP REINDEX RELEASE RENAME REPLACE RESTRICT RIGHT ROLLBACK ROW ROWS SAVEPOINT SELECT SET TABLE TEMP TEMPORARY THEN TIES TO TRANSACTION TRIGGER UNBOUNDED UNION UNIQUE UPDATE USING VACUUM VALUES VIEW VIRTUAL WHEN WHERE WINDOW WITH WITHOUT';
+		static $keywords_string = 'ABORT ACTION ADD AFTER ALL ALTER ALWAYS ANALYZE AND AS ASC ATTACH AUTOINCREMENT BEFORE BEGIN BETWEEN BY CASCADE CASE CAST CHECK COLLATE COLUMN COMMIT CONFLICT CONSTRAINT CREATE CROSS CURRENT CURRENT_DATE CURRENT_TIME CURRENT_TIMESTAMP DATABASE DEFAULT DEFERRABLE DEFERRED DELETE DESC DETACH DISTINCT DO DROP EACH ELSE END ESCAPE EXCEPT EXCLUDE EXCLUSIVE EXISTS EXPLAIN FAIL FILTER FIRST FOLLOWING FOR FOREIGN FROM FULL GENERATED GLOB GROUP GROUPS HAVING IF IGNORE IMMEDIATE IN INDEX INDEXED INITIALLY INNER INSERT INSTEAD INTERSECT INTO IS ISNULL JOIN KEY LAST LEFT LIKE LIMIT MATCH NATURAL NO NOT NOTHING NOTNULL NULL NULLS OF OFFSET ON OR ORDER OTHERS OUTER OVER PARTITION PLAN PRAGMA PRECEDING PRIMARY QUERY RAISE RANGE RECURSIVE REFERENCES REGEXP REINDEX RELEASE RENAME REPLACE RESTRICT RIGHT ROLLBACK ROW ROWS SAVEPOINT SELECT SET TABLE TEMP TEMPORARY THEN TIES TO TRANSACTION TRIGGER UNBOUNDED UNION UNIQUE UPDATE USING VACUUM VALUES VIEW VIRTUAL WHEN WHERE WINDOW WITH WITHOUT';
 
-			$keywords = explode(' ', $keywords);
-			$keywords = str_replace(' ', '|', $keywords);
+		$keywords = explode(' ', $keywords_string);
+		$keywords = str_replace(' ', '|', $keywords);
 
-			$query = rtrim($query, ';');
+		$query = rtrim($query, ';');
 
-			preg_match_all('/((["\'])(?:\\\2|.)*?\2|\b(?:' . implode('|', $keywords) . ')\b|[\w]+(?:\s*\.\s*[\w]+)*)/ims', $query, $match);
+		preg_match_all('/((["\'])(?:\\\2|.)*?\2|\b(?:' . implode('|', $keywords) . ')\b|[\w]+(?:\s*\.\s*[\w]+)*)/ims', $query, $match);
 
-			$current = null;
-			$query = [];
+		$current = null;
+		$query = [];
 
-			foreach ($match[0] as $v) {
-				$kw = strtoupper($v);
+		foreach ($match[0] as $v) {
+			$kw = strtoupper($v);
 
-				if (in_array($kw, $keywords)) {
-					$query[$kw] = (object) ['tables' => [], 'content' => []];
-					$current = $kw;
+			if (in_array($kw, $keywords)) {
+				$query[$kw] = (object) ['tables' => [], 'content' => []];
+				$current = $kw;
+			}
+			elseif (null !== $current) {
+				if ($current == 'FROM' || $current == 'JOIN') {
+					$query[$current]->tables[] = $v;
 				}
-				elseif (null !== $current) {
-					if ($current == 'FROM' || $current == 'JOIN') {
-						$query[$current]->tables[] = $v;
-					}
-					else {
-						$query[$current]->content[] = $v;
-					}
+				else {
+					$query[$current]->content[] = $v;
 				}
 			}
+		}
 
 		return $query;
 	}
