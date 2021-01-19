@@ -625,7 +625,7 @@ class DB
 	 * @param  string $where WHERE clause
 	 * @return integer
 	 */
-	public function count(string $table, string $where, ...$args): int
+	public function count(string $table, string $where = '1', ...$args): int
 	{
 		$query = sprintf('SELECT COUNT(*) FROM %s WHERE %s LIMIT 1;', $this->quoteIdentifier($table), $where);
 		return (int) $this->firstColumn($query, ...$args);
