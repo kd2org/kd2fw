@@ -10,6 +10,41 @@ class Brindille
 	const IF = 11;
 	const ELSE = 12;
 
+	const T_VAR = 'var';
+	const T_PARAMS = 'params';
+
+	// $var.subvar , "quoted string even with \" escape quotes", 'even single quotes'
+	const RE_LITERAL = '\$[\w.]+|"(.*?(?<!\\\\))"|\'(.*?(?<!\\\\))\'';
+
+	const RE_SCALAR = 'null|true|false|\d+|\d+\.\d+';
+
+	// Modifier argument: :"string", :$variable.subvar, :42, :false, :null
+	const RE_MODIFIER_ARGUMENTS = '(?::(?:' . self::RE_LITERAL . '|' . self::RE_SCALAR . '))*';
+
+	// Modifier: |mod_name:arg1:arg2
+	const RE_MODIFIER = '\|\w+' . self::RE_MODIFIER_ARGUMENTS;
+
+	// Variable: $var_name|modifier, "string literal"|modifier:arg1,arg2
+	const RE_VARIABLE = '(?:' . self::RE_LITERAL . ')(?:' . self::RE_MODIFIER . ')*';
+
+	// block parameters
+	const RE_PARAMETERS = '[:\w]+=(?:' . self::RE_VARIABLE . '|' . self::RE_SCALAR . ')';
+
+	// Tokens allowed in an if statement
+	const TOK_IF_BLOCK = [
+		'>=', '<=', '===', '!==', '==', '!=', '>', '<', '!',
+		'&&', '\|\|', '\(', '\)',
+		self::T_VAR => self::RE_VARIABLE,
+		self::RE_SCALAR,
+		'\s+',
+	];
+
+	const TOK_VAR_BLOCK = [
+		self::T_VAR => self::RE_VARIABLE,
+		self::T_PARAMS => self::RE_PARAMETERS,
+		'\s+',
+	];
+
 	const PARSE_PATTERN = '%
 		# start of block
 		\{\{
@@ -43,12 +78,16 @@ class Brindille
 
 	public function registerDefaults()
 	{
+		$this->registerFunction('assign', function(array $params, Brindille $tpl) {
+			$tpl->assignArray($params);
+		});
+
 		$this->registerModifier('args', 'sprintf');
 		$this->registerModifier('nl2br', 'nl2br');
 		$this->registerModifier('strip_tags', 'strip_tags');
 		$this->registerModifier('count', 'count');
-		$this->registerModifier('xml', function ($str) { return htmlspecialchars($str, ENT_XML1); });
-		$this->registerModifier('concatenate', function() { return implode('', func_get_args()); });
+		$this->registerModifier('cat', function() { return implode('', func_get_args()); });
+
 		$this->registerModifier('date_format', function ($date, $format = '%d/%m/%Y %H:%M') {
 			$tz = null;
 
@@ -116,6 +155,8 @@ class Brindille
 
 	public function compile(string $code): string
 	{
+		$this->_stack = [];
+
 		// Remove PHP tags
 		$code = strtr($code, [
 			'<?php' => '<?=\'<?php\'?>',
@@ -123,7 +164,7 @@ class Brindille
 			'?>' => '<?=\'?>\'?>'
 		]);
 
-		return preg_replace_callback(self::PARSE_PATTERN, function ($match) use ($code) {
+		$return = preg_replace_callback(self::PARSE_PATTERN, function ($match) use ($code) {
 			$offset = $match[0][1];
 			$line = 1 + substr_count($code, "\n", 0, $offset);
 
@@ -139,6 +180,13 @@ class Brindille
 				throw new Brindille_Exception(sprintf('Line %d: %s', $line, $e->getMessage()), 0, $e);
 			}
 		}, $code, -1, $count, PREG_OFFSET_CAPTURE);
+
+		if (count($this->_stack)) {
+			$line = 1 + substr_count($code, "\n");
+			throw new Brindille_Exception(sprintf('Line %d: missing closing tag "%s"', $line, $this->_lastName()));
+		}
+
+		return $return;
 	}
 
 	public function get(string $name)
@@ -158,6 +206,17 @@ class Brindille
 		}
 
 		return null;
+	}
+
+	public function getAllVariables(): array
+	{
+		$out = [];
+
+		foreach ($this->_variables as $vars) {
+			$out = array_merge($out, $vars);
+		}
+
+		return $out;
 	}
 
 	protected function _magic(string $expr, $var, &$found = null)
@@ -334,7 +393,7 @@ class Brindille
 		$params = $this->_parseArguments($params);
 		$params = $this->_exportArguments($params);
 
-		return sprintf('<?php unset($last); foreach (call_user_func($this->_sections[%s], %s, $this, %d) as $key => $value): $this->_variables[] = []; $this->assignArray($value + [\'_\' => $key]); ?>',
+		return sprintf('<?php unset($last); foreach (call_user_func($this->_sections[%s], %s, $this, %d) as $key => $value): $this->_variables[] = []; $this->assignArray($value + [\'__\' => $value, \'_\' => $key]); ?>',
 			var_export($name, true),
 			$params,
 			$line
@@ -343,22 +402,20 @@ class Brindille
 
 	protected function _if(string $name, string $params, string $tag_name = 'if')
 	{
-		preg_match_all('$(\|\||&&|[()]|(?:>=|<=|==|===|>|<|!=|!==|null|\d+|false|true|!)|\$\w+(?:\.\w+)*)$', $name . $params, $match);
+		$tokens = self::tokenize($params, self::TOK_IF_BLOCK);
 
-		$conditions = [];
+		$code = '';
 
-		foreach ($match[1] as $condition) {
-			$condition = trim($condition);
-
-			if (substr($condition, 0, 1) == '$') {
-				$conditions[] = $this->_variable($condition, false);
+		foreach ($tokens as $token) {
+			if ($token->type == self::T_VAR) {
+				$code .= $this->_variable($token->value, false);
 			}
 			else {
-				$conditions[] = $condition;
+				$code .= $token->value;
 			}
 		}
 
-		return sprintf('<?php %s (%s): ?>', $tag_name, implode(' ', $conditions));
+		return sprintf('<?php %s (%s): ?>', $tag_name, $code);
 	}
 
 	protected function _close(string $name)
@@ -569,6 +626,50 @@ class Brindille
 
 				return $arg;
 		}
+	}
+
+	/**
+	 * Tokenize a string following a list of regexps
+	 * @see https://github.com/nette/tokenizer
+	 * @return array a list of tokens, each is an object with a value, a type (the array index of $tokens) and the offset position
+	 * @throws \InvalidArgumentException if an unknown token is encountered
+	 */
+	static public function tokenize(string $input, array $tokens): array
+	{
+		$pattern = '~(' . implode(')|(', $tokens) . ')~A';
+		preg_match_all($pattern, $input, $match, PREG_SET_ORDER);
+
+		$types = array_keys($tokens);
+		$count = count($types);
+
+		$len = 0;
+
+		foreach ($match as &$token) {
+			$type = null;
+
+			for ($i = 1; $i <= $count; $i++) {
+				if (!isset($token[$i])) {
+					break;
+				} elseif ($token[$i] !== '') {
+					$type = $types[$i - 1];
+					break;
+				}
+			}
+
+			$token = (object) ['value' => $token[0], 'type' => $type, 'offset' => $len];
+			$len += strlen($token->value);
+		}
+
+		if ($len !== strlen($input)) {
+			$text = substr($input, 0, $len);
+			$line = substr_count($text, "\n") + 1;
+			$col = $len - strrpos("\n" . $text, "\n") + 1;
+			$token = str_replace("\n", '\n', substr($input, $len, 10));
+
+			throw new \InvalidArgumentException("Unexpected '$token' on line $line, column $col");
+		}
+
+		return $match;
 	}
 }
 

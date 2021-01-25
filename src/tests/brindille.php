@@ -22,7 +22,9 @@ function test_php_tags()
 	$b->assign('php', '<?php');
 
 	Test::equals('&lt;?php', $b->render('{{$php}}'));
-	Test::equals('<?php', $b->render('<?php'));
+	Test::equals('<?php exit; ?>', $b->render('<?php exit; ?>'));
+
+	/*Test::equals('<?php if ($this->_magic(\'"\\\'"\', $this->get(\'ob"\\\'ject->test()\')) ): ?>--<?php endif; ?>', $b->compile('{{if $ob"\'ject->test()."\'"}}--{{/if}}'));*/
 }
 
 function test_comments()
@@ -47,9 +49,18 @@ function test_variables()
 	Test::equals('plap', $b->render('{{$plop}}'));
 	Test::equals('plop', $b->render('{{$bla.plap}}'));
 
+	Test::equals('', $b->render('{{$.plap}}'));
+
 	$b->assign('html', '<html>');
 	Test::equals('&lt;html&gt;', $b->render('{{$html}}'));
-	//Test::equals('<html>', $b->render('{{$html|raw}}'));
+	Test::equals('<html>', $b->render('{{$html|raw}}'));
+
+	$b->registerDefaults();
+	Test::equals('<html>abc42', $b->render('{{$html|raw|cat:"a"|cat:"b":"c"|cat:42}}'));
+	Test::equals('-<html>-', $b->render('{{"-%s-"|args:$html|raw}}'));
+	Test::equals('-&quot;__&quot;-32', $b->render('{{"-%s-"|args:\'"__"\'|cat:32}}'));
+	Test::equals('-"__"-32', $b->render('{{"-%s-"|raw|args:\'"__"\'|cat:32}}'));
+	Test::equals('<?=\'-"\\\'__"-\'?>', $b->compile('{{"-\\"\'__\\"-"|raw}}'));
 }
 
 
@@ -144,12 +155,24 @@ function test_if()
 
 	$b->assign('ok', '42');
 	$b->assign('nope', false);
+	$b->assign('date', gmmktime(0, 0, 0, 2, 2, 2021));
+
+	$b->registerModifier('date', function ($date, $format) {
+		return gmdate($format, $date);
+	});
+
+	$b->registerModifier('args', 'sprintf');
 
 	Test::equals('yep', $b->render('{{if $ok > 41 }}yep{{/if}}'));
 	Test::equals('', $b->render('{{if $ok == 41 }}yep{{/if}}'));
 	Test::equals('yep', $b->render('{{if $ok < 43 && (!$nope || $ok > 40) }}yep{{/if}}'));
 	Test::equals('yep', $b->render('{{if $ok < 42}}nope{{elseif $ok < 44}}yep{{/if}}'));
 	Test::equals('yup', $b->render('{{if $ok < 42}}nope{{elseif $ok > 43}}nope2{{else}}yup{{/if}}'));
+	Test::equals('yep', $b->render('{{if $date|date:"Y" == 2021 }}yep{{/if}}'));
+	Test::equals('yep', $b->render('{{if $date|date:"YmdHis" == "20210202000000" }}yep{{/if}}'));
+	Test::equals('yep', $b->render('{{if "%s"|args:"lol" == "lol" }}yep{{/if}}'));
+	Test::equals('yep', $b->render('{{if "%s"|args:"lol" === "lol" }}yep{{/if}}'));
+	Test::equals('yep', $b->render('{{if "%s"|args:"lol" !== "nope" }}yep{{/if}}'));
 }
 
 function test_modifiers()
