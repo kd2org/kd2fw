@@ -390,6 +390,10 @@ class Brindille
 
 	protected function _section(string $name, string $params, int $line): string
 	{
+		if (!isset($this->_sections[$name])) {
+			throw new Brindille_Exception(sprintf('unknown section "%s"', $name));
+		}
+
 		$params = $this->_parseArguments($params);
 		$params = $this->_exportArguments($params);
 
