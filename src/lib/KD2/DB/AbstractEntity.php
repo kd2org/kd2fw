@@ -233,6 +233,11 @@ abstract class AbstractEntity
 		return array_intersect_key($this->asArray($for_database), $this->_modified);
 	}
 
+	public function isModified(): bool
+	{
+		return count($this->_modified) > 0;
+	}
+
 	public function id(int $id = null): int
 	{
 		if (null !== $id) {
@@ -346,8 +351,20 @@ abstract class AbstractEntity
 		$this->_exists = false;
 	}
 
-	protected function _checkType(string $key, $value, string $type)
+	protected function _checkType(string $key, $value, string $type): bool
 	{
+		if (false !== strpos($type, '|')) {
+			$types = explode('|', $type);
+
+			foreach ($types as $type) {
+				if ($this->_checkType($key, $value, $type)) {
+					return true;
+				}
+			}
+
+			return false;
+		}
+
 		switch ($type) {
 			case 'date':
 				return is_object($value) && $value instanceof \DateTimeInterface;
