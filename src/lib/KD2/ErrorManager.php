@@ -325,6 +325,7 @@ class ErrorManager
 			if (!headers_sent()) {
 				header_remove();
 				header('Content-Type: text/html; charset=UTF-8', true);
+				header('HTTP/1.1 500 Internal Server Error', true);
 			}
 
 			// Display debug
