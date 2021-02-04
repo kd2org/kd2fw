@@ -196,6 +196,12 @@ class Brindille
 		$array =& $this->_variables;
 
 		for ($vars = end($array); key($array) !== null; $vars = prev($array)) {
+			// Dots at the start of a variable name mean: go back X levels in variable stack
+			if (substr($name, 0, 1) == '.') {
+				$name = substr($name, 1);
+				continue;
+			}
+
 			if (array_key_exists($name, $vars)) {
 				return $vars[$name];
 			}
@@ -492,17 +498,7 @@ class Brindille
 
 		$search = false;
 
-		if (substr($var, 0, 1) == '$') {
-			$first_var = strtok($var, '.');
-			$search = strtok('');
-		}
-
-		if ($search) {
-			$var = sprintf('$this->_magic(%s, %s)', var_export((string) $search, true), $this->_exportArgument($first_var));
-		}
-		else {
-			$var = $this->_exportArgument($var);
-		}
+		$var = $this->_exportArgument($var);
 
 		$var = $pre . $var . $post;
 
