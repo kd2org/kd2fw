@@ -52,8 +52,6 @@ class Brindille
 		\s*
 		# capture block type/name
 		(if|else\s?if|else|endif|literal|
-		# comments
-		\*|
 		# sections, variables, functions, MUST have a valid name
 		[:$#/]([\w._]+)|
 		# quoted strings can be chained to modifiers as well
@@ -159,10 +157,14 @@ class Brindille
 
 		// Remove PHP tags
 		$code = strtr($code, [
-			'<?php' => '<?=\'<?php\'?>',
 			'<?' => '<?=\'<?\'?>',
 			'?>' => '<?=\'?>\'?>'
 		]);
+
+		// Remove comments, but do not affect the number of lines
+		$code = preg_replace_callback('/\{\{\*(?:(?!\}\}\*).*?)\*\}\}/s', function ($match) {
+			return str_repeat("\n", substr_count($match[0], "\n"));
+		}, $code);
 
 		$return = preg_replace_callback(self::PARSE_PATTERN, function ($match) use ($code) {
 			$offset = $match[0][1];
@@ -306,11 +308,6 @@ class Brindille
 		}
 		elseif ($this->_lastType() == self::LITERAL) {
 			return $all;
-		}
-
-		// Comments
-		if ($start == '*') {
-			return '';
 		}
 
 		$params = trim($params);
