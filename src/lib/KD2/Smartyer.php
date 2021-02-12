@@ -1284,7 +1284,7 @@ class Smartyer
 					return constant(get_class($var) . '::' . $key);
 				}
 
-				if (!property_exists($var, $key))
+				if (!isset($var->$key))
 				{
 					return null;
 				}
