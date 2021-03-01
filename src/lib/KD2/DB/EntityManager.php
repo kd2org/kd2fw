@@ -139,8 +139,8 @@ class EntityManager
 		if ($db instanceof SQLite3) {
 			while ($row = $res->fetchArray(\SQLITE3_ASSOC)) {
 				$obj = new $this->class;
-				$obj->load($row);
 				$obj->exists(true);
+				$obj->load($row);
 				yield $obj;
 			}
 
@@ -149,8 +149,8 @@ class EntityManager
 		else {
 			while ($row = $res->fetch(PDO::FETCH_ASSOC)) {
 				$obj = new $this->class;
-				$obj->load($row);
 				$obj->exists(true);
+				$obj->load($row);
 				yield $obj;
 			}
 		}
@@ -176,8 +176,8 @@ class EntityManager
 		}
 
 		$obj = new $this->class;
-		$obj->load($row);
 		$obj->exists(true);
+		$obj->load($row);
 		return $obj;
 	}
 
@@ -215,8 +215,8 @@ class EntityManager
 					throw new \LogicException('Error inserting entity in DB: invalid ID = ' . $id);
 				}
 
-				$entity->id($id);
 				$entity->exists(true);
+				$entity->id($id);
 			}
 
 			return $return;
@@ -229,8 +229,8 @@ class EntityManager
 		$return = $db->delete($entity::TABLE, $db->where('id', $entity->id()));
 
 		if ($return) {
-			$entity->id(null);
 			$entity->exists(false);
+			$entity->id(null);
 		}
 
 		return $return;
