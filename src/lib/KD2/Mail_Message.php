@@ -292,6 +292,13 @@ class Mail_Message
 					$part['content'] = html_entity_decode($part['content'], ENT_QUOTES, 'UTF-8');
 				}
 
+				$part['content'] = trim($part['content']);
+
+				// Some emails are in HTML in the text/plain body (eg. laposte.net)
+				if (substr($part['content'], 0, 1) == '<' && substr($part['content'], -1) == '>') {
+					$part['content'] = $this->HTMLToText($part['content']);
+				}
+
 				return $part['content'];
 			}
 		}
