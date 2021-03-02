@@ -285,18 +285,17 @@ class Mail_Message
 		{
 			if ($part['type'] == 'text/plain')
 			{
-				// Fix a rare but weird bug, apparently caused by some webmails
-				// where the plaintext email is HTML-encoded
-				if (preg_match('/&[a-z]+;/', $part['content']) && utf8_decode($part['content']) == $part['content'])
-				{
-					$part['content'] = html_entity_decode($part['content'], ENT_QUOTES, 'UTF-8');
-				}
-
 				$part['content'] = trim($part['content']);
 
 				// Some emails are in HTML in the text/plain body (eg. laposte.net)
 				if (substr($part['content'], 0, 1) == '<' && substr($part['content'], -1) == '>') {
 					$part['content'] = $this->HTMLToText($part['content']);
+				}
+				// Fix a rare but weird bug, apparently caused by some webmails
+				// where the plaintext email is HTML-encoded
+				elseif (preg_match('/&[a-z]+;/', $part['content']) && utf8_decode($part['content']) == $part['content'])
+				{
+					$part['content'] = html_entity_decode($part['content'], ENT_QUOTES, 'UTF-8');
 				}
 
 				return $part['content'];
