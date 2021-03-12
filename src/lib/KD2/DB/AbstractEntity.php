@@ -334,12 +334,12 @@ abstract class AbstractEntity
 
 	public function __get(string $key)
 	{
-		return $this->$key;
+		return $this->get($key);
 	}
 
 	public function __isset($key)
 	{
-		return isset($this->$key);
+		return property_exists($this, $key);
 	}
 
 	/**
