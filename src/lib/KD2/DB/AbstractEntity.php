@@ -228,9 +228,14 @@ abstract class AbstractEntity
 		}
 	}
 
-	public function modifiedProperties($for_database = false): array
+	public function modifiedProperties(bool $for_database = false): array
 	{
 		return array_intersect_key($this->asArray($for_database), $this->_modified);
+	}
+
+	public function clearModifiedProperties(): void
+	{
+		$this->_modified = [];
 	}
 
 	public function isModified(): bool

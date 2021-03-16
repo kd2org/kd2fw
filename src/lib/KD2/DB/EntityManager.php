@@ -193,15 +193,15 @@ class EntityManager
 		$entity->selfCheck();
 		$db = $this->DB();
 
-
 		if ($entity->exists()) {
 			$data = $entity->modifiedProperties(true);
 
-			if (!count($data)) {
-				return true;
+			if (count($data)) {
+				$return = $db->update($entity::TABLE, $data, $db->where('id', $entity->id()));
 			}
-
-			return $db->update($entity::TABLE, $data, $db->where('id', $entity->id()));
+			else {
+				$return = true;
+			}
 		}
 		else {
 			$data = $entity->asArray(true);
@@ -218,9 +218,10 @@ class EntityManager
 				$entity->exists(true);
 				$entity->id($id);
 			}
-
-			return $return;
 		}
+
+		$entity->clearModifiedProperties();
+		return $return;
 	}
 
 	public function delete(AbstractEntity $entity): bool
