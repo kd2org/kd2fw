@@ -46,7 +46,7 @@ abstract class AbstractEntity
 	public function __construct()
 	{
 		// Generate _types array
-		if (version_compare(PHP_VERSION, '7.4', '>=') && empty(self::$_types_cache[static::class])) {
+		if (version_compare(PHP_VERSION, '7.4', '>=') && empty(self::$_types_cache[static::class]) && empty($this->_types)) {
 			$r = new \ReflectionClass(static::class);
 			self::$_types_cache[static::class] = [];
 
