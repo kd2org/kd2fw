@@ -33,12 +33,12 @@ namespace KD2\DB;
 
 abstract class AbstractEntity
 {
-	protected $id;
-
 	protected $_exists = false;
 
 	protected $_modified = [];
 	protected $_types = [];
+
+	static protected $_types_cache = [];
 
 	/**
 	 * Default constructor
@@ -46,16 +46,18 @@ abstract class AbstractEntity
 	public function __construct()
 	{
 		// Generate _types array
-		if (version_compare(PHP_VERSION, '7.4', '>=') && empty($this->_types)) {
+		if (version_compare(PHP_VERSION, '7.4', '>=') && empty(self::$_types_cache[static::class])) {
 			$r = new \ReflectionClass(static::class);
+			self::$_types_cache[static::class] = [];
+
 			foreach ($r->getProperties(\ReflectionProperty::IS_PROTECTED) as $p) {
 				if ($p->name[0] == '_') {
 					// Skip internal stuff
 					continue;
 				}
 
-				if ($p->name == 'id') {
-					$type = 'int';
+				if (array_key_exists($p->name, $this->_types)) {
+					$type = $this->_types[$p->name];
 				}
 				else {
 					$t = $p->getType();
@@ -68,8 +70,11 @@ abstract class AbstractEntity
 					$type = ($t->allowsNull() ? '?' : '') . $type;
 				}
 
-				$this->_types[$p->name] = $type;
+				self::$_types_cache[static::class][$p->name] = $type;
 			}
+		}
+		elseif (empty(self::$_types_cache[static::class])) {
+			self::$_types_cache[static::class] = $this->_types;
 		}
 	}
 
@@ -81,7 +86,7 @@ abstract class AbstractEntity
 	 */
 	public function load(array $data): void
 	{
-		$properties = array_keys($this->_types);
+		$properties = array_keys(self::$_types_cache[static::class]);
 
 		foreach ($data as $key => $value) {
 			if (!in_array($key, $properties)) {
@@ -111,13 +116,17 @@ abstract class AbstractEntity
 			$source = $_POST;
 		}
 
-		$data = array_intersect_key($source, $this->_types);
+		$data = array_intersect_key($source, self::$_types_cache[static::class]);
 
 		foreach ($data as $key => $value) {
-			$type = $this->_types[$key];
+			$type = self::$_types_cache[static::class][$key];
 
 			if (substr($type, 0, 1) == '?') {
 				$type = substr($type, 1);
+
+				if (trim($value) === '') {
+					$value = null;
+				}
 			}
 
 			$value = $this->filterUserValue($type, $value, $key);
@@ -168,9 +177,9 @@ abstract class AbstractEntity
 
 	public function selfCheck(): void
 	{
-		$this->assert(is_null($this->id) || (is_numeric($this->id) && $this->id > 0));
+		$this->assert(!isset($this->id) || (is_numeric($this->id) && $this->id > 0));
 
-		foreach ($this->_types as $key => $type) {
+		foreach (self::$_types_cache[static::class] as $key => $type) {
 			// Skip ID
 			if ($key == 'id') {
 				continue;
@@ -209,7 +218,7 @@ abstract class AbstractEntity
 			return null;
 		}
 
-		$type = $this->_types[$key];
+		$type = self::$_types_cache[static::class][$key];
 
 		if (substr($type, 0, 1) == '?') {
 			$type = substr($type, 1);
@@ -277,7 +286,7 @@ abstract class AbstractEntity
 			$original_value = null;
 		}
 
-		$type = $this->_types[$key];
+		$type = self::$_types_cache[static::class][$key];
 		$nullable = false;
 
 		if ($type[0] == '?') {
