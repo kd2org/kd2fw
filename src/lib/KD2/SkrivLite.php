@@ -116,7 +116,7 @@ class SkrivLite
 	 * Stores current block content for code and extensions block
 	 * @var mixed
 	 */
-	protected $_block = true;
+	protected $_block = '';
 
 	/**
 	 * Configurable callbacks
@@ -981,6 +981,7 @@ class SkrivLite
 		// Close tags that are still open
 		$line .= $this->_closeStack();
 
+		$text = array_filter($text);
 		$text = implode("\n", $text);
 
 		// Add footnotes
