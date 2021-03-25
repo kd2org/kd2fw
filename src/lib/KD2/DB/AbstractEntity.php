@@ -124,7 +124,7 @@ abstract class AbstractEntity
 			if (substr($type, 0, 1) == '?') {
 				$type = substr($type, 1);
 
-				if (trim($value) === '') {
+				if (is_string($value) && trim($value) === '') {
 					$value = null;
 				}
 			}
