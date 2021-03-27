@@ -799,7 +799,6 @@ class Image
 			$this->pointer->setOption('png:compression-level', 9);
 			$this->pointer->setImageCompression(\Imagick::COMPRESSION_LZW);
 			$this->pointer->setImageCompressionQuality($this->compression * 10);
-			$this->pointer->stripImage();
 		}
 		else if ($format == 'jpeg')
 		{
@@ -807,6 +806,11 @@ class Image
 			$this->pointer->setImageCompressionQuality($this->jpeg_quality);
 			$this->pointer->setInterlaceScheme($this->progressive_jpeg ? \Imagick::INTERLACE_PLANE : \Imagick::INTERLACE_NO);
 		}
+		else if ($format == 'webp') {
+			$this->pointer->setImageCompressionQuality($this->jpeg_quality);
+		}
+
+		$this->pointer->stripImage();
 
 		if ($format == 'gif' && $this->pointer->getIteratorIndex() > 0)
 			return file_put_contents($destination, $this->pointer->getImagesBlob());
@@ -972,6 +976,8 @@ class Image
 				return imagegif($this->pointer, $destination);
 			case 'jpeg':
 				return imagejpeg($this->pointer, $destination, $this->jpeg_quality);
+			case 'webp':
+				return imagewebp($this->pointer, $destination, $this->jpeg_quality);
 			default:
 				throw new \InvalidArgumentException('Image format ' . $format . ' is unknown.');
 		}
