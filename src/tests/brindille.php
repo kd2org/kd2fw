@@ -6,6 +6,7 @@ use KD2\Brindille_Exception;
 
 require __DIR__ . '/_assert.php';
 
+test_tokenizer();
 test_variables();
 test_php_tags();
 test_comments();
@@ -14,7 +15,13 @@ test_modifiers();
 //test_loop();
 //test_templates();
 //test_specs();
-//
+
+function test_tokenizer()
+{
+	Test::exception(\InvalidArgumentException::class, function () {
+		Brindille::tokenize('config.email_asso', Brindille::TOK_IF_BLOCK);
+	});
+}
 
 function test_php_tags()
 {

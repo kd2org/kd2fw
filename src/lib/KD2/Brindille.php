@@ -163,7 +163,7 @@ class Brindille
 
 		// Remove comments, but do not affect the number of lines
 		$code = preg_replace_callback('/\{\{\*(?:(?!\}\}\*).*?)\*\}\}/s', function ($match) {
-			return str_repeat("\n", substr_count($match[0], "\n"));
+			return '<?php /* ' . str_repeat("\n", substr_count($match[0], "\n")) . '*/ ?>';
 		}, $code);
 
 		$return = preg_replace_callback(self::PARSE_PATTERN, function ($match) use ($code) {
@@ -187,6 +187,9 @@ class Brindille
 			$line = 1 + substr_count($code, "\n");
 			throw new Brindille_Exception(sprintf('Line %d: missing closing tag "%s"', $line, $this->_lastName()));
 		}
+
+		// Remove comments altogether
+		$code = preg_replace('!<\?php /\*.*\*/ \?>!s', '', $code);
 
 		return $return;
 	}
@@ -409,7 +412,12 @@ class Brindille
 
 	protected function _if(string $name, string $params, string $tag_name = 'if')
 	{
-		$tokens = self::tokenize($params, self::TOK_IF_BLOCK);
+		try {
+			$tokens = self::tokenize($params, self::TOK_IF_BLOCK);
+		}
+		catch (\InvalidArgumentException $e) {
+			throw new Brindille_Exception(sprintf('Error in "if" block (%s)', $e->getMessage()));
+		}
 
 		$code = '';
 
