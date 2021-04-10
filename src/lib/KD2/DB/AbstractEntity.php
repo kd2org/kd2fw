@@ -332,7 +332,7 @@ abstract class AbstractEntity
 		$this->$key = $value;
 
 		if ($check_for_changes && $original_value !== $this->getAsString($key)) {
-			$this->_modified[$key] = true;
+			$this->_modified[$key] = $original_value;
 		}
 	}
 
