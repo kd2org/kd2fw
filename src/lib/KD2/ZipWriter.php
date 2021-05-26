@@ -1,22 +1,22 @@
 <?php
 /*
-    This file is part of KD2FW -- <http://dev.kd2.org/>
+	This file is part of KD2FW -- <http://dev.kd2.org/>
 
-    Copyright (c) 2001-2019 BohwaZ <http://bohwaz.net/>
-    All rights reserved.
+	Copyright (c) 2001-2019 BohwaZ <http://bohwaz.net/>
+	All rights reserved.
 
-    KD2FW is free software: you can redistribute it and/or modify
-    it under the terms of the GNU Affero General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
+	KD2FW is free software: you can redistribute it and/or modify
+	it under the terms of the GNU Affero General Public License as published by
+	the Free Software Foundation, either version 3 of the License, or
+	(at your option) any later version.
 
-    Foobar is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU Affero General Public License for more details.
+	Foobar is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	GNU Affero General Public License for more details.
 
-    You should have received a copy of the GNU Affero General Public License
-    along with Foobar.  If not, see <https://www.gnu.org/licenses/>.
+	You should have received a copy of the GNU Affero General Public License
+	along with Foobar.  If not, see <https://www.gnu.org/licenses/>.
 */
 
 namespace KD2;
@@ -235,16 +235,18 @@ class ZipWriter
 	{
 		$header = ($central ? "\x50\x4b\x01\x02\x0e\x00" : "\x50\x4b\x03\x04");
 
+		list($filename, $extra) = $this->encodeFilename($filename);
+
 		$header .=
 			"\x14\x00" // version needed to extract - 2.0
-			. "\x00\x00" // general purpose flag - no flags set
+			. "\x00\x08" // general purpose flag - bit 11 set = enable UTF-8 support
 			. ($this->compression ? "\x08\x00" : "\x00\x00") // compression method - none
 			. "\x01\x80\xe7\x4c" //  last mod file time and date
 			. pack('V', $crc) // crc-32
 			. pack('V', $compressed_size) // compressed size
 			. pack('V', $size) // uncompressed size
 			. pack('v', strlen($filename)) // file name length
-			. "\x00\x00"; // extra field length
+			. pack('v', strlen($extra)); // extra field length
 
 		if ($central)
 		{
@@ -257,7 +259,26 @@ class ZipWriter
 		}
 
 		$header .= $filename;
+		$header .= $extra;
 
 		return $header;
+	}
+
+	protected function encodeFilename($original)
+	{
+		if (utf8_decode($original) === $original) {
+			return [$original, ''];
+		}
+
+		$data = "\x01" // version
+			. pack('V', crc32($original))
+			. $original;
+
+		return [
+			$original,
+			"\x70\x75" // tag
+			. pack('v', strlen($data)) // length of data
+			. $data
+		];
 	}
 }
