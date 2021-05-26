@@ -683,6 +683,15 @@ class SQLite3 extends DB
     	throw new \LogicException(sprintf("Foreign key check: %d errors found\n", count($errors)) . implode("\n", $errors));
     }
 
+    public function backup($destination, string $sourceDatabase = 'main' , string $destinationDatabase = 'main'): bool
+    {
+    	if (is_a($destination, self::class)) {
+    		$destination = $destination->db;
+    	}
+
+    	return $this->db->backup($destination, $sourceDatabase, $destinationDatabase);
+    }
+
 	static public function getDatabaseDetailsFromString(string $source_string): array
 	{
 		if (substr($source_string, 0, 16) !== "SQLite format 3\0" || strlen($source_string) < 100) {
