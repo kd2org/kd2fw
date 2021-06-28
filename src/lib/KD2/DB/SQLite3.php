@@ -599,98 +599,121 @@ class SQLite3 extends DB
 		}
 	}
 
-    /**
-     * Import a file containing SQL commands
-     * Allows to use the statement ".read other_file.sql" to load other files
-     * @param  string $file Path to file containing SQL commands
-     * @return boolean
-     */
-    public function import(string $file)
-    {
-        $sql = file_get_contents($file);
-        $sql = str_replace("\r\n", "\n", $sql);
-        $sql = preg_split("/\n{2,}/", $sql, -1, PREG_SPLIT_NO_EMPTY);
+	/**
+	 * Import a file containing SQL commands
+	 * Allows to use the statement ".read other_file.sql" to load other files
+	 * Also supported is the ".import file.csv table"
+	 * @param  string $file Path to file containing SQL commands
+	 * @return boolean
+	 */
+	public function import(string $file)
+	{
+		$sql = file_get_contents($file);
+		$sql = str_replace("\r\n", "\n", $sql);
+		$sql = preg_split("/\n{2,}/", $sql, -1, PREG_SPLIT_NO_EMPTY);
 
-        $statement = '';
-        $i = 0;
+		$statement = '';
+		$i = 0;
 
-        $dir = realpath(dirname($file));
+		$dir = realpath(dirname($file));
 
-        foreach ($sql as $line) {
-            $line = trim($line);
+		foreach ($sql as $line) {
+			$line = trim($line);
 
-            // Sub-import statements
-            if (preg_match('/^\.read (.+\.sql)$/', $line, $match)) {
-                $this->import($dir . DIRECTORY_SEPARATOR . $match[1]);
-                $statement = '';
-                continue;
-            }
+			// Sub-import statements
+			if (preg_match('/^\.read (.+\.sql)$/', $line, $match)) {
+				$this->import($dir . DIRECTORY_SEPARATOR . $match[1]);
+				$statement = '';
+				continue;
+			}
+			elseif (preg_match('/^\.import (.+\.csv) (\w+)$/', $line, $match)) {
+				$fp = fopen($dir . DIRECTORY_SEPARATOR . $match[1], 'r');
+				$st = null;
 
-            $statement .= $line . "\n";
+				while ($row = fgetcsv($fp)) {
+					if (null === $st) {
+						$columns = substr(str_repeat('?, ', count($row)), 0, -2);
+						$st = $this->db->prepare(sprintf('INSERT INTO %s VALUES (%s);', $this->quoteIdentifier($match[2]), $columns));
+					}
 
-            if (substr($line, -1) !== ';') {
-            	continue;
-            }
+					foreach ($row as $i => $value) {
+						$st->bindValue($i + 1, $value);
+					}
 
-            try {
-                $this->exec($statement);
-            }
-            catch (\Exception $e) {
-                throw new \Exception(sprintf("Error in '%s': %s\n%s", basename($file), $e->getMessage(), $statement), 0, $e);
-            }
+					$st->execute();
+					$st->reset();
+					$st->clear();
+				}
 
-            $statement = '';
-        }
+				$statement = '';
+				continue;
+			}
 
-        return true;
-    }
+			$statement .= $line . "\n";
 
-    /**
-     * Performs a foreign key check and throws an exception if any error is found
-     * @return void
-     * @throws \LogicException
-     * @see https://www.sqlite.org/pragma.html#pragma_foreign_key_check
-     */
-    public function foreignKeyCheck(): void
-    {
-    	$result = $this->get('PRAGMA foreign_key_check;');
+			if (substr($line, -1) !== ';') {
+				continue;
+			}
 
-    	// No error
-    	if (!count($result)) {
-    		return;
-    	}
+			try {
+				$this->exec($statement);
+			}
+			catch (\Exception $e) {
+				throw new \Exception(sprintf("Error in '%s': %s\n%s", basename($file), $e->getMessage(), $statement), 0, $e);
+			}
 
-    	$errors = [];
-    	$tables = [];
-    	$ref = null;
+			$statement = '';
+		}
 
-    	foreach ($result as $row) {
-    		if (!array_key_exists($row->table, $tables)) {
-    			$tables[$row->table] = $this->get(sprintf('PRAGMA foreign_key_list(%s);', $row->table));
-    		}
+		return true;
+	}
 
-    		// Findinf the referenced foreign key
-    		foreach ($tables[$row->table] as $fk) {
-    			if ($fk->id == $row->fkid) {
-    				$ref = $fk;
-    				break;
-    			}
-    		}
+	/**
+	 * Performs a foreign key check and throws an exception if any error is found
+	 * @return void
+	 * @throws \LogicException
+	 * @see https://www.sqlite.org/pragma.html#pragma_foreign_key_check
+	 */
+	public function foreignKeyCheck(): void
+	{
+		$result = $this->get('PRAGMA foreign_key_check;');
 
-    		$errors[] = sprintf('%s (%s): row %d has an invalid reference to %s (%s)', $row->table, $ref->from, $row->rowid, $row->parent, $ref ? $ref->to : null);
-    	}
+		// No error
+		if (!count($result)) {
+			return;
+		}
 
-    	throw new \LogicException(sprintf("Foreign key check: %d errors found\n", count($errors)) . implode("\n", $errors));
-    }
+		$errors = [];
+		$tables = [];
+		$ref = null;
 
-    public function backup($destination, string $sourceDatabase = 'main' , string $destinationDatabase = 'main'): bool
-    {
-    	if (is_a($destination, self::class)) {
-    		$destination = $destination->db;
-    	}
+		foreach ($result as $row) {
+			if (!array_key_exists($row->table, $tables)) {
+				$tables[$row->table] = $this->get(sprintf('PRAGMA foreign_key_list(%s);', $row->table));
+			}
 
-    	return $this->db->backup($destination, $sourceDatabase, $destinationDatabase);
-    }
+			// Findinf the referenced foreign key
+			foreach ($tables[$row->table] as $fk) {
+				if ($fk->id == $row->fkid) {
+					$ref = $fk;
+					break;
+				}
+			}
+
+			$errors[] = sprintf('%s (%s): row %d has an invalid reference to %s (%s)', $row->table, $ref->from, $row->rowid, $row->parent, $ref ? $ref->to : null);
+		}
+
+		throw new \LogicException(sprintf("Foreign key check: %d errors found\n", count($errors)) . implode("\n", $errors));
+	}
+
+	public function backup($destination, string $sourceDatabase = 'main' , string $destinationDatabase = 'main'): bool
+	{
+		if (is_a($destination, self::class)) {
+			$destination = $destination->db;
+		}
+
+		return $this->db->backup($destination, $sourceDatabase, $destinationDatabase);
+	}
 
 	static public function getDatabaseDetailsFromString(string $source_string): array
 	{
