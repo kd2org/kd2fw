@@ -35,6 +35,11 @@ use PDOStatement;
 class DB
 {
 	/**
+	 * @var int
+	 */
+	protected $transaction = 0;
+
+	/**
 	 * Attributes for PDO instance
 	 * @var array
 	 */
@@ -307,24 +312,44 @@ class DB
 
 	public function begin()
 	{
-		$this->connect();
-		return $this->pdo->beginTransaction();
+		$this->transaction++;
+
+		if ($this->transaction == 1) {
+			$this->connect();
+			return $this->pdo->beginTransaction();
+		}
+
+		return true;
 	}
 
 	public function inTransaction()
 	{
-		$this->connect();
-		return $this->pdo->inTransaction();
+		return $this->transaction > 0;
 	}
 
 	public function commit()
 	{
-		$this->connect();
-		return $this->pdo->commit();
+		if ($this->transaction == 0) {
+			throw new \LogicException('Cannot commit a transaction: no transaction is running');
+		}
+
+		$this->transaction--;
+
+		if ($this->transaction == 0) {
+			$this->connect();
+			return $this->pdo->commit();
+		}
+
+		return true;
 	}
 
 	public function rollback()
 	{
+		if ($this->transaction == 0) {
+			throw new \LogicException('Cannot rollback a transaction: no transaction is running');
+		}
+
+		$this->transaction = 0;
 		$this->connect();
 		return $this->pdo->rollBack();
 	}

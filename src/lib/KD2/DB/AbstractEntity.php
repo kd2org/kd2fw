@@ -191,7 +191,7 @@ abstract class AbstractEntity
 		}
 	}
 
-	public function asArray($for_database = false): array
+	public function asArray(bool $for_database = false): array
 	{
 		$vars = get_object_vars($this);
 

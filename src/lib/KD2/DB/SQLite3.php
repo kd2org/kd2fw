@@ -39,9 +39,9 @@ class SQLite3 extends DB
 	protected $db;
 
 	/**
-	 * @var boolean
+	 * @var int
 	 */
-	protected $transaction = false;
+	protected $transaction = 0;
 
 	/**
 	 * @var integer|null
@@ -134,45 +134,46 @@ class SQLite3 extends DB
 
 	public function begin()
 	{
-		if ($this->transaction)
-		{
-			throw new \Exception('A transaction is already running: started at ' . $this->transaction);
+		$this->transaction++;
+
+		if ($this->transaction == 1) {
+			$this->connect();
+			return $this->db->exec('BEGIN;');
 		}
 
-		$trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 1);
-
-		$this->transaction = $trace[0]['file'] . ':' . $trace[0]['line'];
-		$this->connect();
-		return $this->db->exec('BEGIN;');
+		return true;
 	}
 
 	public function inTransaction()
 	{
-		return $this->transaction;
+		return $this->transaction > 0;
 	}
 
 	public function commit()
 	{
-		if (!$this->transaction)
-		{
-			throw new \Exception('No transaction is currently running.');
+		if ($this->transaction == 0) {
+			throw new \LogicException('Cannot commit a transaction: no transaction is running');
 		}
 
-		$this->connect();
-		$this->transaction = false;
-		return $this->db->exec('END;');
+		$this->transaction--;
+
+		if ($this->transaction == 0) {
+			$this->connect();
+			return $this->db->exec('END;');
+		}
+
+		return true;
 	}
 
 	public function rollback()
 	{
-		if (!$this->transaction)
-		{
-			throw new \Exception('No transaction is currently running.');
+		if ($this->transaction == 0) {
+			throw new \LogicException('Cannot rollback a transaction: no transaction is running');
 		}
 
+		$this->transaction = 0;
 		$this->connect();
 		$this->db->exec('ROLLBACK;');
-		$this->transaction = false;
 		return true;
 	}
 
