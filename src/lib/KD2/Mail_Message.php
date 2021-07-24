@@ -855,10 +855,10 @@ class Mail_Message
 			foreach (imap_mime_header_decode($value) as $h)
 			{
 				$charset = ($h->charset == 'default') ? 'US-ASCII' : $h->charset;
-				$_value .= iconv($charset, "UTF-8//TRANSLIT", $h->text);
+				$_value .= $h->text;
 			}
 
-			$value = $_value;
+			$value = iconv($charset, "UTF-8//TRANSLIT", $_value);
 			unset($_value);
 		}
 		elseif (function_exists('iconv_mime_decode'))
