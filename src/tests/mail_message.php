@@ -22,6 +22,26 @@ function test_length()
 	Test::assert(!preg_match("/[^\r\n]{999,}/", $msg->outputBody()));
 }
 
+function test_headers_iconv()
+{
+	$headers = <<<EOF
+Date: Wed, 28 Jul 2021 20:42:01 +0200
+From: =?UTF-8?B?U3TDqXBoYW5l?= G <stephane@example.invalid>
+Subject: Fw: Interventions centres de loisirs - manque de
+ =?UTF-8?B?U3TDqXBoYW5l?=
+ =?UTF-8?B?U3TDqXBoYW5l?=
+ enfants
+Organization: La rustine
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: quoted-printable
+Message-Id: <E1m8oVH-000368-W0@mail.kd2.org>
+EOF;
+	$msg = new Mail_Message;
+	$msg->parse(trim($headers));
+	Test::assertEquals($msg->getFrom(), 'Stéphane G <stephane@example.invalid>');
+}
+
 /**
  * Check that we do keep line breaks in headers when outputting
  * but not when using getHeader()

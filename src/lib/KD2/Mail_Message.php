@@ -847,7 +847,15 @@ class Mail_Message
 			return $this->utf8_encode($value);
 		}
 
-		if (function_exists('imap_mime_header_decode'))
+		if (function_exists('iconv_mime_decode'))
+		{
+			$value = $this->utf8_encode(iconv_mime_decode($value, ICONV_MIME_DECODE_CONTINUE_ON_ERROR));
+		}
+		elseif (function_exists('mb_decode_mimeheader'))
+		{
+			$value = $this->utf8_encode(mb_decode_mimeheader($value));
+		}
+		elseif (function_exists('imap_mime_header_decode'))
 		{
 			$_value = '';
 
@@ -855,19 +863,10 @@ class Mail_Message
 			foreach (imap_mime_header_decode($value) as $h)
 			{
 				$charset = ($h->charset == 'default') ? 'US-ASCII' : $h->charset;
-				$_value .= $h->text;
+				$_value .= iconv($charset, "UTF-8//TRANSLIT", $h->text);
 			}
 
-			$value = iconv($charset, "UTF-8//TRANSLIT", $_value);
-			unset($_value);
-		}
-		elseif (function_exists('iconv_mime_decode'))
-		{
-			$value = $this->utf8_encode(iconv_mime_decode($value, ICONV_MIME_DECODE_CONTINUE_ON_ERROR));
-		}
-		elseif (function_exists('mb_decode_mimeheader'))
-		{
-			$value = $this->utf8_encode(mb_decode_mimeheader($value));
+			$value = $_value;
 		}
 
 		return $value;
