@@ -298,7 +298,7 @@ class SkrivLite
 		}
 		else
 		{
-			$args = null;
+			$args = [];
 		}
 
 		return call_user_func($this->_extensions[$name], $args, $content, $this);
