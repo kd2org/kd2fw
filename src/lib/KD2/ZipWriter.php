@@ -60,7 +60,7 @@ class ZipWriter
 	 * @param integer $compression 0 to 9
 	 * @return void
 	 */
-	public function setCompression($compression)
+	public function setCompression(int $compression): void
 	{
 		$compression = (int) $compression;
 		$this->compression = max(min($compression, 9), 0);
@@ -71,7 +71,7 @@ class ZipWriter
 	 * @param string $data
 	 * @return void
 	 */
-	protected function write($data)
+	protected function write(string $data): void
 	{
 		// We can't use fwrite and ftell directly as ftell doesn't work on some pointers
 		// (eg. php://output)
@@ -81,10 +81,10 @@ class ZipWriter
 
 	/**
 	 * Returns the content of the ZIP file
-	 * 
+	 *
 	 * @return string
 	 */
-	public function get()
+	public function get(): string
 	{
 		fseek($this->handle, 0);
 		return stream_get_contents($this->handle);
@@ -104,7 +104,7 @@ class ZipWriter
 	 * @throws LogicException
 	 * @throws RuntimeException
 	 */
-	public function add($file, $data = null, $source = null)
+	public function add(string $file, ?string $data = null, ?string $source = null): void
 	{
 		if ($this->closed)
 		{
@@ -176,7 +176,7 @@ class ZipWriter
 	 * Add the closing footer to the archive
 	 * @throws LogicException
 	 */
-	public function finalize()
+	public function finalize(): void
 	{
 		if ($this->closed)
 		{
@@ -206,7 +206,7 @@ class ZipWriter
 	 * Close the file handle
 	 * @return void
 	 */
-	public function close()
+	public function close(): void
 	{
 		if (!$this->closed)
 		{
@@ -231,7 +231,7 @@ class ZipWriter
 	 * @param  integer|null  $offset
 	 * @return string
 	 */
-	protected function makeRecord($central = false, $filename, $size, $compressed_size, $crc, $offset)
+	protected function makeRecord(bool $central, string $filename, int $size, int $compressed_size, string $crc, ?int $offset): string
 	{
 		$header = ($central ? "\x50\x4b\x01\x02\x0e\x00" : "\x50\x4b\x03\x04");
 
@@ -264,7 +264,7 @@ class ZipWriter
 		return $header;
 	}
 
-	protected function encodeFilename($original)
+	protected function encodeFilename(string $original): array
 	{
 		if (utf8_decode($original) === $original) {
 			return [$original, ''];
