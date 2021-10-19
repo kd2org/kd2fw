@@ -1310,12 +1310,12 @@ class Smartyer
 	/**
 	 * Simple wrapper for str_replace as modifier
 	 */
-	static protected function replace($str, $a, $b)
+	static public function replace($str, $a, $b)
 	{
 		return str_replace($a, $b, $str);
 	}
 
-	static protected function replaceRegExp($str, $a, $b)
+	static public function replaceRegExp($str, $a, $b)
 	{
 		return preg_replace($a, $b, $str);
 	}
@@ -1329,7 +1329,7 @@ class Smartyer
 	 * @return string 				String cut to $length or shorter
 	 * @example |truncate:10:" (click to read more)":true
 	 */
-	static protected function truncate($str, $length = 80, $placeholder = '…', $strict_cut = false)
+	static public function truncate($str, $length = 80, $placeholder = '…', $strict_cut = false)
 	{
 		// Don't try to use unicode if the string is not valid UTF-8
 		$u = preg_match('//u', $str) ? 'u' : '';
@@ -1359,7 +1359,7 @@ class Smartyer
 	 * Simple strftime wrapper
 	 * @example |date_format:"%F %Y"
 	 */
-	static protected function dateFormat($date, $format = '%b, %e %Y')
+	static public function dateFormat($date, $format = '%b, %e %Y')
 	{
 		if (is_object($date))
 		{
@@ -1383,7 +1383,7 @@ class Smartyer
 	 * @return string
 	 * @example $var|cat:$b:"ok"
 	 */
-	static protected function concatenate()
+	static public function concatenate()
 	{
 		return implode('', func_get_args());
 	}
@@ -1394,7 +1394,7 @@ class Smartyer
 	 * @param  object &$tpl Smartyer object
 	 * @return string
 	 */
-	static protected function templateAssign(array $args, &$tpl)
+	static public function templateAssign(array $args, &$tpl)
 	{
 		// Value can be NULL!
 		if (!isset($args['var']) || !array_key_exists('value', $args))
