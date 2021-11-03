@@ -1275,7 +1275,7 @@ class Smartyer
 			case null:
 				return htmlspecialchars($str, ENT_QUOTES, 'UTF-8');
 			case 'xml':
-				return htmlspecialchars($str, ENT_XML1, 'UTF-8');
+				return htmlspecialchars($str, ENT_QUOTES | ENT_XML1, 'UTF-8');
 			case 'htmlall':
 			case 'entities':
 				return htmlentities($str, ENT_QUOTES, 'UTF-8');
