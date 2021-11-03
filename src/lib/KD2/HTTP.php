@@ -617,6 +617,8 @@ class HTTP
 			$header = $key . ': ' . $header;
 		}
 
+		unset($header);
+
 		$r = new HTTP_Response;
 
 		$c = \curl_init();
