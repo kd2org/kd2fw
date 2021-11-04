@@ -275,6 +275,23 @@ class Smartyer
 		return $this;
 	}
 
+	protected function _isPathRelative(string $path): bool
+	{
+		if (substr($this->template, 0, 1) == '/') {
+			return false;
+		}
+
+		if (substr($this->template, 0, 7) == 'phar://') {
+			return false;
+		}
+
+		if (PHP_OS_FAMILY == 'Windows' && ctype_alpha(substr($path, 0, 1)) && substr($path, 1, 2) == ':\\') {
+			return false;
+		}
+
+		return true;
+	}
+
 	/**
 	 * Fetch the current template and returns the result it as a string,
 	 * or fetch a new template if $template is supplied
@@ -298,7 +315,7 @@ class Smartyer
 		if (!is_null($this->template))
 		{
 			// Don't prepend templates_dir for phar and absolute paths
-			if (substr($this->template, 0, 7) == 'phar://' || $this->template[0] == '/')
+			if (!$this->_isPathRelative($this->template))
 			{
 				$this->template_path = $this->template;
 			}
