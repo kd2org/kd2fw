@@ -518,7 +518,7 @@ class ErrorManager
 			'remote_ip'    => isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : null,
 			'http_method'  => isset($_SERVER['REQUEST_METHOD']) ? $_SERVER['REQUEST_METHOD'] : null,
 			'http_files'   => self::dump($_FILES),
-			'http_post'    => self::dump(array_keys($_POST), true),
+			'http_post'    => self::dump($_POST, true),
 			'duration'     => isset(self::$context['request_started']) ? microtime(true) - self::$context['request_started'] : null,
 			'memory_peak'  => memory_get_peak_usage(true),
 			'memory_used'  => memory_get_usage(true),
