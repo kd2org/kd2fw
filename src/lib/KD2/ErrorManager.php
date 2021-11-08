@@ -519,7 +519,7 @@ class ErrorManager
 			'http_method'  => isset($_SERVER['REQUEST_METHOD']) ? $_SERVER['REQUEST_METHOD'] : null,
 			'http_files'   => self::dump($_FILES),
 			'http_post'    => self::dump($_POST, true),
-			'duration'     => isset(self::$context['request_started']) ? microtime(true) - self::$context['request_started'] : null,
+			'duration'     => isset(self::$context['request_started']) ? (microtime(true) - self::$context['request_started'])*1000 : null,
 			'memory_peak'  => memory_get_peak_usage(true),
 			'memory_used'  => memory_get_usage(true),
 		], self::$context);
