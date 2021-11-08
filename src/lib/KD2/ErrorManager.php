@@ -256,22 +256,17 @@ class ErrorManager
 			error_log($log);
 		}
 
-		// Log exception to email
-		if (self::$email_errors)
-		{
-			// From: sender
-			$from = !empty($_SERVER['SERVER_NAME']) ? $_SERVER['SERVER_NAME'] : basename($report->context->rootDirectory);
-			$msgid = $report->context->id . '@' . $from;
-			$headers = sprintf("From: \"%s\" <%s>\nIn-Reply-To: <%s>\nMessage-Id: <%s>", $from, self::$email_errors, $msgid, $msgid);
-			mail(self::$email_errors, sprintf('Error #%s: %s', $report->context->id, $e->getMessage()), $log, $headers);
-		}
-
+		$exception_title = $e->getMessage();
 		unset($e);
 
 		// Disable any output if it was buffering
 		if (ob_get_level())
 		{
 			ob_end_clean();
+		}
+
+		if (self::$enabled != self::PRODUCTION || self::$email_errors) {
+			$html_report = self::htmlReport($report);
 		}
 
 		if (PHP_SAPI == 'cli')
@@ -328,28 +323,16 @@ class ErrorManager
 				header('HTTP/1.1 500 Internal Server Error', true);
 			}
 
-			// Display debug
-			echo self::htmlTemplate(ini_get('error_prepend_string'), $report);
-
-			foreach ($report->errors as $e)
-			{
-				self::htmlException($e);
-			}
-
-			echo '<section><article><h2>Context</h2><table>';
-
-			foreach ($report->context as $name => $value)
-			{
-				printf('<tr><th>%s</th><td>%s</td></tr>', htmlspecialchars($name), htmlspecialchars($value));
-			}
-
-			echo '</table></article></section>';
-
-			echo self::htmlTemplate(ini_get('error_append_string'), $report);
+			echo $html_report;
 		}
 
-		if (self::$report_auto && self::$report_url)
-		{
+		// Log exception to email
+		if (self::$email_errors) {
+			self::sendEmail($exception_title, $report, $log, $html_report);
+		}
+
+		// Send report to URL
+		if (self::$report_auto && self::$report_url) {
 			self::sendReport($report, self::$report_url);
 		}
 
@@ -357,6 +340,32 @@ class ErrorManager
 		{
 			exit(1);
 		}
+	}
+
+	static protected function sendEmail(string $title, \stdClass $report, string $log, string $html): void
+	{
+		// From: sender
+		$from = !empty($_SERVER['SERVER_NAME']) ? $_SERVER['SERVER_NAME'] : basename($report->context->root_directory ?? __FILE__);
+		$msgid = $report->context->id . '@' . $from;
+
+		$boundary = sprintf('-----=%s', md5(uniqid(rand())));
+
+		$header = sprintf("MIME-Version: 1.0\r\nFrom: \"%s\" <%s>\r\nIn-Reply-To: <%s>\r\nMessage-Id: <%s>\r\n", $from, self::$email_errors, $msgid, $msgid);
+		$header.= sprintf("Content-Type: multipart/mixed; boundary=\"%s\"\r\n", $boundary);
+		$header.= "\r\n";
+
+		$msg = "This message contains multiple MIME parts.\r\n\r\n";
+		$msg.= sprintf("--%s\r\n", $boundary);
+		$msg.= "Content-Type: text/plain; charset=\"utf-8\"\r\n";
+		$msg.= "Content-Transfer-Encoding:8bit\r\n\r\n";
+		$msg.= $log . "\r\n\r\n";
+		$msg.= sprintf("--%s\r\n", $boundary);
+		$msg.= "Content-Type: text/html; charset=\"utf-8\"\r\n";
+		$msg.= "Content-Transfer-Encoding:8bit\r\n\r\n";
+		$msg.= $html . "\r\n\r\n";
+		$msg.= sprintf("--%s--", $boundary);
+
+		mail(self::$email_errors, sprintf('Error #%s: %s', $report->context->id, $title), $msg, $header);
 	}
 
 	/**
@@ -377,9 +386,9 @@ class ErrorManager
 	 */
 	static protected function getFileLocation($file)
 	{
-		if (!empty(self::$context['rootDirectory']) && ($pos = strpos($file, self::$context['rootDirectory'])) === 0)
+		if (!empty(self::$context['root_directory']) && ($pos = strpos($file, self::$context['root_directory'])) === 0)
 		{
-			return '...' . substr($file, strlen(self::$context['rootDirectory']));
+			return '...' . substr($file, strlen(self::$context['root_directory']));
 		}
 
 		return $file;
@@ -499,17 +508,27 @@ class ErrorManager
 
 		unset($error, $e, $params, $t);
 
-		$report->context = (object) array_merge([
-			'id'       => base_convert(substr(sha1(json_encode($report->errors)), 0, 10), 16, 36),
-			'date'     => date(DATE_ATOM),
-			'os'       => PHP_OS,
-			'language' => 'PHP ' . PHP_VERSION,
-			'environment' => self::$enabled == self::DEVELOPMENT ? 'development' : 'production:' . self::$enabled,
-			'php_sapi' => PHP_SAPI,
-			'remote_ip'=> isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : null,
-			'http_method' => isset($_SERVER['REQUEST_METHOD']) ? $_SERVER['REQUEST_METHOD'] : null,
-			'files_sent' => self::dump($_FILES),
+		$context = array_merge([
+			'id'           => base_convert(substr(sha1(json_encode($report->errors)), 0, 10), 16, 36),
+			'date'         => date(DATE_ATOM),
+			'os'           => PHP_OS,
+			'language'     => 'PHP ' . PHP_VERSION,
+			'environment'  => self::$enabled == self::DEVELOPMENT ? 'development' : 'production:' . self::$enabled,
+			'php_sapi'     => PHP_SAPI,
+			'remote_ip'    => isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : null,
+			'http_method'  => isset($_SERVER['REQUEST_METHOD']) ? $_SERVER['REQUEST_METHOD'] : null,
+			'http_files'   => self::dump($_FILES),
+			'http_post'    => self::dump(array_keys($_POST), true),
+			'duration'     => isset(self::$context['request_started']) ? microtime(true) - self::$context['request_started'] : null,
+			'memory_peak'  => memory_get_peak_usage(true),
+			'memory_used'  => memory_get_usage(true),
 		], self::$context);
+
+		ksort($context);
+
+		unset($context['request_started']);
+
+		$report->context = (object) $context;
 
 		if (!empty($_SERVER['HTTP_HOST']) && !empty($_SERVER['REQUEST_URI']))
 		{
@@ -523,51 +542,53 @@ class ErrorManager
 	/**
 	 * Displays an exception as HTML debug page
 	 */
-	static public function htmlException(\stdClass $e)
+	static public function htmlException(\stdClass $e): string
 	{
-		printf('<section><header><h1>%s</h1><h2>%s</h2></header>',
+		$out = sprintf('<section><header><h1>%s</h1><h2>%s</h2></header>',
 			$e->type, nl2br(htmlspecialchars($e->message)));
 
 		foreach ($e->backtrace as $i=>$t)
 		{
-			echo '<article>';
+			$out .= '<article>';
 
 			if (isset($t->file) && isset($t->line))
 			{
 				$dir = dirname($t->file);
 				$dir = $dir == '/' ? $dir : $dir . '/';
 
-				printf('<h3>in %s<b>%s</b>:<i>%d</i></h3>', htmlspecialchars($dir), htmlspecialchars(basename($t->file)), $t->line);
+				$out .= sprintf('<h3>in %s<b>%s</b>:<i>%d</i></h3>', htmlspecialchars($dir), htmlspecialchars(basename($t->file)), $t->line);
 			}
 
 			if (isset($t->function))
 			{
-				printf('<h4>&rarr; %s <i>(%d arg.)</i></h4>', htmlspecialchars($t->function), isset($t->args) ? count($t->args) : 0);
+				$out .= sprintf('<h4>&rarr; %s <i>(%d arg.)</i></h4>', htmlspecialchars($t->function), isset($t->args) ? count($t->args) : 0);
 
 				// Display call arguments
 				if (!empty($t->args))
 				{
-					echo '<table>';
+					$out .= '<table>';
 
 					foreach ($t->args as $name => $value)
 					{
-						printf('<tr><th>%s</th><td><pre>%s</pre></td>', htmlspecialchars($name), htmlspecialchars($value));
+						$out .= sprintf('<tr><th>%s</th><td><pre>%s</pre></td>', htmlspecialchars($name), htmlspecialchars($value));
 					}
 
-					echo '</table>';
+					$out .= '</table>';
 				}
 			}
 
 			// Display source code
 			if (isset($t->code) && isset($t->line))
 			{
-				echo self::htmlSource($t->code, $t->line);
+				$out .= self::htmlSource($t->code, $t->line);
 			}
 
-			echo '</article>';
+			$out .= '</article>';
 		}
 
-		echo '</section>';
+		$out .= '</section>';
+
+		return $out;
 	}
 
 
@@ -659,6 +680,32 @@ class ErrorManager
 		return $str;
 	}
 
+	static public function htmlReport(\stdClass $report): string
+	{
+		$out = '';
+
+		// Display debug
+		$out .= self::htmlTemplate(ini_get('error_prepend_string'), $report);
+
+		foreach ($report->errors as $e)
+		{
+			$out .= self::htmlException($e);
+		}
+
+		$out .= '<section><article><h2>Context</h2><table>';
+
+		foreach ($report->context as $name => $value)
+		{
+			$out .= sprintf('<tr><th>%s</th><td>%s</td></tr>', htmlspecialchars($name), htmlspecialchars($value));
+		}
+
+		$out .= '</table></article></section>';
+
+		$out .= self::htmlTemplate(ini_get('error_append_string'), $report);
+
+		return $out;
+	}
+
 	/**
 	 * Enable error manager
 	 * @param  integer $type Type of error management (ErrorManager::PRODUCTION or ErrorManager::DEVELOPMENT)
@@ -711,11 +758,12 @@ class ErrorManager
 
 		// Assign default context
 		static $defaults = [
-			'hostname'      => 'SERVER_NAME',
-			'userAgent'     => 'HTTP_USER_AGENT',
-			'userAddr'      => 'REMOTE_ADDR',
-			'remoteAddr'    => 'SERVER_ADDR',
-			'rootDirectory' => 'DOCUMENT_ROOT',
+			'hostname'       => 'SERVER_NAME',
+			'http_user_agent'     => 'HTTP_USER_AGENT',
+			'http_referrer'  => 'HTTP_REFERER',
+			'user_addr'      => 'REMOTE_ADDR',
+			'server_addr'    => 'SERVER_ADDR',
+			'root_directory' => 'DOCUMENT_ROOT',
 		];
 
 		foreach ($defaults as $a => $b)
@@ -725,6 +773,8 @@ class ErrorManager
 				self::$context[$a] = $_SERVER[$b];
 			}
 		}
+
+		self::$context['request_started'] = microtime(true);
 	}
 
 	/**
@@ -801,7 +851,7 @@ class ErrorManager
 	 */
 	static public function setContext(array $context)
 	{
-		self::$context = $context;
+		self::$context = array_merge(self::$context, $context);
 	}
 
 	/**
@@ -853,10 +903,11 @@ class ErrorManager
 	/**
 	 * Copy of var_dump but returns a string instead of a variable
 	 * @param  mixed  $var   variable to dump
+	 * @param  bool $hide_values Do not return values if set to TRUE
 	 * @param  integer $level Indentation level (internal use)
 	 * @return string
 	 */
-	static public function dump($var, $level = 0)
+	static public function dump($var, $hide_values = false, $level = 0)
 	{
 		if ($level > 20)
 		{
@@ -872,7 +923,7 @@ class ErrorManager
 			case 'double':
 				return 'float(' . $var . ')';
 			case 'string':
-				return 'string(' . strlen($var) . ') "' . $var . '"';
+				return 'string(' . strlen($var) . ') "' . ($hide_values ? '***HIDDEN***' : $var) . '"';
 			case 'NULL':
 				return 'NULL';
 			case 'resource':
@@ -898,7 +949,7 @@ class ErrorManager
 				{
 					$out .= str_repeat(' ', $level * 2);
 					$out .= is_string($key) ? '["' . $key . '"]' : '[' . $key . ']';
-					$out .= '=> ' . self::dump($value, $level) . PHP_EOL;
+					$out .= '=> ' . self::dump($value, $hide_values, $level) . PHP_EOL;
 				}
 
 				$out .= str_repeat(' ', --$level * 2) . '}';
