@@ -271,6 +271,12 @@ class UserSession
 		// Only start session if it exists
 		if ($write || isset($_COOKIE[$this->cookie_name]))
 		{
+			// Check session ID value, in case it is invalid/corrupted
+			// see https://stackoverflow.com/questions/3185779/the-session-id-is-too-long-or-contains-illegal-characters-valid-characters-are
+			if (!preg_match('/^[a-zA-Z0-9-]{1,64}$/', $_COOKIE[$this->cookie_name])) {
+				session_regenerate_id();
+			}
+
 			session_set_cookie_params(0, $this->cookie_path, $this->cookie_domain, $this->cookie_secure, true);
 			session_name($this->cookie_name);
 			return session_start($this->getSessionOptions());
