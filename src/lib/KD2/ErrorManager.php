@@ -357,11 +357,11 @@ class ErrorManager
 		$msg = "This message contains multiple MIME parts.\r\n\r\n";
 		$msg.= sprintf("--%s\r\n", $boundary);
 		$msg.= "Content-Type: text/plain; charset=\"utf-8\"\r\n";
-		$msg.= "Content-Transfer-Encoding:8bit\r\n\r\n";
+		$msg.= "Content-Transfer-Encoding: 8bit\r\n\r\n";
 		$msg.= $log . "\r\n\r\n";
 		$msg.= sprintf("--%s\r\n", $boundary);
 		$msg.= "Content-Type: text/html; charset=\"utf-8\"\r\n";
-		$msg.= "Content-Transfer-Encoding:8bit\r\n\r\n";
+		$msg.= "Content-Transfer-Encoding: 8bit\r\n\r\n";
 		$msg.= $html . "\r\n\r\n";
 		$msg.= sprintf("--%s--", $boundary);
 
