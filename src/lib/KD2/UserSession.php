@@ -257,6 +257,7 @@ class UserSession
 			'cookie_domain'   => $this->cookie_domain,
 			'cookie_secure'   => $this->cookie_secure,
 			'cookie_httponly' => true,
+			'cookie_samesite' => 'Lax',
 		];
 	}
 
@@ -277,7 +278,15 @@ class UserSession
 				session_regenerate_id();
 			}
 
-			session_set_cookie_params(0, $this->cookie_path, $this->cookie_domain, $this->cookie_secure, true);
+			session_set_cookie_params([
+				'lifetime' => 0,
+				'path'     => $this->cookie_path,
+				'domain'   => $this->cookie_domain,
+				'secure'   => $this->cookie_secure,
+				'httponly' => true,
+				'samesite' => 'Lax',
+			]);
+
 			session_name($this->cookie_name);
 			return session_start($this->getSessionOptions());
 		}
@@ -290,7 +299,7 @@ class UserSession
 		return $this->start(true);
 	}
 
-	public function refresh($clear_data = true)
+	public function refresh()
 	{
 		if (!$this->isLogged())
 		{
