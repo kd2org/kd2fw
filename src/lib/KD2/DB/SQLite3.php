@@ -233,7 +233,7 @@ class SQLite3 extends DB
 
 		// Forbid use of some strings that could give hints to an attacker:
 		// PRAGMA, sqlite_version(), sqlite_master table, comments
-		if (preg_match('/PRAGMA\s+|sqlite_version|sqlite_master|--|\/\*|\*\/|load_extension|ATTACH\s+|randomblob|sqlite_compileoption_|sqlite_offset|sqlite_source_|zeroblob|X\'\w|0x\w|sqlite_dbpage|fts3_tokenizer/i', $query, $match))
+		if (preg_match('/PRAGMA\s+|sqlite_version|sqlite_master|load_extension|ATTACH\s+|randomblob|sqlite_compileoption_|sqlite_offset|sqlite_source_|zeroblob|X\'\w|0x\w|sqlite_dbpage|fts3_tokenizer/i', $query, $match))
 		{
 			throw new \LogicException('Invalid SQL query.');
 		}
