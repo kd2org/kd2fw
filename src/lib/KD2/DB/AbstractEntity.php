@@ -185,7 +185,7 @@ abstract class AbstractEntity
 				continue;
 			}
 
-			if (is_null($this->$key) && substr($type, 0, 1) != '?') {
+			if (!isset($this->$key) && substr($type, 0, 1) != '?') {
 				throw new \UnexpectedValueException(sprintf('Entity property "%s" cannot be left null', $key));
 			}
 		}
