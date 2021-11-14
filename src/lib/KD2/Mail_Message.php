@@ -185,7 +185,7 @@ class Mail_Message
 	public function getMultipleAddressHeader($header)
 	{
 		$header = $this->getHeader($header);
-		
+
 		// Remove grouping, see RFC 2822 § section 3.4
 		$header = preg_replace('/(?:[^:"<>,]+)\s*:\s*(.*?);/', '$1', $header);
 
@@ -203,7 +203,9 @@ class Mail_Message
 
 	public function setHeaders($headers)
 	{
-		$this->headers = $headers;
+		foreach ($headers as $key => $value) {
+			$this->setHeader($key, $value);
+		}
 	}
 
 	public function removeHeader($key)
@@ -355,78 +357,78 @@ class Mail_Message
 
 	public function HTMLToText($str)
 	{
-        $str = preg_replace('!<br\s*/?>\n!i', '<br />', $str);
-        $str = preg_replace('!</?(?:b|strong)(?:\s+[^>]*)?>!i', '*', $str);
-        $str = preg_replace('!</?(?:i|em)(?:\s+[^>]*)?>!i', '/', $str);
-        $str = preg_replace('!</?(?:u|ins)(?:\s+[^>]*)?>!i', '_', $str);
-        $str = preg_replace_callback('!<h(\d)(?:\s+[^>]*)?>!i', function ($match) {
-        	return str_repeat('=', (int)$match[1]) . ' ';
-        }, $str);
-        $str = preg_replace_callback('!</h(\d)>!i', function ($match) {
-        	return ' ' . str_repeat('=', (int)$match[1]);
-        }, $str);
+		$str = preg_replace('!<br\s*/?>\n!i', '<br />', $str);
+		$str = preg_replace('!</?(?:b|strong)(?:\s+[^>]*)?>!i', '*', $str);
+		$str = preg_replace('!</?(?:i|em)(?:\s+[^>]*)?>!i', '/', $str);
+		$str = preg_replace('!</?(?:u|ins)(?:\s+[^>]*)?>!i', '_', $str);
+		$str = preg_replace_callback('!<h(\d)(?:\s+[^>]*)?>!i', function ($match) {
+			return str_repeat('=', (int)$match[1]) . ' ';
+		}, $str);
+		$str = preg_replace_callback('!</h(\d)>!i', function ($match) {
+			return ' ' . str_repeat('=', (int)$match[1]);
+		}, $str);
 
-        $str = str_replace("\r", "\n", $str);
-        $str = preg_replace("!</p>\n*!i", "\n\n", $str);
-        $str = preg_replace("!<br[^>]*>\n*!i", "\n", $str);
+		$str = str_replace("\r", "\n", $str);
+		$str = preg_replace("!</p>\n*!i", "\n\n", $str);
+		$str = preg_replace("!<br[^>]*>\n*!i", "\n", $str);
 
-        $str = preg_replace('!<img[^>]*src=([\'"])([^\1]*?)\1[^>]*>!i', 'Image : $2', $str);
+		$str = preg_replace('!<img[^>]*src=([\'"])([^\1]*?)\1[^>]*>!i', 'Image : $2', $str);
 
-        preg_match_all('!<a[^>]href=([\'"])([^\1]*?)\1[^>]*>(.*?)</a>!i', $str, $match, PREG_SET_ORDER);
+		preg_match_all('!<a[^>]href=([\'"])([^\1]*?)\1[^>]*>(.*?)</a>!i', $str, $match, PREG_SET_ORDER);
 
-        if (!empty($match))
-        {
-        	foreach ($match as $key=>$link)
-        	{
-        		if ($link[3] == $link[2])
-        		{
-        			unset($match[$key]);
-        		}
-        	}
-        }
+		if (!empty($match))
+		{
+			foreach ($match as $key=>$link)
+			{
+				if ($link[3] == $link[2])
+				{
+					unset($match[$key]);
+				}
+			}
+		}
 
-    	if (!empty($match))
-    	{
-            $i = 1;
-            $str .= "\n\n== Liens cités ==\n";
+		if (!empty($match))
+		{
+			$i = 1;
+			$str .= "\n\n== Liens cités ==\n";
 
-            foreach ($match as $link)
-            {
-                $str = str_replace($link[0], $link[3] . '['.$i.']', $str);
-                $str.= str_pad($i, 2, ' ', STR_PAD_LEFT).'. '.$link[2]."\n";
-                $i++;
-            }
-        }
+			foreach ($match as $link)
+			{
+				$str = str_replace($link[0], $link[3] . '['.$i.']', $str);
+				$str.= str_pad($i, 2, ' ', STR_PAD_LEFT).'. '.$link[2]."\n";
+				$i++;
+			}
+		}
 
-        $str = strip_tags($str);
+		$str = strip_tags($str);
 
-        $str = html_entity_decode($str, ENT_QUOTES, 'UTF-8');
-        $str = preg_replace('/^\h*/m', '', $str);
-        $str = preg_replace("!\n{3,}!", "\n\n", $str);
+		$str = html_entity_decode($str, ENT_QUOTES, 'UTF-8');
+		$str = preg_replace('/^\h*/m', '', $str);
+		$str = preg_replace("!\n{3,}!", "\n\n", $str);
 
-        return trim($str);
+		return trim($str);
 	}
 
 	public function getSignature($str)
 	{
-        // From http://www.cs.cmu.edu/~vitor/papers/sigFilePaper_finalversion.pdf
-        if (preg_match('/^(?:--[ ]?\n|\s*[*#+^$\/=%:&~!_-]{10,}).*?\n/m', $str, $match, PREG_OFFSET_CAPTURE))
-        {
-        	$str = substr($str, $match[0][1] + strlen($match[0][0]));
-        	return trim($str);
-        }
+		// From http://www.cs.cmu.edu/~vitor/papers/sigFilePaper_finalversion.pdf
+		if (preg_match('/^(?:--[ ]?\n|\s*[*#+^$\/=%:&~!_-]{10,}).*?\n/m', $str, $match, PREG_OFFSET_CAPTURE))
+		{
+			$str = substr($str, $match[0][1] + strlen($match[0][0]));
+			return trim($str);
+		}
 
-        return false;
+		return false;
 	}
 
 	public function removeSignature($str)
 	{
-        if (preg_match('/^--[ ]*$/m', $str, $match, PREG_OFFSET_CAPTURE))
-        {
-        	return trim(substr($str, 0, $match[0][1]));
-        }
+		if (preg_match('/^--[ ]*$/m', $str, $match, PREG_OFFSET_CAPTURE))
+		{
+			return trim(substr($str, 0, $match[0][1]));
+		}
 
-        return $str;
+		return $str;
 	}
 
 	public function removePart($id)
@@ -457,32 +459,36 @@ class Mail_Message
 		return $this->raw;
 	}
 
-	public function outputHeaders()
+	public function outputHeaders(array $headers = null)
 	{
+		if (null === $headers) {
+			$headers =& $this->headers;
+		}
+
 		$out = '';
 
 		$parts = array_values($this->parts);
 
 		if (count($parts) <= 1)
 		{
-			if (!isset($this->headers['content-type']))
+			if (!isset($headers['content-type']))
 			{
-				$this->headers['content-type'] = $parts[0]['type'] . '; charset=utf-8';
-				$this->headers['content-transfer-encoding'] = 'quoted-printable';
+				$headers['content-type'] = $parts[0]['type'] . '; charset=utf-8';
+				$headers['content-transfer-encoding'] = 'quoted-printable';
 			}
-			elseif (stristr($this->headers['content-type'], 'text/plain'))
+			elseif (stristr($headers['content-type'], 'text/plain'))
 			{
 				// Force UTF-8
-				$this->headers['content-type'] = $parts[0]['type'] . '; charset=utf-8';
+				$headers['content-type'] = $parts[0]['type'] . '; charset=utf-8';
 			}
 		}
 		else
 		{
-			$this->headers['content-type'] = 'multipart/mixed; boundary="' . $this->output_boundary . '"';
-			$this->headers['mime-version'] = '1.0';
+			$headers['content-type'] = 'multipart/mixed; boundary="' . $this->output_boundary . '"';
+			$headers['mime-version'] = '1.0';
 		}
 
-		foreach ($this->headers as $key=>$value)
+		foreach ($headers as $key=>$value)
 		{
 			if (is_array($value))
 			{
@@ -528,44 +534,44 @@ class Mail_Message
 		}
 		else
 		{
-	        $body = "This is a message in multipart MIME format. ";
-	        $body.= "Your mail client should not be displaying this. ";
-	        $body.= "Consider upgrading your mail client to view this message correctly.";
-	        $body.= "\n\n";
+			$body = "This is a message in multipart MIME format. ";
+			$body.= "Your mail client should not be displaying this. ";
+			$body.= "Consider upgrading your mail client to view this message correctly.";
+			$body.= "\n\n";
 
-	        if (!empty($parts[0]) && !empty($parts[1])
-	        	&& (($parts[0]['type'] == 'text/plain' && $parts[1]['type'] == 'text/html')
-	        		|| ($parts[1]['type'] == 'text/plain' && $parts[0]['type'] == 'text/html')))
-	        {
-	        	$body .= '--' . $this->output_boundary . "\n";
-	        	$body .= 'Content-Type: multipart/alternative; boundary="alt=_-=';
-	        	$body .= $this->output_boundary . "\"\n\n\n";
+			if (!empty($parts[0]) && !empty($parts[1])
+				&& (($parts[0]['type'] == 'text/plain' && $parts[1]['type'] == 'text/html')
+					|| ($parts[1]['type'] == 'text/plain' && $parts[0]['type'] == 'text/html')))
+			{
+				$body .= '--' . $this->output_boundary . "\n";
+				$body .= 'Content-Type: multipart/alternative; boundary="alt=_-=';
+				$body .= $this->output_boundary . "\"\n\n\n";
 
-	        	$p = ($parts[0]['type'] == 'text/plain') ? 0 : 1;
+				$p = ($parts[0]['type'] == 'text/plain') ? 0 : 1;
 
-	        	$body .= '--alt=_-=' . $this->output_boundary . "\n";
-	        	$body .= $this->outputPart($parts[$p]) . "\n";
+				$body .= '--alt=_-=' . $this->output_boundary . "\n";
+				$body .= $this->outputPart($parts[$p]) . "\n";
 
-	        	$p = $p ? 0 : 1;
-	        	$body .= '--alt=_-=' . $this->output_boundary . "\n";
-	        	$body .= $this->outputPart($parts[$p]) . "\n";
-	        	$body .= '--alt=_-=' . $this->output_boundary . "--\n\n"; // End
+				$p = $p ? 0 : 1;
+				$body .= '--alt=_-=' . $this->output_boundary . "\n";
+				$body .= $this->outputPart($parts[$p]) . "\n";
+				$body .= '--alt=_-=' . $this->output_boundary . "--\n\n"; // End
 
-	        	$parts = array_slice($parts, 2);
-	        }
+				$parts = array_slice($parts, 2);
+			}
 
-	        foreach ($parts as $part)
-	        {
-	        	$body .= '--' . $this->output_boundary . "\n";
-	        	$body .= $this->outputPart($part) . "\n";
-	        }
+			foreach ($parts as $part)
+			{
+				$body .= '--' . $this->output_boundary . "\n";
+				$body .= $this->outputPart($part) . "\n";
+			}
 
-	        $body .= '--' . $this->output_boundary . "--\n";
-    	}
+			$body .= '--' . $this->output_boundary . "--\n";
+		}
 
 		$body = preg_replace("#(?<!\r)\n#si", "\r\n", $body);
 
-    	return $body;
+		return $body;
 	}
 
 	public function outputPart($part)
@@ -673,18 +679,18 @@ class Mail_Message
 	{
 		if (in_array($key, ['From', 'Cc', 'To', 'Bcc', 'Reply-To']))
 		{
-            if (!preg_match('/^((?:"?(?P<name>.*?)"?)\s*<(?P<namedEmail>[^>]+)>|(?P<email>.+))$/', $value, $matches))
-            {
-            	return $value;
-            }
+			if (!preg_match('/^((?:"?(?P<name>.*?)"?)\s*<(?P<namedEmail>[^>]+)>|(?P<email>.+))$/', $value, $matches))
+			{
+				return $value;
+			}
 
-	        if (!empty($matches['name']))
-            {
-            	$matches['name'] = str_replace('"', '', $matches['name']);
-            	return '"' . $this->_encodeHeaderValue(trim($matches['name'])) . '" <' . $matches['namedEmail'] . '>';
-            }
+			if (!empty($matches['name']))
+			{
+				$matches['name'] = str_replace('"', '', $matches['name']);
+				return '"' . $this->_encodeHeaderValue(trim($matches['name'])) . '" <' . $matches['namedEmail'] . '>';
+			}
 
-            return $value;
+			return $value;
 		}
 
 		// Don't encode spam report here as we want it to be readable in the source
@@ -987,5 +993,131 @@ class Mail_Message
 			|[\xF1-\xF3][\x80-\xBF]{3}                  # planes 4-15
 			|\xF4[\x80-\x8F][\x80-\xBF]{2}    # plane 16
 			)+%xs', $str);
+	}
+
+	/**
+	 * Send email using native PHP function mail()
+	 */
+	public function send(array $additional_parameters = []): bool
+	{
+		$to = $this->getTo() + $this->getCc();
+
+		$success = 0;
+		$count = 0;
+		$headers = array_diff_key($this->getHeaders(), ['subject' => null, 'to' => null, 'cc' => null]);
+
+		foreach ($to as $address) {
+			$count++;
+			$success += mail($address, $this->getHeader('Subject'), $this->outputBody(), $this->outputHeaders($headers));
+		}
+
+		return ($success == $count);
+	}
+
+	/**
+	 * Tente de trouver le statut de rejet (définitif ou temporaire) d'un message à partir du message d'erreur reçu
+	 * @param  string $error_message
+	 * @return boolean|null TRUE if the rejection is permanent, FALSE if temporary, NULL if status is unknown
+	 */
+	public function isPermanentRejection(string $error_message): ?bool
+	{
+		if (preg_match('/unavailable|doesn\'t\s*have|quota|does\s*not\s*exist|invalid|Unrouteable|unknown|illegal|no\s*such\s*user|blocked|disabled|Relay\s*access\s*denied/i', $error_message))
+		{
+			return true;
+		}
+		elseif (preg_match('/rejete|rejected|spam\s*detected|Service\s*refus|greylist|expired/i', $error_message))
+		{
+			return false;
+		}
+
+		return null;
+	}
+
+	/**
+	 * Tries to identify what a received message is: either an auto-reply, a complaint (spam report), a mailer daemon message, etc.
+	 * @return array An array containing at least a 'type' key (autoreply/complaint/temporary/permanent/genuine, where genuine is just a normal message)
+	 * If the message is a temporary, a permanent or complaint, the array will also contain a 'recipient' value with the email address of the person who received the email or filed the complaint and a 'message' value containing the original error message
+	 */
+	public function identifyBounce()
+	{
+		list($from) = $this->getFrom();
+
+		// Ignore auto-replies
+		if ($this->getHeader('precedence') || $this->getHeader('X-Autoreply')
+			|| $this->getHeader('X-Autorespond') || $this->getHeader('auto-submitted')
+			|| stristr($this->getHeader('Delivered-To'), 'Autoresponder')
+			|| preg_match('/spamenmoins\.com/', $this->getHeader('From'))
+			|| preg_match('/^(?:Réponse\s*automatique|Out\s*of\s*office|Automatic\s*reply|Auto:\s+)/i', $this->getHeader('Subject')))
+		{
+			return [
+				'type' => 'autoreply',
+			];
+		}
+		elseif (strpos($from, 'MAILER-DAEMON@') === 0)
+		{
+			$part_id = $this->findPart('message/delivery-status');
+
+			if (!$part_id)
+			{
+				// Cas de certains mails, par exemple:
+				// <xx@yy.fr>: delivery to host gmail.fr[failed] timed out
+				if (stristr($this->getRaw(), 'Content-Description: Undelivered Message')
+					&& preg_match('/\?c=\d+&e=(.*)>/', $this->getRaw(), $match))
+				{
+					return [
+						'type'      => 'permanent',
+						'recipient' => rawurldecode($match[1]),
+						'message'   => 'Undelivered message',
+					];
+				}
+
+				throw new \RuntimeException('Not a delivery status: ' . $this->getHeader('Subject'));
+			}
+
+			// Make the delivery status look like an email
+			$status = $this->getPartContent($part_id);
+			$status = str_replace(["\r\n", "\n\n"], "\n", $status);
+			$status = trim($status) . "\n\nFake";
+
+			$s = new Mail_Message;
+			$s->parse($status);
+
+			$recipient = trim(str_replace('rfc822;', '', $s->getHeader('Final-Recipient')));
+			$diagnostic = trim(str_replace('smtp;', '', $s->getHeader('Diagnostic-Code')));
+
+			$rejection_status = $this->isPermanentRejection($diagnostic);
+
+			return [
+				'type'      => $rejection_status ? 'permanent' : 'temporary',
+				'recipient' => $recipient,
+				'message'   => $diagnostic,
+			];
+		}
+		elseif (strpos($from, 'complaints@') === 0)
+		{
+			$part_id = $this->findPart('message/rfc822');
+
+			if ($part_id === false)
+			{
+				throw new \RuntimeException('The complaint does not contain a sub-message?!');
+			}
+
+			$orig = new Mail_Message;
+			$orig->parse(ltrim($this->getPartContent($part_id)));
+			list($recipient) = $orig->getTo();
+			list($recipient) = SMTP::extractEmailAddresses($recipient);
+
+			return [
+				'type'      => 'complaint',
+				'recipient' => $recipient,
+				'message'   => null,
+			];
+		}
+		else
+		{
+			return [
+				'type' => 'genuine',
+			];
+		}
 	}
 }
