@@ -942,7 +942,15 @@ class ErrorManager
 				$level++;
 
 				if ($var instanceof \Traversable) {
-					$var = @$var->valid() ? @iterator_to_array($var) : [];
+					$var2 = [];
+
+					// Iterate as long as we can
+					while (@$var->valid()) {
+						$var2[] = $var->current();
+						$var->next();
+					}
+
+					$var = $var2;
 				}
 
 				foreach ($var as $key=>$value)
