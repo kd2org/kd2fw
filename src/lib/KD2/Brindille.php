@@ -99,6 +99,8 @@ class Brindille
 
 			return Translate::strftime($format, $date, $tz);
 		});
+
+		$this->registerSection('foreach', [self::class, '__foreach']);
 	}
 
 	public function assign(string $key, $value): void
@@ -675,6 +677,21 @@ class Brindille
 		}
 
 		return $match;
+	}
+
+	static public function __foreach(array $params): \Generator
+	{
+		if (!isset($params['from'])) {
+			throw new Brindille_Exception('Missing parameter: "from"');
+		}
+
+		if (!is_iterable($params['from'])) {
+			throw new Brindille_Exception('"from" parameter is not an iterable value');
+		}
+
+		foreach ($params['from'] as $key => $value) {
+			yield compact('key', 'value');
+		}
 	}
 }
 
