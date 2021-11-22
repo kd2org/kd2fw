@@ -46,6 +46,10 @@ class FossilInstaller
 		$this->gpg_pubkey_file = $file;
 	}
 
+	/**
+	 * Ignore some paths during upgrade
+	 * @param string $path Paths are relative to the installation directory
+	 */
 	public function addIgnoredPath(string $path)
 	{
 		$this->ignored_paths[] = $path;
@@ -257,6 +261,8 @@ class FossilInstaller
 
 	public function diff(string $version): \stdClass
 	{
+		$this->listReleases();
+
 		if (!isset($this->releases[$version])) {
 			throw new \InvalidArgumentException('Unknown release');
 		}
@@ -279,18 +285,19 @@ class FossilInstaller
 		$l = strlen($this->app_path);
 
 		foreach (self::recursiveList($this->app_path) as $path) {
-			// Skip ignored files
-			foreach ($this->ignored_paths as $ignored_path) {
-				if (0 === strpos($path, $ignored_path)) {
-					continue(2);
-				}
-			}
-
 			if (is_dir($path)) {
 				continue;
 			}
 
 			$file = substr($path, $l + 1);
+
+			// Skip ignored paths
+			foreach ($this->ignored_paths as $ignored_path) {
+				if (0 === strpos($file, $ignored_path)) {
+					continue(2);
+				}
+			}
+
 			$existing_files[$file] = $path;
 		}
 
@@ -311,15 +318,29 @@ class FossilInstaller
 			$relative_path = substr($path, $parent_l + 1);
 			$release_files[$relative_path] = $path;
 
-			if (!array_key_exists($relative_path, $existing_files)) {
+			$is_ignored = false;
+
+			// Skip ignored paths
+			foreach ($this->ignored_paths as $ignored_path) {
+				if (0 === strpos($relative_path, $ignored_path)) {
+					$is_ignored = true;
+					break;
+				}
+			}
+
+			$local_path = $this->app_path . DIRECTORY_SEPARATOR . $relative_path;
+
+			// Skip if file doesn't exist, it will be marked as to be created
+			if (!file_exists($local_path)) {
 				continue;
 			}
 
-			$existing_path = $existing_files[$relative_path];
-
-			if ($file->getSize() != filesize($existing_path)
-				|| sha1_file($existing_path) != sha1_file($path)) {
+			if ($file->getSize() != filesize($local_path)
+				|| sha1_file($local_path) != sha1_file($path)) {
 				$update[$relative_path] = $path;
+			}
+			elseif ($is_ignored) {
+				unset($release_files[$relative_path]);
 			}
 		}
 
