@@ -451,6 +451,10 @@ class Mail_Message
 
 	public function attachMessage($content)
 	{
+		if (is_object($content) && $content instanceof self) {
+			$content = $content->output();
+		}
+
 		return $this->addPart('message/rfc822', $content);
 	}
 
