@@ -208,7 +208,7 @@ class FossilInstaller
 	 * Remove old stale downloaded files
 	 * @return void
 	 */
-	public function prune(): void
+	public function prune(int $delay = 3600 * 24): void
 	{
 		$files = self::recursiveList($this->tmp_path, 'tmp-release-*');
 		$dirs = [];
@@ -219,7 +219,7 @@ class FossilInstaller
 				continue;
 			}
 
-			if (filemtime($file) < (time() - 3600 * 24)) {
+			if (!$delay || filemtime($file) < (time() - $delay)) {
 				@unlink($file);
 			}
 		}
@@ -298,6 +298,7 @@ class FossilInstaller
 		$release_files = [];
 		$update = [];
 
+		// We are always ignoring the first directory level
 		$parent = $phar->getPathName();
 		$parent_l = strlen($parent);
 
@@ -343,14 +344,25 @@ class FossilInstaller
 		// FIXME: Clean up empty directories
 
 		foreach ($diff->create as $file => $source) {
-			copy($source, $this->app_path . DIRECTORY_SEPARATOR . $file);
+			$this->_copy($source, $this->app_path . DIRECTORY_SEPARATOR . $file);
 		}
 
 		foreach ($diff->update as $file => $source) {
-			copy($source, $this->app_path . DIRECTORY_SEPARATOR . $file);
+			$this->_copy($source, $this->app_path . DIRECTORY_SEPARATOR . $file);
 		}
 
 		$this->clean($version);
+	}
+
+	protected function _copy(string $source, string $target): bool
+	{
+		$dir = dirname($target);
+
+		if (!file_exists($dir)) {
+			mkdir($dir, 0777, true);
+		}
+
+		return copy($source, $target);
 	}
 
 	public function install(string $version)
@@ -360,7 +372,15 @@ class FossilInstaller
 		}
 
 		$tmpfile = $this->_getTempFilePath($version);
+		$phar = new \PharData($tmpfile, \FilesystemIterator::CURRENT_AS_FILEINFO | \FilesystemIterator::KEY_AS_PATHNAME
+			| \FilesystemIterator::SKIP_DOTS | \FilesystemIterator::UNIX_PATHS);
+		// Ignore first level directory
+		$root_l = strlen($phar->getPathName());
 
+		foreach (new \RecursiveIteratorIterator($phar) as $source => $_file) {
+			$file = substr($source, $root_l + 1);
+			$this->_copy($source, $this->app_path . DIRECTORY_SEPARATOR . $file);
+		}
 	}
 
 	public function autoinstall(?string $version = null): void
