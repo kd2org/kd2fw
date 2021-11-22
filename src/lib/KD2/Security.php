@@ -324,7 +324,15 @@ class Security
 	static protected function _cleanGnupgEnv($tmpdir)
 	{
 		// Remove files
-		array_map('unlink', glob($tmpdir . DIRECTORY_SEPARATOR . '*') ?: []);
+		foreach (glob($tmpdir . DIRECTORY_SEPARATOR . '*') as $file) {
+			if (is_dir($file)) {
+				@rmdir($file);
+			}
+			else {
+				@unlink($file);
+			}
+		}
+
 		rmdir($tmpdir);
 	}
 
@@ -364,5 +372,41 @@ class Security
 		self::_cleanGnupgEnv($tmpdir);
 
 		return $data;
+	}
+
+	/**
+	 * Verify signed data with a public key
+	 * @param  string  $key    Public key
+	 * @param  string  $data   Data to verify
+	 * @param  string  $signature Signature
+	 * @return boolean
+	 */
+	static public function verifyWithPublicKey(string $key, string $data, string $signature): bool
+	{
+		$gpg = self::_initGnupgEnv($key, $tmpdir, $info);
+
+		$gpg->import($key);
+
+		try {
+			$return = $gpg->verify($data, $signature);
+		}
+		catch (\Exception $e) {
+			if ($e->getMessage() == 'verify failed') {
+				return false;
+			}
+		}
+		finally {
+			self::_cleanGnupgEnv($tmpdir);
+		}
+
+		if (!isset($return[0]['summary'])) {
+			return false;
+		}
+
+		// @see http://git.gnupg.org/cgi-bin/gitweb.cgi?p=gpgme.git;a=blob;f=src/gpgme.h.in;h=6cea2c777e2e763f063ad88e7b2135d21ba4bd4a;hb=107bff70edb611309f627058dd4777a5da084b1a#l1506
+		$summary = $return[0]['summary'];
+
+
+		return ($summary === 0 || ($summary & 0x01) == 0x01) || (($summary & 0x02) == 0x02);
 	}
 }
