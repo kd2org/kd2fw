@@ -380,6 +380,7 @@ class Security
 	 * @param  string  $data   Data to verify
 	 * @param  string  $signature Signature
 	 * @return boolean
+	 * @see https://stackoverflow.com/questions/32787007/what-do-returned-values-of-php-gnupg-signature-verification-mean
 	 */
 	static public function verifyWithPublicKey(string $key, string $data, string $signature): bool
 	{
@@ -405,7 +406,6 @@ class Security
 
 		// @see http://git.gnupg.org/cgi-bin/gitweb.cgi?p=gpgme.git;a=blob;f=src/gpgme.h.in;h=6cea2c777e2e763f063ad88e7b2135d21ba4bd4a;hb=107bff70edb611309f627058dd4777a5da084b1a#l1506
 		$summary = $return[0]['summary'];
-
 
 		return ($summary === 0 || ($summary & 0x01) == 0x01) || (($summary & 0x02) == 0x02);
 	}
