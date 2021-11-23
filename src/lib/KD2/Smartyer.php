@@ -323,9 +323,6 @@ class Smartyer
 			{
 				$this->template_path = $this->templates_dir . DIRECTORY_SEPARATOR . $this->template;
 			}
-
-			// Make sure template path is correctly configured for the current platform (Windows bug)
-			$this->template_path = str_replace('/', DIRECTORY_SEPARATOR, $this->template_path);
 		}
 
 		if (!is_null($this->template_path) && (!is_file($this->template_path) || !is_readable($this->template_path)))
