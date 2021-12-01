@@ -142,6 +142,8 @@ class Bar
 			$this->min = min((int)$this->min, min($values));
 		}
 
+		$this->max = max($this->max, 1);
+
 		if (empty($this->count)) {
 			return $out;
 		}
