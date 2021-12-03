@@ -308,6 +308,10 @@ class HTTP
 			parse_str($a['query'] ?? '', $a_query);
 			parse_str($b['query'] ?? '', $b_query);
 			$b['query'] = http_build_query(array_merge($a_query, $b_query));
+
+			if ($b['query'] == '') {
+				unset($b['query']);
+			}
 		}
 
 		// Relative URL
