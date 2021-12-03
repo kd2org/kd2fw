@@ -122,7 +122,7 @@ function test_http($client = HTTP::CLIENT_DEFAULT)
 
 	$time = time();
 
-	$response = $http->GET('http://kd2.org/ip/', ['Test' => 'OK' . $time]);
+	$response = $http->GET('https://www.whatismybrowser.com/detect/what-http-headers-is-my-browser-sending', ['Test' => 'Test-OK' . $time]);
 
 	Test::isInstanceOf('KD2\HTTP_Response', $response);
 
@@ -144,7 +144,7 @@ function test_http($client = HTTP::CLIENT_DEFAULT)
 	Test::equals(200, $response->status);
 
 	// Check if header has been received by server
-	Test::assert(preg_match('/Test:\s*OK' . $time . '/i', $response->body));
+	Test::assert(preg_match('/Test-OK/i', $response->body));
 
 	$response = $http->GET('http://kd2.org/404.not.found');
 
@@ -177,17 +177,17 @@ function test_http($client = HTTP::CLIENT_DEFAULT)
 
 	// Test redirect
 	$http->http_options['max_redirects'] = 0;
-	$response = $http->GET('http://kd2.org/ip');
+	$response = $http->GET('https://httpd.apache.org/docs/2.4/fr');
 
 	Test::equals(301, $response->status);
 	Test::equals(null, $response->previous);
 
 	$http->http_options['max_redirects'] = 1;
-	$response = $http->GET('http://kd2.org/ip');
+	$response = $http->GET('https://httpd.apache.org/docs/2.4/fr');
 
 	Test::equals(200, $response->status);
-	Test::equals('http://kd2.org/ip/', $response->url);
-	Test::equals('http://kd2.org/ip/', $response->previous->headers['location']);
+	Test::equals('https://httpd.apache.org/docs/2.4/fr/', $response->url);
+	Test::equals('https://httpd.apache.org/docs/2.4/fr/', $response->previous->headers['location']);
 	Test::isInstanceOf('KD2\HTTP_Response', $response->previous);
 	Test::equals(301, $response->previous->status);
 }
