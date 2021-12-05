@@ -232,6 +232,10 @@ abstract class AbstractEntity
 				return $this->$key->format('Y-m-d H:i:s');
 			case 'bool':
 				return (int) $this->$key;
+			case 'stdClass':
+				return json_encode($this->$key);
+			case 'array':
+				return json_encode($this->$key);
 			default:
 				return $this->$key;
 		}
@@ -311,6 +315,20 @@ abstract class AbstractEntity
 				}
 				elseif ($type == 'bool' && is_numeric($value) && ($value == 0 || $value == 1)) {
 					$value = (bool) $value;
+				}
+				elseif ($type == 'array' && is_string($value)) {
+					$value = json_decode($value, true);
+
+					if (null === $value) {
+						throw new \RuntimeException(sprintf('Cannot decode JSON string for key "%s"', $key));
+					}
+				}
+				elseif ($type == 'stdClass' && is_string($value)) {
+					$value = json_decode($value);
+
+					if (null === $value) {
+						throw new \RuntimeException(sprintf('Cannot decode JSON string for key "%s"', $key));
+					}
 				}
 			}
 		}
