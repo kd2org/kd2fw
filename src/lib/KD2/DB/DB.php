@@ -465,6 +465,11 @@ class DB
 		return $this->preparedQuery($query, ...$args)->fetchAll();
 	}
 
+	/**
+	 * Return results from a SQL query in an associative flat array:
+	 * SELECT id, name FROM table;
+	 * -> [42 => "PJ Harvey", 44 => "Tori Amos",...]
+	 */
 	public function getAssoc(string $query, ...$args): array
 	{
 		$st = $this->preparedQuery($query, ...$args);
@@ -478,6 +483,11 @@ class DB
 		return $out;
 	}
 
+	/**
+	 * Return results grouped by the first column:
+	 * SELECT id, * FROM table;
+	 * -> [42 => {id: 42, date: ..., name...}, 43 => ...]
+	 */
 	public function getGrouped(string $query, ...$args): array
 	{
 		$st = $this->preparedQuery($query, ...$args);
@@ -486,6 +496,70 @@ class DB
 		while ($row = $st->fetch(PDO::FETCH_ASSOC))
 		{
 			$out[current($row)] = (object) $row;
+		}
+
+		return $out;
+	}
+
+	/**
+	 * Return results grouped by columns, multidimensional
+	 * SELECT month, * FROM table;
+	 * -> ['202101' => [{id: 42, month: ..., name...}, {id: 43, ...}]]
+	 */
+	public function getGroupedMulti(string $query, ...$args): array
+	{
+		$r = $this->iterate($query, ...$args);
+		$out = [];
+
+		foreach ($r as $row)
+		{
+			$row = (array)$row;
+			$levels = count($row) - 1;
+			$prev =& $out;
+
+			for ($i = 0; $i < $levels; $i++) {
+				$key = current($row);
+				if (!isset($prev[$key])) {
+					$prev[$key] = [];
+				}
+
+				$prev =& $prev[$key];
+				next($row);
+			}
+
+			$prev = (object)$row;
+		}
+
+		return $out;
+	}
+
+	/**
+	 * Return results associative by the first column:
+	 * SELECT month, name, SUM(amount) FROM table;
+	 * -> ['202101' => ['Tori Amos' =>  20000,...]]
+	 */
+	public function getAssocMulti(string $query, ...$args): array
+	{
+		$r = $this->iterate($query, ...$args);
+		$out = [];
+
+		foreach ($r as $row)
+		{
+			$row = (array)$row;
+			$levels = count($row) - 1;
+			$prev =& $out;
+
+			for ($i = 0; $i < $levels; $i++) {
+				$key = current($row);
+				if (!isset($prev[$key])) {
+					$prev[$key] = [];
+				}
+
+				$prev =& $prev[$key];
+				next($row);
+			}
+
+			$prev = end($row);
 		}
 
 		return $out;
