@@ -370,6 +370,10 @@ class FossilInstaller
 
 		foreach ($diff->update as $file => $source) {
 			$this->_copy($source, $this->app_path . DIRECTORY_SEPARATOR . $file);
+
+			if (function_exists('opcache_invalidate')) {
+				opcache_invalidate($this->app_path . DIRECTORY_SEPARATOR . $file, true);
+			}
 		}
 
 		$this->clean($version);
