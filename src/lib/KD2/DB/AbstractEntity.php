@@ -231,13 +231,19 @@ abstract class AbstractEntity
 			case 'DateTime':
 				return $this->$key->format('Y-m-d H:i:s');
 			case 'bool':
+			case 'boolean':
 				return (int) $this->$key;
 			case 'stdClass':
 				return json_encode($this->$key);
 			case 'array':
 				return json_encode($this->$key);
-			default:
+			case 'int':
+			case 'integer':
+			case 'double':
+			case 'float':
 				return $this->$key;
+			default:
+				return (string) $this->$key;
 		}
 	}
 
