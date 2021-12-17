@@ -14,10 +14,10 @@ test_gettext_ext('popo'); // .po files
 
 function test_strftime()
 {
-	$timestamp = strtotime('2016-02-03 13:24:45');
+	$timestamp = new \DateTime('2016-02-03 13:24:45', new \DateTimeZone('Europe/Paris'));
 
 	Translate::setLocale('fi_FI');
-	$expected = '3. helmikuuta 2016 13.24';
+	$expected = '3. helmikuuta 2016 klo 13.24';
 	$output = Translate::strftime('%c', $timestamp);
 	Test::equals($expected, $output);
 
@@ -60,12 +60,30 @@ function test_strftime()
 	$expected = '13h24';
 	$output = Translate::strftime('%Hh%M', $timestamp);
 	Test::equals($expected, $output);
+
+	$expected = '52,2016,16,2017';
+	$output = Translate::strftime('%V,%G,%g,%Y', new \DateTime('2017-01-01'));
+	Test::equals($expected, $output);
+
+	$expected = '52,2002,02,2002';
+	$output = Translate::strftime('%V,%G,%g,%Y', new \DateTime('2002-12-28'));
+	Test::equals($expected, $output);
+
+	$expected = '01,2003,03,2002';
+	$output = Translate::strftime('%V,%G,%g,%Y', new \DateTime('2002-12-30'));
+	Test::equals($expected, $output);
+
+	$expected = '01,2003,03,2003';
+	$output = Translate::strftime('%V,%G,%g,%Y', new \DateTime('2003-01-03'));
+	Test::equals($expected, $output);
+
+	$expected = '01:02:03';
+	$output = Translate::strftime('%X', new \DateTime('2003-01-03 01:02:03'), 'fr_FR');
+	Test::equals($expected, $output);
 }
 
 function test_smartyer_block()
 {
-	Smartyer::setCompileDir(sys_get_temp_dir());
-
 	Translate::unregisterDomain('global');
 
 	Translate::setLocale('fr_CH');
@@ -79,6 +97,7 @@ function test_smartyer_block()
 
 	$get = function ($code) {
 		$tpl = Smartyer::fromString($code);
+		$tpl->setCompiledDir(sys_get_temp_dir());
 		Translate::extendSmartyer($tpl);
 		return $tpl->fetch();
 	};
