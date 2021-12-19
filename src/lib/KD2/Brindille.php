@@ -77,7 +77,19 @@ class Brindille
 	public function registerDefaults()
 	{
 		$this->registerFunction('assign', function(array $params, Brindille $tpl) {
-			$tpl->assignArray($params);
+			// Special case: {{:assign .="user" ..="loop"}}
+			foreach ($params as $key => $value) {
+				if (!preg_match('/^\.+$/', $key)) {
+					continue;
+				}
+
+				$level = count($this->_variables) - strlen($key);
+
+				$tpl->assign($value, $this->_variables[$level], 0);
+				unset($params[$key]);
+			}
+
+			$tpl->assignArray($params, 0);
 		});
 
 		$this->registerModifier('args', 'sprintf');
@@ -103,20 +115,23 @@ class Brindille
 		$this->registerSection('foreach', [self::class, '__foreach']);
 	}
 
-	public function assign(string $key, $value): void
+	public function assign(string $key, $value, ?int $level = null): void
 	{
 		if (!count($this->_variables)) {
 			$this->_variables = [0 => []];
 		}
 
+		if (null === $level) {
+			$level = count($this->_variables)-1;
+		}
 
-		$this->_variables[count($this->_variables)-1][$key] = $value;
+		$this->_variables[$level][$key] = $value;
 	}
 
-	public function assignArray(array $array): void
+	public function assignArray(array $array, ?int $level = null): void
 	{
 		foreach ($array as $key => $value) {
-			$this->assign($key, $value);
+			$this->assign($key, $value, $level);
 		}
 	}
 

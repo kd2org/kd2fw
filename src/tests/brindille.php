@@ -13,6 +13,8 @@ test_comments();
 test_if();
 test_modifiers();
 test_loop();
+test_assign();
+test_modifiers_parameters();
 
 function test_tokenizer()
 {
@@ -67,8 +69,6 @@ function test_variables()
 	Test::equals('-"__"-32', $b->render('{{"-%s-"|raw|args:\'"__"\'|cat:32}}'));
 	Test::equals('<?=\'-"\\\'__"-\'?>', $b->compile('{{"-\\"\'__\\"-"|raw}}'));
 }
-
-
 
 function test_variables2(Smartyer $smartyer)
 {
@@ -206,4 +206,33 @@ function test_loop()
 
 	// Positive condition with empty loop
 	Test::equals('0a1b2c', $b->render('{{#foreach from=$test}}{{$key}}{{$value}}{{/foreach}}', [], true));
+}
+
+function test_assign()
+{
+	$b = new Brindille;
+	$b->registerDefaults();
+	$b->registerSection('users', function () {
+		yield ['name' => 'Toto'];
+	});
+
+	$code = '
+	{{#users}}
+		{{:assign .="user"}}
+	{{/users}}
+	{{$user.name}}';
+
+	Test::equals('Toto', trim($b->render($code)));
+}
+
+function test_modifiers_parameters()
+{
+	$b = new Brindille;
+
+	$b->registerModifier('reverse', 'strrev');
+	$b->registerFunction('json', function (array $params) {
+		return json_encode($params);
+	});
+
+	Test::equals('{"var1":"baca"}', $b->render('{{:json var1="baca"|reverse}}'));
 }
