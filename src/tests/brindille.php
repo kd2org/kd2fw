@@ -12,9 +12,9 @@ test_php_tags();
 test_comments();
 test_if();
 test_modifiers();
+test_modifiers_parameters();
 test_loop();
 test_assign();
-test_modifiers_parameters();
 
 function test_tokenizer()
 {
@@ -223,6 +223,22 @@ function test_assign()
 	{{$user.name}}';
 
 	Test::equals('Toto', trim($b->render($code)));
+
+
+	$code = '
+	{{:assign var="rows[]" label="Toto1"}}
+	{{:assign var="rows[]" label="Toto2"}}
+	{{$rows.0.label}}.{{$rows.1.label}}';
+
+	Test::equals('Toto1.Toto2', trim($b->render($code)));
+
+	$code = '
+	{{:assign var="toto[a][0][b]" label="Toto2"}}
+	{{:assign var="toto[a][]" label="Toto3"}}
+	{{:assign var="toto[a][]" label="Toto4"}}
+	{{$toto.a.0.b.label}}.{{$toto.a.1.label}}.{{$toto.a.2.label}}';
+
+	Test::equals('Toto2.Toto3.Toto4', trim($b->render($code)));
 }
 
 function test_modifiers_parameters()
@@ -234,5 +250,5 @@ function test_modifiers_parameters()
 		return json_encode($params);
 	});
 
-	Test::equals('{"var1":"baca"}', $b->render('{{:json var1="baca"|reverse}}'));
+	Test::equals('{"var1":"acab"}', $b->render('{{:json var1="baca"|reverse}}'));
 }

@@ -76,26 +76,18 @@ class Brindille
 
 	public function registerDefaults()
 	{
-		$this->registerFunction('assign', function(array $params, Brindille $tpl) {
-			// Special case: {{:assign .="user" ..="loop"}}
-			foreach ($params as $key => $value) {
-				if (!preg_match('/^\.+$/', $key)) {
-					continue;
-				}
-
-				$level = count($this->_variables) - strlen($key);
-
-				$tpl->assign($value, $this->_variables[$level], 0);
-				unset($params[$key]);
-			}
-
-			$tpl->assignArray($params, 0);
-		});
+		$this->registerFunction('assign', [self::class, '__assign']);
 
 		$this->registerModifier('args', 'sprintf');
 		$this->registerModifier('nl2br', 'nl2br');
 		$this->registerModifier('strip_tags', 'strip_tags');
-		$this->registerModifier('count', 'count');
+		$this->registerModifier('count', function ($var) {
+			if (is_countable($var)) {
+				return count($var);
+			}
+
+			return null;
+		});
 		$this->registerModifier('cat', function() { return implode('', func_get_args()); });
 
 		$this->registerModifier('date_format', function ($date, $format = '%d/%m/%Y %H:%M') {
@@ -150,9 +142,9 @@ class Brindille
 		$this->_functions[$name] = $callback;
 	}
 
-	public function render(string $code): string
+	public function render(string $tpl_code): string
 	{
-		$code = $this->compile($code);
+		$code = $this->compile($tpl_code);
 
 		try {
 			ob_start();
@@ -206,7 +198,7 @@ class Brindille
 		}
 
 		// Remove comments altogether
-		$code = preg_replace('!<\?php /\*.*\*/ \?>!s', '', $code);
+		$return = preg_replace('!<\?php /\*.*\*/ \?>!s', '', $return);
 
 		return $return;
 	}
@@ -252,7 +244,7 @@ class Brindille
 		$i = 0;
 		$keys = explode('.', $expr);
 
-		while ($key = array_shift($keys))
+		while (null !== ($key = array_shift($keys)))
 		{
 			if ($i++ > 20)
 			{
@@ -420,7 +412,7 @@ class Brindille
 		$params = $this->_parseArguments($params);
 		$params = $this->_exportArguments($params);
 
-		return sprintf('<?php unset($last); foreach (call_user_func($this->_sections[%s], %s, $this, %d) as $key => $value): $this->_variables[] = []; $this->assignArray($value + [\'__\' => $value, \'_\' => $key]); ?>',
+		return sprintf('<?php unset($last); foreach (call_user_func($this->_sections[%s], %s, $this, %d) as $key => $value): $this->_variables[] = []; $this->assignArray(array_merge($value, [\'__\' => $value, \'_\' => $key])); ?>',
 			var_export($name, true),
 			$params,
 			$line
@@ -572,7 +564,7 @@ class Brindille
 					throw new Brindille_Exception('Unexpected \'=\' after \'' . $last_value . '\'');
 				}
 
-				$args[$name] = $value;
+				$args[$name] = $this->_variable($value, false);
 				$name = null;
 				$state = -1;
 			}
@@ -613,7 +605,7 @@ class Brindille
 
 		foreach ($args as $key=>$value)
 		{
-			$out .= var_export($key, true) . ' => ' . $this->_exportArgument($value) . ', ';
+			$out .= var_export($key, true) . ' => ' . $value . ', ';
 		}
 
 		$out = substr($out, 0, -2);
@@ -694,10 +686,14 @@ class Brindille
 		return $match;
 	}
 
-	static public function __foreach(array $params): \Generator
+	static public function __foreach(array $params, $tpl, $line): \Generator
 	{
-		if (!isset($params['from'])) {
-			throw new Brindille_Exception('Missing parameter: "from"');
+		if (!array_key_exists('from', $params)) {
+			throw new Brindille_Exception(sprintf('line %d: missing parameter: "from"', $line));
+		}
+
+		if (null == $params['from']) {
+			return null;
 		}
 
 		if (!is_iterable($params['from'])) {
@@ -706,6 +702,62 @@ class Brindille
 
 		foreach ($params['from'] as $key => $value) {
 			yield compact('key', 'value');
+		}
+	}
+
+	static public function __assign(array $params, Brindille $tpl)
+	{
+		// Special case: {{:assign .="user" ..="loop"}}
+		foreach ($params as $key => $value) {
+			if (!preg_match('/^\.+$/', $key)) {
+				continue;
+			}
+
+			$level = count($tpl->_variables) - strlen($key);
+
+			$tpl->assign($value, $tpl->_variables[$level], 0);
+			unset($params[$key]);
+		}
+
+		if (isset($params['var'])) {
+			$var = $params['var'];
+			unset($params['var']);
+
+			$parts = explode('[', $var);
+			$var_name = array_shift($parts);
+
+			if (!isset($tpl->_variables[0][$var_name])) {
+				$tpl->_variables[0][$var_name] = [];
+			}
+
+			$prev =& $tpl->_variables[0][$var_name];
+
+			// To assign to arrays, eg. {{:assign var="rows[0][label]"}}
+			foreach ($parts as $sub) {
+				$sub = trim($sub, '[]\'" ');
+
+				// Empty key: just increment
+				if (!strlen($sub)) {
+					$sub = count($prev);
+				}
+
+				if (!array_key_exists($sub, $prev)) {
+					$prev[$sub] = [];
+				}
+
+				$prev =& $prev[$sub];
+			}
+
+			$prev = $params;
+			unset($prev);
+		}
+		elseif (isset($params['append'])) {
+			$var = $params['var'];
+			unset($params['var']);
+			$tpl->assign($var, $params, 0);
+		}
+		else {
+			$tpl->assignArray($params, 0);
 		}
 	}
 }
