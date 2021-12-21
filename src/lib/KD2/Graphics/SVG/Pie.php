@@ -106,7 +106,7 @@ class Pie
 
 			foreach ($this->data as $i => $row)
 			{
-				$row->angle = ceil(360 * $row->data / $sum);
+				$row->angle = ceil(360 * $row->data / ($sum ?: 1));
 
 	            $start_angle = $end_angle;
 	            $end_angle = $start_angle + $row->angle;
