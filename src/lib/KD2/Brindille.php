@@ -171,7 +171,7 @@ class Brindille
 		]);
 
 		// Remove comments, but do not affect the number of lines
-		$code = preg_replace_callback('/\{\{\*(?:(?!\}\}\*).*?)\*\}\}/s', function ($match) {
+		$code = preg_replace_callback('/\{\{\*(?:(?!\*\}\}).*?)\*\}\}/s', function ($match) {
 			return '<?php /* ' . str_repeat("\n", substr_count($match[0], "\n")) . '*/ ?>';
 		}, $code);
 
@@ -198,7 +198,7 @@ class Brindille
 		}
 
 		// Remove comments altogether
-		$return = preg_replace('!<\?php /\*.*\*/ \?>!s', '', $return);
+		$return = preg_replace('!<\?php /\*.*?\*/ \?>!s', '', $return);
 
 		return $return;
 	}
