@@ -68,6 +68,9 @@ class DB
 		'haversine_distance' => [__CLASS__, 'sqlite_haversine'],
 	];
 
+	protected $sqlite_collations = [
+	];
+
 	/**
 	 * Class construct, expects a driver configuration
 	 * @param array $driver Driver configurtaion

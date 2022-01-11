@@ -52,7 +52,10 @@ class SQLite3 extends DB
 
 	public function close(): void
 	{
-		$this->db->close();
+		if (null !== $this->db) {
+			$this->db->close();
+		}
+
 		$this->db = null;
 	}
 
@@ -118,6 +121,18 @@ class SQLite3 extends DB
 		}
 	}
 
+	public function createCollation(string $name, callable $callback): bool
+	{
+		if ($this->db)
+		{
+			return $this->db->createCollation($name, $callback);
+		}
+		else
+		{
+			$this->sqlite_collations[$name] = $callback;
+			return true;
+		}
+	}
 
 	public function escapeString(string $str): string
 	{
