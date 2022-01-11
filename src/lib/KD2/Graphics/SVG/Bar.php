@@ -169,7 +169,7 @@ class Bar
 
 		// Horizontal lines and Y axis legends
 		foreach ($lines as $k => $v) {
-			$out .= sprintf('<line x1="%f" y1="%f" x2="%f" y2="%f" stroke-width="1" stroke="#ccc" />' . PHP_EOL, $this->margin_left, $y, $this->width, $y);
+			$out .= sprintf('<line x1="%f" y1="%f" x2="%f" y2="%f" stroke-width="1" stroke="rgba(127, 127, 127, 0.5)" />' . PHP_EOL, $this->margin_left, $y, $this->width, $y);
 
 			$out .= sprintf('<g><text x="%f" y="%f" font-size="%f" fill="gray" text-anchor="end" style="font-family: Verdana, Arial, sans-serif;">%s</text></g>' . PHP_EOL, $this->width * 0.08, $y, $this->height * 0.04, round($v) ?: 0);
 			$y -= $axis_height + 1;

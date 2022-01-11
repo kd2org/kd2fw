@@ -159,7 +159,7 @@ class Pie
 				$out .= '<rect x="'.($x - $this->width * 0.01).'" y="'.($y - $this->height * 0.015).'" width="'.($this->width * 0.04).'" height="'.($this->height * 0.05).'" fill="'.$row->fill.'" stroke="black" stroke-width="1" rx="2" />' . PHP_EOL;
 
 				if ($row->label) {
-					$out .= $this->text($x-($this->width * 0.02), $y+($this->height * 0.025), $row->label, 'white', null, 'white', 'end');
+					$out .= $this->text($x-($this->width * 0.02), $y+($this->height * 0.025), $row->label, 'white', null, 'rgba(255, 255, 255, 0.5)', 'end');
 					$out .= $this->text($x-($this->width * 0.02), $y+($this->height * 0.025), $row->label, 'black', null, null, 'end');
 				}
 
