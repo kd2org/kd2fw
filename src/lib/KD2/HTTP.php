@@ -523,6 +523,10 @@ class HTTP
 			}
 		}
 
+		if (!empty($this->http_options['proxy_auth'])) {
+			$headers['Proxy-Authorization'] = sprintf('Basic %s', base64_encode($this->http_options['proxy_auth']));
+		}
+
 		foreach ($headers as $key=>$value)
 		{
 			$request .= $key . ': ' . $value . "\r\n";
@@ -641,6 +645,15 @@ class HTTP
 			CURLOPT_SAFE_UPLOAD    => true, // Disable file upload with values beginning with @
 			CURLINFO_HEADER_OUT    => true,
 		]);
+
+		if (!empty($this->http_options['proxy'])) {
+			\curl_setopt($c, CURLOPT_PROXY, str_replace('tcp://', '', $this->http_options['proxy']));
+			\curl_setopt($c, CURLOPT_PROXY_SSL_VERIFYHOST, !empty($this->ssl_options['verify_peer_name']) ? 2 : 0);
+
+			if (!empty($this->http_options['proxy_auth'])) {
+				\curl_setopt($c, CURLOPT_PROXYUSERPWD, $this->http_options['proxy_auth']);
+			}
+		}
 
 		if ($data !== null)
 		{
