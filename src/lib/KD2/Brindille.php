@@ -200,6 +200,10 @@ class Brindille
 		// Remove comments altogether
 		$return = preg_replace('!<\?php /\*.*?\*/ \?>!s', '', $return);
 
+		// Remove whitespaces between PHP logic blocks (not echo blocks)
+		// this is to avoid sending data to browser in logic code, eg. redirects
+		$return = preg_replace('!\s\?>(\s+)<\?php\s!', ' $1 ', $return);
+
 		return $return;
 	}
 
