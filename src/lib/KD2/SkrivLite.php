@@ -1130,6 +1130,7 @@ class SkrivLite_Helper
         // Use a proper transliterator if available
         if (function_exists('transliterator_transliterate'))
         {
+        	$default = ini_get('intl.use_exceptions');
         	ini_set('intl.use_exceptions', 1);
 
         	try {
@@ -1140,6 +1141,8 @@ class SkrivLite_Helper
         	{
         		$translit = false;
         	}
+
+        	ini_set('intl.use_exceptions', $default);
         }
 
 
