@@ -667,58 +667,63 @@ class Translate
 	{
 		if (empty($_SERVER['HTTP_ACCEPT_LANGUAGE']))
 		{
-			return false;
+			return null;
 		}
 
 		// Convenient PECL Intl function
 		if (function_exists('locale_accept_from_http'))
 		{
-			$locale = locale_accept_from_http($_SERVER['HTTP_ACCEPT_LANGUAGE']);
-		}
-		// Let's do the same thing by hand
-		else
-		{
-			$http_langs = explode(',', $_SERVER['HTTP_ACCEPT_LANGUAGE']);
-			$locale = null;
-			$locale_priority = 0;
+			$default = ini_get('intl.use_exceptions');
+			ini_set('intl.use_exceptions', 1);
 
-			// For each locale extract its priority
-			foreach ($http_langs as $lang)
-			{
-				if (preg_match('/;q=([0-9.,]+)/', $lang, $match))
-				{
-					$q = (int) $match[1] * 10;
-					$lang = str_replace($match[0], '', $lang);
-				}
-				else
-				{
-					$q = 10;
-				}
-
-				$lang = strtolower(trim($lang));
-
-				if (strlen($lang) > 2)
-				{
-					$lang = explode('-', $lang);
-					$lang = array_slice($lang, 0, 2);
-					$lang = $lang[0] . '_' . strtoupper($lang[1]);
-				}
-
-				// Higher priority than the previous one?
-				// Let's use it then!
-				if ($q > $locale_priority)
-				{
-					$locale = $lang;
-				}
+			try {
+				$locale = locale_accept_from_http($_SERVER['HTTP_ACCEPT_LANGUAGE']);
+				return ($full_locale || !$locale) ? $locale : substr($locale, 0, 2);
+			}
+			catch (\IntlException $e) {
+				return null;
+			}
+			finally {
+				ini_set('intl.use_exceptions', $default);
 			}
 		}
 
-		if (is_null($locale))
+		// Let's do the same thing by hand
+		$http_langs = explode(',', $_SERVER['HTTP_ACCEPT_LANGUAGE']);
+		$locale = null;
+		$locale_priority = 0;
+
+		// For each locale extract its priority
+		foreach ($http_langs as $lang)
 		{
-			return false;
+			if (preg_match('/;q=([0-9.,]+)/', $lang, $match))
+			{
+				$q = (int) $match[1] * 10;
+				$lang = str_replace($match[0], '', $lang);
+			}
+			else
+			{
+				$q = 10;
+			}
+
+			$lang = strtolower(trim($lang));
+
+			if (strlen($lang) > 2)
+			{
+				$lang = explode('-', $lang);
+				$lang = array_slice($lang, 0, 2);
+				$lang = $lang[0] . '_' . strtoupper($lang[1]);
+			}
+
+			// Higher priority than the previous one?
+			// Let's use it then!
+			if ($q > $locale_priority)
+			{
+				$locale = $lang;
+			}
 		}
 
-		return $full_locale ? $locale : substr($locale, 0, 2);
+		return ($full_locale || !$locale) ? $locale : substr($locale, 0, 2);
 	}
 
 	/**
