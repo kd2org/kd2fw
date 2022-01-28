@@ -504,8 +504,6 @@ class ErrorManager
 			$e = $e->getPrevious();
 		}
 
-		$report->errors = array_reverse($report->errors);
-
 		unset($error, $e, $params, $t);
 
 		$context = array_merge([
