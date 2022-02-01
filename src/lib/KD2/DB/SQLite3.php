@@ -52,6 +52,8 @@ class SQLite3 extends DB
 
 	public function close(): void
 	{
+		$this->__destruct();
+
 		if (null !== $this->db) {
 			$this->db->close();
 		}
@@ -71,6 +73,15 @@ class SQLite3 extends DB
 		}
 
 		parent::__construct($driver, $params);
+	}
+
+	public function __destruct()
+	{
+		foreach ($this->statements as $st) {
+			$st->close();
+		}
+
+		parent::__destruct();
 	}
 
 	public function connect(): void
@@ -379,17 +390,21 @@ class SQLite3 extends DB
 	 */
 	public function preparedQuery(string $query, ...$args)
 	{
-		assert(is_string($query));
-		assert(is_array($args) || is_object($args));
+		return parent::preparedQuery($query, ...$args);
+	}
+
+	public function execute($statement, ...$args)
+	{
+		if (!($statement instanceof \SQLite3Stmt)) {
+			throw new \InvalidArgumentException('Statement must be of type SQLite3Stmt');
+		}
 
 		// Forcer en tableau
 		$args = (array) $args;
 
 		$this->connect();
 
-		$query = $this->applyTablePrefix($query);
-		$statement = $this->db->prepare($query);
-
+		$statement->reset();
 		$nb = $statement->paramCount();
 
 		if (!empty($args))
@@ -444,7 +459,7 @@ class SQLite3 extends DB
 		}
 		catch (\Exception $e)
 		{
-			throw new \RuntimeException($e->getMessage() . "\n" . $query . "\n" . json_encode($args, true));
+			throw new \RuntimeException($e->getMessage() . "\n" . json_encode($args, true), 0, $e);
 		}
 	}
 
@@ -464,7 +479,7 @@ class SQLite3 extends DB
 			yield (object) $row;
 		}
 
-		unset($res);
+		$res->finalize();
 
 		return;
 	}
@@ -479,6 +494,8 @@ class SQLite3 extends DB
 			$out[] = (object) $row;
 		}
 
+		$res->finalize();
+
 		return $out;
 	}
 
@@ -492,6 +509,8 @@ class SQLite3 extends DB
 			$out[$row[0]] = $row[1];
 		}
 
+		$res->finalize();
+
 		return $out;
 	}
 
@@ -504,6 +523,8 @@ class SQLite3 extends DB
 		{
 			$out[current($row)] = (object) $row;
 		}
+
+		$res->finalize();
 
 		return $out;
 	}
@@ -564,6 +585,7 @@ class SQLite3 extends DB
 		$res = $this->preparedQuery($query, ...$args);
 
 		$row = $res->fetchArray(\SQLITE3_NUM);
+		$res->finalize();
 
 		return (is_array($row) && count($row) > 0) ? $row[0] : false;
 	}
@@ -594,6 +616,7 @@ class SQLite3 extends DB
 
 	public function prepare(string $statement, array $driver_options = [])
 	{
+		$this->connect();
 		$query = $this->applyTablePrefix($statement);
 		return $this->db->prepare($statement);
 	}

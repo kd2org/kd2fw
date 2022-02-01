@@ -72,6 +72,12 @@ class DB
 	];
 
 	/**
+	 * Statements cache
+	 * @var array
+	 */
+	protected $statements = [];
+
+	/**
 	 * Class construct, expects a driver configuration
 	 * @param array $driver Driver configurtaion
 	 */
@@ -142,6 +148,11 @@ class DB
 		}
 
 		$this->driver = $driver;
+	}
+
+	public function __destruct()
+	{
+		$this->statements = [];
 	}
 
 	/**
@@ -233,6 +244,8 @@ class DB
 		$this->connect();
 
 		$this->begin();
+
+		$emulate = null;
 
 		// Store user-set prepared emulation setting for later
 		if ($this->driver->type == 'mysql') {
@@ -421,15 +434,27 @@ class DB
 
 	public function preparedQuery(string $query, ...$args)
 	{
-        assert(is_string($query));
+		$key = md5($query . implode(',', array_keys($args)));
 
+		// Use statements cache!
+		if (!array_key_exists($key, $this->statements)) {
+			$this->statements[$key] = $this->prepare($query);
+		}
+
+		return $this->execute($this->statements[$key], ...$args);
+	}
+
+	public function execute($statement, ...$args)
+	{
         // Only one argument, which is an array: this is an associative array
         if (isset($args[0]) && is_array($args[0]))
         {
         	$args = $args[0];
         }
 
-        assert(is_array($args) || is_object($args), 'Expecting an array or object as query arguments');
+        if (!is_array($args) && !is_object($args)) {
+        	throw new \InvalidArgumentException('Expecting an array or object as query arguments');
+        }
 
         $args = (array) $args;
 
@@ -443,10 +468,9 @@ class DB
 
         unset($arg);
 
-		$st = $this->prepare($query);
-		$st->execute($args);
+		$statement->execute($args);
 
-		return $st;
+		return $statement;
 	}
 
 	public function iterate(string $query, ...$args): iterable
@@ -600,6 +624,7 @@ class DB
 	 * Inserts a row in $table, using $fields as data to fill
 	 * @param  string $table  Table name
 	 * @param  array|object $fields List of columns as an associative array
+	 * @param  null|string $clause INSERT clause (eg. 'OR IGNORE' etc.)
 	 * @return boolean
 	 */
 	public function insert(string $table, $fields, string $clause = null)
