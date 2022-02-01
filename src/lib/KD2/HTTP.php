@@ -207,6 +207,7 @@ class HTTP
 		}
 
 		$previous = null;
+		$response = null;
 
 		// Follow redirect until we reach maximum
 		for ($i = 0; $i <= $max_redirects; $i++)

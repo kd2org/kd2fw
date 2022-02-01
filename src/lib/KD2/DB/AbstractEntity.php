@@ -38,6 +38,8 @@ abstract class AbstractEntity
 	protected $_modified = [];
 	protected $_types = [];
 
+	protected $id;
+
 	static protected $_types_cache = [];
 
 	/**

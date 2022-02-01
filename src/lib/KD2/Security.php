@@ -309,7 +309,7 @@ class Security
 		putenv('GNUPGHOME=' . $tmpdir);
 
 		$gpg = new \gnupg;
-		$gpg->seterrormode(\gnupg::ERROR_EXCEPTION);
+		$gpg->seterrormode(\GNUPG_ERROR_EXCEPTION);
 
 		$info = $gpg->import($key);
 

@@ -283,7 +283,7 @@ class JSONSchema
 			throw new \RuntimeException(sprintf('%s: is not a valid time (expected format: %s)', $name, $example));
 		}
 		elseif ($format == 'regex' && preg_match('/' . $object . '/', '') && preg_last_error()) {
-			throw new \RuntimeException(sprintf('%s: invalid regexp', $name, $example));
+			throw new \RuntimeException(sprintf('%s: invalid regexp', $name));
 		}
 	}
 }

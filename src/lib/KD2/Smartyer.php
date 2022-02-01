@@ -633,7 +633,7 @@ class Smartyer
 		// Atomic update if everything worked, destination will be overwritten
 		rename($this->compiled_template_path . '.tmp', $this->compiled_template_path);
 
-		unset($source, $compiled);
+		unset($compiled);
 
 		return $out;
 	}
@@ -1028,6 +1028,7 @@ class Smartyer
 
 		$args = [];
 		$state = 0;
+		$name = null;
 		$last_value = '';
 
 		preg_match_all('/(?:"(?:\\.|[^\"])*?"|\'(?:\\.|[^\'])*?\'|(?>[^"\'=\s]+))+|[=]/i', $str, $match);

@@ -912,6 +912,7 @@ class SkrivLite
 		$metadata = [];
 		$current_meta = null;
 		$in_meta = false;
+		$k = null;
 
 		foreach ($text as $k=>$line)
 		{

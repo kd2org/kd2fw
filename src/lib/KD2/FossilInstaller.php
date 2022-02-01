@@ -419,7 +419,7 @@ class FossilInstaller
 		$this->download($version);
 
 		if (isset($this->gpg_pubkey_file)) {
-			$this->checkSignature($version);
+			$this->verify($version);
 		}
 
 		$this->install($version);

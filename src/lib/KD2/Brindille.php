@@ -543,6 +543,7 @@ class Brindille
 	protected function _parseArguments(string $str)
 	{
 		$args = [];
+		$name = null;
 		$state = 0;
 		$last_value = '';
 

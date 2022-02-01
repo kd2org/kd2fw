@@ -265,6 +265,8 @@ class ErrorManager
 			ob_end_clean();
 		}
 
+		$html_report = null;
+
 		if (self::$enabled != self::PRODUCTION || self::$email_errors) {
 			$html_report = self::htmlReport($report);
 		}
