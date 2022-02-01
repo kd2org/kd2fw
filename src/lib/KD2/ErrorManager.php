@@ -659,7 +659,7 @@ class ErrorManager
 		$str = strtr($str, [
 			'{$ref}' => $report->context->id,
 			'{$report_json}' => htmlspecialchars(base64_encode(json_encode($report)), ENT_QUOTES),
-			'{$report_url}' => htmlspecialchars(self::$report_url),
+			'{$report_url}' => htmlspecialchars((string) self::$report_url),
 		]);
 
 		$str = preg_replace_callback('!<if\((sent|logged|report|email|log)\)>(.*?)</if>!is', function ($match) {
