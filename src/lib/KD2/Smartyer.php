@@ -767,7 +767,7 @@ class Smartyer
 		}
 
 		$name = trim(strtolower($match[1]));
-		$raw_args = !empty($match[2]) ? trim($match[2]) : null;
+		$raw_args = !empty($match[2]) ? trim($match[2]) : '';
 		$code = '';
 
 		unset($match);
@@ -1022,6 +1022,10 @@ class Smartyer
 	 */
 	protected function parseArguments($str, $line = null)
 	{
+		if ($str === '') {
+			return [];
+		}
+
 		$args = [];
 		$state = 0;
 		$last_value = '';

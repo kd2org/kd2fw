@@ -799,24 +799,25 @@ class HTTP_Headers implements \ArrayAccess
 		}
 	}
 
+	#[\ReturnTypeWillChange]
 	public function offsetGet($key)
 	{
 		return $this->__get($key);
 	}
 
-	public function offsetExists($key)
+	public function offsetExists($key): bool
 	{
 		$key = strtolower($key);
 
 		return array_key_exists($key, $this->headers);
 	}
 
-	public function offsetSet($key, $value)
+	public function offsetSet($key, $value): void
 	{
-		return $this->__set($key, $value);
+		$this->__set($key, $value);
 	}
 
-	public function offsetUnset($key)
+	public function offsetUnset($key): void
 	{
 		unset($this->headers[strtolower($key)]);
 	}
