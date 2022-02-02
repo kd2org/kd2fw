@@ -727,7 +727,7 @@ class Translate
 	}
 
 	/**
-	 * Locale-formatted strftime using IntlDateFormatter (PHP 8.1 compatible)
+	 * Locale-formatted strftime using \IntlDateFormatter (PHP 8.1 compatible)
 	 * @param  string $format Date format
 	 * @param  integer|string|DateTime $timestamp Timestamp
 	 * @return string
@@ -762,32 +762,32 @@ class Translate
 
 		$intl_formatter = function (\DateTimeInterface $timestamp, string $format) use ($intl_formats, $locale) {
 			$tz = $timestamp->getTimezone();
-			$date_type = IntlDateFormatter::FULL;
-			$time_type = IntlDateFormatter::FULL;
+			$date_type = \IntlDateFormatter::FULL;
+			$time_type = \IntlDateFormatter::FULL;
 			$pattern = '';
 
 			// %c = Preferred date and time stamp based on locale
 			// Example: Tue Feb 5 00:45:10 2009 for February 5, 2009 at 12:45:10 AM
 			if ($format == '%c') {
-				$date_type = IntlDateFormatter::LONG;
-				$time_type = IntlDateFormatter::SHORT;
+				$date_type = \IntlDateFormatter::LONG;
+				$time_type = \IntlDateFormatter::SHORT;
 			}
 			// %x = Preferred date representation based on locale, without the time
 			// Example: 02/05/09 for February 5, 2009
 			elseif ($format == '%x') {
-				$date_type = IntlDateFormatter::SHORT;
-				$time_type = IntlDateFormatter::NONE;
+				$date_type = \IntlDateFormatter::SHORT;
+				$time_type = \IntlDateFormatter::NONE;
 			}
 			// Localized time format
 			elseif ($format == '%X') {
-				$date_type = IntlDateFormatter::NONE;
-				$time_type = IntlDateFormatter::MEDIUM;
+				$date_type = \IntlDateFormatter::NONE;
+				$time_type = \IntlDateFormatter::MEDIUM;
 			}
 			else {
 				$pattern = $intl_formats[$format];
 			}
 
-			return (new IntlDateFormatter($locale, $date_type, $time_type, $tz, null, $pattern))->format($timestamp);
+			return (new \IntlDateFormatter($locale, $date_type, $time_type, $tz, null, $pattern))->format($timestamp);
 		};
 
 		// Same order as https://www.php.net/manual/en/function.strftime.php
@@ -846,6 +846,7 @@ class Translate
 			'%r' => 'G:i:s A', // %I:%M:%S %p
 			'%R' => 'H:i', // %H:%M
 			'%S' => 's',
+			'%T' => 'H:i:s', // %H:%M:%S
 			'%X' => $intl_formatter,// Preferred time representation based on locale, without the date
 
 			// Timezone

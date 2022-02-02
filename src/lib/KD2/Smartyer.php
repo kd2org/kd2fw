@@ -1394,7 +1394,7 @@ class Smartyer
 			return date(constant($format), $date);
 		}
 
-		return strftime($format, $date);
+		return @strftime($format, $date);
 	}
 
 	/**
