@@ -332,7 +332,7 @@ class Brindille
 			return $all;
 		}
 
-		$params = trim($params);
+		$params = trim((string) $params);
 
 		// Variable
 		if ($start == '$') {
