@@ -299,7 +299,7 @@ class UserSession
 		return $this->start(true);
 	}
 
-	public function refresh()
+	public function refresh(): bool
 	{
 		if (!$this->isLogged())
 		{
@@ -308,7 +308,13 @@ class UserSession
 
 		$_SESSION['userSessionData'] = [];
 
-		return $this->create($this->user->id);
+		try {
+			return $this->create($this->user->id);
+		}
+		catch (\LogicException $e) {
+			$this->logout();
+			return false;
+		}
 	}
 
 	public function isLogged()
@@ -409,7 +415,7 @@ class UserSession
 		}
 	}
 
-	protected function create($user_id)
+	protected function create($user_id): bool
 	{
 		$user = $this->getUserDataForSession($user_id);
 
@@ -429,7 +435,7 @@ class UserSession
 		{
 			$this->deleteRememberMeSelector($cookie->selector);
 
-			setcookie($this->remember_me_cookie_name, null, -1, $this->cookie_path,
+			setcookie($this->remember_me_cookie_name, '', -1, $this->cookie_path,
 				$this->cookie_domain, $this->cookie_secure, true);
 			unset($_COOKIE[$this->remember_me_cookie_name]);
 		}
@@ -437,7 +443,7 @@ class UserSession
 		$this->start(true);
 		$_SESSION = [];
 
-		setcookie($this->cookie_name, null, -1, $this->cookie_path,
+		setcookie($this->cookie_name, '', -1, $this->cookie_path,
 			$this->cookie_domain, $this->cookie_secure, true);
 
 		unset($_COOKIE[$this->cookie_name]);
