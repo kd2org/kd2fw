@@ -860,6 +860,11 @@ class Smartyer
 				$this->parseError($line, '{include} function requires file parameter.');
 			}
 
+			if (substr($this->getValueFromArgument($args['file']), 0, 2) == './') {
+				$root = dirname(substr($this->template_path, strlen($this->templates_dir)));
+				$args['file'] = var_export(substr($root, 1) . substr($this->getValueFromArgument($args['file']), 1), true);
+			}
+
 			$file = $this->exportArgument($args['file']);
 			unset($args['file']);
 
