@@ -48,7 +48,8 @@ class SQLite3 extends DB
 	 */
 	protected $flags = null;
 
-	const DATE_FORMAT = 'Y-m-d H:i:s';
+	const DATE_FORMAT = 'Y-m-d';
+	const DATETIME_FORMAT = 'Y-m-d H:i:s';
 
 	public function close(): void
 	{
@@ -228,9 +229,13 @@ class SQLite3 extends DB
 			case 'object':
 				if ($arg instanceof \DateTime)
 				{
-					$arg = clone $arg;
-					$arg->setTimezone(new \DateTimeZone('UTC'));
-					$arg = $arg->format(self::DATE_FORMAT);
+					if ($arg->format('His') === '000000') {
+						$arg = $arg->format(self::DATE_FORMAT);
+					}
+					else {
+						$arg = $arg->format(self::DATETIME_FORMAT);
+					}
+
 					return \SQLITE3_TEXT;
 				}
 			default:
