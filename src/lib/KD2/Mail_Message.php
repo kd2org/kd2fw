@@ -475,20 +475,17 @@ class Mail_Message
 
 		if (count($parts) <= 1)
 		{
-			if (!isset($headers['content-type']))
-			{
-				$headers['content-type'] = $parts[0]['type'] . '; charset=utf-8';
-				$headers['content-transfer-encoding'] = 'quoted-printable';
-			}
-			elseif (stristr($headers['content-type'], 'text/plain'))
+			if (!isset($headers['content-type']) || stristr($headers['content-type'], 'text/plain'))
 			{
 				// Force UTF-8
 				$headers['content-type'] = $parts[0]['type'] . '; charset=utf-8';
+				$headers['content-transfer-encoding'] = 'quoted-printable';
 			}
 		}
 		else
 		{
 			$headers['content-type'] = 'multipart/mixed; boundary="' . $this->output_boundary . '"';
+			$headers['content-transfer-encoding'] = '8bit';
 			$headers['mime-version'] = '1.0';
 		}
 
@@ -538,8 +535,8 @@ class Mail_Message
 		}
 		else
 		{
-			$body = "This is a message in multipart MIME format. ";
-			$body.= "Your mail client should not be displaying this. ";
+			$body = "This is a message in multipart MIME format. \n";
+			$body.= "Your mail client should not be displaying this. \n";
 			$body.= "Consider upgrading your mail client to view this message correctly.";
 			$body.= "\n\n";
 
@@ -595,8 +592,9 @@ class Mail_Message
 		elseif (stripos($part['type'], 'text/') === 0)
 		{
 			$out .= "; charset=utf-8\n";
+
 			$out .= "Content-Transfer-Encoding: quoted-printable\n";
-			$content = quoted_printable_encode($part['content']);
+			$content = quoted_printable_encode(preg_replace("#(?<!\r)\n#si", "\r\n", $part['content'])) . "\r\n";
 		}
 		else
 		{
@@ -681,6 +679,11 @@ class Mail_Message
 	 */
 	protected function _encodeHeaderValue($value, $key = null)
 	{
+		// Don't encode spam report here as we want it to be readable in the source
+		if ($key == 'X-Spam-Report') {
+			return $value;
+		}
+
 		if (in_array($key, ['From', 'Cc', 'To', 'Bcc', 'Reply-To']))
 		{
 			if (!preg_match('/^((?:"?(?P<name>.*?)"?)\s*<(?P<namedEmail>[^>]+)>|(?P<email>.+))$/', $value, $matches))
@@ -697,9 +700,20 @@ class Mail_Message
 			return $value;
 		}
 
-		// Don't encode spam report here as we want it to be readable in the source
-		if ($this->is_utf8($value) && $key !== 'X-Spam-Report')
-		{
+		if (!$this->is_utf8($value)) {
+			return $value;
+		}
+
+		if (function_exists('mb_internal_encoding')) {
+			mb_internal_encoding('UTF-8');
+			return mb_encode_mimeheader($value, 'UTF-8');
+		}
+
+		if (function_exists('iconv_mime_encode')) {
+			return iconv_mime_encode('', $value);
+		}
+
+		if ($this->is_utf8($value)) {
 			$value = '=?UTF-8?B?'.base64_encode($value).'?=';
 		}
 
