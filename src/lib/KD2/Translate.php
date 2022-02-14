@@ -748,7 +748,7 @@ class Translate
 			throw new \InvalidArgumentException('$timestamp argument is neither a valid UNIX timestamp, a valid date-time string or a DateTime object.');
 		}
 
-		$locale = substr($locale ?? self::$locale, 0, 5);
+		$locale = substr($locale ?? (string) self::$locale, 0, 5);
 
 		$intl_formats = [
 			'%a' => 'EEE',	// An abbreviated textual representation of the day	Sun through Sat
