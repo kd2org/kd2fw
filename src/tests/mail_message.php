@@ -5,9 +5,27 @@ use KD2\Mail_Message;
 
 require __DIR__ . '/_assert.php';
 
+test_cc();
 test_headers();
 test_headers_multiline();
 test_length();
+
+function test_cc()
+{
+	$msg = new Mail_Message;
+	$headers = 'From: A <a@email.org>
+To: b@email.org
+Cc: =?UTF-8?Q?Fran=C3=A7ois?= <f@email.fr>, Bruno
+ <b@email.com>';
+	$msg->parse($headers);
+	$headers = $msg->outputHeaders();
+
+	Test::equals('From: "A" <a@email.org>
+To: b@email.org
+Cc: "=?UTF-8?B?RnJhbsOnb2lz?=" <f@email.fr>, "Bruno" <b@email.com>
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: quoted-printable', str_replace("\r", "", $headers));
+}
 
 /**
  * Check that maximum line length of 998 is enforced
@@ -89,6 +107,7 @@ X-Spam-Report: score                  = 15.4
                              identical to background
   1.0 FROM_EXCESS_BASE64     From: base64 encoded unnecessarily
 Content-Type: text/plain
+Content-Transfer-Encoding: 8bit
 EOF;
 
 	$msg = new Mail_Message;
