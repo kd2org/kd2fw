@@ -182,16 +182,16 @@ class Mail_Message
 		return $this->getMultipleAddressHeader('cc');
 	}
 
-	public function getMultipleAddressHeader($header)
+	public function getMultipleAddressHeader(?string $header, ?string $value = null)
 	{
-		$header = $this->getHeader($header);
+		$header = $value ?? $this->getHeader($header);
 
 		// Remove grouping, see RFC 2822 § section 3.4
 		$header = preg_replace('/(?:[^:"<>,]+)\s*:\s*(.*?);/', '$1', $header);
 
 		// Extract addresses
 		preg_match_all('/(?:"((?!").)*"\s*|[^"<>,]+)?<(.*?)>|[^<>",\s]+/s', $header, $match, PREG_PATTERN_ORDER);
-		return $match[0];
+		return array_map('trim', $match[0]);
 	}
 
 	public function setHeader($key, $value)
@@ -594,7 +594,7 @@ class Mail_Message
 			$out .= "; charset=utf-8\n";
 
 			$out .= "Content-Transfer-Encoding: quoted-printable\n";
-			$content = quoted_printable_encode(preg_replace("#(?<!\r)\n#si", "\r\n", $part['content'])) . "\r\n";
+			$content = quoted_printable_encode(preg_replace("#(?<!\r)\n#si", "\r\n", rtrim($part['content']))) . "\r\n";
 		}
 		else
 		{
@@ -648,11 +648,14 @@ class Mail_Message
 
 		if (is_array($value))
 		{
-			array_walk($value, 'trim');
-			array_walk($value, [$this, '_encodeHeaderValue'], $key);
+			$value = array_map('trim', $value);
+			$value = array_map(fn ($a) =>$this->_encodeHeaderValue($a, $key), $value);
 
 			$glue = in_array($key, ['From', 'Cc', 'To', 'Bcc', 'Reply-To']) ? ', ' : '';
 			$value = implode($glue, $value);
+		}
+		elseif (in_array($key, ['From', 'Cc', 'To', 'Bcc', 'Reply-To'])) {
+			return $this->_encodeHeader($key, $this->getMultipleAddressHeader($key, $value));
 		}
 		else
 		{
