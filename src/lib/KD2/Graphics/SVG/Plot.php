@@ -179,7 +179,7 @@ class Plot
 		$column_width = 70 + $this->data[0]->width;
 		$nb_items = ceil($axis_width / $column_width);
 		$item_width = $axis_width / $this->count;
-		$step = max(1, $this->count / $nb_items);
+		$step = (int) max(1, $this->count / $nb_items);
 
 		$i = 0;
 
