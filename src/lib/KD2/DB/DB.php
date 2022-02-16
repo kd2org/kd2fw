@@ -77,6 +77,8 @@ class DB
 	 */
 	protected $statements = [];
 
+	protected $callback = null;
+
 	/**
 	 * Class construct, expects a driver configuration
 	 * @param array $driver Driver configurtaion
@@ -170,6 +172,10 @@ class DB
 			return;
 		}
 
+		if ($this->callback) {
+			call_user_func($this->callback, __FUNCTION__, null, $this);
+		}
+
 		try {
 			$this->pdo = new PDO($this->driver->url, $this->driver->user, $this->driver->password, $this->driver->options);
 
@@ -207,6 +213,10 @@ class DB
 
 	public function close(): void
 	{
+		if ($this->callback) {
+			call_user_func($this->callback, __FUNCTION__, null, $this);
+		}
+
 		$this->pdo = null;
 	}
 
@@ -224,7 +234,18 @@ class DB
 	{
 		$this->connect();
 		$statement = $this->applyTablePrefix($statement);
-		return $this->pdo->query($statement);
+
+		if ($this->callback) {
+			call_user_func($this->callback, __FUNCTION__, 'before', $this, ... func_get_args());
+		}
+
+		$out = $this->pdo->query($statement);
+
+		if ($this->callback) {
+			call_user_func($this->callback, __FUNCTION__, 'after', $this, ... func_get_args());
+		}
+
+		return $out;
 	}
 
 	/**
@@ -240,12 +261,27 @@ class DB
 	{
 		$this->connect();
 		$statement = $this->applyTablePrefix($statement);
-		return $this->pdo->exec($statement);
+
+		if ($this->callback) {
+			call_user_func($this->callback, __FUNCTION__, 'before', $this, ... func_get_args());
+		}
+
+		$out = $this->pdo->exec($statement);
+
+		if ($this->callback) {
+			call_user_func($this->callback, __FUNCTION__, 'after', $this, ... func_get_args());
+		}
+
+		return $out;
 	}
 
 	public function execMultiple(string $statement)
 	{
 		$this->connect();
+
+		if ($this->callback) {
+			call_user_func($this->callback, __FUNCTION__, 'before', $this, ... func_get_args());
+		}
 
 		$this->begin();
 
@@ -292,6 +328,10 @@ class DB
 			}
 		}
 
+		if ($this->callback) {
+			call_user_func($this->callback, __FUNCTION__, 'after', $this, ... func_get_args());
+		}
+
 		return $return;
 	}
 
@@ -327,7 +367,18 @@ class DB
 	{
 		$this->connect();
 		$statement = $this->applyTablePrefix($statement);
-		return $this->pdo->prepare($statement, $driver_options);
+
+		if ($this->callback) {
+			call_user_func($this->callback, __FUNCTION__, 'before', $this, ... func_get_args());
+		}
+
+		$return = $this->pdo->prepare($statement, $driver_options);
+
+		if ($this->callback) {
+			call_user_func($this->callback, __FUNCTION__, 'after', $this, ... func_get_args());
+		}
+
+		return $return;
 	}
 
 	public function begin()
@@ -336,6 +387,11 @@ class DB
 
 		if ($this->transaction == 1) {
 			$this->connect();
+
+			if ($this->callback) {
+				call_user_func($this->callback, __FUNCTION__, null, $this, ... func_get_args());
+			}
+
 			return $this->pdo->beginTransaction();
 		}
 
@@ -357,7 +413,13 @@ class DB
 
 		if ($this->transaction == 0) {
 			$this->connect();
-			return $this->pdo->commit();
+			$return = $this->pdo->commit();
+
+			if ($this->callback) {
+				call_user_func($this->callback, __FUNCTION__, null, $this, ... func_get_args());
+			}
+
+			return $return;
 		}
 
 		return true;
@@ -371,7 +433,13 @@ class DB
 
 		$this->transaction = 0;
 		$this->connect();
-		return $this->pdo->rollBack();
+		$return = $this->pdo->rollBack();
+
+		if ($this->callback) {
+			call_user_func($this->callback, __FUNCTION__, null, $this, ... func_get_args());
+		}
+
+		return $return;
 	}
 
 	public function lastInsertId(string $name = null): string
@@ -472,7 +540,15 @@ class DB
 
         unset($arg);
 
+		if ($this->callback) {
+			call_user_func($this->callback, __FUNCTION__, 'before', $this, ... func_get_args());
+		}
+
 		$statement->execute($args);
+
+		if ($this->callback) {
+			call_user_func($this->callback, __FUNCTION__, 'after', $this, ... func_get_args());
+		}
 
 		return $statement;
 	}

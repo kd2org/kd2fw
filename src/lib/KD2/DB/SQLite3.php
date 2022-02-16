@@ -91,6 +91,10 @@ class SQLite3 extends DB
 			return;
 		}
 
+		if ($this->callback) {
+			call_user_func($this->callback, __FUNCTION__, null, $this);
+		}
+
 		$file = str_replace('sqlite:', '', $this->driver->url);
 
 		if (null !== $this->flags) {
@@ -165,6 +169,11 @@ class SQLite3 extends DB
 
 		if ($this->transaction == 1) {
 			$this->connect();
+
+			if ($this->callback) {
+				call_user_func($this->callback, __FUNCTION__, null, $this, ... func_get_args());
+			}
+
 			return $this->db->exec('BEGIN;');
 		}
 
@@ -186,7 +195,14 @@ class SQLite3 extends DB
 
 		if ($this->transaction == 0) {
 			$this->connect();
-			return $this->db->exec('END;');
+
+			$return = $this->db->exec('END;');
+
+			if ($this->callback) {
+				call_user_func($this->callback, __FUNCTION__, null, $this, ... func_get_args());
+			}
+
+			return $return;
 		}
 
 		return true;
@@ -201,6 +217,11 @@ class SQLite3 extends DB
 		$this->transaction = 0;
 		$this->connect();
 		$this->db->exec('ROLLBACK;');
+
+		if ($this->callback) {
+			call_user_func($this->callback, __FUNCTION__, null, $this, ... func_get_args());
+		}
+
 		return true;
 	}
 
@@ -409,6 +430,10 @@ class SQLite3 extends DB
 
 		$this->connect();
 
+		if ($this->callback) {
+			call_user_func($this->callback, __FUNCTION__, 'before', $this, ... func_get_args());
+		}
+
 		$statement->reset();
 		$nb = $statement->paramCount();
 
@@ -460,6 +485,11 @@ class SQLite3 extends DB
 			// see https://bugs.php.net/bug.php?id=64531
 
 			$result = $statement->execute();
+
+			if ($this->callback) {
+				call_user_func($this->callback, __FUNCTION__, 'after', $this, ... func_get_args());
+			}
+
 			return $statement->readOnly() ? $result : (bool) $result;
 		}
 		catch (\Exception $e)
@@ -472,7 +502,18 @@ class SQLite3 extends DB
 	{
 		$this->connect();
 		$statement = $this->applyTablePrefix($statement);
-		return $this->db->query($statement);
+
+		if ($this->callback) {
+			call_user_func($this->callback, __FUNCTION__, 'before', $this, ... func_get_args());
+		}
+
+		$return = $this->db->query($statement);
+
+		if ($this->callback) {
+			call_user_func($this->callback, __FUNCTION__, 'after', $this, ... func_get_args());
+		}
+
+		return $return;
 	}
 
 	public function iterate(string $statement, ...$args): iterable
@@ -558,7 +599,18 @@ class SQLite3 extends DB
 	{
 		$this->connect();
 		$query = $this->applyTablePrefix($statement);
-		return $this->db->exec($statement);
+
+		if ($this->callback) {
+			call_user_func($this->callback, __FUNCTION__, 'before', $this, ... func_get_args());
+		}
+
+		$return = $this->db->exec($statement);
+
+		if ($this->callback) {
+			call_user_func($this->callback, __FUNCTION__, 'after', $this, ... func_get_args());
+		}
+
+		return $return;
 	}
 
 	/**
@@ -623,7 +675,18 @@ class SQLite3 extends DB
 	{
 		$this->connect();
 		$query = $this->applyTablePrefix($statement);
-		return $this->db->prepare($statement);
+
+		if ($this->callback) {
+			call_user_func($this->callback, __FUNCTION__, 'before', $this, ... func_get_args());
+		}
+
+		$return = $this->db->prepare($statement);
+
+		if ($this->callback) {
+			call_user_func($this->callback, __FUNCTION__, 'after', $this, ... func_get_args());
+		}
+
+		return $return;
 	}
 
 	public function openBlob(string $table, string $column, int $rowid, string $dbname = 'main', int $flags = \SQLITE3_OPEN_READONLY)
