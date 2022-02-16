@@ -481,16 +481,26 @@ class SQLite3 extends DB
 		}
 
 		try {
-			// Return a boolean for write queries to avoid accidental duplicate execution
-			// see https://bugs.php.net/bug.php?id=64531
-
 			$result = $statement->execute();
 
 			if ($this->callback) {
 				call_user_func($this->callback, __FUNCTION__, 'after', $this, ... func_get_args());
 			}
 
-			return $statement->readOnly() ? $result : (bool) $result;
+			$is_readonly = $statement->readOnly();
+
+			// Make sure the statement is actually not readonly and not an EXPLAIN statement
+			// see https://sqlite.org/forum/forumpost/8f8453aa37
+			if (!$is_readonly
+				&& ($sql = trim($statement->getSQL()))
+				&& stristr(substr($sql, 0, 7), 'EXPLAIN')
+				&& preg_match('/^EXPLAIN\s+QUERY\s+PLAN\s+[^;]+;?$/', $sql)) {
+				$is_readonly = true;
+			}
+
+			// Return a boolean for write queries to avoid accidental duplicate execution
+			// see https://bugs.php.net/bug.php?id=64531
+			return $is_readonly ? $result : (bool) $result;
 		}
 		catch (\Exception $e)
 		{
