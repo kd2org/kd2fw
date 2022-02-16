@@ -128,6 +128,10 @@ class DB
 
 			$driver->user = $params['user'];
 			$driver->password = $params['password'];
+
+			if (empty($this->pdo_attributes[PDO::MYSQL_ATTR_INIT_COMMAND])) {
+				$this->pdo_attributes[PDO::MYSQL_ATTR_INIT_COMMAND] = sprintf('SET NAMES %s COLLATE %s;', $params['charset'], 'utf8mb4_unicode_ci');
+			}
 		}
 		else if ($name == 'sqlite')
 		{
