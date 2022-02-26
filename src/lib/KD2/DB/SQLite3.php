@@ -341,13 +341,6 @@ class SQLite3 extends DB
 		try {
 			$st = $this->prepare($query);
 		}
-		catch (\Exception $e) {
-			if ($this->db->lastErrorCode() == 23) {
-				throw new \RuntimeException($this->db->lastErrorMsg(), $this->db->lastErrorCode(), $e);
-			}
-
-			throw $e;
-		}
 		finally {
 			$this->setAuthorizer(null);
 		}
@@ -690,7 +683,16 @@ class SQLite3 extends DB
 			call_user_func($this->callback, __FUNCTION__, 'before', $this, ... func_get_args());
 		}
 
-		$return = $this->db->prepare($statement);
+		try {
+			$return = $this->db->prepare($statement);
+		}
+		catch (\Exception $e) {
+			if ($this->db->lastErrorCode()) {
+				throw new DB_Exception($this->db->lastErrorMsg(), $this->db->lastErrorCode(), $e);
+			}
+
+			throw $e;
+		}
 
 		if ($this->callback) {
 			call_user_func($this->callback, __FUNCTION__, 'after', $this, ... func_get_args());

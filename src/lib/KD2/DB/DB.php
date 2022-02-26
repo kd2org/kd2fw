@@ -32,6 +32,8 @@ use PDO;
 use PDOException;
 use PDOStatement;
 
+class DB_Exception extends \RuntimeException {}
+
 class DB
 {
 	/**
