@@ -108,7 +108,8 @@ class Security_OTP
 			(ord($hmac[$offset + 2]) & 0xFF) << 8 |
 			(ord($hmac[$offset + 3]) & 0xFF);
 
-		return (string) ($code % pow(10, $digits));
+		$pattern = sprintf('%%%02dd', $digits); // eg. %06d
+		return (string) sprintf($pattern, ($code % pow(10, $digits)));
 	}
 
 	/**
@@ -166,7 +167,7 @@ class Security_OTP
 
 			for ($i = $start; $i <= $end; $i++)
 			{
-				if (hash_equals(self::HOTP($secret, $i, null, $digits, $digest), $code))
+				if (hash_equals(self::HOTP($secret, $i, null, $digits, $digest), (string) $code))
 				{
 					return true;
 				}
