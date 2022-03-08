@@ -28,9 +28,7 @@
 		this.search_str = null;
 		this.search_pos = 0;
 		this.params = {
-			indent_size: 4,
-			tab_size: 4,
-			convert_tabs: true,
+			indent_size: 4, // Size of indentation
 			lang: {
 				search: "Text to search?\n(regexps allowed, begin them with '/')",
 				replace: "Text for replacement?\n(use $1, $2... for regexp replacement)",
@@ -55,7 +53,7 @@
 		this.shortcuts.push({key: 'backspace', callback: this.backspace});
 		this.shortcuts.push({key: 'enter', callback: this.enter});
 		this.shortcuts.push({key: '"', callback: this.insertBrackets});
-		//this.shortcuts.push({key: '\'', callback: this.insertBrackets});
+		this.shortcuts.push({key: '\'', callback: this.insertBrackets});
 		this.shortcuts.push({key: '[', callback: this.insertBrackets});
 		this.shortcuts.push({key: '{', callback: this.insertBrackets});
 		this.shortcuts.push({key: '(', callback: this.insertBrackets});
@@ -100,13 +98,15 @@
 
 		this.textarea = this.parent.getElementsByTagName('textarea')[0];
 		this.textarea.wrap = 'off';
+		this.textarea.style = 'tab-size: ' + this.params.indent_size;
 
-		if (this.params.convert_tabs)
-		{
-			this.textarea.value = this.textarea.value.replace(/[ ]{1,7}\t/g, ' '.repeat(this.params.tab_size));
-			this.textarea.value = this.textarea.value.replace(/\t/g, ' '.repeat(this.params.tab_size));
-		}
- 
+		// Detect indentation type and apply it
+		let tabs_count = (this.textarea.value.match(/^\t/mg) || []).length;
+		let spaces_regex = new RegExp('^[ ]{' + this.params.indent_size + '}', 'mg');
+		let spaces_count = (this.textarea.value.match(spaces_regex) || []).length;
+
+		this.indent_pattern = spaces_count > tabs_count ? ' '.repeat(this.params.indent_size) : "\t";
+
 		this.textarea.addEventListener('focus', function() { that.update(); }, false);
 		this.textarea.addEventListener('keyup', function() { that.update(); }, false);
 		this.textarea.addEventListener('click', function() { that.update(); }, false);
@@ -261,23 +261,25 @@
 		// or the selection is not multine: just return a tab character
 		if ((s.length == 0 || !multiline_sel) && s.start != line_sel.start)
 		{
-			this.insertAtPosition(s.start, ' '.repeat(this.params.indent_size));
+			this.insertAtPosition(s.start, this.indent_pattern);
 			return true;
 		}
 
+		const match_regexp = new RegExp('^([ ]{' + this.params.indent_size + '}|\t)*');
+
 		if (s.length == 0 && s.start == line_sel.start)
 		{
-			var prev_match = (line-1 in lines) ? lines[line-1].match(/^(\s+)/) : false;
+			var prev_match = (line-1 in lines) ? lines[line-1].match(match_regexp) : false;
 
 			if (!prev_match || line_sel.length != 0)
 			{
-				var insert = ' '.repeat(this.params.indent_size);
+				var insert = this.indent_pattern;
 			}
 			else
 			{
-				var insert = ' '.repeat(prev_match[1].length);
+				var insert = this.indent_pattern.repeat(prev_match.length);
 			}
-			
+
 			this.insertAtPosition(s.start, insert);
 			return true;
 		}
@@ -289,7 +291,7 @@
 
 		if (unindent)
 		{
-			var r = new RegExp('^[ ]{1,'+this.params.indent_size+'}');
+			var r = new RegExp('^([ ]{' + this.params.indent_size + '}|\t)');
 
 			for (var i = 0; i < lines.length; i++)
 			{
@@ -300,7 +302,7 @@
 		{
 			for (var i = 0; i < lines.length; i++)
 			{
-				lines[i] = ' '.repeat(this.params.indent_size) + lines[i];
+				lines[i] = this.indent_pattern + lines[i];
 			}
 		}
 
@@ -405,13 +407,21 @@
 	codeEditor.prototype.enter = function (e)
 	{
 		var selection = this.getSelection();
+
+		if (selection.start != selection.end) {
+			this.replaceSelection(selection, '');
+			selection = this.getSelection();
+		}
+
 		var line = this.getLineNumberFromPosition(selection);
 		var indent = '';
+		var indent_bracket = false;
 		line = this.getLine(line);
 
 		if (this.textarea.value.substr(selection.start - 1, 1) == '{')
 		{
-			indent += ' '.repeat(this.params.indent_size);
+			indent += this.indent_pattern;
+			indent_bracket = this.textarea.value.substr(selection.start, 1) == '}';
 		}
 
 		if (match = line.match(/^(\s+)/))
@@ -419,10 +429,19 @@
 			indent += match[1];
 		}
 
-		if (!indent)
+		if (!indent) {
 			return false;
+		}
 
 		this.insertAtPosition(selection.start, "\n" + indent);
+
+		if (indent_bracket) {
+			// Indent closing bracket as well
+			let s = this.getSelection();
+			this.insertAtPosition(s.start, "\n" + indent.substr(0, indent.length - this.indent_pattern.length));
+			this.setSelection(s.start, s.end);
+		}
+
 		return true;
 	};
 
@@ -435,11 +454,12 @@
 			return false;
 		}
 
-		var txt = this.textarea.value.substr(s.start - 2, 2);
+		var txt = this.textarea.value.substr(s.start - 1, 2);
 
 		if (txt == '""' || txt == "''" || txt == '{}' || txt == '()' || txt == '[]')
 		{
-			s.start -= 2;
+			s.start -= 1;
+			s.end += 1;
 			this.replaceSelection(s, '');
 			return true;
 		}
@@ -447,9 +467,9 @@
 		// Unindent
 		var txt = this.textarea.value.substr(s.start - 20, 20);
 
-		if ((pos = txt.search(/^(\s+)$/m)) != -1)
+		if ((pos = txt.search(/([ \t]+)$/)) != -1)
 		{
-			s.start -= this.params.indent_size;
+			s.start -= (20 - pos);
 			this.replaceSelection(s, '');
 			return true;
 		}
@@ -496,7 +516,7 @@
 				return true;
 			}
 		}
-		
+
 		classes.push('fullscreen');
 		this.parent.className = classes.join(' ');
 		this.fullscreen = true;

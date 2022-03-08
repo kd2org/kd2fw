@@ -93,19 +93,26 @@
 
 	textEditor.prototype.replaceSelection = function (selection, replace_str)
 	{
-		var e = this.textarea;
 		var start_pos = selection.start;
 		var end_pos = start_pos + replace_str.length;
-		e.value = e.value.substr(0, start_pos) + replace_str + e.value.substr(selection.end, e.value.length);
+
+		this.textarea.focus();
+		this.setSelection(start_pos, selection.end);
+
+		document.execCommand("insertText", false, replace_str);
+
 		this.setSelection(start_pos, end_pos);
+
 		return {start: start_pos, end: end_pos, length: replace_str.length, text: replace_str};
 	};
 
 	textEditor.prototype.insertAtPosition = function (start_pos, str, new_pos)
 	{
 		var end_pos = start_pos + str.length;
-		var e = this.textarea;
-		e.value = e.value.substr(0, start_pos) + str + e.value.substr(start_pos, e.value.length - start_pos);
+
+		this.textarea.focus();
+		document.execCommand("insertText", false, str);
+
 		if (!new_pos) new_pos = end_pos;
 		return this.setSelection(new_pos, new_pos);
 	};
