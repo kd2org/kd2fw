@@ -302,7 +302,7 @@
 		{
 			for (var i = 0; i < lines.length; i++)
 			{
-				lines[i] = this.indent_pattern + lines[i];
+				lines[i] = lines[i].replace(/\s+/, '') == '' ? '' : this.indent_pattern + lines[i];
 			}
 		}
 
