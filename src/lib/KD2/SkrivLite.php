@@ -719,7 +719,7 @@ class SkrivLite
 		elseif (preg_match('/^(?<!\\\\)((?:\{{3}\s*)+)\s*(.*)$/', $line, $match))
 		{
 			$this->_classes[] = trim($match[2]);
-			$line = $this->_closeStack() . '<div class="' . implode(' ', $this->_classes) . '">';
+			$line = $this->_closeStack() . '<div class="' . htmlspecialchars(implode(' ', $this->_classes)) . '">';
 		}
 		// Closing styled blocks
 		elseif (preg_match('/^(?<!\\\\)((?:\}{3}\s*)+)$/', $line, $match))
