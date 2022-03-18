@@ -362,7 +362,7 @@ abstract class AbstractEntity
 
 	public function get(string $key)
 	{
-		return $this->$key;
+		return $this->$key ?? null;
 	}
 
 	public function __set(string $key, $value)
@@ -377,7 +377,7 @@ abstract class AbstractEntity
 
 	public function __isset($key)
 	{
-		return property_exists($this, $key);
+		return property_exists($this, $key) && isset($this->$key);
 	}
 
 	/**

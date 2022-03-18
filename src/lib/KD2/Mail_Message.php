@@ -186,6 +186,10 @@ class Mail_Message
 	{
 		$header = $value ?? $this->getHeader($header);
 
+		if (!$header) {
+			return [];
+		}
+
 		// Remove grouping, see RFC 2822 § section 3.4
 		$header = preg_replace('/(?:[^:"<>,]+)\s*:\s*(.*?);/', '$1', $header);
 
