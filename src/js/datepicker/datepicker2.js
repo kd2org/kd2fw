@@ -12,6 +12,7 @@
 			"Next month": "Mois suivant",
 			"Change year": "Choisir l'année",
 			"Change month": "Choisir le mois",
+			"Today": "Aujourd'hui"
 		}
 	};
 
@@ -180,7 +181,7 @@
 
 		buildHeader()
 		{
-			let labels = ["Previous month", "Next month", "Change month", "Change year"];
+			let labels = ["Previous month", "Next month", "Change month", "Change year", "Today"];
 			labels = labels.map((l) => DATEPICKER_L10N[this.lang].labels[l] || l);
 
 			let j = 0;
@@ -190,11 +191,13 @@
 			this.header = document.createElement('nav');
 			this.header.innerHTML = `<input type="button" value="←" title="${labels[0]}" />
 				<span><select title="${labels[2]}">${options}</select> <input type="number" size="4" step="1" min="1" max="2500" title="${labels[3]}" value="${year}"></span>
+				<input type="button" value="↺" title="${labels[4]}" />
 				<input type="button" value="→" title="${labels[1]}" />`;
 
 			this.nav = this.header.querySelectorAll('input, select');
 			this.nav[0].onclick = () => { this.month(-1, true); return false; };
-			this.nav[3].onclick = () => { this.month(1, true); return false; };
+			this.nav[3].onclick = () => { this.today(); return false; };
+			this.nav[4].onclick = () => { this.month(1, true); return false; };
 			this.nav[1].value = this.date.getMonth();
 			this.nav[1].onchange = () => this.month(this.nav[1].value, false);
 			this.nav[2].onchange = () => this.year(this.nav[2].value);
@@ -221,6 +224,13 @@
 
 			this.date.setYear(y);
 			this.refresh();
+		}
+
+		today()
+		{
+			this.date = new CalendarDate;
+			this.refresh();
+			this.focus();
 		}
 
 		month(change, relative)
