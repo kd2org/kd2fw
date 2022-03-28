@@ -245,7 +245,7 @@ class Image
 		if (!$info && function_exists('finfo_open'))
 		{
 			$f = finfo_open(FILEINFO_MIME);
-			$info = ['mime' => strstr(finfo_buffer($f, $data), ';', true)];
+			$info = ['mime' => strstr(finfo_buffer($f, $blob), ';', true)];
 			finfo_close($f);
 		}
 
