@@ -257,9 +257,14 @@ abstract class AbstractEntity
 		$this->_modified = [];
 	}
 
-	public function isModified(): bool
+	public function isModified(?string $property = null): bool
 	{
-		return count($this->_modified) > 0;
+		if ($property !== null) {
+			return array_key_exists($property, $this->_modified);
+		}
+		else {
+			return count($this->_modified) > 0;
+		}
 	}
 
 	public function id(int $id = null): int
@@ -279,6 +284,10 @@ abstract class AbstractEntity
 	{
 		if (null !== $exists) {
 			$this->_exists = $exists;
+
+			if ($exists === false) {
+				$this->id = null;
+			}
 		}
 
 		return $this->_exists;
