@@ -231,7 +231,6 @@ class EntityManager
 
 		if ($return) {
 			$entity->exists(false);
-			$entity->id(null);
 		}
 
 		return $return;
