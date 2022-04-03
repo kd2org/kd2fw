@@ -68,6 +68,7 @@
 		this.types_operators["date"]["< ?"] = this.__("before");
 		this.types_operators["date"]["> ?"] = this.__("after");
 		this.types_operators["datetime"] = this.types_operators["date"];
+		this.default_operator = null;
 	};
 
 	/**
@@ -200,7 +201,7 @@
 
 		// Select first operator
 		var o = this.addOperator(row, this.columns[columnSelect.value]);
-		o.value = o.children[1].value;
+		o.value = this.default_operator ?? o.children[1].value;
 		this.switchOperator(o, null);
 	};
 
