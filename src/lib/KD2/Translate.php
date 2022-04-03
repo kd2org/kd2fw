@@ -731,6 +731,8 @@ class Translate
 	 * @param  string $format Date format
 	 * @param  integer|string|DateTime $timestamp Timestamp
 	 * @return string
+	 * @see https://github.com/alphp/strftime
+	 * @see https://gist.github.com/bohwaz/42fc223031e2b2dd2585aab159a20f30
 	 */
 	static public function strftime(string $format, $timestamp = null, ?string $locale = null): string
 	{
@@ -756,8 +758,6 @@ class Translate
 			'%b' => 'MMM',	// Abbreviated month name, based on the locale	Jan through Dec
 			'%B' => 'MMMM',	// Full month name, based on the locale	January through December
 			'%h' => 'MMM',	// Abbreviated month name, based on the locale (an alias of %b)	Jan through Dec
-			'%p' => 'aa',	// UPPER-CASE 'AM' or 'PM' based on the given time	Example: AM for 00:31, PM for 22:23
-			'%P' => 'aa',	// lower-case 'am' or 'pm' based on the given time	Example: am for 00:31, pm for 22:23
 		];
 
 		$intl_formatter = function (\DateTimeInterface $timestamp, string $format) use ($intl_formats, $locale) {
@@ -796,7 +796,9 @@ class Translate
 			'%a' => $intl_formatter,
 			'%A' => $intl_formatter,
 			'%d' => 'd',
-			'%e' => 'j',
+			'%e' => function ($timestamp) {
+				return sprintf('% 2u', $timestamp->format('j'));
+			},
 			'%j' => function ($timestamp) {
 				// Day number in year, 001 to 366
 				return sprintf('%03d', $timestamp->format('z')+1);
@@ -808,14 +810,14 @@ class Translate
 			'%U' => function ($timestamp) {
 				// Number of weeks between date and first Sunday of year
 				$day = new \DateTime(sprintf('%d-01 Sunday', $timestamp->format('Y')));
-				return intval(($timestamp->format('z') - $day->format('z')) / 7);
+				return sprintf('%02u', 1 + ($timestamp->format('z') - $day->format('z')) / 7);
 			},
+			'%V' => 'W',
 			'%W' => function ($timestamp) {
 				// Number of weeks between date and first Monday of year
 				$day = new \DateTime(sprintf('%d-01 Monday', $timestamp->format('Y')));
-				return intval(($timestamp->format('z') - $day->format('z')) / 7);
+				return sprintf('%02u', 1 + ($timestamp->format('z') - $day->format('z')) / 7);
 			},
-			'%V' => 'W',
 
 			// Month
 			'%b' => $intl_formatter,
@@ -826,7 +828,7 @@ class Translate
 			// Year
 			'%C' => function ($timestamp) {
 				// Century (-1): 19 for 20th century
-				return (int) $timestamp->format('Y') / 100;
+				return floor($timestamp->format('Y') / 100);
 			},
 			'%g' => function ($timestamp) {
 				return substr($timestamp->format('o'), -2);
@@ -837,17 +839,21 @@ class Translate
 
 			// Time
 			'%H' => 'H',
-			'%k' => 'G',
+			'%k' => function ($timestamp) {
+				return sprintf('% 2u', $timestamp->format('G'));
+			},
 			'%I' => 'h',
-			'%l' => 'g',
+			'%l' => function ($timestamp) {
+				return sprintf('% 2u', $timestamp->format('g'));
+			},
 			'%M' => 'i',
-			'%p' => $intl_formatter, // AM PM (this is reversed on purpose!)
-			'%P' => $intl_formatter, // am pm
-			'%r' => 'G:i:s A', // %I:%M:%S %p
+			'%p' => 'A', // AM PM (this is reversed on purpose!)
+			'%P' => 'a', // am pm
+			'%r' => 'h:i:s A', // %I:%M:%S %p
 			'%R' => 'H:i', // %H:%M
 			'%S' => 's',
 			'%T' => 'H:i:s', // %H:%M:%S
-			'%X' => $intl_formatter,// Preferred time representation based on locale, without the date
+			'%X' => $intl_formatter, // Preferred time representation based on locale, without the date
 
 			// Timezone
 			'%z' => 'O',
