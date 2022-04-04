@@ -585,7 +585,7 @@ class Brindille
 
 	protected function _exportArgument(string $raw_arg): string
 	{
-		if ($raw_arg[0] == '$') {
+		if (substr($raw_arg, 0, 1) == '$') {
 			return sprintf('$this->get(%s)', var_export(substr($raw_arg, 1), true));
 		}
 
