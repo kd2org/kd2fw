@@ -996,6 +996,7 @@ class ErrorManager
 
 			$body = curl_exec($ch);
 			$code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+			curl_close($ch);
 		}
 		else
 		{
