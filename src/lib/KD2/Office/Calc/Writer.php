@@ -143,7 +143,7 @@ class Writer
 					$params = sprintf('calcext:value-type="date" office:date-value="%s" office:value-type="date" table:style-name="ce1"', $column->format($format));
 					$column = $column->format($format);
 				}
-				elseif (is_int($column) || is_float($column) || preg_match('/^-?(?!0)\d+(?:[,.]\d+)?$/', (string) $column))
+				elseif (is_int($column) || is_float($column) || (substr($column, 0, 1) != '0' && preg_match('/^-?\d+(?:[,.]\d+)?$/', (string) $column)))
 				{
 					$params = sprintf('calcext:value-type="float" office:value="%f" office:value-type="float"', str_replace(',', '.', $column));
 				}
