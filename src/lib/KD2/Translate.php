@@ -743,7 +743,7 @@ class Translate
 			$timestamp = date_create('@' . $timestamp);
 		}
 		elseif (is_string($timestamp)) {
-			$timestamp = date_create('!' . $timestamp);
+			$timestamp = date_create($timestamp);
 		}
 
 		if (!($timestamp instanceof \DateTimeInterface)) {
