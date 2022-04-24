@@ -160,19 +160,16 @@ class Plot
 			$lines[] = $i;
 		}
 
-		$y = 10 + $this->height - $this->margin_top;
-		$axis_height = $y / count($lines);
-
 		// Horizontal lines and Y axis legends
 		foreach ($lines as $k => $v) {
+			$y = $this->y($v);
 			$out .= sprintf('<line x1="%f" y1="%f" x2="%f" y2="%f" stroke-width="1" stroke="rgba(127, 127, 127, 0.5)" />' . PHP_EOL, $this->margin_left, $y, $this->width, $y);
 
 			$out .= sprintf('<g><text x="%f" y="%f" font-size="%f" fill="gray" text-anchor="end" style="font-family: Verdana, Arial, sans-serif;">%s</text></g>' . PHP_EOL, $this->width * 0.08, $y, $this->height * 0.04, round($v));
-			$y -= $axis_height + 1;
 		}
 
 		// X-axis lines
-		$y = 10 + $this->height - ($this->margin_top);
+		$y = 10 + $this->height - ($this->margin_top) + 2;
 		$x = $this->margin_left;
 
 		$axis_width = $this->width - $x;
@@ -188,13 +185,13 @@ class Plot
 			if ($x >= $this->width)
 				break;
 
-			$out .= sprintf('<line x1="%d" y1="%d" x2="%d" y2="%d" stroke-width="1" stroke="%s" />', $x, $y, $x, 0, !($i % $step) ? 'rgba(127, 127, 127, 0.5)' : 'rgba(127, 127, 127, 0.2)');
+			$out .= sprintf('<line x1="%d" y1="%d" x2="%d" y2="%d" stroke-width="1" stroke="%s" />', $x, $y, $x, 2, !($i % $step) ? 'rgba(127, 127, 127, 0.5)' : 'rgba(127, 127, 127, 0.2)');
 
 			if (!($i % $step) && isset($this->labels[$i+1]))
 			{
 				$label = $this->encodeText($this->labels[$i+1]);
 				$anchor = $x >= ($this->width - ($column_width / 3)) ? 'end': 'middle';
-				$out .= sprintf('<g><text x="%f" y="%f" font-size="%s" fill="gray" text-anchor="%s" style="font-family: Verdana, Arial, sans-serif;">%s</text></g>' . PHP_EOL, $x, $y+($this->height * 0.06), $this->height * 0.04, $anchor, $label);
+				$out .= sprintf('<g><text x="%f" y="%f" font-size="%s" fill="gray" text-anchor="%s" style="font-family: Verdana, Arial, sans-serif;">%s</text></g>' . PHP_EOL, $x, $y+($this->height * 0.05), $this->height * 0.04, $anchor, $label);
 			}
 
 			$i++;
@@ -242,7 +239,10 @@ class Plot
 
 	protected function y($value)
 	{
-		return 10 + $this->height - $this->margin_top - (($value - $this->min)*($this->height - $this->margin_top))/(($this->max - $this->min)?:1);
+		return $this->height
+			+ 2 // line thickness
+			- $this->margin_top
+			- (($value - $this->min)*($this->height - $this->margin_top))/(($this->max - $this->min)?:1);
 	}
 }
 
