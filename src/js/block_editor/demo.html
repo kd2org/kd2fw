@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8" />
+	<title>Block Editor demo</title>
+	<script type="text/javascript" src="block_editor.js"></script>
+	<link rel="stylesheet" type="text/css" href="block_editor.css" />
+</head>
+<body>
+
+	<h2>Block editor demo</h2>
+
+	<form method="post" action="">
+
+	<fieldset>
+		<legend>Edit content</legend>
+		<div id="editor">
+			<textarea id="txt" cols="50" rows="5">Type: grid
+Grid-Template: none / 1fr 1fr 1fr
+
+====
+
+Type: column
+
+====
+
+Type: heading
+
+Heading test 1
+
+====
+
+Type: text
+
+This is some text.
+
+More text.
+
+MOAR!
+
+====
+
+Type: column
+
+====
+
+Type: heading
+
+Heading 2
+
+====
+
+Type: text
+
+The best
+is...
+
+====
+
+Type: column
+
+====
+
+Type: text
+
+Some more text
+</textarea>
+		</div>
+	</fieldset>
+
+	<p><input type="submit" /></p>
+
+	</form>
+
+	<script type="text/javascript">
+	const txt = document.querySelector('#txt');
+	const f = document.querySelector('form');
+
+	let be = new blockEditor(txt);
+
+	</script>
+	<script type="text/javascript" src="blocks.js"></script>
+	<script type="text/javascript">
+	be.init();
+	f.onsubmit = () => {
+		txt.value = be.export();
+		console.log(txt.value);
+		return false;
+	};
+	</script>
+
+</body>
+</html>
