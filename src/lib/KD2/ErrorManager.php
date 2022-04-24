@@ -900,6 +900,16 @@ class ErrorManager
 		self::$custom_handlers[$class] = $callback;
 	}
 
+	static public function debug(...$vars)
+	{
+		echo '<pre>';
+		foreach ($vars as $var) {
+			echo self::dump($var);
+			echo '<hr />';
+		}
+		echo '</pre>';
+	}
+
 	/**
 	 * Copy of var_dump but returns a string instead of a variable
 	 * @param  mixed  $var   variable to dump

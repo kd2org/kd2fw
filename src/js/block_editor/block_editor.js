@@ -1,11 +1,32 @@
 window.blockEditor = class
 {
+	L10N = {
+		'Add': 'Ajouter', // New block
+		'Delete': 'Supprimer',
+		'Move down': 'Vers le bas',
+		'Move up': 'Vers le haut',
+		'No block has been selected': 'Aucun bloc n\'est sélectionné',
+		'Delete this block?': 'Supprimer ce bloc ?',
+		'Select a block type': 'Choisir un type de bloc',
+		'Columns': 'Colonnes',
+		'Heading': 'Titre',
+		'Text': 'Texte',
+		'Select a columns template': 'Sélectionner un modèle de colonnes',
+		'Change type': 'Changer de type',
+	};
+
+	_(str) {
+		return str in this.L10N ? this.L10N[str] : str;
+	}
+
 	constructor(textarea) {
 		this.textarea = textarea;
 		this.types = {};
 		this.block_separator = "\n\n====\n\n";
 		this.editor = null;
 		this.blocks = null;
+		this.focused = null;
+		this.toolbar = null;
 	}
 
 	init () {
@@ -13,6 +34,10 @@ window.blockEditor = class
 		this.textarea.style.position = 'absolute';
 		this.editor = document.createElement('div');
 		this.editor.className = 'block-editor';
+
+		this.toolbar = this.buildToolbar();
+		this.editor.appendChild(this.toolbar);
+
 		this.blocks = document.createElement('div');
 		this.blocks.className = 'editor';
 		this.editor.appendChild(this.blocks);
@@ -24,6 +49,7 @@ window.blockEditor = class
 		blocks.forEach((block) => {
 			this.addBlock(block.type, null, block.meta, block.content);
 		});
+
 	}
 
 	/**
@@ -105,11 +131,11 @@ window.blockEditor = class
 	/**
 	 * Prompts the user to choose a block type to insert
 	 */
-	newBlockPrompt (after_block) {
+	newBlockPrompt (after_block, callback) {
 		let prompt = document.createElement('div');
 
 		let label = document.createElement('h3');
-		label.innerText = 'Sélectionner un type de bloc';
+		label.innerText = this._('Select a block type');
 		prompt.appendChild(label);
 
 		// Create a button for each block type
@@ -127,12 +153,13 @@ window.blockEditor = class
 					this.types[t].newBlockPrompt(this, after_block);
 				}
 				else {
-					this.addBlock(t, after_block);
+					let n = this.addBlock(t, after_block);
+					callback(n);
 				}
 
 				return false;
 			};
-			btn.innerHTML = this.types[t].getAddButtonHTML();
+			btn.innerHTML = this.types[t].getAddButtonHTML(this);
 			prompt.appendChild(btn);
 		}
 
@@ -152,7 +179,7 @@ window.blockEditor = class
 		container.setAttribute('data-type', type);
 		container.setAttribute('data-block', 1);
 
-		let block = new this.types[type](meta, content, container, this);
+		let block = new this.types[type](meta, container, this);
 		block.type = type;
 
 		// Useful cross-references between DOM and block object
@@ -160,6 +187,10 @@ window.blockEditor = class
 		container.block = block;
 
 		let html = block.html();
+
+		if (content) {
+			block.setContent(content);
+		}
 
 		if (null !== html) {
 			container.appendChild(html);
@@ -264,6 +295,10 @@ window.blockEditor = class
 			}
 		});
 
+		if (this.focused === block) {
+			this.focused = null;
+		}
+
 		block.container.remove();
 
 		if (prev_focus) {
@@ -272,19 +307,19 @@ window.blockEditor = class
 	}
 
 	moveBlockDown (block) {
-		if (!block.nextElementSibling) {
-			return;
+		if (block.container.nextElementSibling) {
+			block.container.parentNode.insertBefore(block.container.nextElementSibling, block.container);
 		}
 
-		block.parentNode.insertBefore(block.nextElementSibling, block);
+		this.focus(block);
 	}
 
 	moveBlockUp (block) {
-		if (!block.previousElementSibling) {
-			return;
+		if (block.container.previousElementSibling) {
+			block.container.parentNode.insertBefore(block.container, block.container.previousElementSibling);
 		}
 
-		block.parentNode.insertBefore(block, block.previousElementSibling);
+		this.focus(block);
 	}
 
 	moveBlockTo (block, position) {
@@ -292,50 +327,112 @@ window.blockEditor = class
 	}
 
 	duplicateBlock (block) {
-		this.addBlock(block.type, block, block.meta, block.content);
+		// FIXME
 	}
 
 	/**
 	 * Change a block type
 	 */
 	toggleTypePrompt (block) {
+		this.newBlockPrompt(block, (n) => {
+			n.setContent(block.getContent());
+			this.deleteBlock(block);
+		});
+	}
+
+	focus(block) {
+		if (this.focused) {
+			this.focused.container.classList.remove('focus');
+		}
+
+		this.focused = block;
+		block.container.classList.add('focus');
+
+		if (block.focus) {
+			block.focus();
+		}
+	}
+
+	buildToolbar () {
+		let t = document.createElement('div');
+		t.className = 'toolbar';
+
+		let createBtn = function (class_name, icon, label, callback) {
+			let btn = document.createElement('button');
+			btn.type = 'button';
+			btn.onclick = callback;
+			btn.className = class_name;
+			btn.setAttribute('data-icn', icon);
+			btn.innerText = label;
+			return btn;
+		};
+
+		t.appendChild(createBtn('new-block', '➕', this._('Add'), () => this.newBlockPrompt(this.focused)));
+		t.appendChild(createBtn('change-type', '🗘', this._('Change type'), () => this.toggleTypePrompt(this.focused)));
+		t.appendChild(createBtn('delete-block', '✘', this._('Delete'), () => {
+			if (!this.focused) return !alert(this._('No block has been selected'));
+			if (!window.confirm(this._('Delete this block?'))) return false;
+			this.deleteBlock(this.focused);
+		}));
+		t.appendChild(createBtn('move-down', '↓', this._('Move down'), () => this.moveBlockDown(this.focused)));
+		t.appendChild(createBtn('move-up', '↑', this._('Move up'), () => this.moveBlockUp(this.focused)));
+
+		return t;
+	}
+}
+
+/**
+ * Block class model
+ */
+window.blockEditor.block = class {
+	/**
+	 * Build the block editor, events, etc.
+	 */
+	constructor (meta, content, container, editor) {
+		// Build the block
 	}
 
 	/**
-	 * Change a block type
+	 * Return an object containing a meta object, and content string
+	 * Example: {'meta': {'align': 'left'}, 'content': 'https://.../image.png'}
 	 */
-	toggleType (block, new_type) {
-		this.addBlock(new_type, block, {}, block.content);
-		this.deleteBlock(block);
+	export () {
+		return {};
 	}
 
-	getFocusedBlock() {
-		if (!document.activeElement) {
-			return null;
-		}
-
-		if (!(document.activeElement in this.editor)) {
-			return null;
-		}
-
-		let p = document.activeElement;
-
-		while (p && !p.block) {
-			if (!(p in this.editor)) {
-				return null;
-			}
-
-			p = p.parentNode;
-		}
-
-		return p;
+	/**
+	 * Return a DOM object or HTML string that will represent the custom editor for this block type
+	 * Return NULL if there is no editor
+	 */
+	html () {
+		return null;
 	}
 
-	focus() {
-		console.log(this.getFocusedBlock());
-	}
+	/**
+	 * Will change content of editor
+	 */
+	//setContent(str) {}
 
-	toolbar () {
-		
-	}
+	/**
+	 * Called when the block needs to be focused (eg. if the previous block was deleted, or if just created)
+	 */
+	// focus() {}
+
+	/**
+	 * Modify the "new block" button supplied (eg. to set the icon and label)
+	 * If this method does not exist, the block type won't be listed in the new block dialog
+	 */
+	// static getAddButton(button)
+
+	/**
+	 * Called after the HTML has been added to the editor
+	 */
+	//onload () {}
+
+	/**
+	 * If this method exists, it will be called after the click on the new block button is pressed for this type
+	 * At this stage the block will not be created or added to the editor, this method should do it.
+	 * This is useful for example for displaying a prompt or dialog, eg. choose an image to upload etc.
+	 */
+	//static newBlockPrompt(editor, after_block) {}
 }
