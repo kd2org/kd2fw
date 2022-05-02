@@ -78,6 +78,9 @@ class Brindille
 	{
 		$this->registerFunction('assign', [self::class, '__assign']);
 
+		$this->registerModifier('escape', function ($str) {
+			return htmlspecialchars((string)$str);
+		});
 		$this->registerModifier('args', 'sprintf');
 		$this->registerModifier('nl2br', 'nl2br');
 		$this->registerModifier('strip_tags', 'strip_tags');
