@@ -142,7 +142,7 @@ class HTTP
 	{
 		if ($type == self::FORM)
 		{
-			$data = http_build_query($data, null, '&');
+			$data = http_build_query($data, '', '&');
 		}
 		elseif ($type == self::JSON)
 		{
