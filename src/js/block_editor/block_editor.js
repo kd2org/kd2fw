@@ -3,16 +3,19 @@ window.blockEditor = class
 	L10N = {
 		'Add': 'Ajouter', // New block
 		'Delete': 'Supprimer',
+		'Delete columns': 'Supprimer colonnes',
 		'Move down': 'Vers le bas',
 		'Move up': 'Vers le haut',
 		'No block has been selected': 'Aucun bloc n\'est sélectionné',
 		'Delete this block?': 'Supprimer ce bloc ?',
 		'Select a block type': 'Choisir un type de bloc',
+		'Delete all columns on this line?': 'Supprimer toutes les colonnes sur cette ligne ?',
 		'Columns': 'Colonnes',
 		'Heading': 'Titre',
 		'Text': 'Texte',
 		'Select a columns template': 'Sélectionner un modèle de colonnes',
 		'Change type': 'Changer de type',
+		'Caption:': 'Légende :'
 	};
 
 	_(str) {
@@ -154,7 +157,10 @@ window.blockEditor = class
 				}
 				else {
 					let n = this.addBlock(t, after_block);
-					callback(n);
+
+					if (callback) {
+						callback(n);
+					}
 				}
 
 				return false;
@@ -186,56 +192,48 @@ window.blockEditor = class
 		block.container = container;
 		container.block = block;
 
-		let html = block.html();
-
 		if (content) {
 			block.setContent(content);
 		}
 
-		if (null !== html) {
-			container.appendChild(html);
+		let parent, after_element;
+		let parent_column, parent_grid;
+
+		// Find parent grid and parent column
+		if (after_block && after_block.type == 'grid') {
+			parent_grid = after_block;
+		}
+		else if (after_block && after_block.type == 'column') {
+			parent_column = after_block;
+		}
+		else if (after_block) {
+			parent_column = after_block.container.parentNode.block;
 		}
 
-		let parent;
-		let after_element = null;
+		if (parent_column) {
+			parent_grid = parent_column.container.parentNode.block;
+		}
 
-		if (after_block) {
-			if (after_block.type == 'column' && after_block.container.lastElementChild) {
-				parent = after_block.container;
-				after_element = parent.lastElementChild.nextElementSibling;
-			}
-			else if (after_block.type == 'column') {
-				parent = after_block.container;
-			}
-			else if (after_block.type == 'grid') {
-				// Append columns to grid
-				if (type == 'column') {
-					parent = after_block.container;
-					after_element = parent.lastElementChild;
-				}
-				else {
-					parent = this.blocks;
-					after_element = after_block.container.nextElementSibling;
-				}
-			}
-			else {
-				// Just insert inside block
-				after_element = after_block.container.nextElementSibling;
-				parent = after_block.container.parentNode;
-			}
-		}
-		else if (this.blocks.lastElementChild && this.blocks.lastElementChild.block.type == 'grid') {
-			if (block.type == 'column') {
-				// Append column to grid
-				parent = this.blocks.lastElementChild;
-			}
-			else {
-				// Append to column
-				parent = this.blocks.lastElementChild.lastElementChild;
-			}
-		}
-		else {
+		// Always add grids to root element
+		if (type == 'grid') {
 			parent = this.blocks;
+			after_element = parent_grid ? parent_grid.container.nextElementSibling : null;
+		}
+		// Always add columns to a grid
+		else if (type == 'column') {
+			parent = parent_grid ? parent_grid.container : this.blocks.lastElementChild;
+			after_element = parent_column ? parent_column.container.nextElementSibling : null;
+		}
+		// Other blocks can be added in other places
+		else if (after_block) {
+			parent = parent_column.container;
+			after_element = after_block.type == 'column' ? null : after_block.container.nextElementSibling;
+		}
+		// No positioning: just append to last element
+		else {
+			let last_column = this.blocks.querySelector('[data-type="column"]:last-child');
+			parent = last_column;
+			after_element = null;
 		}
 
 		parent.insertBefore(container, after_element);
@@ -245,38 +243,6 @@ window.blockEditor = class
 		}
 
 		return block;
-	}
-
-	nextBlock (block) {
-		let list = this.blocks.querySelectorAll('div[data-block]');
-
-		for (var i = 0; i < list.length; i++) {
-			if (list[i] == block) {
-				if (list[i+1]) {
-					return list[i+1];
-				}
-
-				return null;
-			}
-		}
-
-		return null;
-	}
-
-	prevBlock (block) {
-		let list = this.blocks.querySelectorAll('div[data-block]');
-
-		for (var i = 0; i < list.length; i++) {
-			if (list[i] == block) {
-				if (list[i-1]) {
-					return list[i-1];
-				}
-
-				return null;
-			}
-		}
-
-		return null;
 	}
 
 	/**
@@ -303,6 +269,19 @@ window.blockEditor = class
 
 		if (prev_focus) {
 			prev_focus.focus();
+		}
+	}
+
+	deleteGrid (block) {
+		let e = block;
+
+		while (e = e.container.parentNode.block) {
+			if (e.type != 'grid') {
+				continue;
+			}
+
+			e.container.remove();
+			return;
 		}
 	}
 
@@ -362,8 +341,8 @@ window.blockEditor = class
 			btn.type = 'button';
 			btn.onclick = callback;
 			btn.className = class_name;
-			btn.setAttribute('data-icn', icon);
-			btn.innerText = label;
+			//btn.setAttribute('data-icn', icon);
+			btn.innerHTML = `<b data-icn="${icon}"></b> ${label}`;
 			return btn;
 		};
 
@@ -374,8 +353,15 @@ window.blockEditor = class
 			if (!window.confirm(this._('Delete this block?'))) return false;
 			this.deleteBlock(this.focused);
 		}));
+		t.appendChild(createBtn('delete-grid', '🮔', this._('Delete columns'), () => {
+			if (!this.focused) return !alert(this._('No block has been selected'));
+			if (!window.confirm(this._('Delete all columns on this line?'))) return false;
+			this.deleteGrid(this.focused);
+		}));
 		t.appendChild(createBtn('move-down', '↓', this._('Move down'), () => this.moveBlockDown(this.focused)));
 		t.appendChild(createBtn('move-up', '↑', this._('Move up'), () => this.moveBlockUp(this.focused)));
+		//t.appendChild(createBtn('move-left', '←', this._('Move left'), () => this.moveBlockLeft(this.focused)));
+		//t.appendChild(createBtn('move-right', '→', this._('Move right'), () => this.moveBlockRight(this.focused)));
 
 		return t;
 	}
@@ -398,14 +384,6 @@ window.blockEditor.block = class {
 	 */
 	export () {
 		return {};
-	}
-
-	/**
-	 * Return a DOM object or HTML string that will represent the custom editor for this block type
-	 * Return NULL if there is no editor
-	 */
-	html () {
-		return null;
 	}
 
 	/**

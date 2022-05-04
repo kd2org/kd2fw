@@ -20,9 +20,6 @@
 		export() {
 			return {'meta': {'Grid-Template': this.template}};
 		}
-		html() {
-			return null;
-		}
 
 		static getAddButtonHTML(editor) {
 			return '<b class="icn">▚</b> ' + editor._('Columns');
@@ -89,9 +86,6 @@
 		export() {
 			return {};
 		}
-		html() {
-			return null;
-		}
 	};
 
 	/**
@@ -117,6 +111,8 @@
 			});
 
 			this.input.addEventListener('focus', () => editor.focus(this));
+
+			container.appendChild(this.input);
 		}
 		setContent(str) {
 			this.input.value = str;
@@ -126,9 +122,6 @@
 		}
 		export() {
 			return {'content': this.getContent()};
-		}
-		html() {
-			return this.input;
 		}
 		focus() {
 			this.input.focus();
@@ -162,4 +155,44 @@
 			return '<b class="icn">T</b> ' + editor._('Text');
 		}
 	};
+
+	be.types.image = class {
+		constructor(meta, container, editor) {
+			let f = document.createElement('figure');
+
+			this.img = document.createElement('img');
+			f.appendChild(this.img);
+
+			let fc = document.createElement('figcaption');
+			fc.innerHTML = '<label>' + editor._('Caption:') + ' <input type="text" /></label>';
+			this.caption = fc.querySelector('input');
+
+			f.appendChild(fc);
+			container.appendChild(f);
+		}
+
+		promptConfig() {
+		}
+
+		setContent(content) {
+			let [src, caption] = content.split("\n");
+			this.img.src = src;
+			this.caption.value = caption;
+		}
+
+		getContent() {
+			return this.img.src + "\n" + this.caption.value;
+		}
+
+		export() {
+			return {
+				'meta': this.meta,
+				'content': this.getContent()
+			};
+		}
+
+		static getAddButtonHTML(editor) {
+			return '<b class="icn">🖻</b> ' + editor._('Image');
+		}
+	}
 }());
