@@ -1440,6 +1440,6 @@ class Smartyer_Exception extends \Exception
 	{
 		parent::__construct($message, 0, $previous);
 		$this->file = is_null($file) ? '::fromString() template' : $file;
-		$this->line = $line;
+		$this->line = (int) $line;
 	}
 }
