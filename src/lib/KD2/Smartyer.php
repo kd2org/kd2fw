@@ -861,8 +861,8 @@ class Smartyer
 			}
 
 			if (substr($this->getValueFromArgument($args['file']), 0, 2) == './') {
-				$root = dirname(substr($this->template_path, strlen($this->templates_dir)));
-				$args['file'] = var_export(substr($root, 1) . substr($this->getValueFromArgument($args['file']), 1), true);
+				$root = dirname($this->template_path);
+				$args['file'] = var_export($root . substr($this->getValueFromArgument($args['file']), 1), true);
 			}
 
 			$file = $this->exportArgument($args['file']);
