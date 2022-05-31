@@ -107,6 +107,10 @@ class Mail_Message
 	{
 		$value = $this->getHeader('in-reply-to');
 
+		if (null === $value) {
+			return null;
+		}
+
 		if (preg_match('!<(.*?)>!', $value, $match))
 		{
 			return $match[1];
@@ -117,12 +121,16 @@ class Mail_Message
 			return $value;
 		}
 
-		return false;
+		return null;
 	}
 
 	public function getReferences()
 	{
 		$value = $this->getHeader('references');
+
+		if (null === $value) {
+			return null;
+		}
 
 		if (preg_match_all('!<(.*?)>!', $value, $match, PREG_PATTERN_ORDER))
 		{
@@ -134,7 +142,7 @@ class Mail_Message
 			return [$value];
 		}
 
-		return false;
+		return null;
 	}
 
 	/**
@@ -147,7 +155,7 @@ class Mail_Message
 	{
 		$header = $this->getHeader('list-unsubscribe');
 
-		if (!$header) {
+		if (null === $header) {
 			return null;
 		}
 
@@ -1035,7 +1043,7 @@ class Mail_Message
 
 		foreach ($to as $address) {
 			$count++;
-			$success += mail($address, $this->getHeader('Subject'), $this->outputBody(), $this->outputHeaders($headers));
+			$success += mail($address, $this->getHeader('Subject') ?? '[no subject]', $this->outputBody(), $this->outputHeaders($headers));
 		}
 
 		return ($success == $count);
@@ -1072,9 +1080,9 @@ class Mail_Message
 		// Ignore auto-replies
 		if ($this->getHeader('precedence') || $this->getHeader('X-Autoreply')
 			|| $this->getHeader('X-Autorespond') || $this->getHeader('auto-submitted')
-			|| stristr($this->getHeader('Delivered-To'), 'Autoresponder')
-			|| preg_match('/spamenmoins\.com/', $this->getHeader('From'))
-			|| preg_match('/^(?:Réponse\s*automatique|Out\s*of\s*office|Automatic\s*reply|Auto:\s+)/i', $this->getHeader('Subject')))
+			|| stristr($this->getHeader('Delivered-To') ?? '', 'Autoresponder')
+			|| preg_match('/spamenmoins\.com/', $this->getHeader('From') ?? '')
+			|| preg_match('/^(?:Réponse\s*automatique|Out\s*of\s*office|Automatic\s*reply|Auto:\s+)/i', $this->getHeader('Subject') ?? ''))
 		{
 			return [
 				'type' => 'autoreply',
@@ -1098,7 +1106,7 @@ class Mail_Message
 					];
 				}
 
-				throw new \RuntimeException('Not a delivery status: ' . $this->getHeader('Subject'));
+				throw new \RuntimeException('Not a delivery status: ' . $this->getHeader('Subject') ?? '');
 			}
 
 			// Make the delivery status look like an email
@@ -1109,8 +1117,8 @@ class Mail_Message
 			$s = new Mail_Message;
 			$s->parse($status);
 
-			$recipient = trim(str_replace('rfc822;', '', $s->getHeader('Final-Recipient')));
-			$diagnostic = trim(str_replace('smtp;', '', $s->getHeader('Diagnostic-Code')));
+			$recipient = trim(str_replace('rfc822;', '', $s->getHeader('Final-Recipient') ?? ''));
+			$diagnostic = trim(str_replace('smtp;', '', $s->getHeader('Diagnostic-Code') ?? ''));
 
 			$rejection_status = $this->isPermanentRejection($diagnostic);
 
