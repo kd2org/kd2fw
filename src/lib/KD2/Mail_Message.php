@@ -55,7 +55,7 @@ class Mail_Message
 	{
 		$key = strtolower($key);
 
-		if (!array_key_exists($key, $this->headers)) {
+		if (!isset($this->headers[$key])) {
 			return null;
 		}
 
@@ -519,11 +519,13 @@ class Mail_Message
 
 		if (count($parts) <= 1)
 		{
-			if (stristr($this->getHeader('content-transfer-encoding'), 'quoted-printable'))
+			$cte = $this->getHeader('content-transfer-encoding') ?? '';
+
+			if (stristr($cte, 'quoted-printable'))
 			{
 				$body = quoted_printable_encode($parts[0]['content']);
 			}
-			elseif (stristr($this->getHeader('content-transfer-encoding'), 'base64'))
+			elseif (stristr($cte, 'base64'))
 			{
 				$body = chunk_split(base64_encode($parts[0]['content']));
 			}
