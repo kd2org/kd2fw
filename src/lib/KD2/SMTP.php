@@ -397,7 +397,7 @@ class SMTP
 		if (is_object($r) && $r instanceof Mail_Message) {
 			$message = $r->output();
 			$to = $r->getTo() + $r->getCc();
-			$from = current(self::extractEmailAddresses($r->getHeader('From')));
+			$from = current(self::extractEmailAddresses($r->getHeader('Return-Path') ?: $r->getHeader('From')));
 		}
 		else {
 			$msg = $this->buildMessage($r, $subject, $message, $headers);
