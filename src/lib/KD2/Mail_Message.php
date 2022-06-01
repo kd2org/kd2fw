@@ -1056,7 +1056,7 @@ class Mail_Message
 	 */
 	public function isPermanentRejection(string $error_message): ?bool
 	{
-		if (preg_match('/unavailable|doesn\'t\s*have|quota|does\s*not\s*exist|invalid|Unrouteable|unknown|illegal|no\s*such\s*user|blocked|disabled|Relay\s*access\s*denied/i', $error_message))
+		if (preg_match('/unavailable|doesn\'t\s*have|quota|does\s*not\s*exist|invalid|Unrouteable|unknown|illegal|no\s*such\s*user|blocked|disabled|Relay\s*access\s*denied|not\s*found/i', $error_message))
 		{
 			return true;
 		}
@@ -1081,18 +1081,7 @@ class Mail_Message
 			return null;
 		}
 
-		// Ignore auto-replies
-		if ($this->getHeader('precedence') || $this->getHeader('X-Autoreply')
-			|| $this->getHeader('X-Autorespond') || $this->getHeader('auto-submitted')
-			|| stristr($this->getHeader('Delivered-To') ?? '', 'Autoresponder')
-			|| preg_match('/spamenmoins\.com/', $this->getHeader('From') ?? '')
-			|| preg_match('/^(?:Réponse\s*automatique|Out\s*of\s*office|Automatic\s*reply|Auto:\s+)/i', $this->getHeader('Subject') ?? ''))
-		{
-			return [
-				'type' => 'autoreply',
-			];
-		}
-		elseif (strpos($from, 'MAILER-DAEMON@') === 0)
+		if (stripos($from, 'MAILER-DAEMON@') === 0 || $this->getHeader('X-Failed-Recipients') || stristr($this->getHeader('Content-Type'), 'report-type=delivery-status'))
 		{
 			$part_id = $this->findPart('message/delivery-status');
 
@@ -1150,6 +1139,17 @@ class Mail_Message
 				'type'      => 'complaint',
 				'recipient' => $recipient,
 				'message'   => null,
+			];
+		}
+		// Ignore auto-replies
+		elseif ($this->getHeader('precedence') || $this->getHeader('X-Autoreply')
+			|| $this->getHeader('X-Autorespond') || $this->getHeader('auto-submitted')
+			|| stristr($this->getHeader('Delivered-To') ?? '', 'Autoresponder')
+			|| preg_match('/spamenmoins\.com/', $this->getHeader('From') ?? '')
+			|| preg_match('/^(?:Réponse\s*automatique|Out\s*of\s*office|Automatic\s*reply|Auto:\s+)/i', $this->getHeader('Subject') ?? ''))
+		{
+			return [
+				'type' => 'autoreply',
 			];
 		}
 		else
