@@ -629,7 +629,7 @@ class Brindille
 	 */
 	protected function getValueFromArgument(string $arg)
 	{
-		if ($arg[0] == '"' || $arg[0] == "'")
+		if (strlen($arg) && ($arg[0] == '"' || $arg[0] == "'"))
 		{
 			return stripslashes(substr($arg, 1, -1));
 		}
