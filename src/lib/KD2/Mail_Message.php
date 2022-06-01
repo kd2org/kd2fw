@@ -1075,7 +1075,11 @@ class Mail_Message
 	 */
 	public function identifyBounce()
 	{
-		list($from) = $this->getFrom();
+		$from = current($this->getFrom());
+
+		if (!$from) {
+			return null;
+		}
 
 		// Ignore auto-replies
 		if ($this->getHeader('precedence') || $this->getHeader('X-Autoreply')
