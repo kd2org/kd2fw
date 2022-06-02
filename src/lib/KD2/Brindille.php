@@ -78,9 +78,10 @@ class Brindille
 	{
 		$this->registerFunction('assign', [self::class, '__assign']);
 
-		$this->registerModifier('escape', function ($str) {
-			return htmlspecialchars((string)$str);
-		});
+		// This is because PHP 8.1 sucks (string functions no longer accept NULL)
+		// so we need to force NULLs as strings
+		$this->registerModifier('escape', fn ($str) => htmlspecialchars((string)$str) );
+
 		$this->registerModifier('args', 'sprintf');
 		$this->registerModifier('nl2br', 'nl2br');
 		$this->registerModifier('strip_tags', 'strip_tags');
