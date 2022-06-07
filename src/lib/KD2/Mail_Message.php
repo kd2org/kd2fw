@@ -202,7 +202,7 @@ class Mail_Message
 		$header = preg_replace('/(?:[^:"<>,]+)\s*:\s*(.*?);/', '$1', $header);
 
 		// Extract addresses
-		preg_match_all('/(?:"((?!").)*"\s*|[^"<>,]+)?<(.*?)>|[^<>",\s]+/s', $header, $match, PREG_PATTERN_ORDER);
+		preg_match_all('/(?:"(?!\\").*"\s*|[^"<>,]+)?<.*?>|[^<>",\s]+/s', $header, $match, PREG_PATTERN_ORDER);
 		return array_map('trim', $match[0]);
 	}
 
@@ -1099,7 +1099,8 @@ class Mail_Message
 					];
 				}
 
-				throw new \RuntimeException('Not a delivery status: ' . $this->getHeader('Subject') ?? '');
+				// We cannot find out who is the recipient
+				return null;
 			}
 
 			// Make the delivery status look like an email
