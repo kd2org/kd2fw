@@ -82,9 +82,9 @@ abstract class AbstractEntity
 	 * Loads data from an array into the entity properties
 	 * Used for example to load data from a database. This will convert string values to typed properties.
 	 * @param  array  $data
-	 * @return void
+	 * @return self
 	 */
-	public function load(array $data): void
+	public function load(array $data): self
 	{
 		$properties = array_keys(self::$_types_cache[static::class]);
 
@@ -102,6 +102,8 @@ abstract class AbstractEntity
 			$value = $data[$key];
 			$this->set($key, $value, true, false);
 		}
+
+		return $this;
 	}
 
 	/**
