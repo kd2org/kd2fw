@@ -703,14 +703,13 @@ class Mail_Message
 
 		if (in_array($key, ['From', 'Cc', 'To', 'Bcc', 'Reply-To']))
 		{
-			if (!preg_match('/^((?:"?(?P<name>.*?)"?)\s*<(?P<namedEmail>[^>]+)>|(?P<email>.+))$/', $value, $matches))
+			if (!preg_match('/^((?:"?(?P<name>(?:(?!\\").)*?)"?)\s*<(?P<namedEmail>[^>]+)>|(?P<email>.+))$/', $value, $matches))
 			{
 				return $value;
 			}
 
 			if (!empty($matches['name']))
 			{
-				$matches['name'] = str_replace('"', '', $matches['name']);
 				return '"' . $this->_encodeHeaderValue(trim($matches['name'])) . '" <' . $matches['namedEmail'] . '>';
 			}
 

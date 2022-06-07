@@ -396,7 +396,7 @@ class SMTP
 	{
 		if (is_object($r) && $r instanceof Mail_Message) {
 			$message = $r->output();
-			$to = $r->getTo() + $r->getCc();
+			$to = array_map([self::class, 'extractEmailAddresses'], implode(', ', $r->getTo() + $r->getCc()));
 			$from = current(self::extractEmailAddresses($r->getHeader('Return-Path') ?: $r->getHeader('From')));
 		}
 		else {
