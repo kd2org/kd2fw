@@ -396,7 +396,7 @@ class SMTP
 	{
 		if (is_object($r) && $r instanceof Mail_Message) {
 			$message = $r->output();
-			$to = array_map([self::class, 'extractEmailAddresses'], $r->getTo() + $r->getCc());
+			$to = $r->getTo() + $r->getCc();
 			$from = current(self::extractEmailAddresses($r->getHeader('Return-Path') ?: $r->getHeader('From')));
 		}
 		else {
@@ -424,9 +424,9 @@ class SMTP
 			// Filter invalid email addresses
 			foreach ($str as $email)
 			{
-				if (self::checkEmailIsValid($email, false))
+				if ($list = self::extractEmailAddresses($email))
 				{
-					$out[] = $email;
+					$out = array_merge($out, $list);
 				}
 			}
 
