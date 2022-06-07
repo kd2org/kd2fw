@@ -439,7 +439,7 @@ class SMTP
 		foreach ($str as $s)
 		{
 			$s = trim($s);
-			if (preg_match('/(?:([\'"]).*?\1\s*)?<([^>]*)>/', $s, $match) && self::checkEmailIsValid(trim($match[2]), false))
+			if (preg_match('/(?:([\'"])(?!\\").*?\1\s*)?<([^>]*)>/', $s, $match) && self::checkEmailIsValid(trim($match[2]), false))
 			{
 				$out[] = trim($match[2]);
 			}
