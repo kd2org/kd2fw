@@ -278,9 +278,11 @@ class SQLite3 extends DB
 	 */
 	public function protectSelect(?array $allowed, string $query)
 	{
-		if (preg_match('/;\s*(.+?)$/', $query))
+		$query = trim($query, "\n\t\r ;");
+
+		if (preg_match('/;\s*(.+?)$/', $query, $match))
 		{
-			throw new \LogicException('Only one single statement can be executed at the same time.');
+			throw new \LogicException('Only one single statement can be executed at the same time: ' . $match[0]);
 		}
 
 		// Forbid use of some strings that could give hints to an attacker:
