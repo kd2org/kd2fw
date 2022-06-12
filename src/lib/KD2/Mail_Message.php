@@ -527,9 +527,9 @@ class Mail_Message
 
 		if (count($parts) <= 1)
 		{
-			$cte = $this->getHeader('content-transfer-encoding') ?? '';
+			$cte = $this->getHeader('content-transfer-encoding');
 
-			if (stristr($cte, 'quoted-printable'))
+			if (null === $cte || stristr($cte, 'quoted-printable'))
 			{
 				$body = quoted_printable_encode($parts[0]['content']);
 			}
