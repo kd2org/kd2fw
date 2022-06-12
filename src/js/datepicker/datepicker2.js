@@ -190,7 +190,7 @@
 
 			this.header = document.createElement('nav');
 			this.header.innerHTML = `<input type="button" value="←" title="${labels[0]}" />
-				<span><select title="${labels[2]}">${options}</select> <input type="number" size="4" step="1" min="1" max="2500" title="${labels[3]}" value="${year}"></span>
+				<span><select title="${labels[2]}">${options}</select> <input type="number" size="5" step="1" min="1" max="2500" title="${labels[3]}" value="${year}"></span>
 				<input type="button" value="↺" title="${labels[4]}" />
 				<input type="button" value="→" title="${labels[1]}" />`;
 
