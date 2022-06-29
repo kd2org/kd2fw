@@ -6,11 +6,15 @@ use KD2\Test;
 require __DIR__ . '/_assert.php';
 
 $images = [
+	'animated.gif' => [64, 64, false],
 	'icon.png' => [300, 300, false],
 	'black_bluff.jpg' => [1200, 900, 8],
 	'Portrait_5.jpg' => [600, 450, 5],
 	'onepoto.gif' => [600, 250, false],
-	'invoice.pdf' => [595, 842, false],
+	'transparent.gif' => [42, 44, false],
+	'transparent.png' => [64, 57, false],
+	//'test.svg' => [750, 489, false],
+	//'invoice.pdf' => [595, 842, false],
 ];
 
 foreach ($images as $name => $size)
@@ -28,7 +32,9 @@ foreach ($images as $name => $size)
 
 	foreach ($libs as $lib)
 	{
+		@mkdir('data/images/result/' . $lib);
 		test_resize('data/images/' . $name, $lib, $size[0], $size[1]);
+		test_thumb('data/images/' . $name, $lib);
 		test_rotate('data/images/' . $name, $lib, $size[2]);
 		test_crop('data/images/' . $name, $lib, $size[1], $size[2]);
 	}
@@ -45,8 +51,13 @@ function test_rotate($src, $lib, $o) {
 		{
 			Test::assert($im->autoRotate() instanceof Image);
 		}
+		else {
+			Test::assert($im->rotate(90) instanceof Image);
+			Test::assert($im->flip() instanceof Image);
+		}
 
-		Test::assert($im->flip() instanceof Image);
+		$dest = sprintf('data/images/result/%s/rotate_%s', $lib, basename($src));
+		Test::equals(true, $im->save($dest));
 	}
 }
 
@@ -54,18 +65,33 @@ function test_resize($src, $lib, $w, $h)
 {
 	$im = new Image($src, $lib);
 
-	Test::equals($w, $im->width);
-	Test::equals($h, $im->height);
+	Test::equals($w, $im->width, $src);
+	Test::equals($h, $im->height, $src);
 
-	Test::assert($im->resize(200, 200, true) instanceof Image);
+	Test::assert($im->resize(32, 32, true) instanceof Image);
 
-	Test::equals(200, $im->width);
-	Test::equals(200, $im->height);
+	Test::equals(32, $im->width);
+	Test::equals(32, $im->height);
 
-	$dest = sys_get_temp_dir() . DIRECTORY_SEPARATOR . sprintf('imtest_%s_%s.%s', md5($src), $lib, substr($src, -3));
+	$dest = sprintf('data/images/result/%s/resize_%s', $lib, basename($src));
 	Test::equals(true, $im->save($dest));
 
 	//unlink($dest);
+
+	unset($im);
+}
+
+function test_thumb($src, $lib)
+{
+	$im = new Image($src, $lib);
+
+	Test::assert($im->resize(32) instanceof Image);
+
+	Test::assert($im->width <= 32);
+	Test::assert($im->height <= 32);
+
+	$dest = sprintf('data/images/result/%s/thumb_%s', $lib, basename($src));
+	Test::equals(true, $im->save($dest));
 
 	unset($im);
 }
@@ -78,8 +104,10 @@ function test_crop($src, $lib)
 	}
 
 	$im = new Image($src, $lib);
-	Test::assert($im->crop(100, 100) instanceof Image);
-	Test::equals(100, $im->width);
-	Test::equals(100, $im->height);
+	Test::assert($im->crop(32, 32) instanceof Image);
+	Test::equals(32, $im->width);
+	Test::equals(32, $im->height);
 
+	$dest = sprintf('data/images/result/%s/crop_%s', $lib, basename($src));
+	Test::equals(true, $im->save($dest));
 }

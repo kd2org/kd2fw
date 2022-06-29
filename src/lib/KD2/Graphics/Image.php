@@ -812,10 +812,13 @@ class Image
 
 		$this->pointer->stripImage();
 
-		if ($format == 'gif' && $this->pointer->getNumberImages() > 1)
+		if ($format == 'gif' && $this->pointer->getNumberImages() > 1) {
+			// writeImages is buggy in old versions of Imagick
 			return file_put_contents($destination, $this->pointer->getImagesBlob());
-		else
-			return $this->pointer->writeImages($destination, true);
+		}
+		else {
+			return $this->pointer->writeImage($destination);
+		}
 	}
 
 	protected function imagick_output($format, $return)
@@ -836,13 +839,16 @@ class Image
 			$this->pointer->setInterlaceScheme($this->progressive_jpeg ? \Imagick::INTERLACE_PLANE : \Imagick::INTERLACE_NO);
 		}
 
-		if ($format == 'gif' && $this->pointer->getNumberImages() > 1)
+		if ($format == 'gif' && $this->pointer->getNumberImages() > 1) {
 			$res = $this->pointer->getImagesBlob();
-		else
+		}
+		else {
 			$res = (string) $this->pointer;
+		}
 
-		if ($return)
+		if ($return) {
 			return $res;
+		}
 
 		echo $res;
 		return true;
@@ -862,6 +868,8 @@ class Image
 				$this->pointer->cropImage($new_width, $new_height, $src_x, $src_y);
 				$this->pointer->setImagePage($new_width, $new_height, 0, 0);
 			} while ($this->pointer->nextImage());
+
+			$this->pointer = $this->pointer->deconstructImages();
 		}
 		else
 		{
@@ -893,13 +901,38 @@ class Image
 
 	protected function imagick_rotate($angle)
 	{
-		$this->pointer->rotateImage(new \ImagickPixel('#00000000'), $angle);
-		$this->pointer->setImageOrientation(\Imagick::ORIENTATION_UNDEFINED);
+		$pixel = new \ImagickPixel('#00000000');
+
+		if ($this->format == 'gif' && $this->pointer->getNumberImages() > 1) {
+			$image = $this->pointer->coalesceImages();
+
+			foreach ($image as $frame) {
+				$frame->rotateImage($pixel, $angle);
+				$frame->setImageOrientation(\Imagick::ORIENTATION_UNDEFINED);
+			}
+
+			$this->pointer = $image->deconstructImages();
+		}
+		else {
+			$this->pointer->rotateImage($pixel, $angle);
+			$this->pointer->setImageOrientation(\Imagick::ORIENTATION_UNDEFINED);
+		}
 	}
 
 	protected function imagick_flip()
 	{
-		$this->pointer->flopImage();
+		if ($this->format == 'gif' && $this->pointer->getNumberImages() > 1) {
+			$image = $this->pointer->coalesceImages();
+
+			foreach ($image as $frame) {
+				$frame->flopImage();
+			}
+
+			$this->pointer = $image->deconstructImages();
+		}
+		else {
+			$this->pointer->flopImage();
+		}
 	}
 
 	// GD methods /////////////////////////////////////////////////////////////
