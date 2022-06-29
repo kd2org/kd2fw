@@ -812,10 +812,10 @@ class Image
 
 		$this->pointer->stripImage();
 
-		if ($format == 'gif' && $this->pointer->getIteratorIndex() > 0)
+		if ($format == 'gif' && $this->pointer->getNumberImages() > 1)
 			return file_put_contents($destination, $this->pointer->getImagesBlob());
 		else
-			return $this->pointer->writeImage($destination);
+			return $this->pointer->writeImages($destination, true);
 	}
 
 	protected function imagick_output($format, $return)
@@ -836,7 +836,7 @@ class Image
 			$this->pointer->setInterlaceScheme($this->progressive_jpeg ? \Imagick::INTERLACE_PLANE : \Imagick::INTERLACE_NO);
 		}
 
-		if ($format == 'gif' && $this->pointer->getIteratorIndex() > 0)
+		if ($format == 'gif' && $this->pointer->getNumberImages() > 1)
 			$res = $this->pointer->getImagesBlob();
 		else
 			$res = (string) $this->pointer;
@@ -873,9 +873,8 @@ class Image
 	protected function imagick_resize($new_width, $new_height, $ignore_aspect_ratio = false)
 	{
 		// Detect animated GIF
-		if ($this->format == 'gif' && $this->pointer->getIteratorIndex() > 0)
+		if ($this->format == 'gif' && $this->pointer->getNumberImages() > 1)
 		{
-			$index = $this->pointer->getIteratorIndex();
 			$image = $this->pointer->coalesceImages();
 
 			foreach ($image as $frame)
@@ -885,7 +884,6 @@ class Image
 			}
 
 			$this->pointer = $image->deconstructImages();
-			$this->pointer->setIteratorIndex($index);
 		}
 		else
 		{
