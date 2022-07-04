@@ -481,6 +481,10 @@ class Mail_Message
 			$headers =& $this->headers;
 		}
 
+		if (!isset($headers['date'])) {
+			$headers['date'] = date(\DATE_RFC2822);
+		}
+
 		$out = '';
 
 		$parts = array_values($this->parts);
@@ -1039,6 +1043,15 @@ class Mail_Message
 		$success = 0;
 		$count = 0;
 		$headers = array_diff_key($this->getHeaders(), ['subject' => null, 'to' => null, 'cc' => null]);
+
+		$subject = $this->getHeader('Subject');
+
+		if ($subject) {
+			$subject = $this->_encodeHeaderValue($subject, 'Subject');
+		}
+		else {
+			$subject = '[no subject]';
+		}
 
 		foreach ($to as $address) {
 			$count++;
