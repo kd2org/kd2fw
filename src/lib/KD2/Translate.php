@@ -149,7 +149,7 @@ class Translate
 	 * @param  string $domain Domain
 	 * @return boolean
 	 */
-	static protected function _loadTranslations($domain, $locale = null)
+	static protected function _loadTranslations(?string $domain = null, string $locale = null)
 	{
 		// Fallback to default domain
 		if (is_null($domain))
@@ -157,10 +157,14 @@ class Translate
 			$domain = self::$default_domain;
 		}
 
+		if (is_null($domain)) {
+			return null;
+		}
+
 		if (is_null($locale))
 		{
 			$locale = self::$locale;
-			$locale_short = strtok($locale, '_');
+			$locale_short = $locale ? substr($locale, strpos($locale, '_')) : null;
 		}
 
 		// Already loaded
@@ -924,21 +928,25 @@ class Translate
 	 */
 	static public function extendSmartyer(Smartyer &$tpl)
 	{
-		$tpl->register_modifier('date_format', function ($timestamp, $format = '%c') {
-			if (!is_numeric($timestamp))
+		$tpl->register_modifier('date_format', function ($date, $format = '%c') {
+			if (is_object($date))
 			{
-				$timestamp = strtotime($timestamp);
+				$date = $date->getTimestamp();
+			}
+			elseif (!is_numeric($date))
+			{
+				$date = strtotime($date);
 			}
 
 			if (strpos('DATE_', $format) === 0 && defined($format))
 			{
-				return date(constant($format), $timestamp);
+				return date(constant($format), $date);
 			}
 
-			return \KD2\Translate::strftime($format, $timestamp);
+			return \KD2\Translate::strftime($format, $date);
 		});
 
-		return (new Translate)->_registerSmartyerBlock($tpl);
+		return $tpl->register_compile_function('KD2\Translate', [self::class, '_smartyerBlock']);
 	}
 
 	/**
@@ -946,92 +954,90 @@ class Translate
 	 * @link   https://bugs.php.net/bug.php?id=68792
 	 * @param  Smartyer $tpl Smartyer instance
 	 */
-	protected function _registerSmartyerBlock(Smartyer &$tpl)
+	static public function _smartyerBlock(Smartyer &$s, $pos, $block, $name, $raw_args)
 	{
-		return $tpl->register_compile_function('\KD2\Translate\SmartyerTranslate', function ($pos, $block, $name, $raw_args) {
-			$block = trim($block);
+		$block = trim($block);
 
-			if ($block[0] != '{')
+		if ($block[0] != '{')
+		{
+			return false;
+		}
+
+		// Extract strings from arguments
+		$block = preg_split('#\{((?:[^\{\}]|(?R))*?)\}#i', $block, 0, PREG_SPLIT_DELIM_CAPTURE);
+		$raw_args = '';
+		$strings = [];
+
+		foreach ($block as $k=>$v)
+		{
+			if ($k % 2 == 0)
 			{
-				return false;
-			}
-
-			// Extract strings from arguments
-			$block = preg_split('#\{((?:[^\{\}]|(?R))*?)\}#i', $block, 0, PREG_SPLIT_DELIM_CAPTURE);
-			$raw_args = '';
-			$strings = [];
-
-			foreach ($block as $k=>$v)
-			{
-				if ($k % 2 == 0)
-				{
-					$raw_args .= $v;
-				}
-				else
-				{
-					$strings[] = trim($v);
-				}
-			}
-
-			$nb_strings = count($strings);
-
-			if ($nb_strings < 1)
-			{
-				$this->parseError($pos, 'No string found in translation block: ' . $block);
-			}
-
-			// Only one plural is allowed
-			if ($nb_strings > 2)
-			{
-				$this->parseError($pos, 'Maximum number of translation strings is 2, found ' . $nb_strings . ' in: ' . $block);
-			}
-
-			$args = $this->parseArguments($raw_args);
-
-			$code = sprintf('\KD2\Translate::gettext(%s, ', var_export($strings[0], true));
-
-			if ($nb_strings > 1)
-			{
-				if (!isset($args['n']))
-				{
-					$this->parseError($pos, 'Multiple strings in translation block, but no \'n\' argument.');
-				}
-
-				$code .= sprintf('%s, (int) %s, ', var_export($strings[1], true), $args['n']);
+				$raw_args .= $v;
 			}
 			else
 			{
-				$code .= 'null, null, ';
+				$strings[] = trim($v);
 			}
+		}
 
-			// Add domain and context
-			$code .= sprintf('%s, %s)',
-				isset($args['domain']) ? $args['domain'] : 'null',
-				isset($args['context']) ? $args['context'] : 'null');
+		$nb_strings = count($strings);
 
-			$escape = $this->escape_type;
+		if ($nb_strings < 1)
+		{
+			$s->parseError($pos, 'No string found in translation block: ' . $block);
+		}
 
-			if (isset($args['escape']))
+		// Only one plural is allowed
+		if ($nb_strings > 2)
+		{
+			$s->parseError($pos, 'Maximum number of translation strings is 2, found ' . $nb_strings . ' in: ' . $block);
+		}
+
+		$args = $s->parseArguments($raw_args);
+
+		$code = sprintf('\KD2\Translate::gettext(%s, ', var_export($strings[0], true));
+
+		if ($nb_strings > 1)
+		{
+			if (!isset($args['n']))
 			{
-				$escape = strtolower($args['escape']);
+				$s->parseError($pos, 'Multiple strings in translation block, but no \'n\' argument.');
 			}
 
-			unset($args['escape'], $args['domain'], $args['context']);
+			$code .= sprintf('%s, (int) %s, ', var_export($strings[1], true), $args['n']);
+		}
+		else
+		{
+			$code .= 'null, null, ';
+		}
 
-			// Use named arguments: %name, %nb_apples...
-			// This will cause weird bugs if you use %s, or %d etc. before or between named arguments
-			if (!empty($args))
-			{
-				$code = sprintf('\KD2\Translate::named_sprintf(%s, %s)', $code, $this->exportArguments($args));
-			}
+		// Add domain and context
+		$code .= sprintf('%s, %s)',
+			isset($args['domain']) ? $args['domain'] : 'null',
+			isset($args['context']) ? $args['context'] : 'null');
 
-			if ($escape != 'false' && $escape != 'off' && $escape !== '')
-			{
-				$code = sprintf('self::escape(%s, %s)', $code, var_export($escape, true));
-			}
+		$escape = $s->getEscapeType();
 
-			return 'echo ' . $code . ';';
-		});
+		if (isset($args['escape']))
+		{
+			$escape = strtolower($args['escape']);
+		}
+
+		unset($args['escape'], $args['domain'], $args['context']);
+
+		// Use named arguments: %name, %nb_apples...
+		// This will cause weird bugs if you use %s, or %d etc. before or between named arguments
+		if (!empty($args))
+		{
+			$code = sprintf('\KD2\Translate::named_sprintf(%s, %s)', $code, $s->exportArguments($args));
+		}
+
+		if ($escape != 'false' && $escape != 'off' && $escape !== '')
+		{
+			$code = sprintf('self::escape(%s, %s)', $code, var_export($escape, true));
+		}
+
+		return 'echo ' . $code . ';';
 	}
 }
 

@@ -405,6 +405,11 @@ class Smartyer
 		return $this;
 	}
 
+	public function getEscapeType()
+	{
+		return $this->escape_type;
+	}
+
 	/**
 	 * Assign a variable to the template
 	 * @param  mixed  $name  Variable name or associative array of multiple variables
@@ -536,21 +541,9 @@ class Smartyer
 	 * @param  Callable|null $callback Valid callback
 	 * @return Smartyer
 	 */
-	public function register_compile_function($name, Callable $callback)
+	public function register_compile_function(string $name, callable $callback)
 	{
-		// Try to bind the closure to the current smartyer object if possible
-		$is_bindable = $callback instanceof \Closure && (new \ReflectionFunction(@\Closure::bind($callback, $this)))->getClosureThis() != null; 
-
-		if ($is_bindable)
-		{
-			$this->compile_functions[$name] = $callback->bindTo($this, $this);
-		}
-		// This is a static closure, so no way to bind it
-		else
-		{
-			$this->compile_functions[$name] = $callback;
-		}
-
+		$this->compile_functions[$name] = $callback;
 		return $this;
 	}
 
@@ -897,9 +890,9 @@ class Smartyer
 				// Let's try the user-defined compile callbacks
 				// and if none of them return something, we are out
 
-				foreach ($this->compile_functions as $closure)
+				foreach ($this->compile_functions as $function)
 				{
-					$code = call_user_func($closure, $line, $block, $name, $raw_args);
+					$code = call_user_func($function, $this, $line, $block, $name, $raw_args);
 
 					if ($code)
 					{
@@ -966,7 +959,7 @@ class Smartyer
 				}
 				elseif (array_key_exists($name, $this->compile_functions))
 				{
-					$code = call_user_func($this->compile_functions[$name], $line, $block, $name);
+					$code = call_user_func($this->compile_functions[$name], $this, $line, $block, $name);
 				}
 				else
 				{
@@ -1014,7 +1007,7 @@ class Smartyer
 	 * @param  \Exception $previous Previous exception for the stack
 	 * @throws Smartyer_Exception
 	 */
-	protected function parseError($line, $message, $previous = null)
+	public function parseError($line, $message, $previous = null)
 	{
 		throw new Smartyer_Exception($message, $this->template_path, $line, $previous);
 	}
@@ -1025,7 +1018,7 @@ class Smartyer
 	 * @param  integer $line Source code line
 	 * @return array
 	 */
-	protected function parseArguments($str, $line = null)
+	public function parseArguments(string $str, $line = null): array
 	{
 		if ($str === '') {
 			return [];
@@ -1077,7 +1070,7 @@ class Smartyer
 	 * @param  string $arg Extracted argument ({foreach from=$loop item="value"} => [from => "$loop", item => "\"value\""])
 	 * @return string      Raw string
 	 */
-	protected function getValueFromArgument($arg)
+	public function getValueFromArgument(string $arg): string
 	{
 		if ($arg[0] == '"' || $arg[0] == "'")
 		{
@@ -1094,7 +1087,7 @@ class Smartyer
 	 * @param  boolean $escape  Auto-escape the variable output?
 	 * @return string 			PHP code to return the variable
 	 */
-	protected function parseSingleVariable($str, $line = null, $escape = true)
+	public function parseSingleVariable($str, $line = null, $escape = true)
 	{
 		// Split by pipe (|) except if enclosed in quotes
 		$modifiers = preg_split('/\|(?=(([^\'"]*["\']){2})*[^\'"]*$)/', $str);
@@ -1187,7 +1180,7 @@ class Smartyer
 	 * @param  string $str 	String to export
 	 * @return string 		PHP escaped string
 	 */
-	protected function exportArgument($str)
+	public function exportArgument($str)
 	{
 		$raw_values = ['true', 'false', 'null'];
 
