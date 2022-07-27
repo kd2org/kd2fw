@@ -892,7 +892,7 @@ class Smartyer
 
 				foreach ($this->compile_functions as $function)
 				{
-					$code = call_user_func($function, $this, $line, $block, $name, $raw_args);
+					$code = call_user_func_array($function, [&$this, $line, $block, $name, $raw_args]);
 
 					if ($code)
 					{
@@ -959,7 +959,7 @@ class Smartyer
 				}
 				elseif (array_key_exists($name, $this->compile_functions))
 				{
-					$code = call_user_func($this->compile_functions[$name], $this, $line, $block, $name);
+					$code = call_user_func_array($this->compile_functions[$name], [&$this, $line, $block, $name]);
 				}
 				else
 				{
@@ -1208,7 +1208,7 @@ class Smartyer
 	 * @param  array   $args      Arguments to export
 	 * @return string
 	 */
-	protected function exportArguments(array $args)
+	public function exportArguments(array $args)
 	{
 		$out = '[';
 
