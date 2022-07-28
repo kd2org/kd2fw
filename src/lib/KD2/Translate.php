@@ -79,8 +79,6 @@ class Translate
 	 */
 	static public function setLocale($locale)
 	{
-		\setlocale(LC_ALL, $locale);
-
 		$locale = strtok($locale, '@.-+=%:; ');
 
 		self::$locale = $locale;
@@ -1113,12 +1111,7 @@ function textdomain($domain)
 
 function setlocale($category, $locale)
 {
-	if ($category == \LC_MESSAGES || $category == \LC_ALL)
-	{
-		Translate::setLocale($locale);
-	}
-
-	return call_user_func_array('setlocale', func_get_args());
+	return Translate::setLocale($locale);
 }
 
 
