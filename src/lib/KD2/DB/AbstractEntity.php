@@ -118,6 +118,8 @@ abstract class AbstractEntity
 			$source = $_POST;
 		}
 
+		unset($source['id']);
+
 		$data = array_intersect_key($source, self::$_types_cache[static::class]);
 
 		foreach ($data as $key => $value) {
