@@ -188,9 +188,12 @@ class EntityManager
 		return $db->firstColumn($query, ...$params);
 	}
 
-	public function save(AbstractEntity $entity): bool
+	public function save(AbstractEntity $entity, bool $selfcheck = true): bool
 	{
-		$entity->selfCheck();
+		if ($selfcheck) {
+			$entity->selfCheck();
+		}
+
 		$db = $this->DB();
 
 		if ($entity->exists()) {

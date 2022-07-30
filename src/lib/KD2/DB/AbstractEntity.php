@@ -442,9 +442,9 @@ abstract class AbstractEntity
 	}
 
 	// Helpful helpers
-	public function save(): bool
+	public function save(bool $selfcheck = true): bool
 	{
-		return EntityManager::getInstance(static::class)->save($this);
+		return EntityManager::getInstance(static::class)->save($this, $selfcheck);
 	}
 
 	public function delete(): bool
