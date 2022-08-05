@@ -705,12 +705,22 @@ class Brindille
 			return null;
 		}
 
+		if (empty($params['item']) || !is_string($params['item'])) {
+			throw new Brindille_Exception(sprintf('line %d: missing parameter: "item"', $line));
+		}
+
 		if (!is_iterable($params['from'])) {
 			throw new Brindille_Exception('"from" parameter is not an iterable value');
 		}
 
 		foreach ($params['from'] as $key => $value) {
-			yield compact('key', 'value');
+			$array = [$params['item'] => $value];
+
+			if (isset($params['key']) && is_string($params['key'])) {
+				$array[$params['key']] = $key;
+			}
+
+			yield $array;
 		}
 	}
 
