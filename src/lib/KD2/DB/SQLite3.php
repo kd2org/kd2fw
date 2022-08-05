@@ -282,14 +282,14 @@ class SQLite3 extends DB
 
 		if (preg_match('/;\s*(.+?)$/', $query, $match))
 		{
-			throw new \LogicException('Only one single statement can be executed at the same time: ' . $match[0]);
+			throw new DB_Exception('Only one single statement can be executed at the same time: ' . $match[0]);
 		}
 
 		// Forbid use of some strings that could give hints to an attacker:
 		// PRAGMA, sqlite_version(), sqlite_master table, comments
 		if (preg_match('/PRAGMA\s+|sqlite_version|sqlite_master|load_extension|ATTACH\s+|randomblob|sqlite_compileoption_|sqlite_offset|sqlite_source_|zeroblob|X\'\w|0x\w|sqlite_dbpage|fts3_tokenizer/i', $query, $match))
 		{
-			throw new \LogicException('Invalid SQL query.');
+			throw new DB_Exception('Invalid SQL query.');
 		}
 
 		if (null !== $allowed) {
@@ -324,12 +324,12 @@ class SQLite3 extends DB
 
 				foreach ($parsed as $keyword) {
 					if (in_array($keyword, $forbidden)) {
-						throw new \RuntimeException('Unauthorized keyword: ' . $keyword);
+						throw new DB_Exception('Unauthorized keyword: ' . $keyword);
 					}
 
 					foreach ($keyword->tables as $table) {
 						if (!array_key_exists($table, $allowed)) {
-							throw new \RuntimeException('Unauthorized table: ' . $table);
+							throw new DB_Exception('Unauthorized table: ' . $table);
 						}
 
 						if (null !== $allowed[$table]) {
@@ -349,7 +349,7 @@ class SQLite3 extends DB
 
 		if (!$st->readOnly())
 		{
-			throw new \LogicException('Only read-only queries are accepted.');
+			throw new DB_Exception('Only read-only queries are accepted.');
 		}
 
 		return $st;
