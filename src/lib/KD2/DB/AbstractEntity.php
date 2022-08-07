@@ -163,7 +163,7 @@ abstract class AbstractEntity
 		return $value;
 	}
 
-	protected function assert(?bool $test, string $message = null): void
+	protected function assert($test, string $message = null): void
 	{
 		if ($test) {
 			return;
@@ -323,10 +323,13 @@ abstract class AbstractEntity
 			}
 
 			if ($value !== null) {
-				if ($type == 'int' && is_string($value) && ctype_digit($value)) {
+				if (strpos($type, 'int') !== false && is_string($value) && ctype_digit($value)) {
 					$value = (int)$value;
 				}
-				elseif ($type == 'DateTime' && is_string($value) && strlen($value) === 19 && ($d = \DateTime::createFromFormat('Y-m-d H:i:s', $value))) {
+				elseif ($type == 'DateTime' && is_string($value) && strlen($value) === 19 && ($d = \DateTime::createFromFormat('!Y-m-d H:i:s', $value))) {
+					$value = $d;
+				}
+				elseif ($type == 'DateTime' && is_string($value) && strlen($value) === 16 && ($d = \DateTime::createFromFormat('!Y-m-d H:i', $value))) {
 					$value = $d;
 				}
 				elseif ($type == 'date' && is_string($value) && strlen($value) === 10 && ($d = \DateTime::createFromFormat('!Y-m-d', $value))) {
