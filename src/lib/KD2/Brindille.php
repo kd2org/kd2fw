@@ -632,7 +632,7 @@ class Brindille
 	{
 		if (strlen($arg) && ($arg[0] == '"' || $arg[0] == "'"))
 		{
-			return stripslashes(substr($arg, 1, -1));
+			return str_replace(['\\"', "\\'"], ['"', "'"], substr($arg, 1, -1));
 		}
 
 		switch ($arg) {
