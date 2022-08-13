@@ -45,8 +45,12 @@ abstract class AbstractEntity
 	 */
 	public function __construct()
 	{
+		if (!empty(self::$_types_cache[static::class])) {
+			return $this;
+		}
+
 		// Generate _types array
-		if (version_compare(PHP_VERSION, '7.4', '>=') && empty(self::$_types_cache[static::class]) && empty($this->_types)) {
+		if (version_compare(PHP_VERSION, '7.4', '>=') && empty($this->_types)) {
 			$r = new \ReflectionClass(static::class);
 			self::$_types_cache[static::class] = [];
 
@@ -73,9 +77,14 @@ abstract class AbstractEntity
 				self::$_types_cache[static::class][$p->name] = $type;
 			}
 		}
-		elseif (empty(self::$_types_cache[static::class])) {
+		else {
 			self::$_types_cache[static::class] = $this->_types;
 		}
+	}
+
+	public function __wakeup(): void
+	{
+		self::$_types_cache[static::class] = $this->_types;
 	}
 
 	/**
