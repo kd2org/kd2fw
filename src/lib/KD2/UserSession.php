@@ -76,6 +76,8 @@ class UserSession
 	 */
 	protected $remember_me_expiry = '+3 months';
 
+	protected array $data = [];
+
 	/**
 	 * Checks a password supplied at login ($supplied_password) against a stored
 	 * password ($stored_password)
@@ -261,11 +263,10 @@ class UserSession
 		];
 	}
 
-	public function start($write = false)
+	public function start(bool $write = false)
 	{
 		// Don't start session if it has been already started
-		if (isset($_SESSION))
-		{
+		if (session_id()) {
 			return true;
 		}
 
@@ -288,7 +289,14 @@ class UserSession
 			]);
 
 			session_name($this->cookie_name);
-			return session_start($this->getSessionOptions());
+			$return = session_start($this->getSessionOptions());
+
+			if ($return) {
+				$this->data = array_merge($this->data, $_SESSION['userSessionData'] ?? []);
+				$_SESSION['userSessionData'] =& $this->data;
+			}
+
+			return $return;
 		}
 
 		return false;
@@ -305,8 +313,6 @@ class UserSession
 		{
 			throw new \LogicException('User is not logged in.');
 		}
-
-		$_SESSION['userSessionData'] = [];
 
 		try {
 			return $this->create($this->user->id);
@@ -353,22 +359,12 @@ class UserSession
 
 	public function set($key, $value)
 	{
-		if (!isset($_SESSION['userSessionData']))
-		{
-			$_SESSION['userSessionData'] = [];
-		}
-
-		$_SESSION['userSessionData'][$key] = $value;
+		$this->data[$key] = $value;
 	}
 
 	public function get($key)
 	{
-		if (isset($_SESSION['userSessionData'][$key]))
-		{
-			return $_SESSION['userSessionData'][$key];
-		}
-
-		return null;
+		return $this->data[$key] ?? null;
 	}
 
 	public function login($login, $password, $remember_me = false)
@@ -631,7 +627,7 @@ class UserSession
 		return !empty($_SESSION['userSessionRequireOTP']);
 	}
 
-	public function loginOTP($code)
+	public function loginOTP(string $code): bool
 	{
 		$this->start();
 
