@@ -9,6 +9,7 @@ test_cc();
 test_headers();
 test_headers_multiline();
 test_length();
+test_encryption();
 
 function test_cc()
 {
@@ -115,7 +116,7 @@ EOF;
 	Test::assert(preg_match("/[^\n\r]{998,}/", $msg->getHeader('X-Spam-Report')));
 
 	$expected = substr_count(trim($headers), "\n");
-	Test::equals($expected, substr_count($msg->outputHeaders(), "\n"));
+	Test::equals($expected, substr_count(trim($msg->outputHeaders()), "\n"));
 }
 
 function test_headers()
@@ -213,3 +214,26 @@ Subject: =?ISO-8859-1?B?SWYgeW91IGNhbiByZWFkIHRoaXMgeW8=?=
 	Test::equals('If you can read this you understand the example.', $msg->getHeader('subject'));
 }
 
+function test_encryption()
+{
+	$msg = new Mail_Message;
+	$msg->setHeader('Subject', 'Plop!');
+	$msg->setHeader('To', 'coucou@plop.example');
+	$msg->setBody('Coucou !');
+	$msg->addPart('text/html', '<b>Coucou !</b>');
+	$msg->encrypt('-----BEGIN PGP PUBLIC KEY BLOCK-----
+Comment: https://www.ietf.org/id/draft-bre-openpgp-samples-01.html
+
+mDMEXEcE6RYJKwYBBAHaRw8BAQdArjWwk3FAqyiFbFBKT4TzXcVBqPTB3gmzlC/U
+b7O1u120JkFsaWNlIExvdmVsYWNlIDxhbGljZUBvcGVucGdwLmV4YW1wbGU+iJAE
+ExYIADgCGwMFCwkIBwIGFQoJCAsCBBYCAwECHgECF4AWIQTrhbtfozp14V6UTmPy
+MVUMT0fjjgUCXaWfOgAKCRDyMVUMT0fjjukrAPoDnHBSogOmsHOsd9qGsiZpgRnO
+dypvbm+QtXZqth9rvwD9HcDC0tC+PHAsO7OTh1S1TC9RiJsvawAfCPaQZoed8gK4
+OARcRwTpEgorBgEEAZdVAQUBAQdAQv8GIa2rSTzgqbXCpDDYMiKRVitCsy203x3s
+E9+eviIDAQgHiHgEGBYIACAWIQTrhbtfozp14V6UTmPyMVUMT0fjjgUCXEcE6QIb
+DAAKCRDyMVUMT0fjjlnQAQDFHUs6TIcxrNTtEZFjUFm1M0PJ1Dng/cDW4xN80fsn
+0QEA22Kr7VkCjeAEC08VSTeV+QFsmz55/lntWkwYWhmvOgE=
+=iIGO
+-----END PGP PUBLIC KEY BLOCK-----');
+	echo $msg->output();
+}

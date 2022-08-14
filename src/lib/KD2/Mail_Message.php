@@ -81,25 +81,30 @@ class Mail_Message
 
 	public function setMessageId($id = null)
 	{
-		if (is_null($id))
-		{
-			$id = uniqid();
-			$hash = sha1($id . print_r($this->headers, true));
-
-			if (!empty($_SERVER['SERVER_NAME']))
-			{
-				$host = $_SERVER['SERVER_NAME'];
-			}
-			else
-			{
-				$host = preg_replace('/[^a-z]/', '', base_convert($hash, 16, 36));
-				$host = substr($host, 10, -3) . '.' . substr($host, -3);
-			}
-
-			$id = $id . '.' . substr(base_convert($hash, 16, 36), 0, 10) . '@' . $host;
+		if (is_null($id)) {
+			$id = $this->generateMessageId();
 		}
 
 		$this->headers['message-id'] = '<' . $id . '>';
+		return $id;
+	}
+
+	public function generateMessageId(): string
+	{
+		$id = uniqid();
+		$hash = sha1($id . print_r($this->headers, true));
+
+		if (!empty($_SERVER['SERVER_NAME']))
+		{
+			$host = $_SERVER['SERVER_NAME'];
+		}
+		else
+		{
+			$host = preg_replace('/[^a-z]/', '', base_convert($hash, 16, 36));
+			$host = substr($host, 10, -3) . '.' . substr($host, -3);
+		}
+
+		$id = $id . '.' . substr(base_convert($hash, 16, 36), 0, 10) . '@' . $host;
 		return $id;
 	}
 
@@ -449,13 +454,14 @@ class Mail_Message
 		return true;
 	}
 
-	public function addPart($type, $content, $name = null, $cid = null)
+	public function addPart($type, $content, $name = null, $cid = null, $encoding = null)
 	{
 		$this->parts[] = [
 			'type'		=>	$type,
 			'content'	=>	$content,
 			'name'		=>	$name,
 			'cid'		=>	$cid,
+			'encoding'  =>  $encoding,
 		];
 
 		return true;
@@ -475,14 +481,20 @@ class Mail_Message
 		return $this->raw;
 	}
 
-	public function outputHeaders(array $headers = null)
+	public function outputHeaders(array $headers = null, bool $for_sending = false)
 	{
 		if (null === $headers) {
-			$headers =& $this->headers;
+			$headers = $this->headers;
 		}
 
-		if (!isset($headers['date'])) {
-			$headers['date'] = date(\DATE_RFC2822);
+		if ($for_sending) {
+			if (!isset($headers['date'])) {
+				$headers['date'] = date(\DATE_RFC2822);
+			}
+
+			if (!isset($headers['message-id'])) {
+				$headers['message-id'] = '<' . $this->generateMessageId() . '>';
+			}
 		}
 
 		$out = '';
@@ -500,9 +512,11 @@ class Mail_Message
 		}
 		else
 		{
-			$headers['content-type'] = 'multipart/mixed; boundary="' . $this->output_boundary . '"';
-			$headers['content-transfer-encoding'] = '8bit';
-			$headers['mime-version'] = '1.0';
+			if (!isset($headers['content-type']) || !stristr($headers['content-type'], 'multipart/')) {
+				$headers['content-type'] = 'multipart/mixed; boundary="' . $this->output_boundary . '"';
+				$headers['content-transfer-encoding'] = '8bit';
+				$headers['mime-version'] = '1.0';
+			}
 		}
 
 		foreach ($headers as $key=>$value)
@@ -582,7 +596,7 @@ class Mail_Message
 			foreach ($parts as $part)
 			{
 				$body .= '--' . $this->output_boundary . "\n";
-				$body .= $this->outputPart($part) . "\n";
+				$body .= $this->outputPart($part) . "\n\n";
 			}
 
 			$body .= '--' . $this->output_boundary . "--\n";
@@ -591,6 +605,23 @@ class Mail_Message
 		$body = preg_replace("#(?<!\r)\n#si", "\r\n", $body);
 
 		return $body;
+	}
+
+	public function encrypt(string $key): self
+	{
+		if (!Security::canUseEncryption()) {
+			throw new \LogicException('Encryption is not available, check that gnupg module is installed and loaded.');
+		}
+
+		$enclosed = clone $this;
+		$enclosed->headers = [];
+		$enclosed = $enclosed->output();
+		$enclosed = Security::encryptWithPublicKey($key, $enclosed);
+		$this->parts = [];
+		$this->headers['content-type'] = sprintf('multipart/encrypted; boundary="%s"; protocol="application/pgp-encrypted"', $this->output_boundary);
+		$this->addPart('application/pgp-encrypted', 'Version: 1', null, null, 'raw');
+		$this->addPart('application/octet-stream', $enclosed, null, null, 'raw');
+		return $this;
 	}
 
 	public function outputPart($part)
@@ -602,7 +633,7 @@ class Mail_Message
 			$out .= '; name="' . str_replace('"', '', $part['name']) . '"';
 		}
 
-		if ($part['type'] == 'message/rfc822')
+		if ($part['type'] == 'message/rfc822' || $part['encoding'] == 'raw')
 		{
 			$out .= "\nContent-Disposition: inline\n";
 			$content = $part['content'];
@@ -645,9 +676,9 @@ class Mail_Message
 		return $out;
 	}
 
-	public function output()
+	public function output(bool $for_sending = false)
 	{
-		return trim($this->outputHeaders()) . "\r\n\r\n" . trim($this->outputBody());
+		return trim($this->outputHeaders(null, $for_sending)) . "\r\n\r\n" . trim($this->outputBody());
 	}
 
 	/**
@@ -1055,7 +1086,7 @@ class Mail_Message
 
 		foreach ($to as $address) {
 			$count++;
-			$success += mail($address, $this->getHeader('Subject') ?? '[no subject]', $this->outputBody(), $this->outputHeaders($headers));
+			$success += mail($address, $this->getHeader('Subject') ?? '[no subject]', $this->outputBody(), $this->outputHeaders($headers, true));
 		}
 
 		return ($success == $count);

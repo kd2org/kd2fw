@@ -395,7 +395,7 @@ class SMTP
 	public function send($r, $subject = null, $message = null, $headers = [])
 	{
 		if (is_object($r) && $r instanceof Mail_Message) {
-			$message = $r->output();
+			$message = $r->output(true);
 			$to = $r->getTo() + $r->getCc();
 			$from = current(self::extractEmailAddresses($r->getHeader('Return-Path') ?: $r->getHeader('From')));
 		}
