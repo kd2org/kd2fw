@@ -425,11 +425,17 @@ class UserSession
 		return true;
 	}
 
-	public function logout()
+	public function logout(bool $all = false)
 	{
+		if ($all && $this->isLogged()) {
+			$this->deleteAllRememberMeSelectors($this->getUser()->id);
+		}
+
 		if ($cookie = $this->getRememberMeCookie())
 		{
-			$this->deleteRememberMeSelector($cookie->selector);
+			if (!$all) {
+				$this->deleteRememberMeSelector($cookie->selector);
+			}
 
 			setcookie($this->remember_me_cookie_name, '', -1, $this->cookie_path,
 				$this->cookie_domain, $this->cookie_secure, true);
