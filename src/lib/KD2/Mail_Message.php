@@ -633,7 +633,7 @@ class Mail_Message
 			$out .= '; name="' . str_replace('"', '', $part['name']) . '"';
 		}
 
-		if ($part['type'] == 'message/rfc822' || $part['encoding'] == 'raw')
+		if ($part['type'] == 'message/rfc822' || $part['encoding'] ?? null == 'raw')
 		{
 			$out .= "\nContent-Disposition: inline\n";
 			$content = $part['content'];
