@@ -156,11 +156,17 @@ class Pie
 
 			foreach ($this->data as $row)
 			{
-				$out .= '<rect x="'.($x - $this->width * 0.01).'" y="'.($y - $this->height * 0.015).'" width="'.($this->width * 0.04).'" height="'.($this->height * 0.05).'" fill="'.$row->fill.'" stroke="black" stroke-width="1" rx="2" />' . PHP_EOL;
+				$h = $row->sublabel ? 0.1 : 0.05;
+				$out .= '<rect x="'.($x - $this->width * 0.01).'" y="'.($y - $this->height * 0.015).'" width="'.($this->width * 0.04).'" height="'.($this->height * $h).'" fill="'.$row->fill.'" stroke="black" stroke-width="1" rx="2" />' . PHP_EOL;
 
 				if ($row->label) {
 					$out .= $this->text($x-($this->width * 0.02), $y+($this->height * 0.025), $row->label, 'white', null, 'rgba(255, 255, 255, 0.5)', 'end');
 					$out .= $this->text($x-($this->width * 0.02), $y+($this->height * 0.025), $row->label, 'black', null, null, 'end');
+				}
+
+				if ($row->sublabel) {
+					$y += ($this->height * 0.06);
+					$out .= $this->text($x-($this->width * 0.02), $y+($this->height * 0.02), $row->sublabel, '#666', 12, null, 'end');
 				}
 
 				$y += ($this->height * 0.08);
@@ -189,6 +195,7 @@ class Pie_Data
 	public $fill = 'blue';
 	public $data = 0.0;
 	public $label = null;
+	public $sublabel = null;
 
 	public function __construct($data, $label = null, $fill = 'blue')
 	{
