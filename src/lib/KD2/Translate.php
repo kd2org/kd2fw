@@ -1045,16 +1045,6 @@ class Translate
 	eg _("Hi!") => \KD2\_("Hi!")
 	Or add at the top of your files:
 
-	// PHP 5.6
-	use function \KD2\_;
-	use function \KD2\gettext;
-	use function \KD2\ngettext;
-	use function \KD2\dgettext;
-	use function \KD2\dngettext;
-	use function \KD2\bindtextdomain;
-	use function \KD2\textdomain;
-	use function \KD2\setlocale;
-
 	// PHP 7+
 	use function \KD2\{_, gettext, ngettext, dgettext, dngettext, bindtextdomain, textdomain, setlocale}
 */
