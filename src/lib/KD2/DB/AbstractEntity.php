@@ -84,7 +84,9 @@ abstract class AbstractEntity
 
 	public function __wakeup(): void
 	{
-		self::$_types_cache[static::class] = $this->_types;
+		if (empty(self::$_types_cache[static::class])) {
+			self::$_types_cache[static::class] = $this->_types;
+		}
 	}
 
 	/**
