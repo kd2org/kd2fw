@@ -253,7 +253,7 @@ class ErrorManager
 			. PHP_EOL . '</errorReport>' . PHP_EOL;
 
 		// Log exception to file
-		if (ini_get('error_log'))
+		if (ini_get('log_errors'))
 		{
 			error_log($log);
 		}
