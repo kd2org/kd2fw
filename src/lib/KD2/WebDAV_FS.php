@@ -3,34 +3,93 @@
 namespace KD2;
 
 /**
- * This is mostly an example of an implementation of WebDAV over the local filesystem.
+ * This is mostly an example of an implementation of WebDAV
+ * to serve files from the local filesystem.
  *
  * Demo:
  *
- * $fs = new WebDAV_FS('/home/user/files');
+ * $fs = new WebDAV_FS('/home/user/files', '/home/user/.cache/davlocks.sqlite');
  * $fs->route('/files/');
  */
 class WebDAV_FS extends WebDAV
 {
 	protected string $path;
-	const LOCK = false;
-
-	protected function lock(string $uri): void {}
-	protected function unlock(string $uri): void {}
+	protected ?\SQLite3 $db;
+	const LOCK = true;
 
 	protected function log(string $message, ...$params)
 	{
-		error_log(vsprintf($message, $params));
+		if (PHP_SAPI == 'cli-server') {
+			error_log(vsprintf($message, $params));
+		}
 	}
 
 	public function __construct(string $path, ?string $lockdb = null)
 	{
 		$this->path = rtrim($path, '/') . '/';
-		$lockdb_init = $lockdb && !file_exists($lockdb);
-		$this->lockdb = $lockdb ? new \SQLite3($lockdb) : null;
+		$lockdb_init = null !== $lockdb && !file_exists($lockdb);
+		$this->db = $lockdb ? new \SQLite3($lockdb) : null;
 
 		if ($lockdb_init) {
-			$this->lockdb->exec('CREATE TABLE locks (file TEXT PRIMARY KEY);');
+			$this->db->exec('CREATE TABLE locks (
+				uri TEXT NOT NULL,
+				token TEXT NOT NULL,
+				scope TEXT NOT NULL,
+				xml TEXT NULL,
+				ns TEXT NULL,
+				expiry TEXT NOT NULL
+			);
+
+			CREATE INDEX locks_uri ON locks (uri);
+
+			CREATE UNIQUE INDEX locks_unique ON locks (uri, token);');
+		}
+	}
+
+	protected function db(string $sql, ...$params)
+	{
+		$st = $this->db->prepare($sql);
+
+		foreach ($params as $key => $value) {
+			$st->bindValue(is_int($key) ? $key + 1 : ':' . $key, $value);
+		}
+
+		return $st->execute();
+	}
+
+	protected function getLock(string $uri, ?string $token = null): ?string
+	{
+		// It is important to check also for a lock on parent directory as we support depth=1
+		$sql = 'SELECT scope FROM locks WHERE (uri = ? OR uri = ?)';
+		$params = [$uri, dirname($uri)];
+
+		if ($token) {
+			$sql .= ' AND token = ?';
+			$params[] = $token;
+		}
+
+		$sql .= ' LIMIT 1';
+
+		$r = $this->db($sql, ...$params)->fetchArray(\SQLITE3_NUM);
+		$r = $r[0] ?? null;
+
+		return $r;
+	}
+
+	protected function lock(string $uri, string $token, string $scope, ?string $xml, ?string $ns): void
+	{
+		$this->db('REPLACE INTO locks VALUES (?, ?, ?, ?, ?, datetime(\'now\', \'+5 minutes\'));', $uri, $token, $scope, $xml, $ns);
+	}
+
+	protected function unlock(string $uri, string $token): void
+	{
+		$this->db('DELETE FROM locks WHERE uri = ? AND token = ?;', $uri, $token);
+	}
+
+	protected function list(string $uri): iterable
+	{
+		foreach (glob($this->path . $uri . '/*') as $file) {
+			yield basename($file);
 		}
 	}
 
@@ -52,10 +111,10 @@ class WebDAV_FS extends WebDAV
 		}
 
 		$meta = [
-			'modified' => filemtime($target),
-			'size'     => filesize($target),
-			'type'     => mime_content_type($target),
-			'is_dir'   => is_dir($target),
+			'modified'      => filemtime($target),
+			'size'          => filesize($target),
+			'type'          => mime_content_type($target),
+			'is_collection' => is_dir($target),
 		];
 
 		if ($all) {
@@ -122,12 +181,12 @@ class WebDAV_FS extends WebDAV
 
 		$overwritten = file_exists($target);
 
-        if (!is_dir(dirname($target))) {
+        if (!is_dir($parent)) {
             throw new WebDAV_Exception('Target parent directory does not exist', 409);
         }
 
 		if ($overwritten) {
-			$this->delete($target);
+			$this->delete($destination);
 		}
 
 		$method = $move ? 'rename' : 'copy';
@@ -161,7 +220,7 @@ class WebDAV_FS extends WebDAV
 		return $this->copymove(true, $uri, $destination);
 	}
 
-	protected function mkdir(string $uri): void
+	protected function mkcol(string $uri): void
 	{
 		$target = $this->path . $uri;
 		$parent = dirname($target);
