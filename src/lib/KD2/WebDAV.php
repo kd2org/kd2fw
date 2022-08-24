@@ -1,9 +1,43 @@
 <?php
+/*
+	This file is part of KD2FW -- <https://kd2.org/>
+
+	Copyright (c) 2001-2022+ BohwaZ <https://bohwaz.net/>
+	All rights reserved.
+
+	KD2FW is free software: you can redistribute it and/or modify
+	it under the terms of the GNU Affero General Public License as published by
+	the Free Software Foundation, either version 3 of the License, or
+	(at your option) any later version.
+
+	KD2FW is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	GNU Affero General Public License for more details.
+
+	You should have received a copy of the GNU Affero General Public License
+	along with KD2FW.  If not, see <https://www.gnu.org/licenses/>.
+*/
 
 namespace KD2;
 
 class WebDAV_Exception extends \RuntimeException {}
 
+/**
+ * This is a minimal, lightweight, and self-supported WebDAV server
+ * it does not require anything out of standard PHP, not even an XML library.
+ *
+ * You have to extend this class and implement all the abstract methods to
+ * get a class-1 compliant server. Implement also the lock, unlock and getLock
+ * methods to get a class-2 server (also set LOCK constant to true).
+ *
+ * Differences with SabreDAV and RFC:
+ * - PROPPATCH is not implemented by default
+ * - HTTP Ranges are not implemented for GET
+ * - If-Match is not implemented
+ *
+ * @author BohwaZ <https://bohwaz.net/>
+ */
 abstract class WebDAV
 {
 	/**
@@ -13,46 +47,133 @@ abstract class WebDAV
 	const LOCK = false;
 
 	/**
-	 * Return the requested file
-	 * @param  string $uri
-	 * @return array containing those keys:
-	 * path, resource or content
-	 * or NULL if the file can not be returned (404)
+	 * Return the requested resource
+	 *
+	 * @param  string $uri Path to resource
+	 * @return null|array An array containing one of those keys:
+	 * path => Full filesystem path to a local file, it will be streamed directly to the client
+	 * resource => a PHP resource (eg. returned by fopen) that will be streamed directly to the client
+	 * content => a string that will be returned
+	 * or NULL if the resource can not be returned (404)
 	 */
 	abstract protected function get(string $uri): ?array;
 
 	/**
-	 * Return the requested file metadata
-	 * @param string $uri
+	 * Return TRUE if the requested resource exists, or FALSE
+	 *
+	 * @param  string $uri
+	 * @return bool
+	 */
+	abstract protected function exists(string $uri): bool;
+
+	/**
+	 * Return the requested resource metadata
+	 *
+	 * This method is used for HEAD requests
+	 *
+	 * @param string $uri Path to resource
 	 * @param bool $all Set to TRUE if created, accessed and hidden properties should be returned as well
-	 * @return array containing those keys:
-	 * modified: modification timestamp
-	 * size: file size
-	 * type: mimetype
-	 * is_collection: true if it's a directory
-	 * or NULL if the file can not be returned (404)
+	 * @return null|array An array containing those keys:
+	 * int modified => modification UNIX timestamp
+	 * int size => content length
+	 * string type => mimetype
+	 * bool collection => true if it's a directory/collection of resources
+	 * Those properties must be returned if $all is set to TRUE:
+	 * int created => creation UNIX timestamp
+	 * int accessed => last access UNIX timestamp
+	 * bool hidden => true if the resource is hidden
+	 * or NULL if the resource can not be returned (404)
 	 */
 	abstract protected function metadata(string $uri, bool $all = false);
 
+	/**
+	 * Create or replace a resource
+	 * @param  string $uri     Path to resource
+	 * @param  resource $pointer A PHP file resource containing the sent data (note that this might not always be seekable)
+	 * @return bool Return TRUE if the resource has been created, or FALSE it has just been updated.
+	 */
 	abstract protected function put(string $uri, $pointer): bool;
 
+	/**
+	 * Delete a resource
+	 * @param  string $uri
+	 * @return void
+	 */
 	abstract protected function delete(string $uri): void;
 
+	/**
+	 * Copy a resource from $uri to $destination
+	 * @param  string $uri
+	 * @param  string $destination
+	 * @return bool TRUE if the destination has been overwritten
+	 */
 	abstract protected function copy(string $uri, string $destination): bool;
 
+	/**
+	 * Move (rename) a resource from $uri to $destination
+	 * @param  string $uri
+	 * @param  string $destination
+	 * @return bool TRUE if the destination has been overwritten
+	 */
 	abstract protected function move(string $uri, string $destination): bool;
 
+	/**
+	 * Create collection of resources (eg. a directory)
+	 * @param  string $uri
+	 * @return void
+	 */
 	abstract protected function mkcol(string $uri): void;
 
+	/**
+	 * Return a list of resources for target $uri
+	 *
+	 * @param  string $uri
+	 * @return iterable An array or other iterable (eg. a generator)
+	 * where each item is a string containing the name of the resource (eg. file name).
+	 */
 	abstract protected function list(string $uri): iterable;
 
-	protected function lock(string $uri, string $token, string $scope, ?string $xml, ?string $ns): void {}
+	/**
+	 * Lock the requested resource
+	 * @param  string $uri   Requested resource
+	 * @param  string $token Unique token given to the client for this resource
+	 * @param  string $scope Locking scope, either ::SHARED_LOCK or ::EXCLUSIVE_LOCK constant
+	 * @return void
+	 */
+	protected function lock(string $uri, string $token, string $scope): void {}
+
+	/**
+	 * Unlock the requested resource
+	 * @param  string $uri   Requested resource
+	 * @param  string $token Unique token sent by the client
+	 * @return void
+	 */
 	protected function unlock(string $uri, string $token): void {}
+
+	/**
+	 * If $token is supplied, this method MUST return ::SHARED_LOCK or ::EXCLUSIVE_LOCK
+	 * if the resource is locked with this token. If the resource is unlocked, or if it is
+	 * locked with another token, it MUST return NULL.
+	 *
+	 * If $token is left NULL, then this method must return ::EXCLUSIVE_LOCK if there is any
+	 * exclusive lock on the resource. If there are no exclusive locks, but one or more
+	 * shared locks, it MUST return ::SHARED_LOCK. If the resource has no lock, it MUST
+	 * return NULL.
+	 *
+	 * @param  string      $uri
+	 * @param  string|null $token
+	 * @return string|null
+	 */
 	protected function getLock(string $uri, ?string $token = null): ?string {}
+
+	// You have reached the end of the abstract methods :)
 
 	const SHARED_LOCK = 'shared';
 	const EXCLUSIVE_LOCK = 'exclusive';
 
+	/**
+	 * Base server URI (eg. "/index.php/webdav/")
+	 */
 	protected string $base_uri;
 
 	protected function http_delete(string $uri): ?string
@@ -77,7 +198,7 @@ abstract class WebDAV
 
 	protected function http_put(string $uri): ?string
 	{
-		if (!empty($_SERVER['HTTP_CONTENT_TYPE']) && !strncmp($_SERVER['HTTP_CONTENT_TYPE'], "multipart/", 10)) {
+		if (!empty($_SERVER['HTTP_CONTENT_TYPE']) && !strncmp($_SERVER['HTTP_CONTENT_TYPE'], 'multipart/', 10)) {
 			throw new WebDAV_Exception('Multipart PUT requests are not supported', 501);
 		}
 
@@ -116,33 +237,15 @@ abstract class WebDAV
 		header(sprintf('Content-Type: %s', $meta->type), true);
 		header(sprintf('Last-Modified: %s', gmdate(\DATE_RFC7231 , $meta->modified)), true);
 
-		if (!$meta->is_collection) {
+		if (!$meta->collection) {
 			header(sprintf('Content-Length: %d', $meta->size), true);
 		}
 
-		return $meta->is_collection;
+		return $meta->collection;
 	}
 
 	protected function http_get(string $uri): ?string
 	{
-		/*
-		$ranges = null;
-		if (isset($_SERVER['HTTP_RANGE'])) {
-			if (!preg_match('^bytes\s*=\s*(.+)$', trim($_SERVER['HTTP_RANGE']), $match)) {
-				header('Content-Range: bytes *' . '/' . $this->size($uri)); // Required in 416.
-				throw new WebDAV_Exception('Requested Range Not Satisfiable', 416);
-			}
-
-			$ranges = [];
-
-			// ranges are comma separated
-			foreach (explode(",", $match[1]) as $range) {
-				// ranges are either from-to pairs or just end positions
-				list($start, $end) = explode('-', $range);
-				$ranges[] = compact('start', 'end');
-			}
-		}*/
-
 		$is_collection = $this->http_head($uri);
 		$out = '';
 
@@ -192,15 +295,15 @@ abstract class WebDAV
 
 	protected function http_copy(string $uri): ?string
 	{
-		return $this->http_copymove($uri, 'copy');
+		return $this->_http_copymove($uri, 'copy');
 	}
 
 	protected function http_move(string $uri): ?string
 	{
-		return $this->http_copymove($uri, 'move');
+		return $this->_http_copymove($uri, 'move');
 	}
 
-	protected function http_copymove(string $uri, string $method): ?string
+	protected function _http_copymove(string $uri, string $method): ?string
 	{
 		$destination = $_SERVER['HTTP_DESTINATION'] ?? null;
 
@@ -211,10 +314,15 @@ abstract class WebDAV
 		$destination = $this->getURI($destination);
 		$overwrite = ($_SERVER['HTTP_OVERWRITE'] ?? null) == 'T';
 
+		// Dolphin is removing the file name when moving to root directory
+		if (empty($destination)) {
+			$destination = basename($uri);
+		}
+
 		$this->log('<= Destination: %s', $destination);
 		$this->log('<= Overwrite: %s (%s)', $overwrite ? 'Yes' : 'No', $_SERVER['HTTP_OVERWRITE'] ?? null);
 
-		if (!$overwrite && $this->metadata($destination)) {
+		if (!$overwrite && $this->exists($destination)) {
 			throw new WebDAV_Exception('File already exists and overwriting is disabled', 412);
 		}
 
@@ -252,7 +360,7 @@ abstract class WebDAV
 		$depth = !empty($_SERVER['HTTP_DEPTH']) ? 1 : 0;
 
 		// We don't really care about parsing the client request,
-		// but we still need to make sure the XML is valid to pass litmus tests
+		// but we still need to make sure the XML is valid to pass some litmus tests :)
 		if (isset($_SERVER['HTTP_X_LITMUS']) && function_exists('simplexml_load_string')) {
 			$xml = @simplexml_load_string(file_get_contents('php://input'));
 
@@ -271,7 +379,15 @@ abstract class WebDAV
 
 		if ($depth) {
 			foreach ($this->list($uri) as $file) {
-				$items[$file] = $this->metadata($file, true);
+				$path = trim($uri . '/' . $file, '/');
+				$meta = $this->metadata($path, true);
+
+				if (!$meta) {
+					$this->log('!!! Cannot find "%s"', $path);
+					continue;
+				}
+
+				$items[$file] = $meta;
 			}
 		}
 
@@ -287,17 +403,17 @@ abstract class WebDAV
 			// Microsoft Clients need this special namespace for date and time values
 			$out .= '<D:response xmlns:ns0="urn:uuid:c2f41010-65b3-11d1-a29f-00aa00c14882/">' . "\n";
 
-			$out .= sprintf('<D:href>%s</D:href>', $this->base_uri . $file);
+			$out .= sprintf('<D:href>%s</D:href>', $this->urlencode($this->base_uri . $file));
 			$out .= '<D:propstat><D:prop>';
 
-			if ($item['is_collection']) {
+			if ($item['collection']) {
 				$out .= '<D:resourcetype><D:collection /></D:resourcetype>';
 			}
 			else {
 				$out .= '<D:resourcetype />';
 			}
 
-			$out .= sprintf('<D:getcontenttype>%s</D:getcontenttype>', $item['is_collection'] ? 'httpd/unix-directory' : $item['type']);
+			$out .= sprintf('<D:getcontenttype>%s</D:getcontenttype>', $item['collection'] ? 'httpd/unix-directory' : $item['type']);
 			$out .= sprintf('<D:creationdate ns0:dt="dateTime.tz">%s</D:creationdate>', date(DATE_RFC3339, $item['created'] ?? $item['modified']));
 			$out .= sprintf('<D:getlastmodified ns0:dt="dateTime.rfc1123">%s</D:getlastmodified>', gmdate(DATE_RFC1123, $item['modified']));
 			$out .= sprintf('<D:lastaccessed ns0:dt="dateTime.rfc1123">%s</D:lastaccessed>', gmdate(DATE_RFC1123, $item['accessed'] ?? $item['modified']));
@@ -389,7 +505,7 @@ abstract class WebDAV
 			}
 		}
 
-		$this->lock($uri, $token, $scope, trim($info), $ns);
+		$this->lock($uri, $token, $scope);
 
 		if (null === $info) {
 			$info = sprintf('
@@ -529,29 +645,33 @@ abstract class WebDAV
 		header('MS-Author-Via: DAV');
 	}
 
-	protected function handleRequest(string $uri): ?string
-	{
-		$method = $_SERVER['REQUEST_METHOD'] ?? null;
-
-		$this->log('<= %s /%s', $method, $uri);
-
-		$method = 'http_' . strtolower($method);
-
-		if (!method_exists($this, $method)) {
-			throw new WebDAV_Exception('Invalid request method', 405);
-		}
-
-		return $this->$method($uri);
-	}
-
 	protected function log(string $message, ...$params)
 	{
+		// Left for you to override
+	}
+
+	protected function urlencode(string $str): string
+	{
+		static $table = [
+			' ' => '%20',
+			'%' => '%25',
+			'&' => '%26',
+			'<' => '%3C',
+			'>' => '%3E',
+		];
+
+		return strtr($str, $table);
 	}
 
 	protected function getURI(string $source): string
 	{
 		$uri = parse_url($source, PHP_URL_PATH);
+		$uri = rawurldecode($uri);
 		$uri = rtrim($uri, '/');
+
+		if ($uri . '/' == $this->base_uri) {
+			$uri .= '/';
+		}
 
 		if (strpos($uri, $this->base_uri) !== 0) {
 			throw new WebDAV_Exception(sprintf('Invalid URI, "%s" is outside of scope "%s"', $uri, $this->base_uri), 400);
@@ -580,28 +700,42 @@ abstract class WebDAV
 			return false;
 		}
 
+		// Add some extra-logging for Litmus tests
 		if (isset($_SERVER['HTTP_X_LITMUS']) || isset($_SERVER['HTTP_X_LITMUS_SECOND'])) {
 			$this->log('X-Litmus: %s', $_SERVER['HTTP_X_LITMUS'] ?? $_SERVER['HTTP_X_LITMUS_SECOND']);
 		}
 
 		$this->base_uri = $base_uri;
 
-		if (($_SERVER['REQUEST_METHOD'] ?? null) == 'OPTIONS') {
+		$method = $_SERVER['REQUEST_METHOD'] ?? null;
+
+		// Stop and send reply to OPTIONS before anything else
+		if ($method == 'OPTIONS') {
 			$this->log('<= OPTIONS');
 			$this->http_options();
 			return true;
 		}
 
+		$uri = rawurldecode($uri);
 		$uri = trim($uri, '/');
-
 		$uri = preg_replace('!/{2,}!', '/', $uri);
+
+		$this->log('<= %s /%s', $method, $uri);
 
 		if (false !== strpos($uri, '..')) {
 			throw new WebDAV_Exception(sprintf('Invalid URI: "%s"', $uri), 400);
 		}
 
 		try {
-			$out = $this->handleRequest($uri);
+			// Call 'http_method' class method
+			$method = 'http_' . strtolower($method);
+
+			if (!method_exists($this, $method)) {
+				throw new WebDAV_Exception('Invalid request method', 405);
+			}
+
+			$out = $this->$method($uri);
+
 			$this->log('=> %d', http_response_code());
 
 			if (null !== $out) {
@@ -614,6 +748,7 @@ abstract class WebDAV
 			$this->log('=> %d - %s', $e->getCode(), $e->getMessage());
 
 			if ($e->getCode() == 423) {
+				// http_response_code doesn't know about 423 Locked
 				header('HTTP/1.1 423 Locked');
 			}
 			else {

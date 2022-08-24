@@ -35,8 +35,6 @@ class WebDAV_FS extends WebDAV
 				uri TEXT NOT NULL,
 				token TEXT NOT NULL,
 				scope TEXT NOT NULL,
-				xml TEXT NULL,
-				ns TEXT NULL,
 				expiry TEXT NOT NULL
 			);
 
@@ -76,9 +74,9 @@ class WebDAV_FS extends WebDAV
 		return $r;
 	}
 
-	protected function lock(string $uri, string $token, string $scope, ?string $xml, ?string $ns): void
+	protected function lock(string $uri, string $token, string $scope): void
 	{
-		$this->db('REPLACE INTO locks VALUES (?, ?, ?, ?, ?, datetime(\'now\', \'+5 minutes\'));', $uri, $token, $scope, $xml, $ns);
+		$this->db('REPLACE INTO locks VALUES (?, ?, ?, datetime(\'now\', \'+5 minutes\'));', $uri, $token, $scope);
 	}
 
 	protected function unlock(string $uri, string $token): void
@@ -102,6 +100,11 @@ class WebDAV_FS extends WebDAV
 		return ['path' => $this->path . $uri];
 	}
 
+	protected function exists(string $uri): bool
+	{
+		return file_exists($this->path . $uri);
+	}
+
 	protected function metadata(string $uri, bool $all = false): ?array
 	{
 		$target = $this->path . $uri;
@@ -111,16 +114,16 @@ class WebDAV_FS extends WebDAV
 		}
 
 		$meta = [
-			'modified'      => filemtime($target),
-			'size'          => filesize($target),
-			'type'          => mime_content_type($target),
-			'is_collection' => is_dir($target),
+			'modified'   => filemtime($target),
+			'size'       => filesize($target),
+			'type'       => mime_content_type($target),
+			'collection' => is_dir($target),
 		];
 
 		if ($all) {
-			$meta['created'] = filectime($target);
+			$meta['created']  = filectime($target);
 			$meta['accessed'] = fileatime($target);
-			$meta['hidden'] = basename($target)[0] == '.';
+			$meta['hidden']   = basename($target)[0] == '.';
 		}
 
 		return $meta;
