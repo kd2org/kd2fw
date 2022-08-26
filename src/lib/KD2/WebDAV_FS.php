@@ -17,6 +17,14 @@ class WebDAV_FS extends WebDAV
 	protected ?\SQLite3 $db;
 	const LOCK = true;
 
+	const XSENDFILE = false;
+
+	/**
+	 * These file names will be ignored when doing a PUT
+	 * as they are garbage, coming from some OS
+	 */
+	const PUT_IGNORE_PATTERN = '!^~(?:lock\.|^\._)|^(?:\.DS_Store|Thumbs\.db|desktop\.ini)$|\..*\.swp$!';
+
 	protected function log(string $message, ...$params)
 	{
 		if (PHP_SAPI == 'cli-server') {
@@ -97,6 +105,16 @@ class WebDAV_FS extends WebDAV
 			return null;
 		}
 
+		// Recommended: Use X-SendFile to make things more efficient
+		// see https://tn123.org/mod_xsendfile/
+		// or https://www.nginx.com/resources/wiki/start/topics/examples/xsendfile/
+		if (self::XSENDFILE) {
+			header('X-SendFile: ' . $this->path . $uri);
+			exit;
+		}
+
+		//return ['content' => file_get_contents($this->path . $uri)];
+		//return ['resource' => fopen($this->path . $uri, 'r')];
 		return ['path' => $this->path . $uri];
 	}
 
@@ -131,6 +149,10 @@ class WebDAV_FS extends WebDAV
 
 	protected function put(string $uri, $pointer): bool
 	{
+		if (preg_match(self::PUT_IGNORE_PATTERN, basename($uri))) {
+			return false;
+		}
+
 		$target = $this->path . $uri;
 		$parent = dirname($target);
 
@@ -184,9 +206,9 @@ class WebDAV_FS extends WebDAV
 
 		$overwritten = file_exists($target);
 
-        if (!is_dir($parent)) {
-            throw new WebDAV_Exception('Target parent directory does not exist', 409);
-        }
+		if (!is_dir($parent)) {
+			throw new WebDAV_Exception('Target parent directory does not exist', 409);
+		}
 
 		if ($overwritten) {
 			$this->delete($destination);

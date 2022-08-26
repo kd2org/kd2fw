@@ -26,15 +26,17 @@ class WebDAV_Exception extends \RuntimeException {}
 /**
  * This is a minimal, lightweight, and self-supported WebDAV server
  * it does not require anything out of standard PHP, not even an XML library.
+ * This makes it more secure by design, and also faster and lighter.
  *
  * You have to extend this class and implement all the abstract methods to
  * get a class-1 compliant server. Implement also the lock, unlock and getLock
  * methods to get a class-2 server (also set LOCK constant to true).
  *
+ * This also supports HTTP ranges for GET.
+ *
  * Differences with SabreDAV and RFC:
  * - PROPPATCH is not implemented by default
- * - HTTP Ranges are not implemented for GET
- * - If-Match is not implemented
+ * - If-Match, If-Range are not implemented
  *
  * @author BohwaZ <https://bohwaz.net/>
  */
@@ -55,6 +57,9 @@ abstract class WebDAV
 	 * resource => a PHP resource (eg. returned by fopen) that will be streamed directly to the client
 	 * content => a string that will be returned
 	 * or NULL if the resource can not be returned (404)
+	 *
+	 * It is recommended to use X-SendFile inside this method to make things faster.
+	 * @see https://tn123.org/mod_xsendfile/
 	 */
 	abstract protected function get(string $uri): ?array;
 
@@ -237,8 +242,9 @@ abstract class WebDAV
 		header(sprintf('Content-Type: %s', $meta->type), true);
 		header(sprintf('Last-Modified: %s', gmdate(\DATE_RFC7231 , $meta->modified)), true);
 
-		if (!$meta->collection) {
+		if (!$meta->collection && $meta->size !== null) {
 			header(sprintf('Content-Length: %d', $meta->size), true);
+			header('Accept-Ranges: bytes');
 		}
 
 		return $meta->collection;
@@ -269,28 +275,117 @@ abstract class WebDAV
 			}
 
 			$out .= "</ul>\n</body>\n</html>";
-		}
-		else {
-			$file = $this->get($uri);
-
-			if (!$file) {
-				throw new WebDAV_Exception('File Not Found', 404);
-			}
-
-			if ($file['path'] ?? null) {
-				header('Content-Length: ' . filesize($file['path']));
-				readfile($file['path']);
-			}
-			elseif ($file['resource'] ?? null) {
-				fpassthru($file['resource']);
-			}
-			elseif ($file['content'] ?? null) {
-				header('Content-Length: ' . strlen($file['content']));
-				echo $file['content'];
-			}
+			return $out;
 		}
 
-		return $out;
+		$file = $this->get($uri);
+
+		if (!$file) {
+			throw new WebDAV_Exception('File Not Found', 404);
+		}
+
+		if (!isset($file['content']) && !isset($file['resource']) && !isset($file['path'])) {
+			throw new \RuntimeException('Invalid file array returned by ::get()');
+		}
+
+		$length = $start = $end = null;
+
+		if (isset($_SERVER['HTTP_RANGE'])
+			&& preg_match('/^bytes=(\d*)-(\d*)$/i', $_SERVER['HTTP_RANGE'], $match)
+			&& $match[1] . $match[2] !== '') {
+			$start = $match[1] === '' ? null : (int) $match[1];
+			$end   = $match[2] === '' ? null : (int) $match[2];
+
+			if (null !== $start && $start < 0) {
+				throw new WebDAV_Exception('Start range cannot be satisfied', 416);
+			}
+
+			$this->log('HTTP Range requested: %s-%s', $start, $end);
+		}
+
+		if (isset($file['content'])) {
+			$length = strlen($file['content']);
+
+			if ($start || $end) {
+				if (null !== $end && $end > $length) {
+					header('Content-Range: bytes */' . $length, true);
+					throw new WebDAV_Exception('End range cannot be satisfied', 416);
+				}
+
+				if ($start === null) {
+					$start = $length - $end;
+					$end = $start + $end;
+				}
+				elseif ($end === null) {
+					$end = $length;
+				}
+
+
+				http_response_code(206);
+				header(sprintf('Content-Range: bytes %s-%s/%s', $start, $end - 1, $length));
+				$file['content'] = substr($file['content'], $start, $end - $start);
+				$length = $end - $start;
+			}
+
+			header('Content-Length: ' . $length, true);
+			echo $file['content'];
+			return null;
+		}
+
+		if (isset($file['path'])) {
+			$file['resource'] = fopen($file['path'], 'rb');
+		}
+
+		$seek = fseek($file['resource'], 0, SEEK_END);
+
+		if ($seek === 0) {
+			$length = ftell($file['resource']);
+			fseek($file['resource'], 0, SEEK_SET);
+		}
+
+		if (($start || $end) && $seek === 0) {
+			if (null !== $end && $end > $length) {
+				header('Content-Range: bytes */' . $length, true);
+				throw new WebDAV_Exception('End range cannot be satisfied', 416);
+			}
+
+			if ($start === null) {
+				$start = $length - $end;
+				$end = $start + $end;
+			}
+			elseif ($end === null) {
+				$end = $length;
+			}
+
+			fseek($file['resource'], $start, SEEK_SET);
+
+			http_response_code(206);
+			header(sprintf('Content-Range: bytes %s-%s/%s', $start, $end - 1, $length), true);
+
+			$length = $end - $start;
+			$end -= $start;
+		}
+		elseif (null === $length && isset($file['path'])) {
+			$end = $length = filesize($file['path']);
+		}
+
+		if (null !== $length) {
+			header('Content-Length: ' . $length, true);
+			$this->log('Length: %s', $length);
+		}
+
+		while (!feof($file['resource']) && ($end === null || $end > 0)) {
+			$l = $end !== null ? min(8192, $end) : 8192;
+			echo fread($file['resource'], $l);
+
+			if (null !== $end) {
+				$end -= 8192;
+			}
+		}
+
+		fclose($file['resource']);
+
+		return null;
 	}
 
 	protected function http_copy(string $uri): ?string
@@ -357,7 +452,9 @@ abstract class WebDAV
 	protected function http_propfind(string $uri): ?string
 	{
 		// We only support depth of 0 and 1
-		$depth = !empty($_SERVER['HTTP_DEPTH']) ? 1 : 0;
+		$depth = isset($_SERVER['HTTP_DEPTH']) && empty($_SERVER['HTTP_DEPTH']) ? 0 : 1;
+
+		$this->log('Depth: %s', $_SERVER['HTTP_DEPTH']);
 
 		// We don't really care about parsing the client request,
 		// but we still need to make sure the XML is valid to pass some litmus tests :)
@@ -397,14 +494,15 @@ abstract class WebDAV
 		header('Content-Type: text/xml; charset="utf-8"');
 
 		$out = '<?xml version="1.0" encoding="utf-8"?>' . "\n";
-		$out .= '<D:multistatus xmlns:D="DAV:">';
+		$out .= '<D:multistatus xmlns:D="DAV:">' . "\n";
 
 		foreach ($items as $file => $item) {
 			// Microsoft Clients need this special namespace for date and time values
 			$out .= '<D:response xmlns:ns0="urn:uuid:c2f41010-65b3-11d1-a29f-00aa00c14882/">' . "\n";
 
-			$out .= sprintf('<D:href>%s</D:href>', $this->urlencode($this->base_uri . $file));
-			$out .= '<D:propstat><D:prop>';
+			$path = str_replace('%2F', '/', rawurlencode($this->base_uri . $file));
+			$out .= sprintf(' <D:href>%s</D:href>', htmlspecialchars($path, ENT_XML1)) . "\n";
+			$out .= '  <D:propstat><D:prop>';
 
 			if ($item['collection']) {
 				$out .= '<D:resourcetype><D:collection /></D:resourcetype>';
@@ -641,7 +739,7 @@ abstract class WebDAV
 
 		header('Allow: ' . $methods);
 		header('Content-length: 0');
-		header('Accept-Ranges: None');
+		header('Accept-Ranges: bytes');
 		header('MS-Author-Via: DAV');
 	}
 
@@ -691,6 +789,10 @@ abstract class WebDAV
 	{
 		if (null === $uri) {
 			$uri = $_SERVER['REQUEST_URI'] ?? '/';
+		}
+
+		if ($uri . '/' == $base_uri) {
+			$uri .= '/';
 		}
 
 		if (0 === strpos($uri, $base_uri)) {
