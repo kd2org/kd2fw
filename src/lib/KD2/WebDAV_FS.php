@@ -23,7 +23,7 @@ class WebDAV_FS extends WebDAV
 	 * These file names will be ignored when doing a PUT
 	 * as they are garbage, coming from some OS
 	 */
-	const PUT_IGNORE_PATTERN = '!^~(?:lock\.|^\._)|^(?:\.DS_Store|Thumbs\.db|desktop\.ini)$|\..*\.swp$!';
+	const PUT_IGNORE_PATTERN = '!^~(?:lock\.|^\._)|^(?:\.DS_Store|Thumbs\.db|desktop\.ini)$!';
 
 	protected function log(string $message, ...$params)
 	{
@@ -95,7 +95,7 @@ class WebDAV_FS extends WebDAV
 	protected function list(string $uri): iterable
 	{
 		foreach (glob($this->path . $uri . '/*') as $file) {
-			yield basename($file);
+			yield basename($file) => null;
 		}
 	}
 

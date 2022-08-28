@@ -134,7 +134,7 @@ abstract class WebDAV
 	 *
 	 * @param  string $uri
 	 * @return iterable An array or other iterable (eg. a generator)
-	 * where each item is a string containing the name of the resource (eg. file name).
+	 * where each item has a key string containing the name of the resource (eg. file name), and an array of metadata, or NULL
 	 */
 	abstract protected function list(string $uri): iterable;
 
@@ -172,6 +172,16 @@ abstract class WebDAV
 	protected function getLock(string $uri, ?string $token = null): ?string {}
 
 	// You have reached the end of the abstract methods :)
+
+	protected function get_extra_ns(string $uri): string
+	{
+		return '';
+	}
+
+	protected function get_extra_propfind(string $uri, string $file, array $meta): string
+	{
+		return '';
+	}
 
 	const SHARED_LOCK = 'shared';
 	const EXCLUSIVE_LOCK = 'exclusive';
@@ -239,10 +249,13 @@ abstract class WebDAV
 		$meta = (object) $meta;
 
 		http_response_code(200);
-		header(sprintf('Content-Type: %s', $meta->type), true);
-		header(sprintf('Last-Modified: %s', gmdate(\DATE_RFC7231 , $meta->modified)), true);
+
+		if (isset($meta->modified)) {
+			header(sprintf('Last-Modified: %s', gmdate(\DATE_RFC7231 , $meta->modified)), true);
+		}
 
 		if (!$meta->collection && $meta->size !== null) {
+			header(sprintf('Content-Type: %s', $meta->type), true);
 			header(sprintf('Content-Length: %d', $meta->size), true);
 			header('Accept-Ranges: bytes');
 		}
@@ -268,9 +281,11 @@ abstract class WebDAV
 				return implode("\n", $list);
 			}
 
+			header('Content-Type: text/html');
+
 			$out .= sprintf("<html>\n<head><title>Index of %s</title></head>\n<body>\n<h1>Index of %1\$s</h1>\n<ul>\n", htmlspecialchars($uri));
 
-			foreach ($list as $file) {
+			foreach ($list as $file => $meta) {
 				$out .= sprintf("\t<li><a href=\"%s\">%s</a></li>\n", rawurlencode($file), htmlspecialchars(basename($file)));
 			}
 
@@ -454,7 +469,7 @@ abstract class WebDAV
 		// We only support depth of 0 and 1
 		$depth = isset($_SERVER['HTTP_DEPTH']) && empty($_SERVER['HTTP_DEPTH']) ? 0 : 1;
 
-		$this->log('Depth: %s', $_SERVER['HTTP_DEPTH']);
+		$this->log('Depth: %s', $depth);
 
 		// We don't really care about parsing the client request,
 		// but we still need to make sure the XML is valid to pass some litmus tests :)
@@ -475,26 +490,26 @@ abstract class WebDAV
 		$items = [$uri => $meta];
 
 		if ($depth) {
-			foreach ($this->list($uri) as $file) {
+			foreach ($this->list($uri) as $file => $meta) {
 				$path = trim($uri . '/' . $file, '/');
-				$meta = $this->metadata($path, true);
+				$meta = $meta ?? $this->metadata($path, true);
 
 				if (!$meta) {
 					$this->log('!!! Cannot find "%s"', $path);
 					continue;
 				}
 
-				$items[$file] = $meta;
+				$items[$path] = $meta;
 			}
 		}
 
 		// http_response_code doesn't know the 207 status code
 		header('HTTP/1.1 207 Multi-Status', true);
 		header('DAV: 1'); // Apple stuff
-		header('Content-Type: text/xml; charset="utf-8"');
+		header('Content-Type: application/xml; charset=utf-8');
 
 		$out = '<?xml version="1.0" encoding="utf-8"?>' . "\n";
-		$out .= '<D:multistatus xmlns:D="DAV:">' . "\n";
+		$out .= sprintf('<D:multistatus xmlns:D="DAV:" %s>', $this->get_extra_ns($uri)) . "\n";
 
 		foreach ($items as $file => $item) {
 			// Microsoft Clients need this special namespace for date and time values
@@ -512,12 +527,22 @@ abstract class WebDAV
 			}
 
 			$out .= sprintf('<D:getcontenttype>%s</D:getcontenttype>', $item['collection'] ? 'httpd/unix-directory' : $item['type']);
-			$out .= sprintf('<D:creationdate ns0:dt="dateTime.tz">%s</D:creationdate>', date(DATE_RFC3339, $item['created'] ?? $item['modified']));
-			$out .= sprintf('<D:getlastmodified ns0:dt="dateTime.rfc1123">%s</D:getlastmodified>', gmdate(DATE_RFC1123, $item['modified']));
-			$out .= sprintf('<D:lastaccessed ns0:dt="dateTime.rfc1123">%s</D:lastaccessed>', gmdate(DATE_RFC1123, $item['accessed'] ?? $item['modified']));
-			$out .= sprintf('<D:displayname>%s</D:displayname>', htmlspecialchars(basename($file), ENT_XML1));
+			$out .= sprintf('<D:getlastmodified ns0:dt="dateTime.rfc1123">%s</D:getlastmodified>', gmdate(DATE_RFC1123, $item['modified'] ?? time()));
+
+			if (isset($item['modified'])) {
+				$out .= sprintf('<D:creationdate ns0:dt="dateTime.tz">%s</D:creationdate>', date(DATE_RFC3339, $item['created'] ?? $item['modified']));
+				$out .= sprintf('<D:lastaccessed ns0:dt="dateTime.rfc1123">%s</D:lastaccessed>', gmdate(DATE_RFC1123, $item['accessed'] ?? $item['modified']));
+			}
+
+			$out .= sprintf('<D:displayname>%s</D:displayname>', htmlspecialchars(basename($file) ?: $file, ENT_XML1));
 			$out .= sprintf('<D:ishidden>%s</D:ishidden>', !empty($item['hidden']) ? 'true' : 'false');
 			$out .= sprintf('<D:getcontentlength>%d</D:getcontentlength>', $item['size'] ?? 0);
+
+			if (isset($item['etag'])) {
+				$out .= sprintf('<D:getetag>&quot;%s&quot;</D:getetag>', $item['etag']);
+			}
+
+			$out .= $this->get_extra_propfind($uri, $file, $item);
 
 			$out .= '</D:prop><D:status>HTTP/1.1 200 OK</D:status></D:propstat></D:response>' . "\n";
 		}
@@ -540,7 +565,7 @@ abstract class WebDAV
 
 		// http_response_code doesn't know the 207 status code
 		header('HTTP/1.1 207 Multi-Status', true);
-		header('Content-Type: text/xml; charset="utf-8"');
+		header('Content-Type: application/xml; charset=utf-8');
 
 		$out = '<?xml version="1.0" encoding="utf-8"?>' . "\n";
 		$out .= '<D:multistatus xmlns:D="DAV:">';
@@ -622,7 +647,7 @@ abstract class WebDAV
 		$info .= $append;
 
 		http_response_code(200);
-		header('Content-Type: text/xml; charset="utf-8"');
+		header('Content-Type: application/xml; charset=utf-8');
 		header(sprintf('Lock-Token: <%s>', $token));
 
 		$out = '<?xml version="1.0" encoding="utf-8"?>' . "\n";
@@ -809,7 +834,7 @@ abstract class WebDAV
 
 		$this->base_uri = $base_uri;
 
-		$method = $_SERVER['REQUEST_METHOD'] ?? null;
+		$method = $_SERVER['REDIRECT_REQUEST_METHOD'] ?? ($_SERVER['REQUEST_METHOD'] ?? null);
 
 		// Stop and send reply to OPTIONS before anything else
 		if ($method == 'OPTIONS') {
