@@ -41,7 +41,7 @@ class Blob
 
 			if ($size)
 			{
-				return $size + ['image/' . strtolower($type)];
+				return array_merge($size, ['image/' . strtolower($type)]);
 			}
 		}
 
@@ -53,13 +53,13 @@ class Blob
 		if (substr($data, 0, 3) == "\xff\xd8\xff") {
 			return 'image/jpeg';
 		}
-		elseif ($info = self::getSize($data)) {
-			return $info[2];
-		}
 		if (substr($data, 0, 4) == 'RIFF'
-			&& ctype_digit(substr($data, 4, 4))
+			&& is_int(unpack('V', substr($data, 4, 4))[1])
 			&& substr($data, 8, 4) == 'WEBP') {
 			return ['image/webp'];
+		}
+		elseif ($info = self::getSize($data)) {
+			return $info[2];
 		}
 
 		return null;
