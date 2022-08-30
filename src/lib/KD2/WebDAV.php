@@ -171,6 +171,15 @@ abstract class WebDAV
 	 */
 	protected function getLock(string $uri, ?string $token = null): ?string {}
 
+	/**
+	 * List of language strings used in the web UI
+	 */
+	const LANGUAGE_STRINGS = [
+		'title'  => 'Files',
+		'back'   => 'Parent',
+		'empty'  => 'There are no files in this directory.',
+	];
+
 	// You have reached the end of the abstract methods :)
 
 	protected function get_extra_ns(string $uri): string
@@ -190,6 +199,11 @@ abstract class WebDAV
 	 * Base server URI (eg. "/index.php/webdav/")
 	 */
 	protected string $base_uri;
+
+	public function setBaseURI(string $uri): void
+	{
+		$this->base_uri = $uri;
+	}
 
 	protected function http_delete(string $uri): ?string
 	{
@@ -251,16 +265,85 @@ abstract class WebDAV
 		http_response_code(200);
 
 		if (isset($meta->modified)) {
-			header(sprintf('Last-Modified: %s', gmdate(\DATE_RFC7231 , $meta->modified)), true);
+			header(sprintf('Last-Modified: %s', gmdate(\DATE_RFC7231 , $meta->modified)));
 		}
 
 		if (!$meta->collection && $meta->size !== null) {
-			header(sprintf('Content-Type: %s', $meta->type), true);
-			header(sprintf('Content-Length: %d', $meta->size), true);
+			header(sprintf('Content-Type: %s', $meta->type));
+			header(sprintf('Content-Length: %d', $meta->size));
 			header('Accept-Ranges: bytes');
 		}
 
 		return $meta->collection;
+	}
+
+	protected function html_directory(string $uri, iterable $list, array $strings = self::LANGUAGE_STRINGS): string
+	{
+		$out = '<!DOCTYPE html><html><head><style>
+			body { font-size: 1.1em; font-family: Arial, Helvetica, sans-serif; }
+			table { border-collapse: collapse; }
+			th, td { padding: .5em; text-align: left; border: 2px solid #ccc; }
+			span { font-size: 40px; line-height: 40px; }
+			td img { max-width: 100px; max-height: 100px; }
+			b { font-size: 1.4em; }
+			td:nth-child(1) { text-align: center; }
+			</style>';
+
+		$out .= sprintf('<title>%s</title></head><body><h1>%1$s</h1><table>', htmlspecialchars($uri ? str_replace('/', ' / ', $uri) . ' - ' . $strings['title'] : $strings['title']));
+
+		if (trim($uri)) {
+			$out .= sprintf('<tr><td><span>&#x21B2;</span></td><th colspan=3><a href="../"><b>%s</b></a></th></tr>', $strings['back']);
+		}
+
+		$meta = null;
+
+		foreach ($list as $file => $meta) {
+			if (null === $meta) {
+				$meta = $this->metadata(trim($uri . '/' . $file, '/'));
+			}
+
+			if ($meta['collection']) {
+				$out .= sprintf('<tr><td><span>&#x1F4C1;</span></td><th colspan=3><a href="%s/"><b>%s</b></a></th></tr>', rawurlencode($file), htmlspecialchars($file));
+			}
+			else {
+				if (isset($meta['thumb_url'])) {
+					$icon = sprintf('<a href="%s"><img src="%s" /></a>', rawurlencode($file), $meta['thumb_url']);
+				}
+				else {
+					$icon = '<span>&#x1F5CE;</span>';
+				}
+
+				$bytes = $meta['size'];
+
+				if ($bytes >= 1024*1024*1024) {
+					$bytes = round($bytes / (1024*1024*1024), 1) . ' G';
+				}
+				elseif ($bytes >= 1024*1024) {
+					$bytes = round($bytes / (1024*1024), 1) . ' M';
+				}
+				elseif ($bytes >= 1024) {
+					$bytes = round($bytes / 1024, 1) . ' K';
+				}
+
+				$out .= sprintf('<tr><td>%s</td><th><a href="%s">%s</a></th><td>%s</td><td>%s</td></tr>',
+					$icon,
+					rawurlencode($file),
+					htmlspecialchars($file),
+					$meta['type'],
+					$bytes
+				);
+			}
+		}
+
+		$out .= '</table>';
+
+		if (null === $meta) {
+			$out .= sprintf('<p>%s</p>', $strings['empty']);
+		}
+
+		$out .= '</body></html>';
+
+		return $out;
 	}
 
 	protected function http_get(string $uri): ?string
@@ -278,19 +361,12 @@ abstract class WebDAV
 					return "Nothing in this collection\n";
 				}
 
-				return implode("\n", $list);
+				return implode("\n", array_keys($list));
 			}
 
-			header('Content-Type: text/html');
+			header('Content-Type: text/html; charset=utf-8', true);
 
-			$out .= sprintf("<html>\n<head><title>Index of %s</title></head>\n<body>\n<h1>Index of %1\$s</h1>\n<ul>\n", htmlspecialchars($uri));
-
-			foreach ($list as $file => $meta) {
-				$out .= sprintf("\t<li><a href=\"%s\">%s</a></li>\n", rawurlencode($file), htmlspecialchars(basename($file)));
-			}
-
-			$out .= "</ul>\n</body>\n</html>";
-			return $out;
+			return $this->html_directory($uri, $list);
 		}
 
 		$file = $this->get($uri);
@@ -770,20 +846,9 @@ abstract class WebDAV
 
 	protected function log(string $message, ...$params)
 	{
-		// Left for you to override
-	}
-
-	protected function urlencode(string $str): string
-	{
-		static $table = [
-			' ' => '%20',
-			'%' => '%25',
-			'&' => '%26',
-			'<' => '%3C',
-			'>' => '%3E',
-		];
-
-		return strtr($str, $table);
+		if (PHP_SAPI == 'cli-server') {
+			file_put_contents('php://stderr', vsprintf($message, $params));
+		}
 	}
 
 	protected function getURI(string $source): string
@@ -810,18 +875,18 @@ abstract class WebDAV
 		return $uri;
 	}
 
-	public function route(string $base_uri, ?string $uri = null): bool
+	public function route(?string $uri = null): bool
 	{
 		if (null === $uri) {
 			$uri = $_SERVER['REQUEST_URI'] ?? '/';
 		}
 
-		if ($uri . '/' == $base_uri) {
+		if ($uri . '/' == $this->base_uri) {
 			$uri .= '/';
 		}
 
-		if (0 === strpos($uri, $base_uri)) {
-			$uri = substr($uri, strlen($base_uri));
+		if (0 === strpos($uri, $this->base_uri)) {
+			$uri = substr($uri, strlen($this->base_uri));
 		}
 		else {
 			return false;
@@ -831,8 +896,6 @@ abstract class WebDAV
 		if (isset($_SERVER['HTTP_X_LITMUS']) || isset($_SERVER['HTTP_X_LITMUS_SECOND'])) {
 			$this->log('X-Litmus: %s', $_SERVER['HTTP_X_LITMUS'] ?? $_SERVER['HTTP_X_LITMUS_SECOND']);
 		}
-
-		$this->base_uri = $base_uri;
 
 		$method = $_SERVER['REDIRECT_REQUEST_METHOD'] ?? ($_SERVER['REQUEST_METHOD'] ?? null);
 
