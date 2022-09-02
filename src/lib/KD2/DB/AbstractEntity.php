@@ -356,7 +356,8 @@ abstract class AbstractEntity
 					$value = $d;
 				}
 				elseif (($type == 'date' || $type == Date::class) && is_object($value) && $value instanceof \DateTime && !($value instanceof Date)) {
-					$value = Date::createFromInterface($value);
+					// PHP 7.4 is missing DateTime::createFromInterface
+					$value = Date::createFromFormat(DATE_RFC3339, $value->format(DATE_RFC3339), $value->getTimeZone());
 				}
 				elseif ($type == 'bool' && is_numeric($value) && ($value == 0 || $value == 1)) {
 					$value = (bool) $value;
