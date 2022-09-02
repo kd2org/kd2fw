@@ -445,7 +445,7 @@ abstract class AbstractEntity
 		switch ($type) {
 			case 'date':
 			case Date::class:
-				return is_object($value) && $value instanceof Date;
+				return is_object($value) && $value instanceof \DateTimeInterface;
 			case 'DateTime':
 				return is_object($value) && $value instanceof \DateTimeInterface;
 			default:
