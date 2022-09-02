@@ -355,6 +355,9 @@ abstract class AbstractEntity
 				elseif (($type == 'date' || $type == Date::class) && is_string($value) && strlen($value) === 10 && ($d = Date::createFromFormat('!Y-m-d', $value))) {
 					$value = $d;
 				}
+				elseif (($type == 'date' || $type == Date::class) && is_object($value) && $value instanceof \DateTime && !($value instanceof Date)) {
+					$value = Date::createFromInterface($value);
+				}
 				elseif ($type == 'bool' && is_numeric($value) && ($value == 0 || $value == 1)) {
 					$value = (bool) $value;
 				}
@@ -442,7 +445,7 @@ abstract class AbstractEntity
 		switch ($type) {
 			case 'date':
 			case Date::class:
-				return is_object($value) && $value instanceof \DateTimeInterface;
+				return is_object($value) && $value instanceof Date;
 			case 'DateTime':
 				return is_object($value) && $value instanceof \DateTimeInterface;
 			default:
