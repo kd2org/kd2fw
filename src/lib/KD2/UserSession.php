@@ -511,6 +511,21 @@ class UserSession
 	//////////////////////////////////////////////////////////////////////
 	// "Remember me" feature
 
+	protected function createSelectorValues($user_id, string $user_password, ?string $expiry = null, ?string $selector = null): \stdClass
+	{
+		if (null !== $selector && (!ctype_alnum($selector) || strlen($selector) > 64 || strlen($selector) < 10)) {
+			throw new \InvalidArgumentException('Invalid selector');
+		}
+
+		$selector = $selector ?? hash($this::HASH_ALGO, random_bytes(10));
+		$verifier = hash($this::HASH_ALGO, random_bytes(10));
+		$expiry = (new \DateTime)->modify($expiry ?? $this->remember_me_expiry);
+		$expiry = $expiry->getTimestamp();
+
+		$hash = hash($this::HASH_ALGO, $selector . $verifier . $user_password . $expiry);
+		return (object) compact('hash', 'selector', 'expiry', 'verifier');
+	}
+
 	/**
 	 * Creates a permanent "remember me" session
 	 * @link   https://www.databasesandlife.com/persistent-login/
@@ -522,21 +537,26 @@ class UserSession
 	 */
 	protected function createRememberMeSelector($user_id, $user_password)
 	{
-		$selector = hash($this::HASH_ALGO, random_bytes(10));
-		$verifier = hash($this::HASH_ALGO, random_bytes(10));
-		$expiry = (new \DateTime)->modify($this->remember_me_expiry);
-		$expiry = $expiry->getTimestamp();
+		$s = $this->createSelectorValues($user_id, $user_password);
 
-		$hash = hash($this::HASH_ALGO, $selector . $verifier . $user_password . $expiry);
+		$this->storeRememberMeSelector($s->selector, $s->hash, $s->expiry, $user_id);
 
-		$this->storeRememberMeSelector($selector, $hash, $expiry, $user_id);
+		$cookie = $s->selector . '|' . $s->verifier;
 
-		$cookie = $selector . '|' . $verifier;
-
-		setcookie($this->remember_me_cookie_name, $cookie, $expiry,
+		setcookie($this->remember_me_cookie_name, $cookie, $s->expiry,
 			$this->cookie_path, $this->cookie_domain, $this->cookie_secure, true);
 
 		return true;
+	}
+
+	protected function checkRememberMeSelector(\stdClass $selector, string $verifier): bool
+	{
+		// Here we are using the user password. If the user changes his password,
+		// any previously opened session will be invalid.
+		$hash = hash($this::HASH_ALGO, $selector->selector . $verifier . $selector->user_password . $selector->expiry);
+
+		// Check the token hash
+		return hash_equals($selector->hash, $hash);
 	}
 
 	/**
@@ -573,12 +593,8 @@ class UserSession
 		// The selector is useless now, delete it so that it can't be reused
 		$this->deleteRememberMeSelector($cookie->selector);
 
-		// Here we are using the user password. If the user changes his password,
-		// any previously opened session will be invalid.
-		$hash = hash($this::HASH_ALGO, $cookie->selector . $cookie->verifier . $selector->user_password . $selector->expiry);
-
 		// Check the token hash
-		if (!hash_equals($selector->hash, $hash))
+		if (!$this->checkRememberMeSelector($selector, $cookie->verifier))
 		{
 			// If we get there it means that the selector is valid, but not its verifier token hash
 			// Either the cookie has been stolen, then the attacker has obtained a
