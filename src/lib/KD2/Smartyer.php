@@ -259,7 +259,7 @@ class Smartyer
 	 */
 	static public function fromString($string, Smartyer &$parent = null)
 	{
-		$s = new Smartyer(null, $parent);
+		$s = new static(null, $parent);
 		$s->source = $string;
 		return $s;
 	}
@@ -301,15 +301,13 @@ class Smartyer
 	 */
 	public function fetch($template = null)
 	{
-		// Compatibility with legacy Smarty calls
-		if (!is_null($template))
-		{
-			return (new Smartyer($template, $this))->fetch();
-		}
-
 		if (is_null($this->compiled_dir))
 		{
 			throw new \LogicException('Compile dir not set: call ' . __CLASS__ . '->setCompiledDir() first');
+		}
+
+		if (null !== $template) {
+			$this->template = $template;
 		}
 
 		if (!is_null($this->template))
@@ -390,7 +388,7 @@ class Smartyer
 				self::precompileAll($file_path);
 			}
 
-			$tpl = new Smartyer(substr($file_path, strpos($file_path, $templates_dir)));
+			$tpl = new static(substr($file_path, strpos($file_path, $templates_dir)));
 			$tpl->compile();
 		}
 	}
@@ -870,7 +868,7 @@ class Smartyer
 				$assign = '$_s->assign(get_defined_vars());';
 			}
 
-			$code = '$_s = new \KD2\Smartyer(' . $file . ', $this); ' . $assign . ' $_s->display(); unset($_s);';
+			$code = '$_s = get_class($this); $_s = new $_s(' . $file . ', $this); ' . $assign . ' $_s->display(); unset($_s);';
 		}
 		else
 		{
