@@ -243,12 +243,15 @@ class Smartyer
 		// Register parent functions and variables locally
 		if ($parent instanceof Smartyer)
 		{
-			$copy = ['modifiers', 'blocks', 'functions', 'variables', 'escape_type', 'compile_functions', 'namespace', 'compiled_dir', 'templates_dir'];
+			$copy = ['modifiers', 'blocks', 'functions', 'escape_type', 'compile_functions', 'namespace', 'compiled_dir', 'templates_dir'];
 
 			foreach ($copy as $key)
 			{
-				$this->{$key} = $parent->{$key};
+				$this->{$key} = &$parent->{$key};
 			}
+
+			// Do not reference variables, we want their scope to stay inside the other template
+			$this->variables= $parent->variables;
 		}
 	}
 
@@ -870,7 +873,7 @@ class Smartyer
 				$assign = '$_s->assign(get_defined_vars());';
 			}
 
-			$code = '$_s = new \KD2\Smartyer(' . $file . ', $this); ' . $assign . ' $_s->display(); unset($_s);';
+			$code = '$_s = $this::class; $_s = new $_s(' . $file . ', $this); ' . $assign . ' $_s->display(); unset($_s);';
 		}
 		else
 		{
