@@ -34,7 +34,27 @@ namespace KD2\DB;
 /**
  * Just a helper that tells us that the date should be stored as Y-m-d that's all
  */
-class Date extends \DateTime {}
+class Date extends \DateTime {
+	// For PHP 7.4
+	static public function createFromInterface(\DateTimeInterface $object): \DateTime
+	{
+		$n = new self;
+		$n->setTimestamp($object->getTimestamp());
+		$n->setTimezone($object->getTimeZone());
+		return $n;
+	}
+
+	static public function createFromFormat($format, $datetime, ?\DateTimeZone $object = null)
+	{
+		$v = parent::createFromFormat($format, $datetime, $object);
+
+		if (!$v) {
+			return $v;
+		}
+
+		return self::createFromInterface($v);
+	}
+}
 
 abstract class AbstractEntity
 {
@@ -356,8 +376,7 @@ abstract class AbstractEntity
 					$value = $d;
 				}
 				elseif (($type == 'date' || $type == Date::class) && is_object($value) && $value instanceof \DateTime && !($value instanceof Date)) {
-					// PHP 7.4 is missing DateTime::createFromInterface
-					$value = Date::createFromFormat(DATE_RFC3339, $value->format(DATE_RFC3339), $value->getTimeZone());
+					$value = Date::createFromInterface($value);
 				}
 				elseif ($type == 'bool' && is_numeric($value) && ($value == 0 || $value == 1)) {
 					$value = (bool) $value;
