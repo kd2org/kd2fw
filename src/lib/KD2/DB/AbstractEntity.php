@@ -44,6 +44,7 @@ class Date extends \DateTime {
 		return $n;
 	}
 
+	#[\ReturnTypeWillChange]
 	static public function createFromFormat($format, $datetime, ?\DateTimeZone $object = null)
 	{
 		$v = parent::createFromFormat($format, $datetime, $object);
