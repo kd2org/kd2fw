@@ -49,6 +49,13 @@ abstract class WebDAV
 	const LOCK = false;
 
 	/**
+	 * Parse PROPFIND XML properties
+	 * By default it's disabled as it is not necessary for core WebDAV features
+	 * Also this requires having simpleXML
+	 */
+	protected bool $parse_propfind = false;
+
+	/**
 	 * Return the requested resource
 	 *
 	 * @param  string $uri Path to resource
@@ -72,24 +79,38 @@ abstract class WebDAV
 	abstract protected function exists(string $uri): bool;
 
 	/**
-	 * Return the requested resource metadata
+	 * Return the requested resource properties
 	 *
 	 * This method is used for HEAD requests
 	 *
 	 * @param string $uri Path to resource
-	 * @param bool $all Set to TRUE if created, accessed and hidden properties should be returned as well
-	 * @return null|array An array containing those keys:
-	 * int modified => modification UNIX timestamp
-	 * int size => content length
-	 * string type => mimetype
-	 * bool collection => true if it's a directory/collection of resources
-	 * Those properties must be returned if $all is set to TRUE:
-	 * int created => creation UNIX timestamp
-	 * int accessed => last access UNIX timestamp
-	 * bool hidden => true if the resource is hidden
-	 * or NULL if the resource can not be returned (404)
+	 * @param null|array $requested_properties Properties requested by the client, NULL if all available properties are requested,
+	 * each item as a key like 'namespace_url:property_name', eg. 'DAV::getcontentlength' or 'http://owncloud.org/ns:size'
+	 * @param int $depth Depth, can be 0 or 1
+	 * @return null|array An array containing the requested properties, each item must have a key
+	 * of the same form as the requested properties.
+	 *
+	 * This method MUST return NULL if the resource does not exist
 	 */
-	abstract protected function metadata(string $uri, bool $all = false);
+	abstract protected function properties(string $uri, ?array $requested_properties, int $depth);
+
+	const BASIC_PROPERTIES = [
+		'DAV::resourcetype', // should be empty for files, and 'collection' for directories
+		'DAV::getcontenttype', // MIME type
+		'DAV::getlastmodified', // File modification date (must be \DateTimeInterface)
+		'DAV::getcontentlength', // file size
+		'DAV::displayname', // File name for display
+	];
+
+	const EXTENDED_PROPERTIES = [
+		'DAV::getetag',
+		'DAV::creationdate',
+		'DAV::lastaccessed',
+		'DAV::ishidden', // Microsoft thingy
+	];
+
+	// Custom property
+	const PROP_THUMB_URL = 'urn:karadav:thumb_url'; // Thumbnail URL for file preview in directory view
 
 	/**
 	 * Create or replace a resource
@@ -133,10 +154,12 @@ abstract class WebDAV
 	 * Return a list of resources for target $uri
 	 *
 	 * @param  string $uri
+	 * @param  array $properties List of properties requested by client (see ::properties)
 	 * @return iterable An array or other iterable (eg. a generator)
-	 * where each item has a key string containing the name of the resource (eg. file name), and an array of metadata, or NULL
+	 * where each item has a key string containing the name of the resource (eg. file name),
+	 * and the value being an array of properties, or NULL
 	 */
-	abstract protected function list(string $uri): iterable;
+	abstract protected function list(string $uri, array $properties): iterable;
 
 	/**
 	 * Lock the requested resource
@@ -178,19 +201,10 @@ abstract class WebDAV
 		'title'  => 'Files',
 		'back'   => 'Parent',
 		'empty'  => 'There are no files in this directory.',
+		'bytes_unit' => 'B', // B for Bytes
 	];
 
 	// You have reached the end of the abstract methods :)
-
-	protected function get_extra_ns(string $uri): string
-	{
-		return '';
-	}
-
-	protected function get_extra_propfind(string $uri, string $file, array $meta): string
-	{
-		return '';
-	}
 
 	const SHARED_LOCK = 'shared';
 	const EXCLUSIVE_LOCK = 'exclusive';
@@ -199,6 +213,11 @@ abstract class WebDAV
 	 * Base server URI (eg. "/index.php/webdav/")
 	 */
 	protected string $base_uri;
+
+	/**
+	 * Original URI passed to route() before trim
+	 */
+	protected string $original_uri;
 
 	public function setBaseURI(string $uri): void
 	{
@@ -246,39 +265,81 @@ abstract class WebDAV
 
 		$this->checkLock($uri);
 
+		if (!empty($_SERVER['HTTP_IF_MATCH'])) {
+			$etag = trim($_SERVER['HTTP_IF_MATCH'], '" ');
+			$prop = $this->properties($uri, ['DAV::getetag'], 0);
+
+			if (!empty(['DAV::getetag']) && $prop['DAV::getetag'] != $etag) {
+				throw new WebDAV_Exception('ETag did not match condition', 412);
+			}
+		}
+
 		$created = $this->put($uri, fopen('php://input', 'r'));
+
+		$prop = $this->properties($uri, ['DAV::getetag'], 0);
+
+		if (!empty($prop['DAV::getetag'])) {
+			$value = $prop['DAV::getetag'];
+
+			if (substr($value, 0, 1) != '"') {
+				$value = '"' . $value . '"';
+			}
+
+			header(sprintf('ETag: %s', $value));
+		}
 
 		http_response_code($created ? 201 : 204);
 		return null;
 	}
 
-	protected function http_head(string $uri): bool
+	protected function http_head(string $uri, array &$props = []): ?string
 	{
-		$meta = $this->metadata($uri);
+		$props = $this->properties($uri, array_merge(self::BASIC_PROPERTIES, ['DAV::getetag']), 0);
 
-		if (!$meta) {
-			throw new WebDAV_Exception('File Not Found', 404);
+		if (!$props) {
+			throw new WebDAV_Exception('Resource Not Found', 404);
 		}
-
-		$meta = (object) $meta;
 
 		http_response_code(200);
 
-		if (isset($meta->modified)) {
-			header(sprintf('Last-Modified: %s', gmdate(\DATE_RFC7231 , $meta->modified)));
+		if (isset($props['DAV::getlastmodified'])
+			&& $props['DAV::getlastmodified'] instanceof \DateTimeInterface) {
+			header(sprintf('Last-Modified: %s', $props['DAV::getlastmodified']->format(\DATE_RFC7231)));
 		}
 
-		if (!$meta->collection && $meta->size !== null) {
-			header(sprintf('Content-Type: %s', $meta->type));
-			header(sprintf('Content-Length: %d', $meta->size));
-			header('Accept-Ranges: bytes');
+		if (!empty($props['DAV::getetag'])) {
+			$value = $props['DAV::getetag'];
+
+			if (substr($value, 0, 1) != '"') {
+				$value = '"' . $value . '"';
+			}
+
+			header(sprintf('ETag: %s', $value));
 		}
 
-		return $meta->collection;
+		if (empty($props['DAV::resourcetype']) || $props['DAV::resourcetype'] != 'collection') {
+			if (!empty($props['DAV::getcontenttype'])) {
+				header(sprintf('Content-Type: %s', $props['DAV::getcontenttype']));
+			}
+
+			if (!empty($props['DAV::getcontentlength'])) {
+				header(sprintf('Content-Length: %d', $props['DAV::getcontentlength']));
+				header('Accept-Ranges: bytes');
+			}
+		}
+
+		return null;
 	}
 
-	protected function html_directory(string $uri, iterable $list, array $strings = self::LANGUAGE_STRINGS): string
+	protected function html_directory(string $uri, iterable $list, array $strings = self::LANGUAGE_STRINGS): ?string
 	{
+		// Not a file: let's serve a directory listing if you are browsing with a web browser
+		if (substr($this->original_uri, -1) != '/') {
+			http_response_code(301);
+			header(sprintf('Location: /%s/', trim($this->base_uri . $uri, '/')), true);
+			return null;
+		}
+
 		$out = '<!DOCTYPE html><html><head><style>
 			body { font-size: 1.1em; font-family: Arial, Helvetica, sans-serif; }
 			table { border-collapse: collapse; }
@@ -295,49 +356,39 @@ abstract class WebDAV
 			$out .= sprintf('<tr><td><span>&#x21B2;</span></td><th colspan=3><a href="../"><b>%s</b></a></th></tr>', $strings['back']);
 		}
 
-		$meta = null;
+		$props = null;
 
-		foreach ($list as $file => $meta) {
-			if (null === $meta) {
-				$meta = $this->metadata(trim($uri . '/' . $file, '/'));
+		foreach ($list as $file => $props) {
+			if (null === $props) {
+				$props = $this->properties(trim($uri . '/' . $file, '/'), self::BASIC_PROPERTIES, 0);
 			}
 
-			if ($meta['collection']) {
+			$collection = !empty($props['DAV::resourcetype']) && $props['DAV::resourcetype'] == 'collection';
+
+			if ($collection) {
 				$out .= sprintf('<tr><td><span>&#x1F4C1;</span></td><th colspan=3><a href="%s/"><b>%s</b></a></th></tr>', rawurlencode($file), htmlspecialchars($file));
 			}
 			else {
-				if (isset($meta['thumb_url'])) {
-					$icon = sprintf('<a href="%s"><img src="%s" /></a>', rawurlencode($file), $meta['thumb_url']);
+				if (!empty($props[self::PROP_THUMB_URL])) {
+					$icon = sprintf('<a href="%s"><img src="%s" /></a>', rawurlencode($file), htmlspecialchars($props[self::PROP_THUMB_URL]));
 				}
 				else {
 					$icon = '<span>&#x1F5CE;</span>';
 				}
 
-				$bytes = $meta['size'];
-
-				if ($bytes >= 1024*1024*1024) {
-					$bytes = round($bytes / (1024*1024*1024), 1) . ' G';
-				}
-				elseif ($bytes >= 1024*1024) {
-					$bytes = round($bytes / (1024*1024), 1) . ' M';
-				}
-				elseif ($bytes >= 1024) {
-					$bytes = round($bytes / 1024, 1) . ' K';
-				}
-
-				$out .= sprintf('<tr><td>%s</td><th><a href="%s">%s</a></th><td>%s</td><td>%s</td></tr>',
+				$out .= sprintf('<tr><td>%s</td><th><a href="%s">%s</a></th><td>%s</td><td style="text-align: right">%s</td></tr>',
 					$icon,
 					rawurlencode($file),
 					htmlspecialchars($file),
-					$meta['type'],
-					$bytes
+					$props['DAV::getcontenttype'] ?? null,
+					isset($props['DAV::getcontentlength']) ? $this->format_bytes($props['DAV::getcontentlength']) : null
 				);
 			}
 		}
 
 		$out .= '</table>';
 
-		if (null === $meta) {
+		if (null === $props) {
 			$out .= sprintf('<p>%s</p>', $strings['empty']);
 		}
 
@@ -346,16 +397,35 @@ abstract class WebDAV
 		return $out;
 	}
 
+	public function format_bytes(int $bytes, string $unit = self::LANGUAGE_STRINGS['bytes_unit']): string
+	{
+		if ($bytes >= 1024*1024*1024) {
+			return round($bytes / (1024*1024*1024), 1) . ' G' . $unit;
+		}
+		elseif ($bytes >= 1024*1024) {
+			return round($bytes / (1024*1024), 1) . ' M' . $unit;
+		}
+		elseif ($bytes >= 1024) {
+			return round($bytes / 1024, 1) . ' K' . $unit;
+		}
+		else {
+			return $bytes . ' ' . $unit;
+		}
+	}
+
 	protected function http_get(string $uri): ?string
 	{
-		$is_collection = $this->http_head($uri);
+		$props = [];
+		$this->http_head($uri, $props);
+
+		$is_collection = !empty($props['DAV::resourcetype']) && $props['DAV::resourcetype'] == 'collection';
 		$out = '';
 
 		if ($is_collection) {
-			$list = $this->list($uri);
+			$list = $this->list($uri, self::BASIC_PROPERTIES + [self::PROP_THUMB_URL]);
 
 			if (!isset($_SERVER['HTTP_ACCEPT']) || false === strpos($_SERVER['HTTP_ACCEPT'], 'html')) {
-				$list = iterator_to_array($list);
+				$list = is_array($list) ? $list : iterator_to_array($list);
 
 				if (!count($list)) {
 					return "Nothing in this collection\n";
@@ -540,6 +610,57 @@ abstract class WebDAV
 		return null;
 	}
 
+	/**
+	 * Return a list of requested properties, if any.
+	 * We are using regexp as we don't want to depend on a XML module here.
+	 * Your are free to re-implement this using a XML parser if you wish
+	 */
+	protected function getRequestedProperties(string $body): ?array
+	{
+		// We only care about properties if the client asked for it
+		// If not, we consider that the client just requested to get everything
+		if (!preg_match('!<(?:\w+:)?propfind!', $body)) {
+			return null;
+		}
+
+		$ns = [];
+		$dav_ns = null;
+
+		preg_match_all('!xmlns:(\w+)\s*=\s*"([^"]+)"!', $body, $match, PREG_SET_ORDER);
+
+		// Find all aliased xmlns
+		foreach ($match as $found) {
+			$ns[$found[2]] = $found[1];
+		}
+
+		if (isset($ns['DAV:'])) {
+			$dav_ns = $ns['DAV:'] . ':';
+		}
+
+		$regexp = '/<(' . $dav_ns . 'prop(?!find))[^>]*?>(.*?)<\/\1\s*>/s';
+		if (!preg_match($regexp, $body, $match)) {
+			return null;
+		}
+
+		// Find all properties
+		preg_match_all('!<(\w+):(\w+)|<(\w+)[^>]*xmlns="([^"]+)"!', $match[2], $match, PREG_SET_ORDER);
+
+		$properties = [];
+
+		foreach ($match as $found) {
+			$url = $found[4] ?? array_search($found[1], $ns);
+			$name = $found[2] ?? $found[3];
+
+			$properties[$url . ':' . $name] = [
+				'name' => $name,
+				'ns_alias' => $found[1],
+				'ns_url' => $url,
+			];
+		}
+
+		return $properties;
+	}
+
 	protected function http_propfind(string $uri): ?string
 	{
 		// We only support depth of 0 and 1
@@ -547,105 +668,183 @@ abstract class WebDAV
 
 		$this->log('Depth: %s', $depth);
 
-		// We don't really care about parsing the client request,
-		// but we still need to make sure the XML is valid to pass some litmus tests :)
-		if (isset($_SERVER['HTTP_X_LITMUS']) && function_exists('simplexml_load_string')) {
-			$xml = @simplexml_load_string(file_get_contents('php://input'));
+		$body = file_get_contents('php://input');
 
-			if (!$xml) {
+		// We don't really care about having a correct XML string,
+		// but we can get better WebDAV compliance if we do
+		if (isset($_SERVER['HTTP_X_LITMUS'])) {
+			$xml = @simplexml_load_string($body);
+
+			if ($e = libxml_get_last_error()) {
 				throw new WebDAV_Exception('Invalid XML', 400);
 			}
 		}
 
-		$meta = $this->metadata($uri, true);
+		$requested = $this->getRequestedProperties($body);
+		$requested_keys = $requested ? array_keys($requested) : null;
 
-		if (!$meta) {
+		// Find root element properties
+		$properties = $this->properties($uri, $requested_keys, $depth);
+
+		if (null === $properties) {
 			throw new WebDAV_Exception('This does not exist', 404);
 		}
 
-		$items = [$uri => $meta];
+		$items = [$uri => $properties];
 
 		if ($depth) {
-			foreach ($this->list($uri) as $file => $meta) {
+			foreach ($this->list($uri, $requested) as $file => $properties) {
 				$path = trim($uri . '/' . $file, '/');
-				$meta = $meta ?? $this->metadata($path, true);
+				$properties = $properties ?? $this->properties($path, $requested_keys, 0);
 
-				if (!$meta) {
+				if (!$properties) {
 					$this->log('!!! Cannot find "%s"', $path);
 					continue;
 				}
 
-				$items[$path] = $meta;
+				$items[$path] = $properties;
 			}
 		}
 
 		// http_response_code doesn't know the 207 status code
 		header('HTTP/1.1 207 Multi-Status', true);
-		header('DAV: 1'); // Apple stuff
+		$this->dav_header();
 		header('Content-Type: application/xml; charset=utf-8');
 
-		$out = '<?xml version="1.0" encoding="utf-8"?>' . "\n";
-		$out .= sprintf('<D:multistatus xmlns:D="DAV:" %s>', $this->get_extra_ns($uri)) . "\n";
+		$root_namespaces = [
+			'DAV:' => 'd',
+			// Microsoft Clients need this special namespace for date and time values (from PEAR/WebDAV)
+			'urn:uuid:c2f41010-65b3-11d1-a29f-00aa00c14882/' => 'ns0',
+		];
 
-		foreach ($items as $file => $item) {
-			// Microsoft Clients need this special namespace for date and time values
-			$out .= '<D:response xmlns:ns0="urn:uuid:c2f41010-65b3-11d1-a29f-00aa00c14882/">' . "\n";
+		$i = 0;
 
-			$path = str_replace('%2F', '/', rawurlencode($this->base_uri . $file));
-			$out .= sprintf(' <D:href>%s</D:href>', htmlspecialchars($path, ENT_XML1)) . "\n";
-			$out .= '  <D:propstat><D:prop>';
-
-			if ($item['collection']) {
-				$out .= '<D:resourcetype><D:collection /></D:resourcetype>';
-			}
-			else {
-				$out .= '<D:resourcetype />';
+		foreach (($requested ?? []) as $prop) {
+			if ($prop['ns_url'] == 'DAV:') {
+				continue;
 			}
 
-			$out .= sprintf('<D:getcontenttype>%s</D:getcontenttype>', $item['collection'] ? 'httpd/unix-directory' : $item['type']);
-			$out .= sprintf('<D:getlastmodified ns0:dt="dateTime.rfc1123">%s</D:getlastmodified>', gmdate(DATE_RFC1123, $item['modified'] ?? time()));
-
-			if (isset($item['modified'])) {
-				$out .= sprintf('<D:creationdate ns0:dt="dateTime.tz">%s</D:creationdate>', date(DATE_RFC3339, $item['created'] ?? $item['modified']));
-				$out .= sprintf('<D:lastaccessed ns0:dt="dateTime.rfc1123">%s</D:lastaccessed>', gmdate(DATE_RFC1123, $item['accessed'] ?? $item['modified']));
-			}
-
-			$out .= sprintf('<D:displayname>%s</D:displayname>', htmlspecialchars(basename($file) ?: $file, ENT_XML1));
-			$out .= sprintf('<D:ishidden>%s</D:ishidden>', !empty($item['hidden']) ? 'true' : 'false');
-			$out .= sprintf('<D:getcontentlength>%d</D:getcontentlength>', $item['size'] ?? 0);
-
-			if (isset($item['etag'])) {
-				$out .= sprintf('<D:getetag>&quot;%s&quot;</D:getetag>', $item['etag']);
-			}
-
-			$out .= $this->get_extra_propfind($uri, $file, $item);
-
-			$out .= '</D:prop><D:status>HTTP/1.1 200 OK</D:status></D:propstat></D:response>' . "\n";
+			$root_namespaces[$prop['ns_url']] = $prop['ns_alias'] ?? 'rns' . $i++;
 		}
 
-		$out .= '</D:multistatus>';
+		foreach ($items as $properties) {
+			foreach ($properties as $name => $value) {
+				$pos = strrpos($name, ':');
+				$ns = substr($name, 0, strrpos($name, ':'));
+
+				if (!array_key_exists($ns, $root_namespaces)) {
+					$root_namespaces[$ns] = 'rns' . $i++;
+				}
+			}
+		}
+
+		$out = '<?xml version="1.0" encoding="utf-8"?>';
+		$out .= '<d:multistatus';
+
+		foreach ($root_namespaces as $url => $alias) {
+			$out .= sprintf(' xmlns:%s="%s"', $alias, $url);
+		}
+
+		$out .= '>';
+
+		foreach ($items as $uri => $item) {
+			$e = '<d:response>';
+
+			$path = '/' . str_replace('%2F', '/', rawurlencode(ltrim($this->base_uri . $uri, '/')));
+			$e .= sprintf('<d:href>%s</d:href>', htmlspecialchars($path, ENT_XML1));
+			$e .= '<d:propstat><d:prop>';
+
+			foreach ($item as $name => $value) {
+				if (null === $value) {
+					continue;
+				}
+
+				$pos = strrpos($name, ':');
+				$ns = substr($name, 0, strrpos($name, ':'));
+				$name = substr($name, strrpos($name, ':') + 1);
+
+				$alias = $root_namespaces[$ns];
+				$attributes = '';
+
+				if ($name == 'DAV::resourcetype' && $value == 'collection') {
+					$value = '<d:collection />';
+				}
+				elseif ($name == 'DAV::getetag' && strlen($value) && $value[0] != '"') {
+					$value = '"' . $value . '"';
+				}
+				elseif ($value instanceof \DateTimeInterface) {
+					if ($ns == 'DAV:' && $name == 'creationdate') {
+						$attributes = 'ns0:dt="dateTime.tz"';
+						$value = $value->format(DATE_RFC3339);
+					}
+					else {
+						//maybe should be only? elseif ($ns == 'DAV:') {
+						$value = $value->format(DATE_RFC1123);
+					}
+				}
+				elseif (is_array($value)) {
+					$attributes = $value['attributes'] ?? '';
+					$value = $value['xml'] ?? '';
+				}
+				else {
+					$value = htmlspecialchars($value, ENT_XML1);
+				}
+
+				$e .= sprintf('<%s:%s%s>%s</%1$s:%2$s>', $alias, $name, $attributes ? ' ' . $attributes : '', $value);
+			}
+
+			$e .= '</d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat>' . "\n";
+
+			// Append missing properties
+			if (!empty($requested)) {
+				$missing_properties = array_diff($requested_keys, array_keys($item));
+
+				if (count($missing_properties)) {
+					$e .= '<d:propstat><d:prop>';
+
+					foreach ($missing_properties as $name) {
+						$pos = strrpos($name, ':');
+						$ns = substr($name, 0, strrpos($name, ':'));
+						$name = substr($name, strrpos($name, ':') + 1);
+						$alias = $root_namespaces[$ns];
+
+						$e .= sprintf('<%s:%s />', $alias, $name);
+					}
+
+					$e .= '</d:prop><d:status>HTTP/1.1 404 Not Found</d:status></d:propstat>';
+				}
+			}
+
+			$e .= '</d:response>' . "\n";
+			$out .= $e;
+		}
+
+		$out .= '</d:multistatus>';
 
 		return $out;
 	}
 
+	// You should extend this to store the properties
+	// Parsing the body is up to you
+	protected function setProperties(string $uri, string $body)
+	{
+	}
+
 	protected function http_proppatch(string $uri): ?string
 	{
-		$litmus = $_SERVER['HTTP_X_LITMUS_SECOND'] ?? ($_SERVER['HTTP_X_LITMUS'] ?? null);
-
-		// We don't support PROPPATCH, but we simulate responses for Litmus
-		if (!$litmus || false === strpos($litmus, 'locks: ')) {
-			throw new WebDAV_Exception('Not implemented', 501);
-		}
-
 		$this->checkLock($uri);
+
+		$body = file_get_contents('php://input');
+
+		$this->setProperties($uri, $body);
 
 		// http_response_code doesn't know the 207 status code
 		header('HTTP/1.1 207 Multi-Status', true);
 		header('Content-Type: application/xml; charset=utf-8');
 
 		$out = '<?xml version="1.0" encoding="utf-8"?>' . "\n";
-		$out .= '<D:multistatus xmlns:D="DAV:">';
-		$out .= '</D:multistatus>';
+		$out .= '<d:multistatus xmlns:d="DAV:">';
+		$out .= '</d:multistatus>';
 
 		return $out;
 	}
@@ -708,16 +907,16 @@ abstract class WebDAV
 
 		if (null === $info) {
 			$info = sprintf('
-				<D:lockscope><D:%s /></D:lockscope>
-				<D:locktype><D:write /></D:locktype>
-				<D:owner>unknown</D:owner>', $scope);
+				<d:lockscope><d:%s /></d:lockscope>
+				<d:locktype><d:write /></d:locktype>
+				<d:owner>unknown</d:owner>', $scope);
 		}
 
 		$timeout = 60*5;
 		$append = sprintf('
-			<D:depth>%d</D:depth>
-			<D:timeout>Second-%d</D:timeout>
-			<D:locktoken><D:href>%s</D:href></D:locktoken>
+			<d:depth>%d</d:depth>
+			<d:timeout>Second-%d</d:timeout>
+			<d:locktoken><d:href>%s</d:href></d:locktoken>
 		', 1, $timeout, $token);
 
 		$info .= $append;
@@ -727,12 +926,12 @@ abstract class WebDAV
 		header(sprintf('Lock-Token: <%s>', $token));
 
 		$out = '<?xml version="1.0" encoding="utf-8"?>' . "\n";
-		$out .= '<D:prop xmlns:D="DAV:">';
-		$out .= '<D:lockdiscovery><D:activelock>';
+		$out .= '<d:prop xmlns:d="DAV:">';
+		$out .= '<d:lockdiscovery><d:activelock>';
 
 		$out .= $info;
 
-		$out .= '</D:activelock></D:lockdiscovery></D:prop>';
+		$out .= '</d:activelock></d:lockdiscovery></d:prop>';
 
 		if ($ns != 'D') {
 			$out = str_replace('D:', $ns ? $ns . ':' : '', $out);
@@ -825,17 +1024,25 @@ abstract class WebDAV
 		}
 	}
 
+	protected function dav_header()
+	{
+		if (static::LOCK) {
+			header('DAV: 1, 2, 3');
+		}
+		else {
+			header('DAV: 1, 3');
+		}
+	}
+
 	protected function http_options(): void
 	{
 		http_response_code(200);
 		$methods = 'GET HEAD PUT DELETE COPY MOVE PROPFIND MKCOL';
 
+		$this->dav_header();
+
 		if (static::LOCK) {
-			header('DAV: 1, 2');
 			$methods .= ' LOCK UNLOCK';
-		}
-		else {
-			header('DAV: 1');
 		}
 
 		header('Allow: ' . $methods);
@@ -855,7 +1062,7 @@ abstract class WebDAV
 	{
 		$uri = parse_url($source, PHP_URL_PATH);
 		$uri = rawurldecode($uri);
-		$uri = rtrim($uri, '/');
+		$uri = trim($uri, '/');
 
 		if ($uri . '/' == $this->base_uri) {
 			$uri .= '/';
@@ -880,6 +1087,8 @@ abstract class WebDAV
 		if (null === $uri) {
 			$uri = $_SERVER['REQUEST_URI'] ?? '/';
 		}
+
+		$this->original_uri = $uri;
 
 		if ($uri . '/' == $this->base_uri) {
 			$uri .= '/';
@@ -945,7 +1154,9 @@ abstract class WebDAV
 				http_response_code($e->getCode());
 			}
 
-			echo $e->getMessage();
+			header('application/xml; charset=utf-8', true);
+
+			printf('<?xml version="1.0" encoding="utf-8"?><d:error xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns"><s:message>%s</s:message></d:error>', htmlspecialchars($e->getMessage(), ENT_XML1));
 		}
 
 		return true;
