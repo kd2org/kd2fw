@@ -643,13 +643,13 @@ abstract class WebDAV
 		}
 
 		// Find all properties
-		preg_match_all('!<(\w+):(\w+)|<(\w+)[^>]*xmlns="([^"]+)"!', $match[2], $match, PREG_SET_ORDER);
+		preg_match_all('!<([\w-]+):([\w-]+)|<([\w-]+)[^>]*xmlns="([^"]+)"!', $match[2], $match, PREG_SET_ORDER);
 
 		$properties = [];
 
 		foreach ($match as $found) {
 			$url = $found[4] ?? array_search($found[1], $ns);
-			$name = $found[2] ?? $found[3];
+			$name = isset($found[4]) ? $found[3] : $found[2];
 
 			$properties[$url . ':' . $name] = [
 				'name' => $name,
@@ -666,9 +666,10 @@ abstract class WebDAV
 		// We only support depth of 0 and 1
 		$depth = isset($_SERVER['HTTP_DEPTH']) && empty($_SERVER['HTTP_DEPTH']) ? 0 : 1;
 
-		$this->log('Depth: %s', $depth);
-
 		$body = file_get_contents('php://input');
+
+		$this->log('Depth: %s', $depth);
+		$this->log('Body: %s', $body);
 
 		// We don't really care about having a correct XML string,
 		// but we can get better WebDAV compliance if we do
@@ -724,7 +725,9 @@ abstract class WebDAV
 				continue;
 			}
 
-			$root_namespaces[$prop['ns_url']] = $prop['ns_alias'] ?? 'rns' . $i++;
+			if (!array_key_exists($prop['ns_url'], $root_namespaces)) {
+				$root_namespaces[$prop['ns_url']] = $prop['ns_alias'] ?: 'rns' . $i++;
+			}
 		}
 
 		foreach ($items as $properties) {
@@ -1054,7 +1057,7 @@ abstract class WebDAV
 	protected function log(string $message, ...$params)
 	{
 		if (PHP_SAPI == 'cli-server') {
-			file_put_contents('php://stderr', vsprintf($message, $params));
+			file_put_contents('php://stderr', vsprintf($message, $params) . "\n");
 		}
 	}
 
@@ -1106,7 +1109,7 @@ abstract class WebDAV
 			$this->log('X-Litmus: %s', $_SERVER['HTTP_X_LITMUS'] ?? $_SERVER['HTTP_X_LITMUS_SECOND']);
 		}
 
-		$method = $_SERVER['REDIRECT_REQUEST_METHOD'] ?? ($_SERVER['REQUEST_METHOD'] ?? null);
+		$method = $_SERVER['REQUEST_METHOD'] ?? null;
 
 		// Stop and send reply to OPTIONS before anything else
 		if ($method == 'OPTIONS') {
@@ -1144,21 +1147,26 @@ abstract class WebDAV
 			echo $out;
 		}
 		catch (WebDAV_Exception $e) {
-			$this->log('=> %d - %s', $e->getCode(), $e->getMessage());
-
-			if ($e->getCode() == 423) {
-				// http_response_code doesn't know about 423 Locked
-				header('HTTP/1.1 423 Locked');
-			}
-			else {
-				http_response_code($e->getCode());
-			}
-
-			header('application/xml; charset=utf-8', true);
-
-			printf('<?xml version="1.0" encoding="utf-8"?><d:error xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns"><s:message>%s</s:message></d:error>', htmlspecialchars($e->getMessage(), ENT_XML1));
+			$this->error($e);
 		}
 
 		return true;
+	}
+
+	function error(WebDAV_Exception $e)
+	{
+		$this->log('=> %d - %s', $e->getCode(), $e->getMessage());
+
+		if ($e->getCode() == 423) {
+			// http_response_code doesn't know about 423 Locked
+			header('HTTP/1.1 423 Locked');
+		}
+		else {
+			http_response_code($e->getCode());
+		}
+
+		header('application/xml; charset=utf-8', true);
+
+		printf('<?xml version="1.0" encoding="utf-8"?><d:error xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns"><s:message>%s</s:message></d:error>', htmlspecialchars($e->getMessage(), ENT_XML1));
 	}
 }
