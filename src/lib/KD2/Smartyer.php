@@ -873,7 +873,7 @@ class Smartyer
 				$assign = '$_s->assign(get_defined_vars());';
 			}
 
-			$code = '$_s = $this::class; $_s = new $_s(' . $file . ', $this); ' . $assign . ' $_s->display(); unset($_s);';
+			$code = '$_s = get_class($this); $_s = new $_s(' . $file . ', $this); ' . $assign . ' $_s->display(); unset($_s);';
 		}
 		else
 		{
