@@ -443,12 +443,15 @@ class UserSession
 		}
 
 		$this->start(true);
-		$_SESSION = [];
+		session_destroy();
+		$_SESSION = null;
 
 		setcookie($this->cookie_name, '', -1, $this->cookie_path,
 			$this->cookie_domain, $this->cookie_secure, true);
 
 		unset($_COOKIE[$this->cookie_name]);
+
+		$this->user = null;
 
 		return true;
 	}
