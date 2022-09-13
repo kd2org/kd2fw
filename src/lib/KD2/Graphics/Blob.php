@@ -45,7 +45,7 @@ class Blob
 			}
 		}
 
-		return false;
+		return null;
 	}
 
 	static public function getType($data)
