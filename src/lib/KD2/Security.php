@@ -133,6 +133,20 @@ class Security
 		return base64_decode(str_pad(strtr($str, '-_', '+/'), strlen($str) % 4, '=', STR_PAD_RIGHT));
 	}
 
+	static public function checkCaptcha(string $secret, string $hash, string $user_value)
+	{
+		$check = sha1(trim($secret) . preg_replace('/\s+/', '', $user_value));
+		return hash_equals($check, $hash);
+	}
+
+	static public function createCaptcha(string $secret, string $locale = 'en_US'): array
+	{
+		$number = random_int(1000, 9999);
+		$spellout = numfmt_create($locale, \NumberFormatter::SPELLOUT)->format((int) $number);
+		$hash = sha1(trim($secret) . $number);
+		return compact('hash', 'spellout');
+	}
+
 	/**
 	 * Protects a URL/URI given as an image/link target against XSS attacks
 	 * (at least it tries)
