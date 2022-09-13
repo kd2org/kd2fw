@@ -85,6 +85,12 @@ class Smartyer
 	protected $source;
 
 	/**
+	 * Parent template (if any)
+	 * @var self
+	 */
+	public $parent;
+
+	/**
 	 * Variables assigned to the template
 	 * @var array
 	 */
@@ -252,6 +258,7 @@ class Smartyer
 
 			// Do not reference variables, we want their scope to stay inside the other template
 			$this->variables= $parent->variables;
+			$this->parent = $parent;
 		}
 	}
 
@@ -1423,6 +1430,11 @@ class Smartyer
 		}
 
 		$tpl->assign($args['var'], $args['value']);
+
+		if ($tpl->parent) {
+			$tpl->parent::templateAssign($args, $tpl->parent);
+		}
+
 		return '';
 	}
 }
