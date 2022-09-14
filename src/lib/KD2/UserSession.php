@@ -364,6 +364,7 @@ class UserSession
 
 	public function get($key)
 	{
+		$this->start();
 		return $this->data[$key] ?? null;
 	}
 
@@ -372,6 +373,11 @@ class UserSession
 		assert(is_bool($remember_me));
 		assert(is_string($login));
 		assert(is_string($password));
+
+		// Prevent DoS attacks
+		if (strlen($login) > 256 || strlen($password) > 512) {
+			return false;
+		}
 
 		$user = $this->getUserForLogin(trim($login));
 
