@@ -102,6 +102,8 @@ abstract class AbstractEntity
 
 				self::$_types_cache[static::class][$p->name] = $type;
 			}
+
+			$this->_types = self::$_types_cache[static::class];
 		}
 		else {
 			self::$_types_cache[static::class] = $this->_types;
