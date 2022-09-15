@@ -51,6 +51,97 @@ class SQLite3 extends DB
 	const DATE_FORMAT = 'Y-m-d';
 	const DATETIME_FORMAT = 'Y-m-d H:i:s';
 
+	static protected array $_compile_options;
+
+	/**
+	 * List of SQLite features and which version added support for it
+	 * The key is the name of the feature, and the value is the version number
+	 * if a compile option is required for that feature, it is mentioned after a plus sign
+	 */
+	const FEATURES = [
+		// UPSERT
+		// https://www.sqlite.org/lang_upsert.html
+		'upsert' => '3.25.0',
+
+		// UPDATE FROM
+		// https://www.sqlite.org/lang_update.html#upfrom
+		'update_from' => '3.33.0',
+
+		// Generated columns
+		// https://www.sqlite.org/gencol.html
+		'generated_columns' => '3.31.0',
+
+		// math functions
+		// https://www.sqlite.org/lang_mathfunc.html
+		'math' => '3.35.0+ENABLE_MATH_FUNCTIONS',
+
+		// ALTER TABLE ... DROP COLUMN
+		// https://www.sqlite.org/lang_altertable.html#altertabdropcol
+		'drop_column' => '3.35.0',
+
+		// ALTER TABLE ... RENAME COLUMN
+		'rename_column' => '3.25.0',
+
+		// FULL and RIGHT OUTER JOIN
+		// https://www.sqlite.org/lang_select.html#rjoin
+		'right_outer_join' => '3.39.0',
+		'full_outer_join' => '3.39.0',
+
+		// Window functions
+		// Consider 3.28.0 instead of 3.25.0 as support is more extensive
+		// https://www.sqlite.org/windowfunctions.html
+		'window_functions' => '3.28.0',
+
+		// FILTER for aggregates (eg. AVG(amount) FILTER (WHERE amount > 0))
+		// https://www.sqlite.org/lang_aggfunc.html#aggfilter
+		'aggregate_filter' => '3.30.1',
+
+		// ORDER BY name DESC NULLS FIRST
+		// https://www.sqlite.org/lang_select.html#nullslast
+		'nulls_first_last' => '3.30.0',
+
+		// VACUUM INTO
+		// https://www.sqlite.org/lang_vacuum.html#vacuuminto
+		'vacuum_into' => '3.27.0',
+
+		// Common Table Expressions (WITH...)
+		// https://www.sqlite.org/lang_with.html
+		'cte' => '3.8.3',
+
+		// PRAGMA table_list
+		// https://www.sqlite.org/pragma.html#pragma_table_list
+		'pragma_table_list' => '3.37.0',
+
+		// unixepoch() date function
+		// https://www.sqlite.org/lang_datefunc.html#uepch
+		'function_unixepoch' => '3.38.0',
+
+		// Use of date functions in CHECK constraints and in indexes on expressions
+		// https://www.sqlite.org/deterministic.html#dtexception
+		'date_functions_in_constraints' => '3.20.0',
+
+		// INDEX on expressions
+		// https://www.sqlite.org/expridx.html
+		'index_expressions' => '3.9.0',
+
+		// Basic json features
+		// https://www.sqlite.org/json1.html#jquote
+		'json' => '3.9.0+ENABLE_JSON1',
+		'json_quote' => '3.14.0+ENABLE_JSON1',
+
+		// json_patch function
+		// https://www.sqlite.org/json1.html#jpatch
+		'json_patch' => '3.18.0+ENABLE_JSON1',
+
+		// Support for -> and ->> operators
+		// https://www.sqlite.org/json1.html#jptr
+		'json2' => '3.38.0',
+
+		'fts3' => '3.5.0+ENABLE_FTS3',
+		'fts4' => '3.7.4+ENABLE_FTS4',
+		'fts5' => '3.9.0+ENABLE_FTS5',
+	];
+
 	public function close(): void
 	{
 		$this->__destruct();
@@ -848,4 +939,65 @@ class SQLite3 extends DB
 		return compact('user_version', 'application_id');
 	}
 
+	/**
+	 * Returns compile options
+	 */
+	public function getCompileOptions(): array
+	{
+		if (!isset(self::$_compile_options)) {
+			self::$_compile_options = [];
+			$res = $this->db->query('PRAGMA compile_options;');
+
+			foreach ($res->fetchArray(\SQLITE3_NUM) as $row) {
+				self::$_compile_options[] = $row[0];
+			}
+		}
+
+		return self::$_compile_options;
+	}
+
+	/**
+	 * Returns a list of supported features
+	 */
+	public function getFeatures(): array
+	{
+		$version = \SQLite3::version()['versionString'];
+		$compile_options = $this->getCompileOptions();
+
+		foreach (self::FEATURES as $feature => $feature_version) {
+			$feature_version = strtok($feature_version, '+');
+			$option = strtok('');
+
+			if (!version_compare($version, $feature_version, '>=')) {
+				continue;
+			}
+
+			if ($option && !in_array($option, $compile_options)) {
+				continue;
+			}
+
+			$out[] = $feature;
+		}
+
+		return $out;
+	}
+
+	/**
+	 * Check for features
+	 * ->hasFeatures('json', 'update_from')
+	 */
+	public function hasFeatures(...$features): bool
+	{
+		$all = $this->getFeatures();
+		$found = array_intersect($all, $features);
+		return count($found) == count($features);
+	}
+
+	public function requireFeatures(...$features): void
+	{
+		if (!$this->hasFeatures(...$features)) {
+			$version = \SQLite3::version()['versionString'];
+			throw new DB_Exception(sprintf('The required SQLite features (%s) are not available in the installed SQLite version (%s).', implode(', ', $features), $version));
+		}
+	}
 }
