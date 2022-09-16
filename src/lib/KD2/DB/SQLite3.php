@@ -946,11 +946,14 @@ class SQLite3 extends DB
 	{
 		if (!isset(self::$_compile_options)) {
 			self::$_compile_options = [];
-			$res = $this->db->query('PRAGMA compile_options;');
+			$db = new \SQLite3(':memory:');
+			$res = $db->query('PRAGMA compile_options;');
 
 			foreach ($res->fetchArray(\SQLITE3_NUM) as $row) {
 				self::$_compile_options[] = $row[0];
 			}
+
+			$db->close();
 		}
 
 		return self::$_compile_options;
