@@ -949,7 +949,7 @@ class SQLite3 extends DB
 			$db = new \SQLite3(':memory:');
 			$res = $db->query('PRAGMA compile_options;');
 
-			foreach ($res->fetchArray(\SQLITE3_NUM) as $row) {
+			while ($row = $res->fetchArray(\SQLITE3_NUM)) {
 				self::$_compile_options[] = $row[0];
 			}
 
@@ -998,9 +998,11 @@ class SQLite3 extends DB
 
 	public function requireFeatures(...$features): void
 	{
-		if (!$this->hasFeatures(...$features)) {
+		$missing_features = array_diff($features, $this->getFeatures());
+
+		if (count($missing_features)) {
 			$version = \SQLite3::version()['versionString'];
-			throw new DB_Exception(sprintf('The required SQLite features (%s) are not available in the installed SQLite version (%s).', implode(', ', $features), $version));
+			throw new DB_Exception(sprintf('The required SQLite features (%s) are not available in the installed SQLite version (%s).', implode(', ', $missing_features), $version));
 		}
 	}
 }
