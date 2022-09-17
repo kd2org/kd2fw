@@ -279,6 +279,10 @@ class UserSession
 				session_regenerate_id();
 			}
 
+			if (headers_sent($file, $line)) {
+				throw new \LogicException(sprintf('Cannot start session: headers already sent in line %d of %s', $line, $file));
+			}
+
 			session_set_cookie_params([
 				'lifetime' => 0,
 				'path'     => $this->cookie_path,
