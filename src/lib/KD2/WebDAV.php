@@ -28,33 +28,29 @@ class WebDAV_Exception extends \RuntimeException {}
  * it does not require anything out of standard PHP, not even an XML library.
  * This makes it more secure by design, and also faster and lighter.
  *
+ * - supports PROPFIND custom properties
+ * - supports HTTP ranges for GET requests
+ * - supports GZIP encoding for GET
+ *
  * You have to extend this class and implement all the abstract methods to
- * get a class-1 compliant server. Implement also the lock, unlock and getLock
+ * get a class-1 compliant server.
+ *
+ * You can also  implement also the lock, unlock and getLock
  * methods to get a class-2 server (also set LOCK constant to true).
  *
- * This also supports HTTP ranges for GET.
+ * By default, locking is simulated: nothing is really locked, like
+ * in https://docs.rs/webdav-handler/0.2.0/webdav_handler/fakels/index.html
+ *
+ * You also have to implement the actual storage of properties for
+ * PROPPATCH requests, by extending the 'setProperties' method.
  *
  * Differences with SabreDAV and RFC:
- * - PROPPATCH is not implemented by default
  * - If-Match, If-Range are not implemented
  *
  * @author BohwaZ <https://bohwaz.net/>
  */
 abstract class WebDAV
 {
-	/**
-	 * Set this content to TRUE in extended class if you support locking
-	 * via lock, unlock and getLock methods
-	 */
-	const LOCK = false;
-
-	/**
-	 * Parse PROPFIND XML properties
-	 * By default it's disabled as it is not necessary for core WebDAV features
-	 * Also this requires having simpleXML
-	 */
-	protected bool $parse_propfind = false;
-
 	/**
 	 * Return the requested resource
 	 *
@@ -63,7 +59,7 @@ abstract class WebDAV
 	 * path => Full filesystem path to a local file, it will be streamed directly to the client
 	 * resource => a PHP resource (eg. returned by fopen) that will be streamed directly to the client
 	 * content => a string that will be returned
-	 * or NULL if the resource can not be returned (404)
+	 * or NULL if the resource cannot be returned (404)
 	 *
 	 * It is recommended to use X-SendFile inside this method to make things faster.
 	 * @see https://tn123.org/mod_xsendfile/
@@ -81,19 +77,23 @@ abstract class WebDAV
 	/**
 	 * Return the requested resource properties
 	 *
-	 * This method is used for HEAD requests
+	 * This method is used for HEAD requests, for PROPFIND, and other places
 	 *
 	 * @param string $uri Path to resource
 	 * @param null|array $requested_properties Properties requested by the client, NULL if all available properties are requested,
-	 * each item as a key like 'namespace_url:property_name', eg. 'DAV::getcontentlength' or 'http://owncloud.org/ns:size'
+	 * or if specific properties are requested, each item will be a key,
+	 * like 'namespace_url:property_name', eg. 'DAV::getcontentlength' or 'http://owncloud.org/ns:size'
 	 * @param int $depth Depth, can be 0 or 1
 	 * @return null|array An array containing the requested properties, each item must have a key
 	 * of the same form as the requested properties.
 	 *
-	 * This method MUST return NULL if the resource does not exist
+	 * This method MUST return NULL if the resource does not exist.
+	 * Or it MUST return an array, where the keys are 'namespace_url:property_name' tuples,
+	 * and the value is the content of the property tag.
 	 */
-	abstract protected function properties(string $uri, ?array $requested_properties, int $depth);
+	abstract protected function properties(string $uri, ?array $requested_properties, int $depth): ?array;
 
+	// List of basic DAV properties that you should return if $requested_properties is NULL
 	const BASIC_PROPERTIES = [
 		'DAV::resourcetype', // should be empty for files, and 'collection' for directories
 		'DAV::getcontenttype', // MIME type
@@ -111,6 +111,13 @@ abstract class WebDAV
 
 	// Custom property
 	const PROP_THUMB_URL = 'urn:karadav:thumb_url'; // Thumbnail URL for file preview in directory view
+
+	/**
+	 * Store resource properties
+	 * @param string $uri
+	 * @param string $body XML PROPPATCH request, parsing it is up to you
+	 */
+	protected function setProperties(string $uri, string $body): void {}
 
 	/**
 	 * Create or replace a resource
@@ -192,7 +199,10 @@ abstract class WebDAV
 	 * @param  string|null $token
 	 * @return string|null
 	 */
-	protected function getLock(string $uri, ?string $token = null): ?string {}
+	protected function getLock(string $uri, ?string $token = null): ?string
+	{
+		return null;
+	}
 
 	/**
 	 * List of language strings used in the web UI
@@ -235,7 +245,7 @@ abstract class WebDAV
 
 		$this->delete($uri);
 
-		if (static::LOCK && ($token = $this->getLockToken())) {
+		if ($token = $this->getLockToken()) {
 			$this->unlock($uri, $token);
 		}
 
@@ -251,11 +261,16 @@ abstract class WebDAV
 		}
 
 		if (!empty($_SERVER['HTTP_CONTENT_ENCODING'])) {
-			throw new WebDAV_Exception('Content Encoding is not supported', 501);
+			if (false !== strpos($_SERVER['HTTP_CONTENT_ENCODING'], 'gzip')) {
+				throw new WebDAV_Exception('Content Encoding is not supported', 501);
+			}
+			else {
+				throw new WebDAV_Exception('Content Encoding is not supported', 501);
+			}
 		}
 
 		if (!empty($_SERVER['HTTP_CONTENT_RANGE'])) {
-			throw new WebDAV_Exception('Content Range is not supported', 400);
+			throw new WebDAV_Exception('Content Range is not supported', 501);
 		}
 
 		// See SabreDAV CorePlugin for reason why OS/X Finder is buggy
@@ -269,7 +284,7 @@ abstract class WebDAV
 			$etag = trim($_SERVER['HTTP_IF_MATCH'], '" ');
 			$prop = $this->properties($uri, ['DAV::getetag'], 0);
 
-			if (!empty(['DAV::getetag']) && $prop['DAV::getetag'] != $etag) {
+			if (!empty($prop['DAV::getetag']) && $prop['DAV::getetag'] != $etag) {
 				throw new WebDAV_Exception('ETag did not match condition', 412);
 			}
 		}
@@ -450,6 +465,13 @@ abstract class WebDAV
 		}
 
 		$length = $start = $end = null;
+		$gzip = false;
+
+		if (isset($_SERVER['HTTP_ACCEPT_ENCODING']) &&
+			false !== strpos($_SERVER['HTTP_ACCEPT_ENCODING'], 'gzip')) {
+			$gzip = true;
+			header('Content-Encoding: gzip', true);
+		}
 
 		if (isset($_SERVER['HTTP_RANGE'])
 			&& preg_match('/^bytes=(\d*)-(\d*)$/i', $_SERVER['HTTP_RANGE'], $match)
@@ -486,6 +508,11 @@ abstract class WebDAV
 				header(sprintf('Content-Range: bytes %s-%s/%s', $start, $end - 1, $length));
 				$file['content'] = substr($file['content'], $start, $end - $start);
 				$length = $end - $start;
+			}
+
+			if ($gzip) {
+				$file['content'] = gzencode($file['content'], 9);
+				$length = strlen($file['content']);
 			}
 
 			header('Content-Length: ' . $length, true);
@@ -530,6 +557,12 @@ abstract class WebDAV
 			$end = $length = filesize($file['path']);
 		}
 
+		if ($gzip) {
+			$gzip = deflate_init(ZLIB_ENCODING_GZIP, ['level' => 9]);
+			$length = null;
+			$this->log('Using gzip output compression');
+		}
+
 		if (null !== $length) {
 			header('Content-Length: ' . $length, true);
 			$this->log('Length: %s', $length);
@@ -537,11 +570,23 @@ abstract class WebDAV
 
 		while (!feof($file['resource']) && ($end === null || $end > 0)) {
 			$l = $end !== null ? min(8192, $end) : 8192;
-			echo fread($file['resource'], $l);
+
+			$data = fread($file['resource'], $l);
+
+			if ($gzip) {
+				echo deflate_add($gzip, $data, ZLIB_NO_FLUSH);
+			}
+			else {
+				echo $data;
+			}
 
 			if (null !== $end) {
 				$end -= 8192;
 			}
+		}
+
+		if ($gzip) {
+			echo deflate_add($gzip, '', ZLIB_FINISH);
 		}
 
 		fclose($file['resource']);
@@ -590,7 +635,7 @@ abstract class WebDAV
 
 		$overwritten = $this->$method($uri, $destination);
 
-		if (static::LOCK && $method == 'move' && ($token = $this->getLockToken())) {
+		if ($method == 'move' && ($token = $this->getLockToken())) {
 			$this->unlock($uri, $token);
 		}
 
@@ -827,12 +872,6 @@ abstract class WebDAV
 		return $out;
 	}
 
-	// You should extend this to store the properties
-	// Parsing the body is up to you
-	protected function setProperties(string $uri, string $body)
-	{
-	}
-
 	protected function http_proppatch(string $uri): ?string
 	{
 		$this->checkLock($uri);
@@ -854,10 +893,6 @@ abstract class WebDAV
 
 	protected function http_lock(string $uri): ?string
 	{
-		if (!static::LOCK) {
-			throw new WebDAV_Exception('LOCK is not supported', 405);
-		}
-
 		// We don't use this currently, but maybe later?
 		//$depth = !empty($this->_SERVER['HTTP_DEPTH']) ? 1 : 0;
 		//$timeout = isset($_SERVER['HTTP_TIMEOUT']) ? explode(',', $_SERVER['HTTP_TIMEOUT']) : [];
@@ -946,10 +981,6 @@ abstract class WebDAV
 
 	protected function http_unlock(string $uri): ?string
 	{
-		if (!static::LOCK) {
-			throw new WebDAV_Exception('LOCK is not supported', 405);
-		}
-
 		$token = $this->getLockToken();
 
 		if (!$token) {
@@ -990,10 +1021,6 @@ abstract class WebDAV
 	 */
 	protected function checkLock(string $uri, ?string $token = null): void
 	{
-		if (!static::LOCK) {
-			return;
-		}
-
 		if ($token === null) {
 			$token = $this->getLockToken();
 		}
@@ -1029,24 +1056,15 @@ abstract class WebDAV
 
 	protected function dav_header()
 	{
-		if (static::LOCK) {
-			header('DAV: 1, 2, 3');
-		}
-		else {
-			header('DAV: 1, 3');
-		}
+		header('DAV: 1, 2, 3');
 	}
 
 	protected function http_options(): void
 	{
 		http_response_code(200);
-		$methods = 'GET HEAD PUT DELETE COPY MOVE PROPFIND MKCOL';
+		$methods = 'GET HEAD PUT DELETE COPY MOVE PROPFIND MKCOL LOCK UNLOCK';
 
 		$this->dav_header();
-
-		if (static::LOCK) {
-			$methods .= ' LOCK UNLOCK';
-		}
 
 		header('Allow: ' . $methods);
 		header('Content-length: 0');
