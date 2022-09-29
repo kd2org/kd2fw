@@ -199,7 +199,7 @@ class Server
 		$this->storage->delete($uri);
 
 		if ($token = $this->getLockToken()) {
-			$this->unlock($uri, $token);
+			$this->storage->unlock($uri, $token);
 		}
 
 		http_response_code(204);
@@ -507,7 +507,7 @@ class Server
 		$overwritten = $this->storage->$method($uri, $destination);
 
 		if ($method == 'move' && ($token = $this->getLockToken())) {
-			$this->unlock($uri, $token);
+			$this->storage->unlock($uri, $token);
 		}
 
 		http_response_code($overwritten ? 204 : 201);
@@ -805,7 +805,7 @@ class Server
 			$scope = false !== stripos($info, sprintf('<%sexclusive', $ns ? $ns . ':' : '')) ? self::EXCLUSIVE_LOCK : self::SHARED_LOCK;
 
 			$this->log('Requesting LOCK: %s = %s', $uri, $scope);
-			$locked_scope = $this->getLock($uri);
+			$locked_scope = $this->storage->getLock($uri);
 
 			if ($locked_scope == self::EXCLUSIVE_LOCK || ($locked_scope && $scope == self::EXCLUSIVE_LOCK)) {
 				throw new Exception('Cannot acquire another lock, resource is locked for exclusive use', 423);
@@ -862,7 +862,7 @@ class Server
 
 		$this->checkLock($uri, $token);
 
-		$this->unlock($uri, $token);
+		$this->storage->unlock($uri, $token);
 
 		http_response_code(204);
 		return null;
@@ -913,14 +913,14 @@ class Server
 		}
 
 		// Token is valid
-		if ($token && $this->getLock($uri, $token)) {
+		if ($token && $this->storage->getLock($uri, $token)) {
 			return;
 		}
 		elseif ($token) {
 			throw new Exception('Invalid token', 423);
 		}
 		// Resource is locked
-		elseif ($this->getLock($uri)) {
+		elseif ($this->storage->getLock($uri)) {
 			throw new Exception('Resource is locked', 423);
 		}
 	}
@@ -954,7 +954,7 @@ class Server
 	{
 		$uri = parse_url($source, PHP_URL_PATH);
 		$uri = rawurldecode($uri);
-		$uri = trim($uri, '/');
+		$uri = rtrim($uri, '/');
 
 		if ($uri . '/' == $this->base_uri) {
 			$uri .= '/';
