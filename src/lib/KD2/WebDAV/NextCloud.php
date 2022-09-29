@@ -1,8 +1,8 @@
 <?php
 
-namespace KD2;
+namespace KD2\WebDAV;
 
-abstract class WebDAV_NextCloud extends WebDAV
+abstract class NextCloud
 {
 	/**
 	 * File permissions for NextCloud clients
@@ -48,12 +48,10 @@ abstract class WebDAV_NextCloud extends WebDAV
 
 	protected string $root_url;
 
-	protected bool $parse_propfind = true;
-
 	/**
 	 * Handle your authentication
 	 */
-	abstract public function nc_auth(?string $login, ?string $password): bool;
+	abstract public function auth(?string $login, ?string $password): bool;
 	/*  This is a simple example:
 		session_start();
 
@@ -72,15 +70,16 @@ abstract class WebDAV_NextCloud extends WebDAV
 	/**
 	 * Return username (a-z_0-9) of currently logged-in user
 	 */
-	abstract public function nc_get_user(): ?string;
+	abstract public function getUserName(): ?string;
 	/*
 		return $_SESSION['user'] ?? null;
 	 */
 
 	/**
 	 * Set username of currently logged-in user
+	 * Return FALSE if user is invalid
 	 */
-	abstract public function nc_set_user(string $login): bool;
+	abstract public function setUserName(string $login): bool;
 	/*
 		$_SESSION['user'] = $login;
 		return true;
@@ -90,7 +89,7 @@ abstract class WebDAV_NextCloud extends WebDAV
 	 * Return quota for currently loggged-in user
 	 * @return array ['free' => 123, 'used' => 123, 'total' => 246]
 	 */
-	abstract public function nc_get_quota(): array;
+	abstract public function getUserQuota(): array;
 	/*
 		return ['free' => 123, 'used' => 123, 'total' => 246];
 	 */
@@ -98,7 +97,7 @@ abstract class WebDAV_NextCloud extends WebDAV
 	/**
 	 * Return a unique token for v2 login flow
 	 */
-	abstract public function nc_generate_token(): string;
+	abstract public function generateToken(): string;
 	/*
 		return sha1(random_bytes(16));
 	*/
@@ -107,7 +106,7 @@ abstract class WebDAV_NextCloud extends WebDAV
 	 * Validate the provided token to get a session, returns either NULL or a user login and app password
 	 * @return array ['login' => ..., 'password' => ...]
 	 */
-	abstract public function nc_validate_token(string $token): ?array;
+	abstract public function validateToken(string $token): ?array;
 	/*
 		$session = $db->get('SELECT login, password FROM sessions WHERE token = ?;', $token);
 
@@ -121,7 +120,7 @@ abstract class WebDAV_NextCloud extends WebDAV
 		return (array)$session;
 	*/
 
-	abstract public function nc_login_url(?string $token): string;
+	abstract public function getLoginURL(?string $token): string;
 	/*
 		if ($token) {
 			return $this->root_url . '/admin/login.php?nc_token=' . $token;
@@ -139,10 +138,12 @@ abstract class WebDAV_NextCloud extends WebDAV
 	 * @param  string $login User name
 	 * @return string a secret string (eg. a hash)
 	 */
-	abstract public function nc_direct_get_secret(string $uri, string $login): string;
+	abstract public function getDirectDownloadSecret(string $uri, string $login): string;
+
+	// END OF ABSTRACT METHODS
 
 	// Order of array elements is important!
-	const NC_ROUTES = [
+	const ROUTES = [
 		// Main routes
 		'remote.php/webdav/' => 'webdav', // desktop client
 		'remote.php/dav' => 'webdav', // android client
@@ -167,12 +168,22 @@ abstract class WebDAV_NextCloud extends WebDAV
 		'remote.php/direct/' => 'direct',
 	];
 
-	const NC_AUTH_REDIRECT_URL = 'nc://login/server:%s&user:%s&password:%s';
+	const AUTH_REDIRECT_URL = 'nc://login/server:%s&user:%s&password:%s';
 
 	/**
-	 * Handle NextCloud specific routes, will return TRUE if it has returned any content
+	 * Handle NextCloud specific routes
+	 *
+	 * @param null|string If left NULL, then REQUEST_URI will be used
+	 * @return null|array Will return NULL if no NextCloud route was requested.
+	 * If a route was requested, the route name will be returned in the array:
+	 * ['route' => 'config'] for example.
+	 * For 'webdav' route, a 'base_uri' key will be supplied in the array,
+	 * this should be passed to the WebDAV server as the base URL.
+	 * For 'direct' route, a 'uri' key will be supplied in the array,
+	 * this should be used to return the requested resource, without auth (as the
+	 * NextCloud class already handled auth), eg. $dav->http_get($uri);
 	 */
-	public function route(?string $uri = null): bool
+	public function route(?string $uri = null): ?array
 	{
 		if (null === $uri) {
 			$uri = $_SERVER['REQUEST_URI'] ?? '/';
@@ -181,10 +192,10 @@ abstract class WebDAV_NextCloud extends WebDAV
 		$uri = ltrim($uri, '/');
 		$uri = rawurldecode($uri);
 
-		$route = array_filter(self::NC_ROUTES, fn($k) => 0 === strpos($uri, $k), ARRAY_FILTER_USE_KEY);
+		$route = array_filter(self::ROUTES, fn($k) => 0 === strpos($uri, $k), ARRAY_FILTER_USE_KEY);
 
 		if (count($route) < 1) {
-			return false;
+			return null;
 		}
 
 		$route = current($route);
@@ -193,31 +204,35 @@ abstract class WebDAV_NextCloud extends WebDAV
 
 		try {
 			$v = $this->{'nc_' . $route}($uri);
-
-			if (is_bool($v)) {
-				return $v;
-			}
-			// This route is XML only
-			elseif ($route == 'shares') {
-				http_response_code(200);
-				header('Content-Type: text/xml; charset=utf-8', true);
-				echo '<?xml version="1.0"?>';
-				echo self::nc_xml($v);
-			}
-			else {
-				http_response_code(200);
-				header('Content-Type: application/json', true);
-				echo json_encode($v, JSON_PRETTY_PRINT);
-			}
 		}
-		catch (WebDAV_Exception $e) {
-			$this->error($e);
+		catch (Exception $e) {
+			http_response_code($e->getCode());
+			echo json_encode(['error' => $e->getMessage()]);
+			$route = 'error';
 		}
 
-		return true;
+		// This route is XML only
+		if ($route == 'shares') {
+			http_response_code(200);
+			header('Content-Type: text/xml; charset=utf-8', true);
+			echo '<?xml version="1.0"?>' . $this->xml($v);
+		}
+		elseif (is_array($v)) {
+			http_response_code(200);
+			header('Content-Type: application/json', true);
+			echo json_encode($v, JSON_PRETTY_PRINT);
+		}
+		elseif ($route == 'webdav') {
+			return ['route' => $route, 'base_uri' => $v];
+		}
+		elseif ($route == 'direct') {
+			return ['route' => $route, 'uri' => $v];
+		}
+
+		return compact('route');
 	}
 
-	static protected function nc_xml(array $array): string
+	protected function xml(array $array): string
 	{
 		$out = '';
 
@@ -225,7 +240,7 @@ abstract class WebDAV_NextCloud extends WebDAV
 			$out .= '<' . $key .'>';
 
 			if (is_array($v)) {
-				$out .= self::nc_xml($v);
+				$out .= $this->xml($v);
 			}
 			else {
 				$out .= htmlspecialchars((string) $v, ENT_XML1);
@@ -238,20 +253,21 @@ abstract class WebDAV_NextCloud extends WebDAV
 		return $out;
 	}
 
-	protected function nc_require_auth(): void
+	protected function requireAuth(): void
 	{
 		if (!$this->nc_auth($_SERVER['PHP_AUTH_USER'] ?? null, $_SERVER['PHP_AUTH_PW'] ?? null)) {
 			header('WWW-Authenticate: Basic realm="Please login"');
-			throw new WebDAV_NextCloud_Exception('Please login to access this resource', 401);
+			throw new Exception('Please login to access this resource', 401);
 		}
 	}
 
-	public function nc_webdav(string $uri): bool
+	public function nc_webdav(string $uri): array
 	{
-		$this->nc_require_auth();
+		$this->requireAuth();
 
+		// Find out which route we are using and replace URI
 		foreach (self::NC_ROUTES as $route => $method) {
-			if ($method != 'webdav') {
+			if ($method != 'nc_webdav') {
 				continue;
 			}
 
@@ -267,9 +283,7 @@ abstract class WebDAV_NextCloud extends WebDAV
 			$base_uri = $match[0];
 		}
 
-		$this->setBaseURI($base_uri);
-
-		return parent::route($uri);
+		return $base_uri;
 	}
 
 	public function nc_status(): array
@@ -291,34 +305,34 @@ abstract class WebDAV_NextCloud extends WebDAV
 		$method = $_SERVER['REQUEST_METHOD'] ?? null;
 
 		if ($method != 'POST') {
-			throw new WebDAV_NextCloud_Exception('Invalid request method', 405);
+			throw new Exception('Invalid request method', 405);
 		}
 
-		$token = $this->nc_generate_token();
+		$token = $this->generateToken();
 		$endpoint = sprintf('%s%s', $this->root_url, array_search('poll', self::NC_ROUTES));
 
 		return [
 			'poll' => compact('token', 'endpoint'),
-			'login' => $this->nc_login_url($token),
+			'login' => $this->getLoginURL($token),
 		];
 	}
 
-	public function nc_poll()
+	public function nc_poll(): array
 	{
 		$method = $_SERVER['REQUEST_METHOD'] ?? null;
 
 		if ($method != 'POST') {
-			throw new WebDAV_NextCloud_Exception('Invalid request method', 405);
+			throw new Exception('Invalid request method', 405);
 		}
 
 		if (empty($_POST['token']) || !ctype_alnum($_POST['token'])) {
-			throw new WebDAV_NextCloud_Exception('Invalid token', 400);
+			throw new Exception('Invalid token', 400);
 		}
 
-		$session = $this->nc_validate_token($_POST['token']);
+		$session = $this->validateToken($_POST['token']);
 
 		if (!$session) {
-			throw new WebDAV_NextCloud_Exception('No token yet', 404);
+			throw new Exception('No token yet', 404);
 		}
 
 		return [
@@ -376,19 +390,18 @@ abstract class WebDAV_NextCloud extends WebDAV
 		]);
 	}
 
-	public function nc_login_v1(): bool
+	public function nc_login_v1(): void
 	{
 		http_response_code(303);
-		header('Location: ' . $this->nc_login_url(null));
-		return true;
+		header('Location: ' . $this->getLoginURL(null));
 	}
 
-	public function nc_user()
+	public function nc_user(): array
 	{
-		$this->nc_require_auth();
+		$this->requireAuth();
 
-		$quota = $this->nc_get_quota();
-		$user = $this->nc_get_user() ?? 'null';
+		$quota = $this->getUserQuota();
+		$user = $this->getUserName() ?? 'null';
 
 		return $this->nc_ocs([
 			'id' => $user,
@@ -406,17 +419,17 @@ abstract class WebDAV_NextCloud extends WebDAV
 		]);
 	}
 
-	public function nc_shares()
+	public function nc_shares(): array
 	{
 		return $this->nc_ocs([]);
 	}
 
-	protected function nc_empty()
+	protected function nc_empty(): array
 	{
 		return $this->nc_ocs([]);
 	}
 
-	protected function nc_config()
+	protected function nc_config(): array
 	{
 		return $this->nc_ocs([
 			'contact' => '',
@@ -432,30 +445,30 @@ abstract class WebDAV_NextCloud extends WebDAV
 		$method = $_SERVER['REQUEST_METHOD'] ?? null;
 
 		if ($method != 'POST') {
-			throw new WebDAV_NextCloud_Exception('Invalid request method', 405);
+			throw new Exception('Invalid request method', 405);
 		}
 
-		$this->nc_require_auth();
+		$this->requireAuth();
 
 		if (empty($_POST['fileId'])) {
-			throw new WebDAV_NextCloud_Exception('Missing fileId', 400);
+			throw new Exception('Missing fileId', 400);
 		}
 
 		$uri = gzuncompress(base64_decode($_POST['fileId']));
 
 		if (!$uri) {
-			throw new WebDAV_NextCloud_Exception('Invalid fileId', 404);
+			throw new Exception('Invalid fileId', 404);
 		}
 
 		$user = strtok($uri, ':');
 		$uri = strtok('');
 
 		if (!$this->exists($uri)) {
-			throw new WebDAV_NextCloud_Exception('Invalid fileId', 404);
+			throw new Exception('Invalid fileId', 404);
 		}
 
 		$expire = intval((time() - strtotime('2022-09-01'))/3600) + 8; // 8 hours
-		$hash = $expire . ':' . sha1($user . $uri . $expire . $this->nc_direct_get_secret($uri, $user));
+		$hash = $expire . ':' . sha1($user . $uri . $expire . $this->getDirectDownloadSecret($uri, $user));
 
 		$uri = rawurlencode($uri);
 		$uri = str_replace('%2F', '/', $uri);
@@ -465,16 +478,16 @@ abstract class WebDAV_NextCloud extends WebDAV
 		return self::nc_ocs(compact('url'));
 	}
 
-	protected function nc_direct(string $uri): void
+	protected function nc_direct(string $uri): string
 	{
 		$method = $_SERVER['REQUEST_METHOD'] ?? null;
 
 		if ($method != 'GET') {
-			throw new WebDAV_NextCloud_Exception('Invalid request method', 405);
+			throw new Exception('Invalid request method', 405);
 		}
 
 		if (empty($_GET['h'])) {
-			throw new WebDAV_NextCloud_Exception('Missing hash', 400);
+			throw new Exception('Missing hash', 400);
 		}
 
 		$uri = substr(trim($uri, '/'), strlen(trim(array_search('direct', self::NC_ROUTES), '/')));
@@ -483,7 +496,7 @@ abstract class WebDAV_NextCloud extends WebDAV
 		$uri = strtok('');
 
 		if (!$user || !$uri) {
-			throw new WebDAV_NextCloud_Exception('Invalid URI', 400);
+			throw new Exception('Invalid URI', 400);
 		}
 
 		$expire = strtok($_GET['h'], ':');
@@ -492,27 +505,27 @@ abstract class WebDAV_NextCloud extends WebDAV
 
 		// Link has expired
 		if ($expire_seconds < time()) {
-			throw new WebDAV_NextCloud_Exception('Link has expired', 401);
+			throw new Exception('Link has expired', 401);
 		}
 
-		$verify = sha1($user . $uri . $expire . $this->nc_direct_get_secret($uri, $user));
+		$verify = sha1($user . $uri . $expire . $this->getDirectDownloadSecret($uri, $user));
 
 		// Check if the provided hash is correct
 		if (!hash_equals($verify, $hash)) {
-			throw new WebDAV_NextCloud_Exception('Link hash is invalid', 401);
+			throw new Exception('Link hash is invalid', 401);
 		}
 
-		if (!$this->nc_set_user($user)) {
-			throw new WebDAV_NextCloud_Exception('Invalid user', 404);
+		if (!$this->setUserName($user)) {
+			throw new Exception('Invalid user', 404);
 		}
 
-		$this->http_get($uri);
+		return $uri;
 	}
 
-	protected function nc_direct_id(string $uri)
+	protected function nc_direct_id(string $uri): string
 	{
 		// trick to avoid having to store a file ID, just send the file name
-		return rtrim(base64_encode(gzcompress($this->nc_get_user() . ':' . $uri)), '=');
+		return rtrim(base64_encode(gzcompress($this->getUserName() . ':' . $uri)), '=');
 	}
 
 	protected function nc_ocs(array $data = []): array
@@ -523,6 +536,3 @@ abstract class WebDAV_NextCloud extends WebDAV
 		]];
 	}
 }
-
-class WebDAV_NextCloud_Exception extends WebDAV_Exception {}
-

@@ -1,6 +1,6 @@
 <?php
 
-namespace KD2;
+namespace KD2\WebDAV;
 
 /**
  * This is mostly an example of an implementation of WebDAV
@@ -11,11 +11,10 @@ namespace KD2;
  * $fs = new WebDAV_FS('/home/user/files', '/home/user/.cache/davlocks.sqlite');
  * $fs->route('/files/');
  */
-class WebDAV_FS extends WebDAV
+class FileStorage extends AbstractStorage
 {
 	protected string $path;
 	protected ?\SQLite3 $db;
-	const LOCK = true;
 
 	const XSENDFILE = false;
 
@@ -24,13 +23,6 @@ class WebDAV_FS extends WebDAV
 	 * as they are garbage, coming from some OS
 	 */
 	const PUT_IGNORE_PATTERN = '!^~(?:lock\.|^\._)|^(?:\.DS_Store|Thumbs\.db|desktop\.ini)$!';
-
-	protected function log(string $message, ...$params)
-	{
-		if (PHP_SAPI == 'cli-server') {
-			error_log(vsprintf($message, $params));
-		}
-	}
 
 	public function __construct(string $path, ?string $lockdb = null)
 	{
@@ -123,7 +115,7 @@ class WebDAV_FS extends WebDAV
 		return file_exists($this->path . $uri);
 	}
 
-	protected function metadata(string $uri, bool $all = false): ?array
+	protected function properties(string $uri, bool $all = false): ?array
 	{
 		$target = $this->path . $uri;
 
@@ -157,7 +149,7 @@ class WebDAV_FS extends WebDAV
 		$parent = dirname($target);
 
 		if (is_dir($target)) {
-			throw new WebDAV_Exception('Target is a directory', 409);
+			throw new Exception('Target is a directory', 409);
 		}
 
 		if (!file_exists($parent)) {
@@ -179,7 +171,7 @@ class WebDAV_FS extends WebDAV
 		$target = $this->path . $uri;
 
 		if (!file_exists($target)) {
-			throw new WebDAV_Exception('Target does not exist', 404);
+			throw new Exception('Target does not exist', 404);
 		}
 
 		if (is_dir($target)) {
@@ -201,13 +193,13 @@ class WebDAV_FS extends WebDAV
 		$parent = dirname($target);
 
 		if (!file_exists($source)) {
-			throw new WebDAV_Exception('File not found', 404);
+			throw new Exception('File not found', 404);
 		}
 
 		$overwritten = file_exists($target);
 
 		if (!is_dir($parent)) {
-			throw new WebDAV_Exception('Target parent directory does not exist', 409);
+			throw new Exception('Target parent directory does not exist', 409);
 		}
 
 		if ($overwritten) {
@@ -251,11 +243,11 @@ class WebDAV_FS extends WebDAV
 		$parent = dirname($target);
 
 		if (file_exists($target)) {
-			throw new WebDAV_Exception('There is already a file with that name', 405);
+			throw new Exception('There is already a file with that name', 405);
 		}
 
 		if (!file_exists($parent)) {
-			throw new WebDAV_Exception('The parent directory does not exist', 409);
+			throw new Exception('The parent directory does not exist', 409);
 		}
 
 		mkdir($target, 0770);

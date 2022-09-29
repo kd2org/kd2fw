@@ -19,9 +19,9 @@
 	along with KD2FW.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-namespace KD2;
+namespace KD2\WebDAV;
 
-class WebDAV_Exception extends \RuntimeException {}
+class Exception extends \RuntimeException {}
 
 /**
  * This is a minimal, lightweight, and self-supported WebDAV server
@@ -32,66 +32,32 @@ class WebDAV_Exception extends \RuntimeException {}
  * - supports HTTP ranges for GET requests
  * - supports GZIP encoding for GET
  *
- * You have to extend this class and implement all the abstract methods to
- * get a class-1 compliant server.
- *
- * You can also  implement also the lock, unlock and getLock
- * methods to get a class-2 server (also set LOCK constant to true).
+ * You have to extend the AbstractStorage class and implement all the abstract methods to
+ * get a class-1 and 2 compliant server.
  *
  * By default, locking is simulated: nothing is really locked, like
  * in https://docs.rs/webdav-handler/0.2.0/webdav_handler/fakels/index.html
  *
  * You also have to implement the actual storage of properties for
  * PROPPATCH requests, by extending the 'setProperties' method.
+ * But it's not required for WebDAV file storage, only for CardDAV/CalDAV.
  *
  * Differences with SabreDAV and RFC:
  * - If-Match, If-Range are not implemented
  *
  * @author BohwaZ <https://bohwaz.net/>
  */
-abstract class WebDAV
+class Server
 {
 	/**
-	 * Return the requested resource
-	 *
-	 * @param  string $uri Path to resource
-	 * @return null|array An array containing one of those keys:
-	 * path => Full filesystem path to a local file, it will be streamed directly to the client
-	 * resource => a PHP resource (eg. returned by fopen) that will be streamed directly to the client
-	 * content => a string that will be returned
-	 * or NULL if the resource cannot be returned (404)
-	 *
-	 * It is recommended to use X-SendFile inside this method to make things faster.
-	 * @see https://tn123.org/mod_xsendfile/
+	 * List of language strings used in the web UI
 	 */
-	abstract protected function get(string $uri): ?array;
-
-	/**
-	 * Return TRUE if the requested resource exists, or FALSE
-	 *
-	 * @param  string $uri
-	 * @return bool
-	 */
-	abstract protected function exists(string $uri): bool;
-
-	/**
-	 * Return the requested resource properties
-	 *
-	 * This method is used for HEAD requests, for PROPFIND, and other places
-	 *
-	 * @param string $uri Path to resource
-	 * @param null|array $requested_properties Properties requested by the client, NULL if all available properties are requested,
-	 * or if specific properties are requested, each item will be a key,
-	 * like 'namespace_url:property_name', eg. 'DAV::getcontentlength' or 'http://owncloud.org/ns:size'
-	 * @param int $depth Depth, can be 0 or 1
-	 * @return null|array An array containing the requested properties, each item must have a key
-	 * of the same form as the requested properties.
-	 *
-	 * This method MUST return NULL if the resource does not exist.
-	 * Or it MUST return an array, where the keys are 'namespace_url:property_name' tuples,
-	 * and the value is the content of the property tag.
-	 */
-	abstract protected function properties(string $uri, ?array $requested_properties, int $depth): ?array;
+	const LANGUAGE_STRINGS = [
+		'title'  => 'Files',
+		'back'   => 'Parent',
+		'empty'  => 'There are no files in this directory.',
+		'bytes_unit' => 'B', // B for Bytes
+	];
 
 	// List of basic DAV properties that you should return if $requested_properties is NULL
 	const BASIC_PROPERTIES = [
@@ -112,109 +78,6 @@ abstract class WebDAV
 	// Custom property
 	const PROP_THUMB_URL = 'urn:karadav:thumb_url'; // Thumbnail URL for file preview in directory view
 
-	/**
-	 * Store resource properties
-	 * @param string $uri
-	 * @param string $body XML PROPPATCH request, parsing it is up to you
-	 */
-	protected function setProperties(string $uri, string $body): void {}
-
-	/**
-	 * Create or replace a resource
-	 * @param  string $uri     Path to resource
-	 * @param  resource $pointer A PHP file resource containing the sent data (note that this might not always be seekable)
-	 * @return bool Return TRUE if the resource has been created, or FALSE it has just been updated.
-	 */
-	abstract protected function put(string $uri, $pointer): bool;
-
-	/**
-	 * Delete a resource
-	 * @param  string $uri
-	 * @return void
-	 */
-	abstract protected function delete(string $uri): void;
-
-	/**
-	 * Copy a resource from $uri to $destination
-	 * @param  string $uri
-	 * @param  string $destination
-	 * @return bool TRUE if the destination has been overwritten
-	 */
-	abstract protected function copy(string $uri, string $destination): bool;
-
-	/**
-	 * Move (rename) a resource from $uri to $destination
-	 * @param  string $uri
-	 * @param  string $destination
-	 * @return bool TRUE if the destination has been overwritten
-	 */
-	abstract protected function move(string $uri, string $destination): bool;
-
-	/**
-	 * Create collection of resources (eg. a directory)
-	 * @param  string $uri
-	 * @return void
-	 */
-	abstract protected function mkcol(string $uri): void;
-
-	/**
-	 * Return a list of resources for target $uri
-	 *
-	 * @param  string $uri
-	 * @param  array $properties List of properties requested by client (see ::properties)
-	 * @return iterable An array or other iterable (eg. a generator)
-	 * where each item has a key string containing the name of the resource (eg. file name),
-	 * and the value being an array of properties, or NULL
-	 */
-	abstract protected function list(string $uri, array $properties): iterable;
-
-	/**
-	 * Lock the requested resource
-	 * @param  string $uri   Requested resource
-	 * @param  string $token Unique token given to the client for this resource
-	 * @param  string $scope Locking scope, either ::SHARED_LOCK or ::EXCLUSIVE_LOCK constant
-	 * @return void
-	 */
-	protected function lock(string $uri, string $token, string $scope): void {}
-
-	/**
-	 * Unlock the requested resource
-	 * @param  string $uri   Requested resource
-	 * @param  string $token Unique token sent by the client
-	 * @return void
-	 */
-	protected function unlock(string $uri, string $token): void {}
-
-	/**
-	 * If $token is supplied, this method MUST return ::SHARED_LOCK or ::EXCLUSIVE_LOCK
-	 * if the resource is locked with this token. If the resource is unlocked, or if it is
-	 * locked with another token, it MUST return NULL.
-	 *
-	 * If $token is left NULL, then this method must return ::EXCLUSIVE_LOCK if there is any
-	 * exclusive lock on the resource. If there are no exclusive locks, but one or more
-	 * shared locks, it MUST return ::SHARED_LOCK. If the resource has no lock, it MUST
-	 * return NULL.
-	 *
-	 * @param  string      $uri
-	 * @param  string|null $token
-	 * @return string|null
-	 */
-	protected function getLock(string $uri, ?string $token = null): ?string
-	{
-		return null;
-	}
-
-	/**
-	 * List of language strings used in the web UI
-	 */
-	const LANGUAGE_STRINGS = [
-		'title'  => 'Files',
-		'back'   => 'Parent',
-		'empty'  => 'There are no files in this directory.',
-		'bytes_unit' => 'B', // B for Bytes
-	];
-
-	// You have reached the end of the abstract methods :)
 
 	const SHARED_LOCK = 'shared';
 	const EXCLUSIVE_LOCK = 'exclusive';
@@ -229,21 +92,111 @@ abstract class WebDAV
 	 */
 	protected string $original_uri;
 
+	protected AbstractStorage $storage;
+
+	public function __construct(AbstractStorage $storage)
+	{
+		$this->storage = $storage;
+	}
+
 	public function setBaseURI(string $uri): void
 	{
 		$this->base_uri = $uri;
 	}
 
-	protected function http_delete(string $uri): ?string
+	protected function html_directory(string $uri, iterable $list, array $strings = self::LANGUAGE_STRINGS): ?string
+	{
+		// Not a file: let's serve a directory listing if you are browsing with a web browser
+		if (substr($this->original_uri, -1) != '/') {
+			http_response_code(301);
+			header(sprintf('Location: /%s/', trim($this->base_uri . $uri, '/')), true);
+			return null;
+		}
+
+		$out = '<!DOCTYPE html><html><head><style>
+			body { font-size: 1.1em; font-family: Arial, Helvetica, sans-serif; }
+			table { border-collapse: collapse; }
+			th, td { padding: .5em; text-align: left; border: 2px solid #ccc; }
+			span { font-size: 40px; line-height: 40px; }
+			td img { max-width: 100px; max-height: 100px; }
+			b { font-size: 1.4em; }
+			td:nth-child(1) { text-align: center; }
+			</style>';
+
+		$out .= sprintf('<title>%s</title></head><body><h1>%1$s</h1><table>', htmlspecialchars($uri ? str_replace('/', ' / ', $uri) . ' - ' . $strings['title'] : $strings['title']));
+
+		if (trim($uri)) {
+			$out .= sprintf('<tr><td><span>&#x21B2;</span></td><th colspan=3><a href="../"><b>%s</b></a></th></tr>', $strings['back']);
+		}
+
+		$props = null;
+
+		foreach ($list as $file => $props) {
+			if (null === $props) {
+				$props = $this->storage->properties(trim($uri . '/' . $file, '/'), self::BASIC_PROPERTIES, 0);
+			}
+
+			$collection = !empty($props['DAV::resourcetype']) && $props['DAV::resourcetype'] == 'collection';
+
+			if ($collection) {
+				$out .= sprintf('<tr><td><span>&#x1F4C1;</span></td><th colspan=3><a href="%s/"><b>%s</b></a></th></tr>', rawurlencode($file), htmlspecialchars($file));
+			}
+			else {
+				if (!empty($props[self::PROP_THUMB_URL])) {
+					$icon = sprintf('<a href="%s"><img src="%s" /></a>', rawurlencode($file), htmlspecialchars($props[self::PROP_THUMB_URL]));
+				}
+				else {
+					$icon = '<span>&#x1F5CE;</span>';
+				}
+
+				$out .= sprintf('<tr><td>%s</td><th><a href="%s">%s</a></th><td>%s</td><td style="text-align: right">%s</td></tr>',
+					$icon,
+					rawurlencode($file),
+					htmlspecialchars($file),
+					$props['DAV::getcontenttype'] ?? null,
+					isset($props['DAV::getcontentlength']) ? $this->formatBytes($props['DAV::getcontentlength']) : null
+				);
+			}
+		}
+
+		$out .= '</table>';
+
+		if (null === $props) {
+			$out .= sprintf('<p>%s</p>', $strings['empty']);
+		}
+
+		$out .= '</body></html>';
+
+		return $out;
+	}
+
+	public function formatBytes(int $bytes, string $unit = self::LANGUAGE_STRINGS['bytes_unit']): string
+	{
+		if ($bytes >= 1024*1024*1024) {
+			return round($bytes / (1024*1024*1024), 1) . ' G' . $unit;
+		}
+		elseif ($bytes >= 1024*1024) {
+			return round($bytes / (1024*1024), 1) . ' M' . $unit;
+		}
+		elseif ($bytes >= 1024) {
+			return round($bytes / 1024, 1) . ' K' . $unit;
+		}
+		else {
+			return $bytes . ' ' . $unit;
+		}
+	}
+
+
+	public function http_delete(string $uri): ?string
 	{
 		// check RFC 2518 Section 9.2, last paragraph
 		if (isset($_SERVER['HTTP_DEPTH']) && $_SERVER['HTTP_DEPTH'] != 'infinity') {
-			throw new WebDAV_Exception('We can only delete to infinity', 400);
+			throw new Exception('We can only delete to infinity', 400);
 		}
 
 		$this->checkLock($uri);
 
-		$this->delete($uri);
+		$this->storage->delete($uri);
 
 		if ($token = $this->getLockToken()) {
 			$this->unlock($uri, $token);
@@ -254,44 +207,44 @@ abstract class WebDAV
 		return null;
 	}
 
-	protected function http_put(string $uri): ?string
+	public function http_put(string $uri): ?string
 	{
 		if (!empty($_SERVER['HTTP_CONTENT_TYPE']) && !strncmp($_SERVER['HTTP_CONTENT_TYPE'], 'multipart/', 10)) {
-			throw new WebDAV_Exception('Multipart PUT requests are not supported', 501);
+			throw new Exception('Multipart PUT requests are not supported', 501);
 		}
 
 		if (!empty($_SERVER['HTTP_CONTENT_ENCODING'])) {
 			if (false !== strpos($_SERVER['HTTP_CONTENT_ENCODING'], 'gzip')) {
-				throw new WebDAV_Exception('Content Encoding is not supported', 501);
+				throw new Exception('Content Encoding is not supported', 501);
 			}
 			else {
-				throw new WebDAV_Exception('Content Encoding is not supported', 501);
+				throw new Exception('Content Encoding is not supported', 501);
 			}
 		}
 
 		if (!empty($_SERVER['HTTP_CONTENT_RANGE'])) {
-			throw new WebDAV_Exception('Content Range is not supported', 501);
+			throw new Exception('Content Range is not supported', 501);
 		}
 
 		// See SabreDAV CorePlugin for reason why OS/X Finder is buggy
 		if (isset($_SERVER['HTTP_X_EXPECTED_ENTITY_LENGTH'])) {
-			throw new WebDAV_Exception('This server is not compatible with OS/X finder. Consider using a different WebDAV client or webserver.', 403);
+			throw new Exception('This server is not compatible with OS/X finder. Consider using a different WebDAV client or webserver.', 403);
 		}
 
 		$this->checkLock($uri);
 
 		if (!empty($_SERVER['HTTP_IF_MATCH'])) {
 			$etag = trim($_SERVER['HTTP_IF_MATCH'], '" ');
-			$prop = $this->properties($uri, ['DAV::getetag'], 0);
+			$prop = $this->storage->properties($uri, ['DAV::getetag'], 0);
 
 			if (!empty($prop['DAV::getetag']) && $prop['DAV::getetag'] != $etag) {
-				throw new WebDAV_Exception('ETag did not match condition', 412);
+				throw new Exception('ETag did not match condition', 412);
 			}
 		}
 
-		$created = $this->put($uri, fopen('php://input', 'r'));
+		$created = $this->storage->put($uri, fopen('php://input', 'r'));
 
-		$prop = $this->properties($uri, ['DAV::getetag'], 0);
+		$prop = $this->storage->properties($uri, ['DAV::getetag'], 0);
 
 		if (!empty($prop['DAV::getetag'])) {
 			$value = $prop['DAV::getetag'];
@@ -307,12 +260,12 @@ abstract class WebDAV
 		return null;
 	}
 
-	protected function http_head(string $uri, array &$props = []): ?string
+	public function http_head(string $uri, array &$props = []): ?string
 	{
-		$props = $this->properties($uri, array_merge(self::BASIC_PROPERTIES, ['DAV::getetag']), 0);
+		$props = $this->storage->properties($uri, array_merge(self::BASIC_PROPERTIES, ['DAV::getetag']), 0);
 
 		if (!$props) {
-			throw new WebDAV_Exception('Resource Not Found', 404);
+			throw new Exception('Resource Not Found', 404);
 		}
 
 		http_response_code(200);
@@ -346,89 +299,7 @@ abstract class WebDAV
 		return null;
 	}
 
-	protected function html_directory(string $uri, iterable $list, array $strings = self::LANGUAGE_STRINGS): ?string
-	{
-		// Not a file: let's serve a directory listing if you are browsing with a web browser
-		if (substr($this->original_uri, -1) != '/') {
-			http_response_code(301);
-			header(sprintf('Location: /%s/', trim($this->base_uri . $uri, '/')), true);
-			return null;
-		}
-
-		$out = '<!DOCTYPE html><html><head><style>
-			body { font-size: 1.1em; font-family: Arial, Helvetica, sans-serif; }
-			table { border-collapse: collapse; }
-			th, td { padding: .5em; text-align: left; border: 2px solid #ccc; }
-			span { font-size: 40px; line-height: 40px; }
-			td img { max-width: 100px; max-height: 100px; }
-			b { font-size: 1.4em; }
-			td:nth-child(1) { text-align: center; }
-			</style>';
-
-		$out .= sprintf('<title>%s</title></head><body><h1>%1$s</h1><table>', htmlspecialchars($uri ? str_replace('/', ' / ', $uri) . ' - ' . $strings['title'] : $strings['title']));
-
-		if (trim($uri)) {
-			$out .= sprintf('<tr><td><span>&#x21B2;</span></td><th colspan=3><a href="../"><b>%s</b></a></th></tr>', $strings['back']);
-		}
-
-		$props = null;
-
-		foreach ($list as $file => $props) {
-			if (null === $props) {
-				$props = $this->properties(trim($uri . '/' . $file, '/'), self::BASIC_PROPERTIES, 0);
-			}
-
-			$collection = !empty($props['DAV::resourcetype']) && $props['DAV::resourcetype'] == 'collection';
-
-			if ($collection) {
-				$out .= sprintf('<tr><td><span>&#x1F4C1;</span></td><th colspan=3><a href="%s/"><b>%s</b></a></th></tr>', rawurlencode($file), htmlspecialchars($file));
-			}
-			else {
-				if (!empty($props[self::PROP_THUMB_URL])) {
-					$icon = sprintf('<a href="%s"><img src="%s" /></a>', rawurlencode($file), htmlspecialchars($props[self::PROP_THUMB_URL]));
-				}
-				else {
-					$icon = '<span>&#x1F5CE;</span>';
-				}
-
-				$out .= sprintf('<tr><td>%s</td><th><a href="%s">%s</a></th><td>%s</td><td style="text-align: right">%s</td></tr>',
-					$icon,
-					rawurlencode($file),
-					htmlspecialchars($file),
-					$props['DAV::getcontenttype'] ?? null,
-					isset($props['DAV::getcontentlength']) ? $this->format_bytes($props['DAV::getcontentlength']) : null
-				);
-			}
-		}
-
-		$out .= '</table>';
-
-		if (null === $props) {
-			$out .= sprintf('<p>%s</p>', $strings['empty']);
-		}
-
-		$out .= '</body></html>';
-
-		return $out;
-	}
-
-	public function format_bytes(int $bytes, string $unit = self::LANGUAGE_STRINGS['bytes_unit']): string
-	{
-		if ($bytes >= 1024*1024*1024) {
-			return round($bytes / (1024*1024*1024), 1) . ' G' . $unit;
-		}
-		elseif ($bytes >= 1024*1024) {
-			return round($bytes / (1024*1024), 1) . ' M' . $unit;
-		}
-		elseif ($bytes >= 1024) {
-			return round($bytes / 1024, 1) . ' K' . $unit;
-		}
-		else {
-			return $bytes . ' ' . $unit;
-		}
-	}
-
-	protected function http_get(string $uri): ?string
+	public function http_get(string $uri): ?string
 	{
 		$props = [];
 		$this->http_head($uri, $props);
@@ -437,7 +308,7 @@ abstract class WebDAV
 		$out = '';
 
 		if ($is_collection) {
-			$list = $this->list($uri, self::BASIC_PROPERTIES + [self::PROP_THUMB_URL]);
+			$list = $this->storage->list($uri, self::BASIC_PROPERTIES + [self::PROP_THUMB_URL]);
 
 			if (!isset($_SERVER['HTTP_ACCEPT']) || false === strpos($_SERVER['HTTP_ACCEPT'], 'html')) {
 				$list = is_array($list) ? $list : iterator_to_array($list);
@@ -454,10 +325,10 @@ abstract class WebDAV
 			return $this->html_directory($uri, $list);
 		}
 
-		$file = $this->get($uri);
+		$file = $this->storage->get($uri);
 
 		if (!$file) {
-			throw new WebDAV_Exception('File Not Found', 404);
+			throw new Exception('File Not Found', 404);
 		}
 
 		if (!isset($file['content']) && !isset($file['resource']) && !isset($file['path'])) {
@@ -480,7 +351,7 @@ abstract class WebDAV
 			$end   = $match[2] === '' ? null : (int) $match[2];
 
 			if (null !== $start && $start < 0) {
-				throw new WebDAV_Exception('Start range cannot be satisfied', 416);
+				throw new Exception('Start range cannot be satisfied', 416);
 			}
 
 			$this->log('HTTP Range requested: %s-%s', $start, $end);
@@ -492,7 +363,7 @@ abstract class WebDAV
 			if ($start || $end) {
 				if (null !== $end && $end > $length) {
 					header('Content-Range: bytes */' . $length, true);
-					throw new WebDAV_Exception('End range cannot be satisfied', 416);
+					throw new Exception('End range cannot be satisfied', 416);
 				}
 
 				if ($start === null) {
@@ -534,7 +405,7 @@ abstract class WebDAV
 		if (($start || $end) && $seek === 0) {
 			if (null !== $end && $end > $length) {
 				header('Content-Range: bytes */' . $length, true);
-				throw new WebDAV_Exception('End range cannot be satisfied', 416);
+				throw new Exception('End range cannot be satisfied', 416);
 			}
 
 			if ($start === null) {
@@ -594,12 +465,12 @@ abstract class WebDAV
 		return null;
 	}
 
-	protected function http_copy(string $uri): ?string
+	public function http_copy(string $uri): ?string
 	{
 		return $this->_http_copymove($uri, 'copy');
 	}
 
-	protected function http_move(string $uri): ?string
+	public function http_move(string $uri): ?string
 	{
 		return $this->_http_copymove($uri, 'move');
 	}
@@ -609,7 +480,7 @@ abstract class WebDAV
 		$destination = $_SERVER['HTTP_DESTINATION'] ?? null;
 
 		if (!$destination) {
-			throw new WebDAV_Exception('Destination not supplied', 400);
+			throw new Exception('Destination not supplied', 400);
 		}
 
 		$destination = $this->getURI($destination);
@@ -623,8 +494,8 @@ abstract class WebDAV
 		$this->log('<= Destination: %s', $destination);
 		$this->log('<= Overwrite: %s (%s)', $overwrite ? 'Yes' : 'No', $_SERVER['HTTP_OVERWRITE'] ?? null);
 
-		if (!$overwrite && $this->exists($destination)) {
-			throw new WebDAV_Exception('File already exists and overwriting is disabled', 412);
+		if (!$overwrite && $this->storage->exists($destination)) {
+			throw new Exception('File already exists and overwriting is disabled', 412);
 		}
 
 		if ($method == 'move') {
@@ -633,7 +504,7 @@ abstract class WebDAV
 
 		$this->checkLock($destination);
 
-		$overwritten = $this->$method($uri, $destination);
+		$overwritten = $this->storage->$method($uri, $destination);
 
 		if ($method == 'move' && ($token = $this->getLockToken())) {
 			$this->unlock($uri, $token);
@@ -643,13 +514,13 @@ abstract class WebDAV
 		return null;
 	}
 
-	protected function http_mkcol(string $uri): ?string
+	public function http_mkcol(string $uri): ?string
 	{
 		if (!empty($_SERVER['CONTENT_LENGTH'])) {
-			throw new WebDAV_Exception('Unsupported body for MKCOL', 415);
+			throw new Exception('Unsupported body for MKCOL', 415);
 		}
 
-		$this->mkcol($uri);
+		$this->storage->mkcol($uri);
 
 		http_response_code(201);
 		return null;
@@ -660,7 +531,7 @@ abstract class WebDAV
 	 * We are using regexp as we don't want to depend on a XML module here.
 	 * Your are free to re-implement this using a XML parser if you wish
 	 */
-	protected function getRequestedProperties(string $body): ?array
+	protected function extractRequestedProperties(string $body): ?array
 	{
 		// We only care about properties if the client asked for it
 		// If not, we consider that the client just requested to get everything
@@ -706,7 +577,7 @@ abstract class WebDAV
 		return $properties;
 	}
 
-	protected function http_propfind(string $uri): ?string
+	public function http_propfind(string $uri): ?string
 	{
 		// We only support depth of 0 and 1
 		$depth = isset($_SERVER['HTTP_DEPTH']) && empty($_SERVER['HTTP_DEPTH']) ? 0 : 1;
@@ -722,26 +593,26 @@ abstract class WebDAV
 			$xml = @simplexml_load_string($body);
 
 			if ($e = libxml_get_last_error()) {
-				throw new WebDAV_Exception('Invalid XML', 400);
+				throw new Exception('Invalid XML', 400);
 			}
 		}
 
-		$requested = $this->getRequestedProperties($body);
+		$requested = $this->extractRequestedProperties($body);
 		$requested_keys = $requested ? array_keys($requested) : null;
 
 		// Find root element properties
-		$properties = $this->properties($uri, $requested_keys, $depth);
+		$properties = $this->storage->properties($uri, $requested_keys, $depth);
 
 		if (null === $properties) {
-			throw new WebDAV_Exception('This does not exist', 404);
+			throw new Exception('This does not exist', 404);
 		}
 
 		$items = [$uri => $properties];
 
 		if ($depth) {
-			foreach ($this->list($uri, $requested) as $file => $properties) {
+			foreach ($this->storage->list($uri, $requested) as $file => $properties) {
 				$path = trim($uri . '/' . $file, '/');
-				$properties = $properties ?? $this->properties($path, $requested_keys, 0);
+				$properties = $properties ?? $this->storage->properties($path, $requested_keys, 0);
 
 				if (!$properties) {
 					$this->log('!!! Cannot find "%s"', $path);
@@ -872,7 +743,7 @@ abstract class WebDAV
 		return $out;
 	}
 
-	protected function http_proppatch(string $uri): ?string
+	public function http_proppatch(string $uri): ?string
 	{
 		$this->checkLock($uri);
 
@@ -891,7 +762,7 @@ abstract class WebDAV
 		return $out;
 	}
 
-	protected function http_lock(string $uri): ?string
+	public function http_lock(string $uri): ?string
 	{
 		// We don't use this currently, but maybe later?
 		//$depth = !empty($this->_SERVER['HTTP_DEPTH']) ? 1 : 0;
@@ -902,7 +773,7 @@ abstract class WebDAV
 			$token = $this->getLockToken();
 
 			if (!$token) {
-				throw new WebDAV_Exception('Invalid If header', 400);
+				throw new Exception('Invalid If header', 400);
 			}
 
 			$info = null;
@@ -916,7 +787,7 @@ abstract class WebDAV
 			$xml = file_get_contents('php://input');
 
 			if (!preg_match('!<((?:(\w+):)?lockinfo)[^>]*>(.*?)</\1>!is', $xml, $match)) {
-				throw new WebDAV_Exception('Invalid XML', 400);
+				throw new Exception('Invalid XML', 400);
 			}
 
 			// We don't care if the lock is shared or exclusive, or about anything else
@@ -937,11 +808,11 @@ abstract class WebDAV
 			$locked_scope = $this->getLock($uri);
 
 			if ($locked_scope == self::EXCLUSIVE_LOCK || ($locked_scope && $scope == self::EXCLUSIVE_LOCK)) {
-				throw new WebDAV_Exception('Cannot acquire another lock, resource is locked for exclusive use', 423);
+				throw new Exception('Cannot acquire another lock, resource is locked for exclusive use', 423);
 			}
 		}
 
-		$this->lock($uri, $token, $scope);
+		$this->storage->lock($uri, $token, $scope);
 
 		if (null === $info) {
 			$info = sprintf('
@@ -979,12 +850,12 @@ abstract class WebDAV
 		return $out;
 	}
 
-	protected function http_unlock(string $uri): ?string
+	public function http_unlock(string $uri): ?string
 	{
 		$token = $this->getLockToken();
 
 		if (!$token) {
-			throw new WebDAV_Exception('Invalid Lock-Token header', 400);
+			throw new Exception('Invalid Lock-Token header', 400);
 		}
 
 		$this->log('<= Lock Token: %s', $token);
@@ -1017,7 +888,7 @@ abstract class WebDAV
 
 	/**
 	 * Check if the resource is protected
-	 * @throws WebDAV_Exception if the resource is locked
+	 * @throws Exception if the resource is locked
 	 */
 	protected function checkLock(string $uri, ?string $token = null): void
 	{
@@ -1026,7 +897,7 @@ abstract class WebDAV
 		}
 
 		if ($token == 'DAV:no-lock') {
-			throw new WebDAV_Exception('Resource is locked', 412);
+			throw new Exception('Resource is locked', 412);
 		}
 
 		// Trying to access using a parent directory
@@ -1035,7 +906,7 @@ abstract class WebDAV
 			$root = $this->getURI($match[1]);
 
 			if (0 !== strpos($uri, $root)) {
-				throw new WebDAV_Exception('Invalid "If" header path: ' . $root, 400);
+				throw new Exception('Invalid "If" header path: ' . $root, 400);
 			}
 
 			$uri = $root;
@@ -1046,11 +917,11 @@ abstract class WebDAV
 			return;
 		}
 		elseif ($token) {
-			throw new WebDAV_Exception('Invalid token', 423);
+			throw new Exception('Invalid token', 423);
 		}
 		// Resource is locked
 		elseif ($this->getLock($uri)) {
-			throw new WebDAV_Exception('Resource is locked', 423);
+			throw new Exception('Resource is locked', 423);
 		}
 	}
 
@@ -1059,7 +930,7 @@ abstract class WebDAV
 		header('DAV: 1, 2, 3');
 	}
 
-	protected function http_options(): void
+	public function http_options(): void
 	{
 		http_response_code(200);
 		$methods = 'GET HEAD PUT DELETE COPY MOVE PROPFIND MKCOL LOCK UNLOCK';
@@ -1090,13 +961,13 @@ abstract class WebDAV
 		}
 
 		if (strpos($uri, $this->base_uri) !== 0) {
-			throw new WebDAV_Exception(sprintf('Invalid URI, "%s" is outside of scope "%s"', $uri, $this->base_uri), 400);
+			throw new Exception(sprintf('Invalid URI, "%s" is outside of scope "%s"', $uri, $this->base_uri), 400);
 		}
 
 		$uri = preg_replace('!/{2,}!', '/', $uri);
 
 		if (false !== strpos($uri, '..')) {
-			throw new WebDAV_Exception(sprintf('Invalid URI: "%s"', $uri), 400);
+			throw new Exception(sprintf('Invalid URI: "%s"', $uri), 400);
 		}
 
 		$uri = substr($uri, strlen($this->base_uri));
@@ -1143,7 +1014,7 @@ abstract class WebDAV
 		$this->log('<= %s /%s', $method, $uri);
 
 		if (false !== strpos($uri, '..')) {
-			throw new WebDAV_Exception(sprintf('Invalid URI: "%s"', $uri), 400);
+			throw new Exception(sprintf('Invalid URI: "%s"', $uri), 400);
 		}
 
 		try {
@@ -1151,7 +1022,7 @@ abstract class WebDAV
 			$method = 'http_' . strtolower($method);
 
 			if (!method_exists($this, $method)) {
-				throw new WebDAV_Exception('Invalid request method', 405);
+				throw new Exception('Invalid request method', 405);
 			}
 
 			$out = $this->$method($uri);
@@ -1164,14 +1035,14 @@ abstract class WebDAV
 
 			echo $out;
 		}
-		catch (WebDAV_Exception $e) {
+		catch (Exception $e) {
 			$this->error($e);
 		}
 
 		return true;
 	}
 
-	function error(WebDAV_Exception $e)
+	function error(Exception $e)
 	{
 		$this->log('=> %d - %s', $e->getCode(), $e->getMessage());
 
