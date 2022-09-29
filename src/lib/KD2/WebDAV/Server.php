@@ -94,7 +94,7 @@ class Server
 
 	protected AbstractStorage $storage;
 
-	public function __construct(AbstractStorage $storage)
+	public function setStorage(AbstractStorage $storage)
 	{
 		$this->storage = $storage;
 	}
@@ -749,7 +749,7 @@ class Server
 
 		$body = file_get_contents('php://input');
 
-		$this->setProperties($uri, $body);
+		$this->storage->setProperties($uri, $body);
 
 		// http_response_code doesn't know the 207 status code
 		header('HTTP/1.1 207 Multi-Status', true);
