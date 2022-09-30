@@ -497,12 +497,18 @@ class Server
 	protected function _http_copymove(string $uri, string $method): ?string
 	{
 		$destination = $_SERVER['HTTP_DESTINATION'] ?? null;
+		$depth = $_SERVER['HTTP_DEPTH'] ?? 1;
 
 		if (!$destination) {
 			throw new Exception('Destination not supplied', 400);
 		}
 
 		$destination = $this->getURI($destination);
+
+		if (trim($destination, '/') == trim($uri, '/')) {
+			throw new Exception('Cannot move file to itself', 403);
+		}
+
 		$overwrite = ($_SERVER['HTTP_OVERWRITE'] ?? null) == 'T';
 
 		// Dolphin is removing the file name when moving to root directory
@@ -523,7 +529,16 @@ class Server
 
 		$this->checkLock($destination);
 
-		$overwritten = $this->storage->$method($uri, $destination);
+		// Moving/copy of directory to an existing destination and depth=0
+		// should do just nothing, see 'depth_zero_copy' test in litmus
+		if ($depth == 0
+			&& $this->storage->exists($destination)
+			&& current($this->storage->properties($destination, ['DAV::resourcetype'], 0)) == 'collection') {
+			$overwritten = $this->storage->exists($uri);
+		}
+		else {
+			$overwritten = $this->storage->$method($uri, $destination);
+		}
 
 		if ($method == 'move' && ($token = $this->getLockToken())) {
 			$this->storage->unlock($uri, $token);
@@ -1001,10 +1016,6 @@ class Server
 			$token = $this->getLockToken();
 		}
 
-		if ($token == 'DAV:no-lock') {
-			throw new Exception('Resource is locked', 412);
-		}
-
 		// Trying to access using a parent directory
 		if (isset($_SERVER['HTTP_IF'])
 			&& preg_match('/<([^>]+)>\s*\(<[^>]*>\)/', $_SERVER['HTTP_IF'], $match)) {
@@ -1015,6 +1026,21 @@ class Server
 			}
 
 			$uri = $root;
+		}
+		// Try to validate token
+		elseif (isset($_SERVER['HTTP_IF'])
+			&& preg_match('/\(<([^>]*)>\s+\["([^""]+)"\]\)/', $_SERVER['HTTP_IF'], $match)) {
+			$token = $match[1];
+			$request_etag = $match[2];
+			$etag = current($this->storage->properties($uri, ['DAV::getetag'], 0));
+
+			if ($request_etag != $etag) {
+				throw new Exception('Resource is locked and etag does not match', 412);
+			}
+		}
+
+		if ($token == 'DAV:no-lock') {
+			throw new Exception('Resource is locked', 412);
 		}
 
 		// Token is valid
@@ -1072,7 +1098,7 @@ class Server
 		$uri = preg_replace('!/{2,}!', '/', $uri);
 
 		if (false !== strpos($uri, '..')) {
-			throw new Exception(sprintf('Invalid URI: "%s"', $uri), 400);
+			throw new Exception(sprintf('Invalid URI: "%s"', $uri), 403);
 		}
 
 		$uri = substr($uri, strlen($this->base_uri));
@@ -1118,11 +1144,11 @@ class Server
 
 		$this->log('<= %s /%s', $method, $uri);
 
-		if (false !== strpos($uri, '..')) {
-			throw new Exception(sprintf('Invalid URI: "%s"', $uri), 400);
-		}
-
 		try {
+			if (false !== strpos($uri, '..')) {
+				throw new Exception(sprintf('Invalid URI: "%s"', $uri), 403);
+			}
+
 			// Call 'http_method' class method
 			$method = 'http_' . strtolower($method);
 

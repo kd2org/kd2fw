@@ -17,7 +17,7 @@ abstract class AbstractStorage
 	 * It is recommended to use X-SendFile inside this method to make things faster.
 	 * @see https://tn123.org/mod_xsendfile/
 	 */
-	abstract protected function get(string $uri): ?array;
+	abstract public function get(string $uri): ?array;
 
 	/**
 	 * Return TRUE if the requested resource exists, or FALSE
@@ -25,7 +25,7 @@ abstract class AbstractStorage
 	 * @param  string $uri
 	 * @return bool
 	 */
-	abstract protected function exists(string $uri): bool;
+	abstract public function exists(string $uri): bool;
 
 	/**
 	 * Return the requested resource properties
@@ -45,14 +45,14 @@ abstract class AbstractStorage
 	 * Or it MUST return an array, where the keys are 'namespace_url:property_name' tuples,
 	 * and the value is the content of the property tag.
 	 */
-	abstract protected function properties(string $uri, ?array $requested_properties, int $depth): ?array;
+	abstract public function properties(string $uri, ?array $requested_properties, int $depth): ?array;
 
 	/**
 	 * Store resource properties
 	 * @param string $uri
 	 * @param string $body XML PROPPATCH request, parsing it is up to you
 	 */
-	protected function setProperties(string $uri, string $body): void
+	public function setProperties(string $uri, string $body): void
 	{
 		// By default, properties are not saved
 	}
@@ -65,14 +65,14 @@ abstract class AbstractStorage
 	 * this method should fail with a 400 code WebDAV exception and not proceed to store the resource.
 	 * @return bool Return TRUE if the resource has been created, or FALSE it has just been updated.
 	 */
-	abstract protected function put(string $uri, $pointer, ?string $hash): bool;
+	abstract public function put(string $uri, $pointer, ?string $hash): bool;
 
 	/**
 	 * Delete a resource
 	 * @param  string $uri
 	 * @return void
 	 */
-	abstract protected function delete(string $uri): void;
+	abstract public function delete(string $uri): void;
 
 	/**
 	 * Copy a resource from $uri to $destination
@@ -80,7 +80,7 @@ abstract class AbstractStorage
 	 * @param  string $destination
 	 * @return bool TRUE if the destination has been overwritten
 	 */
-	abstract protected function copy(string $uri, string $destination): bool;
+	abstract public function copy(string $uri, string $destination): bool;
 
 	/**
 	 * Move (rename) a resource from $uri to $destination
@@ -88,14 +88,14 @@ abstract class AbstractStorage
 	 * @param  string $destination
 	 * @return bool TRUE if the destination has been overwritten
 	 */
-	abstract protected function move(string $uri, string $destination): bool;
+	abstract public function move(string $uri, string $destination): bool;
 
 	/**
 	 * Create collection of resources (eg. a directory)
 	 * @param  string $uri
 	 * @return void
 	 */
-	abstract protected function mkcol(string $uri): void;
+	abstract public function mkcol(string $uri): void;
 
 	/**
 	 * Return a list of resources for target $uri
@@ -106,7 +106,7 @@ abstract class AbstractStorage
 	 * where each item has a key string containing the name of the resource (eg. file name),
 	 * and the value being an array of properties, or NULL
 	 */
-	abstract protected function list(string $uri, array $properties): iterable;
+	abstract public function list(string $uri, array $properties): iterable;
 
 	/**
 	 * Lock the requested resource
@@ -115,7 +115,7 @@ abstract class AbstractStorage
 	 * @param  string $scope Locking scope, either ::SHARED_LOCK or ::EXCLUSIVE_LOCK constant
 	 * @return void
 	 */
-	protected function lock(string $uri, string $token, string $scope): void
+	public function lock(string $uri, string $token, string $scope): void
 	{
 		// By default locking is not implemented
 	}
@@ -126,7 +126,7 @@ abstract class AbstractStorage
 	 * @param  string $token Unique token sent by the client
 	 * @return void
 	 */
-	protected function unlock(string $uri, string $token): void
+	public function unlock(string $uri, string $token): void
 	{
 		// By default locking is not implemented
 	}
@@ -145,7 +145,7 @@ abstract class AbstractStorage
 	 * @param  string|null $token
 	 * @return string|null
 	 */
-	protected function getLock(string $uri, ?string $token = null): ?string
+	public function getLock(string $uri, ?string $token = null): ?string
 	{
 		// By default locking is not implemented, so NULL is always returned
 		return null;
