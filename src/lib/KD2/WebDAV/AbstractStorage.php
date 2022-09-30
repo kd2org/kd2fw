@@ -61,9 +61,11 @@ abstract class AbstractStorage
 	 * Create or replace a resource
 	 * @param  string $uri     Path to resource
 	 * @param  resource $pointer A PHP file resource containing the sent data (note that this might not always be seekable)
+	 * @param  null|string $hash A MD5 hash of the resource to store, if it is supplied,
+	 * this method should fail with a 400 code WebDAV exception and not proceed to store the resource.
 	 * @return bool Return TRUE if the resource has been created, or FALSE it has just been updated.
 	 */
-	abstract protected function put(string $uri, $pointer): bool;
+	abstract protected function put(string $uri, $pointer, ?string $hash): bool;
 
 	/**
 	 * Delete a resource

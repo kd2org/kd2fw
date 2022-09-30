@@ -75,9 +75,12 @@ class Server
 		'DAV::ishidden', // Microsoft thingy
 	];
 
-	// Custom property
-	const PROP_THUMB_URL = 'urn:karadav:thumb_url'; // Thumbnail URL for file preview in directory view
-
+	// Custom properties
+	/**
+	 * File MD5 hash
+	 * Your implementation should return the hexadecimal encoded MD5 hash of the file
+	 */
+	const PROP_DIGEST_MD5 = 'urn:karadav:digest_md5';
 
 	const SHARED_LOCK = 'shared';
 	const EXCLUSIVE_LOCK = 'exclusive';
@@ -142,12 +145,7 @@ class Server
 				$out .= sprintf('<tr><td><span>&#x1F4C1;</span></td><th colspan=3><a href="%s/"><b>%s</b></a></th></tr>', rawurlencode($file), htmlspecialchars($file));
 			}
 			else {
-				if (!empty($props[self::PROP_THUMB_URL])) {
-					$icon = sprintf('<a href="%s"><img src="%s" /></a>', rawurlencode($file), htmlspecialchars($props[self::PROP_THUMB_URL]));
-				}
-				else {
-					$icon = '<span>&#x1F5CE;</span>';
-				}
+				$icon = '<span>&#x1F5CE;</span>';
 
 				$out .= sprintf('<tr><td>%s</td><th><a href="%s">%s</a></th><td>%s</td><td style="text-align: right">%s</td></tr>',
 					$icon,
@@ -215,6 +213,7 @@ class Server
 
 		if (!empty($_SERVER['HTTP_CONTENT_ENCODING'])) {
 			if (false !== strpos($_SERVER['HTTP_CONTENT_ENCODING'], 'gzip')) {
+				// Might be supported later?
 				throw new Exception('Content Encoding is not supported', 501);
 			}
 			else {
@@ -231,6 +230,14 @@ class Server
 			throw new Exception('This server is not compatible with OS/X finder. Consider using a different WebDAV client or webserver.', 403);
 		}
 
+		$hash = null;
+
+		// Support for checksum matching
+		// https://dcache.org/old/manuals/UserGuide-6.0/webdav.shtml#checksums
+		if (!empty($_SERVER['HTTP_CONTENT_MD5'])) {
+			$hash = bin2hex(base64_decode($_SERVER['HTTP_CONTENT_MD5']));
+		}
+
 		$this->checkLock($uri);
 
 		if (!empty($_SERVER['HTTP_IF_MATCH'])) {
@@ -242,7 +249,7 @@ class Server
 			}
 		}
 
-		$created = $this->storage->put($uri, fopen('php://input', 'r'));
+		$created = $this->storage->put($uri, fopen('php://input', 'r'), $hash);
 
 		$prop = $this->storage->properties($uri, ['DAV::getetag'], 0);
 
@@ -262,7 +269,15 @@ class Server
 
 	public function http_head(string $uri, array &$props = []): ?string
 	{
-		$props = $this->storage->properties($uri, array_merge(self::BASIC_PROPERTIES, ['DAV::getetag']), 0);
+		$requested_props = self::BASIC_PROPERTIES;
+		$requested_props[] = 'DAV::getetag';
+
+		// RFC 3230 https://www.rfc-editor.org/rfc/rfc3230.html
+		if (!empty($_SERVER['HTTP_WANT_DIGEST'])) {
+			$requested_props[] = self::PROP_DIGEST_MD5;
+		}
+
+		$props = $this->storage->properties($uri, $requested_props, 0);
 
 		if (!$props) {
 			throw new Exception('Resource Not Found', 404);
@@ -296,6 +311,10 @@ class Server
 			}
 		}
 
+		if (!empty($props[self::PROP_DIGEST_MD5])) {
+			header(sprintf('Digest: md5=%s', base64_encode(hex2bin($props[self::PROP_DIGEST_MD5]))));
+		}
+
 		return null;
 	}
 
@@ -308,7 +327,7 @@ class Server
 		$out = '';
 
 		if ($is_collection) {
-			$list = $this->storage->list($uri, self::BASIC_PROPERTIES + [self::PROP_THUMB_URL]);
+			$list = $this->storage->list($uri, self::BASIC_PROPERTIES);
 
 			if (!isset($_SERVER['HTTP_ACCEPT']) || false === strpos($_SERVER['HTTP_ACCEPT'], 'html')) {
 				$list = is_array($list) ? $list : iterator_to_array($list);
