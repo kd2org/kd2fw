@@ -96,7 +96,7 @@ class Writer
 				<number:text>/</number:text>
 				<number:month number:style="long"/>
 				<number:text>/</number:text>
-				<number:year/>
+				<number:year number:style="long"/>
 			</number:date-style>
 			<style:style style:data-style-name="N37" style:family="table-cell" style:name="ce1" style:parent-style-name="Default"/>
 			<style:style style:family="table-column" style:name="co-default">
