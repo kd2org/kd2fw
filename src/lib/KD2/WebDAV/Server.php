@@ -904,14 +904,28 @@ class Server
 			$this->log('Requesting LOCK refresh: %s = %s', $uri, $scope);
 		}
 		else {
+			$locked_scope = $this->storage->getLock($uri);
+
+			if ($locked_scope == self::EXCLUSIVE_LOCK) {
+				throw new Exception('Cannot acquire another lock, resource is locked for exclusive use', 423);
+			}
+
+			if ($locked_scope && $token = $this->getLockToken()) {
+				$token = $this->getLockToken();
+
+				if (!$token) {
+					throw new Exception('Missing lock token', 423);
+				}
+
+				$this->checkLock($uri, $token);
+			}
+
 			$xml = file_get_contents('php://input');
 
 			if (!preg_match('!<((?:(\w+):)?lockinfo)[^>]*>(.*?)</\1>!is', $xml, $match)) {
 				throw new Exception('Invalid XML', 400);
 			}
 
-			// We don't care if the lock is shared or exclusive, or about anything else
-			// we just store what the client sent us and will send that back
 			$ns = $match[2];
 			$info = $match[3];
 
@@ -925,30 +939,19 @@ class Server
 			$scope = false !== stripos($info, sprintf('<%sexclusive', $ns ? $ns . ':' : '')) ? self::EXCLUSIVE_LOCK : self::SHARED_LOCK;
 
 			$this->log('Requesting LOCK: %s = %s', $uri, $scope);
-			$locked_scope = $this->storage->getLock($uri);
-
-			if ($locked_scope == self::EXCLUSIVE_LOCK || ($locked_scope && $scope == self::EXCLUSIVE_LOCK)) {
-				throw new Exception('Cannot acquire another lock, resource is locked for exclusive use', 423);
-			}
 		}
 
 		$this->storage->lock($uri, $token, $scope);
 
-		if (null === $info) {
-			$info = sprintf('
-				<d:lockscope><d:%s /></d:lockscope>
-				<d:locktype><d:write /></d:locktype>
-				<d:owner>unknown</d:owner>', $scope);
-		}
-
 		$timeout = 60*5;
-		$append = sprintf('
+		$info = sprintf('
+			<d:lockscope><d:%s /></d:lockscope>
+			<d:locktype><d:write /></d:locktype>
+			<d:owner>unknown</d:owner>
 			<d:depth>%d</d:depth>
 			<d:timeout>Second-%d</d:timeout>
 			<d:locktoken><d:href>%s</d:href></d:locktoken>
-		', 1, $timeout, $token);
-
-		$info .= $append;
+		', $scope, 1, $timeout, $token);
 
 		http_response_code(200);
 		header('Content-Type: application/xml; charset=utf-8');
@@ -1048,7 +1051,7 @@ class Server
 			return;
 		}
 		elseif ($token) {
-			throw new Exception('Invalid token', 423);
+			throw new Exception('Invalid token', 400);
 		}
 		// Resource is locked
 		elseif ($this->storage->getLock($uri)) {
