@@ -699,7 +699,7 @@ class Server
 
 				$pos = strrpos($name, ':');
 				$ns = substr($name, 0, strrpos($name, ':'));
-				$name = substr($name, strrpos($name, ':') + 1);
+				$tag_name = substr($name, strrpos($name, ':') + 1);
 
 				$alias = $root_namespaces[$ns];
 				$attributes = '';
@@ -711,7 +711,7 @@ class Server
 					$value = '"' . $value . '"';
 				}
 				elseif ($value instanceof \DateTimeInterface) {
-					if ($ns == 'DAV:' && $name == 'creationdate') {
+					if ($name == 'DAV::creationdate') {
 						$attributes = 'ns0:dt="dateTime.tz"';
 						$value = $value->format(DATE_RFC3339);
 					}
@@ -722,13 +722,18 @@ class Server
 				}
 				elseif (is_array($value)) {
 					$attributes = $value['attributes'] ?? '';
-					$value = $value['xml'] ?? '';
+					$value = $value['xml'] ?? null;
 				}
 				else {
 					$value = htmlspecialchars($value, ENT_XML1);
 				}
 
-				$e .= sprintf('<%s:%s%s>%s</%1$s:%2$s>', $alias, $name, $attributes ? ' ' . $attributes : '', $value);
+				if (null === $value) {
+					$e .= sprintf('<%s:%s%s />', $alias, $tag_name, $attributes ? ' ' . $attributes : '');
+				}
+				else {
+					$e .= sprintf('<%s:%s%s>%s</%1$s:%2$s>', $alias, $tag_name, $attributes ? ' ' . $attributes : '', $value);
+				}
 			}
 
 			$e .= '</d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat>' . "\n";

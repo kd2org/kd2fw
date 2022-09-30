@@ -140,13 +140,33 @@ abstract class NextCloud
 	 */
 	abstract public function getDirectDownloadSecret(string $uri, string $login): string;
 
+	/**
+	 * Chunked upload API.
+	 * You should manage automatic removal of incomplete uploads after around 24 hours.
+	 * @param  string $login Current user name
+	 * @return string Path to temporary storage for user
+	 */
+	abstract public function storeChunk(string $login, string $name, string $part, $pointer): void;
+
+	abstract public function deleteChunks(string $login, string $name): void;
+
+	abstract public function assembleChunks(string $login, string $name, string $target): bool;
+
 	// END OF ABSTRACT METHODS
 
-	// Order of array elements is important!
+	/**
+	 * List of routes
+	 * Order of array elements is important!
+	 */
 	const ROUTES = [
 		// Main routes
 		'remote.php/webdav/' => 'webdav', // desktop client
 		'remote.php/dav' => 'webdav', // android client
+
+		// Chunked API
+		// https://docs.nextcloud.com/server/latest/developer_manual/client_apis/WebDAV/chunking.html
+		'remote.php/webdav/uploads/' => 'chunked',
+		'remote.php/dav/uploads/' => 'chunked',
 
 		// Login v1, for Android app
 		'index.php/login/flow' => 'login_v1',
@@ -255,13 +275,13 @@ abstract class NextCloud
 
 	protected function requireAuth(): void
 	{
-		if (!$this->nc_auth($_SERVER['PHP_AUTH_USER'] ?? null, $_SERVER['PHP_AUTH_PW'] ?? null)) {
+		if (!$this->auth($_SERVER['PHP_AUTH_USER'] ?? null, $_SERVER['PHP_AUTH_PW'] ?? null)) {
 			header('WWW-Authenticate: Basic realm="Please login"');
 			throw new Exception('Please login to access this resource', 401);
 		}
 	}
 
-	public function nc_webdav(string $uri): array
+	public function nc_webdav(string $uri): string
 	{
 		$this->requireAuth();
 
@@ -361,7 +381,7 @@ abstract class NextCloud
 				],
 			],
 			'dav' => [
-				//"chunking": "1.0"
+				"chunking" => "1.0",
 			],
 			'files' => [
 				'bigfilechunking' => false,
@@ -522,10 +542,10 @@ abstract class NextCloud
 		return $uri;
 	}
 
-	protected function nc_direct_id(string $uri): string
+	static public function getDirectID(string $username, string $uri): string
 	{
 		// trick to avoid having to store a file ID, just send the file name
-		return rtrim(base64_encode(gzcompress($this->getUserName() . ':' . $uri)), '=');
+		return rtrim(base64_encode(gzcompress($username . ':' . $uri)), '=');
 	}
 
 	protected function nc_ocs(array $data = []): array
@@ -534,5 +554,47 @@ abstract class NextCloud
 			'meta' => ['status' => 'ok', 'statuscode' => 200, 'message' => 'OK'],
 			'data' => $data,
 		]];
+	}
+
+	protected function nc_chunked(string $uri): void
+	{
+		$this->requireAuth();
+		$user = $this->getUserName();
+
+		$r = '!^/remote\.php/(?:web)?dav/uploads/([^/]+)/([\w\d_-]+)(?:/([\w\d_-]+))$!';
+
+		if (!preg_match($r, $uri, $match)) {
+			throw new Exception('Invalid URL for chunk upload', 400);
+		}
+
+		$method = $_SERVER['REQUEST_METHOD'] ?? null;
+		$login = $match[1] ?? null;
+		$dir = $match[2] ?? null;
+		$part = $match[3] ?? null;
+
+		if ($method == 'MKCOL') {
+			http_response_code(201);
+		}
+		elseif ($method == 'PUT') {
+			$this->storeChunk($login, $dir, $part, fopen('php://input', 'rb'));
+			http_response_code(201);
+		}
+		elseif ($method == 'MOVE') {
+			$dest = $_SERVER['HTTP_DESTINATION'];
+			$dest = preg_replace('!^.*/remote.php/(?:web)?dav/(?:files/)?[^/]*/!', '', $dest);
+
+			if ($this->assembleChunks($login, $dir, $dest)) {
+				http_response_code(201);
+			}
+			else {
+				http_response_code(204);
+			}
+		}
+		elseif ($method == 'DELETE' && !$part) {
+			$this->deleteChunks($login, $dir);
+		}
+		else {
+			throw new Exception('Invalid method for chunked upload', 400);
+		}
 	}
 }
