@@ -578,7 +578,9 @@ class Server
 		}
 
 		// Find all properties
-		preg_match_all('!<([\w-]+):([\w-]+)|<([\w-]+)[^>]*xmlns="([^"]+)"!', $match[2], $match, PREG_SET_ORDER);
+		// Allow for empty namespace, see Litmus FAQ for propnullns
+		// https://github.com/tolsen/litmus/blob/master/FAQ
+		preg_match_all('!<([\w-]+):([\w-]+)|<([\w-]+)[^>]*xmlns="([^"]*)"!', $match[2], $match, PREG_SET_ORDER);
 
 		$properties = [];
 
@@ -654,9 +656,10 @@ class Server
 		];
 
 		$i = 0;
+		$requested ??= [];
 
-		foreach (($requested ?? []) as $prop) {
-			if ($prop['ns_url'] == 'DAV:') {
+		foreach ($requested as $prop) {
+			if ($prop['ns_url'] == 'DAV:' || !$prop['ns_url']) {
 				continue;
 			}
 
@@ -669,6 +672,11 @@ class Server
 			foreach ($properties as $name => $value) {
 				$pos = strrpos($name, ':');
 				$ns = substr($name, 0, strrpos($name, ':'));
+
+				// NULL namespace, see Litmus FAQ for propnullns
+				if (!$ns) {
+					continue;
+				}
 
 				if (!array_key_exists($ns, $root_namespaces)) {
 					$root_namespaces[$ns] = 'rns' . $i++;
@@ -701,7 +709,7 @@ class Server
 				$ns = substr($name, 0, strrpos($name, ':'));
 				$tag_name = substr($name, strrpos($name, ':') + 1);
 
-				$alias = $root_namespaces[$ns];
+				$alias = $root_namespaces[$ns] ?? null;
 				$attributes = '';
 
 				if ($name == 'DAV::resourcetype' && $value == 'collection') {
@@ -728,11 +736,19 @@ class Server
 					$value = htmlspecialchars($value, ENT_XML1);
 				}
 
-				if (null === $value) {
-					$e .= sprintf('<%s:%s%s />', $alias, $tag_name, $attributes ? ' ' . $attributes : '');
+				// NULL namespace, see Litmus FAQ for propnullns
+				if (!$ns) {
+					$attributes .= ' xmlns=""';
 				}
 				else {
-					$e .= sprintf('<%s:%s%s>%s</%1$s:%2$s>', $alias, $tag_name, $attributes ? ' ' . $attributes : '', $value);
+					$tag_name = $alias . ':' . $tag_name;
+				}
+
+				if (null === $value) {
+					$e .= sprintf('<%s%s />', $tag_name, $attributes ? ' ' . $attributes : '');
+				}
+				else {
+					$e .= sprintf('<%s%s>%s</%1$s>', $tag_name, $attributes ? ' ' . $attributes : '', $value);
 				}
 			}
 
@@ -749,9 +765,15 @@ class Server
 						$pos = strrpos($name, ':');
 						$ns = substr($name, 0, strrpos($name, ':'));
 						$name = substr($name, strrpos($name, ':') + 1);
-						$alias = $root_namespaces[$ns];
+						$alias = $root_namespaces[$ns] ?? null;
 
-						$e .= sprintf('<%s:%s />', $alias, $name);
+						// NULL namespace, see Litmus FAQ for propnullns
+						if (!$alias) {
+							$e .= sprintf('<%s xmlns="" />', $name);
+						}
+						else {
+							$e .= sprintf('<%s:%s />', $alias, $name);
+						}
 					}
 
 					$e .= '</d:prop><d:status>HTTP/1.1 404 Not Found</d:status></d:propstat>';
@@ -763,6 +785,65 @@ class Server
 		}
 
 		$out .= '</d:multistatus>';
+
+		return $out;
+	}
+
+	static public function parsePropPatch(string $body): array
+	{
+		$xml = @simplexml_load_string($body);
+
+		if (false === $xml) {
+			throw new WebDAV_Exception('Invalid XML', 400);
+		}
+
+		$_ns = null;
+
+		// Select correct namespace if required
+		if (!empty(key($xml->getDocNameSpaces()))) {
+			$_ns = 'DAV:';
+		}
+
+		$out = [];
+
+		// Process set/remove instructions in order (important)
+		foreach ($xml->children($_ns) as $child) {
+			foreach ($child->children($_ns) as $prop) {
+				$prop = $prop->children();
+				if ($child->getName() == 'set') {
+					$ns = $prop->getNamespaces(true);
+					$ns = array_flip($ns);
+					$name = key($ns) . ':' . $prop->getName();
+
+					$attributes = $prop->attributes();
+					$attributes = $attributes === null ? null : iterator_to_array($attributes);
+
+					foreach ($ns as $xmlns => $alias) {
+						foreach (iterator_to_array($prop->attributes($alias)) as $key => $v) {
+							$attributes[$xmlns . ':' . $key] = $value;
+						}
+					}
+
+					if ($prop->count() > 1) {
+						$text = '';
+
+						foreach ($prop->children() as $c) {
+							$text .= $c->asXML();
+						}
+					}
+					else {
+						$text = (string)$prop;
+					}
+
+					$out[$name] = ['action' => 'set', 'attributes' => $attributes ?: null, 'content' => $text ?: null];
+				}
+				else {
+					$ns = $prop->getNamespaces();
+					$name = current($ns) . ':' . $prop->getName();
+					$out[$name] = ['action' => 'remove'];
+				}
+			}
+		}
 
 		return $out;
 	}
