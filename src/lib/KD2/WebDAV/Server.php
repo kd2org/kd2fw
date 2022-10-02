@@ -249,7 +249,14 @@ class Server
 			}
 		}
 
-		$created = $this->storage->put($uri, fopen('php://input', 'r'), $hash);
+		// Specific to NextCloud/ownCloud
+		$mtime = (int)$_SERVER['HTTP_X_OC_MTIME'] ?: null;
+
+		if ($mtime) {
+			header('X-OC-MTime: accepted');
+		}
+
+		$created = $this->storage->put($uri, fopen('php://input', 'r'), $hash, $mtime);
 
 		$prop = $this->storage->properties($uri, ['DAV::getetag'], 0);
 
@@ -357,13 +364,15 @@ class Server
 		$length = $start = $end = null;
 		$gzip = false;
 
-		if (isset($_SERVER['HTTP_ACCEPT_ENCODING']) &&
-			false !== strpos($_SERVER['HTTP_ACCEPT_ENCODING'], 'gzip')) {
+		if (isset($_SERVER['HTTP_ACCEPT_ENCODING'])
+			&& false !== strpos($_SERVER['HTTP_ACCEPT_ENCODING'], 'gzip')
+			// Don't compress already compressed content
+			&& !preg_match('/\.(?:mp4|m4a|zip|docx|xlsx|ods|odt|odp|7z|gz|webm|ogg|mp3|ogm|flac|ogv|mkv)$/', $uri)) {
 			$gzip = true;
 			header('Content-Encoding: gzip', true);
 		}
 
-		if (isset($_SERVER['HTTP_RANGE'])
+		if (!$gzip && isset($_SERVER['HTTP_RANGE'])
 			&& preg_match('/^bytes=(\d*)-(\d*)$/i', $_SERVER['HTTP_RANGE'], $match)
 			&& $match[1] . $match[2] !== '') {
 			$start = $match[1] === '' ? null : (int) $match[1];
@@ -448,35 +457,37 @@ class Server
 		}
 
 		if ($gzip) {
-			$gzip = deflate_init(ZLIB_ENCODING_GZIP, ['level' => 9]);
-			$length = null;
 			$this->log('Using gzip output compression');
+			$gzip = deflate_init(ZLIB_ENCODING_GZIP, ['level' => 9]);
+
+			$fp = fopen('php://memory', 'wb');
+
+			while (!feof($file['resource'])) {
+				fwrite($fp, deflate_add($gzip, fread($file['resource'], 8192), ZLIB_NO_FLUSH));
+			}
+
+			fwrite($fp, deflate_add($gzip, '', ZLIB_FINISH));
+			$length = ftell($fp);
+			rewind($fp);
+			fclose($file['resource']);
+
+			$file['resource'] = $fp;
+			unset($fp);
 		}
 
 		if (null !== $length) {
-			header('Content-Length: ' . $length, true);
 			$this->log('Length: %s', $length);
+			header('Content-Length: ' . $length, true);
 		}
 
 		while (!feof($file['resource']) && ($end === null || $end > 0)) {
 			$l = $end !== null ? min(8192, $end) : 8192;
 
-			$data = fread($file['resource'], $l);
-
-			if ($gzip) {
-				echo deflate_add($gzip, $data, ZLIB_NO_FLUSH);
-			}
-			else {
-				echo $data;
-			}
+			echo fread($file['resource'], $l);
 
 			if (null !== $end) {
 				$end -= 8192;
 			}
-		}
-
-		if ($gzip) {
-			echo deflate_add($gzip, '', ZLIB_FINISH);
 		}
 
 		fclose($file['resource']);
@@ -1133,6 +1144,11 @@ class Server
 		}
 
 		$method = $_SERVER['REQUEST_METHOD'] ?? null;
+
+		header_remove('Expires');
+		header_remove('Pragma');
+		header_remove('Cache-Control');
+		header('X-Server: KD2', true);
 
 		// Stop and send reply to OPTIONS before anything else
 		if ($method == 'OPTIONS') {

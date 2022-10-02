@@ -150,7 +150,7 @@ abstract class NextCloud
 
 	abstract public function deleteChunks(string $login, string $name): void;
 
-	abstract public function assembleChunks(string $login, string $name, string $target): bool;
+	abstract public function assembleChunks(string $login, string $name, string $target, ?int $mtime): array;
 
 	// END OF ABSTRACT METHODS
 
@@ -159,14 +159,14 @@ abstract class NextCloud
 	 * Order of array elements is important!
 	 */
 	const ROUTES = [
-		// Main routes
-		'remote.php/webdav/' => 'webdav', // desktop client
-		'remote.php/dav' => 'webdav', // android client
-
 		// Chunked API
 		// https://docs.nextcloud.com/server/latest/developer_manual/client_apis/WebDAV/chunking.html
 		'remote.php/webdav/uploads/' => 'chunked',
 		'remote.php/dav/uploads/' => 'chunked',
+
+		// Main routes
+		'remote.php/webdav/' => 'webdav', // desktop client
+		'remote.php/dav' => 'webdav', // android client
 
 		// Login v1, for Android app
 		'index.php/login/flow' => 'login_v1',
@@ -189,6 +189,11 @@ abstract class NextCloud
 	];
 
 	const AUTH_REDIRECT_URL = 'nc://login/server:%s&user:%s&password:%s';
+
+	public function setRootURL(string $url)
+	{
+		$this->root_url = $url;
+	}
 
 	/**
 	 * Handle NextCloud specific routes
@@ -228,7 +233,7 @@ abstract class NextCloud
 		catch (Exception $e) {
 			http_response_code($e->getCode());
 			echo json_encode(['error' => $e->getMessage()]);
-			$route = 'error';
+			return ['route' => 'error'];
 		}
 
 		// This route is XML only
@@ -243,7 +248,7 @@ abstract class NextCloud
 			echo json_encode($v, JSON_PRETTY_PRINT);
 		}
 		elseif ($route == 'webdav') {
-			return ['route' => $route, 'base_uri' => $v];
+			return ['route' => $route, 'base_uri' => '/' . $v];
 		}
 		elseif ($route == 'direct') {
 			return ['route' => $route, 'uri' => $v];
@@ -286,8 +291,8 @@ abstract class NextCloud
 		$this->requireAuth();
 
 		// Find out which route we are using and replace URI
-		foreach (self::NC_ROUTES as $route => $method) {
-			if ($method != 'nc_webdav') {
+		foreach (self::ROUTES as $route => $method) {
+			if ($method != 'webdav') {
 				continue;
 			}
 
@@ -329,7 +334,7 @@ abstract class NextCloud
 		}
 
 		$token = $this->generateToken();
-		$endpoint = sprintf('%s%s', $this->root_url, array_search('poll', self::NC_ROUTES));
+		$endpoint = sprintf('%s%s', $this->root_url, array_search('poll', self::ROUTES));
 
 		return [
 			'poll' => compact('token', 'endpoint'),
@@ -375,37 +380,42 @@ abstract class NextCloud
 			],
 			'capabilities' => [
 				'core' => [
-					'webdav-root' => array_search('webdav', self::NC_ROUTES),
+					'webdav-root' => array_search('webdav', self::ROUTES),
 					'pollinterval' => 60,
 					'bruteforce' => ['delay' => 0],
 				],
-			],
-			'dav' => [
-				"chunking" => "1.0",
-			],
-			'files' => [
-				'bigfilechunking' => false,
-				'comments' => false,
-				'undelete' => false,
-				'versioning' => false,
-			],
-			'files_sharing' => [
-				'api_enabled' => false,
-				'group_sharing' => false,
-				'resharing' => false,
-				'sharebymail' => ['enabled' => false],
-			],
-			'user' => [
-				'expire_date' => ['enabled' => false],
-				'send_mail' => false,
-			],
-			'public' => [
-				'enabled' => false,
-				'expire_date' => ['enabled' => false],
-				'multiple_links' => false,
-				'send_mail' => false,
-				'upload' => false,
-				'upload_files_drop' => false,
+				'dav' => [
+					// NG chunking: https://github.com/cernbox/smashbox/blob/master/protocol/chunking.md
+					// "1.0" means "NG" actually... lol: https://github.com/owncloud/client/issues/7862#issuecomment-717953394
+					"chunking" => "1.0",
+				],
+				'files' => [
+					// old v1 chunking: https://github.com/cernbox/smashbox/blob/master/protocol/protocol.md#chunked-file-upload
+					// We don't support it, BUT it is required for OwnCloud client, see
+					// https://github.com/owncloud/client/blob/24ca9615f6e8ea765f6c25fb4e009b1acc262a2d/src/libsync/capabilities.cpp#L166
+					'bigfilechunking' => true,
+					'comments' => false,
+					'undelete' => false,
+					'versioning' => false,
+				],
+				'files_sharing' => [
+					'api_enabled' => false,
+					'group_sharing' => false,
+					'resharing' => false,
+					'sharebymail' => ['enabled' => false],
+				],
+				'user' => [
+					'expire_date' => ['enabled' => false],
+					'send_mail' => false,
+				],
+				'public' => [
+					'enabled' => false,
+					'expire_date' => ['enabled' => false],
+					'multiple_links' => false,
+					'send_mail' => false,
+					'upload' => false,
+					'upload_files_drop' => false,
+				],
 			],
 		]);
 	}
@@ -493,7 +503,7 @@ abstract class NextCloud
 		$uri = rawurlencode($uri);
 		$uri = str_replace('%2F', '/', $uri);
 
-		$url = sprintf('%s%s/%s/%s?h=%s', $this->root_url, array_search('direct', self::NC_ROUTES), $user, $uri, $hash);
+		$url = sprintf('%s%s/%s/%s?h=%s', $this->root_url, array_search('direct', self::ROUTES), $user, $uri, $hash);
 
 		return self::nc_ocs(compact('url'));
 	}
@@ -510,7 +520,7 @@ abstract class NextCloud
 			throw new Exception('Missing hash', 400);
 		}
 
-		$uri = substr(trim($uri, '/'), strlen(trim(array_search('direct', self::NC_ROUTES), '/')));
+		$uri = substr(trim($uri, '/'), strlen(trim(array_search('direct', self::ROUTES), '/')));
 
 		$user = strtok($uri, '/');
 		$uri = strtok('');
@@ -561,7 +571,7 @@ abstract class NextCloud
 		$this->requireAuth();
 		$user = $this->getUserName();
 
-		$r = '!^/remote\.php/(?:web)?dav/uploads/([^/]+)/([\w\d_-]+)(?:/([\w\d_-]+))$!';
+		$r = '!^remote\.php/dav/uploads/([^/]+)/([\w\d_-]+)(?:/([\w\d_-]+))?(?:/\.file)?$!';
 
 		if (!preg_match($r, $uri, $match)) {
 			throw new Exception('Invalid URL for chunk upload', 400);
@@ -582,8 +592,25 @@ abstract class NextCloud
 		elseif ($method == 'MOVE') {
 			$dest = $_SERVER['HTTP_DESTINATION'];
 			$dest = preg_replace('!^.*/remote.php/(?:web)?dav/(?:files/)?[^/]*/!', '', $dest);
+			$dest = rawurldecode($dest);
 
-			if ($this->assembleChunks($login, $dir, $dest)) {
+			if (false !== strpos($dest, '..') || false !== strpos($dest, '//')) {
+				throw new Exception('Invalid destination');
+			}
+
+			$mtime = (int) $_SERVER['HTTP_X_OC_MTIME'] ?: null;
+
+			header('X-OC-MTime: accepted');
+			header('OC-FileId: ' . self::getDirectID($user, $dest));
+
+			$return = $this->assembleChunks($login, $dir, $dest, $mtime);
+
+			if (!empty($return['etag'])) {
+				header(sprintf('ETag: "%s"', $return['etag']));
+				header(sprintf('OC-ETag: "%s"', $return['etag']));
+			}
+
+			if (!empty($return['created'])) {
 				http_response_code(201);
 			}
 			else {

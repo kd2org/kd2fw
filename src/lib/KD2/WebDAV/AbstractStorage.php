@@ -63,9 +63,10 @@ abstract class AbstractStorage
 	 * @param  resource $pointer A PHP file resource containing the sent data (note that this might not always be seekable)
 	 * @param  null|string $hash A MD5 hash of the resource to store, if it is supplied,
 	 * this method should fail with a 400 code WebDAV exception and not proceed to store the resource.
+	 * @param  null|int $mtime The modification timestamp to set on the file
 	 * @return bool Return TRUE if the resource has been created, or FALSE it has just been updated.
 	 */
-	abstract public function put(string $uri, $pointer, ?string $hash): bool;
+	abstract public function put(string $uri, $pointer, ?string $hash, ?int $mtime): bool;
 
 	/**
 	 * Delete a resource
