@@ -93,13 +93,18 @@ class Server
 	/**
 	 * Original URI passed to route() before trim
 	 */
-	protected string $original_uri;
+	public string $original_uri;
 
 	protected AbstractStorage $storage;
 
 	public function setStorage(AbstractStorage $storage)
 	{
 		$this->storage = $storage;
+	}
+
+	public function getStorage(): AbstractStorage
+	{
+		return $this->storage;
 	}
 
 	public function setBaseURI(string $uri): void
@@ -250,7 +255,7 @@ class Server
 		}
 
 		// Specific to NextCloud/ownCloud
-		$mtime = (int)$_SERVER['HTTP_X_OC_MTIME'] ?: null;
+		$mtime = (int)($_SERVER['HTTP_X_OC_MTIME'] ?? 0) ?: null;
 
 		if ($mtime) {
 			header('X-OC-MTime: accepted');
@@ -1088,7 +1093,7 @@ class Server
 		header('MS-Author-Via: DAV');
 	}
 
-	protected function log(string $message, ...$params)
+	public function log(string $message, ...$params)
 	{
 		if (PHP_SAPI == 'cli-server') {
 			file_put_contents('php://stderr', vsprintf($message, $params) . "\n");

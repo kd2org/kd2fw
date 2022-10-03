@@ -36,7 +36,19 @@ abstract class NextCloud
 	const PROP_OC_SIZE = self::OC_NAMESPACE . ':size';
 	const PROP_OC_DOWNLOADURL = self::OC_NAMESPACE . ':downloadURL';
 	const PROP_OC_PERMISSIONS = self::OC_NAMESPACE . ':permissions';
+
+	// Preview
+	const PROP_NC_HAS_PREVIEW = self::NC_NAMESPACE . ':has-preview';
+
+	// If you supply Markdown content in this property
+	// it will be displayed at the top of a directory listing
+	// in Android app
+	const PROP_NC_RICH_WORKSPACE = self::NC_NAMESPACE . ':rich-workspace';
+
+	// Useless?
 	const PROP_OC_SHARETYPES = self::OC_NAMESPACE . ':share-types';
+	const PROP_NC_NOTE = self::NC_NAMESPACE . ':note';
+	const PROP_NC_IS_ENCRYPTED = self::NC_NAMESPACE . ':is-encrypted';
 
 	const NC_PROPERTIES = [
 		self::PROP_OC_ID,
@@ -44,12 +56,19 @@ abstract class NextCloud
 		self::PROP_OC_DOWNLOADURL,
 		self::PROP_OC_PERMISSIONS,
 		self::PROP_OC_SHARETYPES,
+		self::PROP_NC_HAS_PREVIEW,
+		self::PROP_NC_NOTE,
+		self::PROP_NC_IS_ENCRYPTED,
 	];
 
 	protected string $root_url;
+	protected Server $server;
+	protected AbstractStorage $storage;
 
 	/**
 	 * Handle your authentication
+	 * you should handle real user login/password as well as app-specific passwords here
+	 * (in a second condition) to cover all cases
 	 */
 	abstract public function auth(?string $login, ?string $password): bool;
 	/*  This is a simple example:
@@ -174,7 +193,11 @@ abstract class NextCloud
 		'index.php/login/v2/poll' => 'poll',
 		'index.php/login/v2' => 'login_v2',
 
-		// Random API endpoints
+		// Other API endpoints
+		'index.php/core/preview.png' => 'preview',
+		'index.php/apps/files/api/v1/thumbnail/' => 'thumbnail',
+		'ocs/v2.php/apps/text/workspace/direct' => 'workspace_edit',
+		'ocs/v2.php/core/apppassword' => 'delete_app_password',
 		'status.php' => 'status',
 		'ocs/v1.php/cloud/capabilities' => 'capabilities',
 		'ocs/v2.php/cloud/capabilities' => 'capabilities',
@@ -195,20 +218,19 @@ abstract class NextCloud
 		$this->root_url = $url;
 	}
 
+	public function setServer(Server $server)
+	{
+		$this->server = $server;
+		$this->storage = $server->getStorage();
+	}
+
 	/**
 	 * Handle NextCloud specific routes
 	 *
 	 * @param null|string If left NULL, then REQUEST_URI will be used
-	 * @return null|array Will return NULL if no NextCloud route was requested.
-	 * If a route was requested, the route name will be returned in the array:
-	 * ['route' => 'config'] for example.
-	 * For 'webdav' route, a 'base_uri' key will be supplied in the array,
-	 * this should be passed to the WebDAV server as the base URL.
-	 * For 'direct' route, a 'uri' key will be supplied in the array,
-	 * this should be used to return the requested resource, without auth (as the
-	 * NextCloud class already handled auth), eg. $dav->http_get($uri);
+	 * @return bool Will return TRUE if no NextCloud route was requested.
 	 */
-	public function route(?string $uri = null): ?array
+	public function route(?string $uri = null): bool
 	{
 		if (null === $uri) {
 			$uri = $_SERVER['REQUEST_URI'] ?? '/';
@@ -220,20 +242,25 @@ abstract class NextCloud
 		$route = array_filter(self::ROUTES, fn($k) => 0 === strpos($uri, $k), ARRAY_FILTER_USE_KEY);
 
 		if (count($route) < 1) {
-			return null;
+			return false;
 		}
 
 		$route = current($route);
 
 		header('Access-Control-Allow-Origin: *', true);
 
+		$method = $_SERVER['REQUEST_METHOD'] ?? null;
+		$this->server->log('NC <= %s %s => routed to: %s', $method, $uri, $route);
+		//$this->server->log('Headers: %s', print_r(apache_request_headers(true)));
+
 		try {
 			$v = $this->{'nc_' . $route}($uri);
 		}
 		catch (Exception $e) {
+			$this->server->log('NC => %d - %s', $e->getCode(), $e->getMessage());
 			http_response_code($e->getCode());
 			echo json_encode(['error' => $e->getMessage()]);
-			return ['route' => 'error'];
+			return true;
 		}
 
 		// This route is XML only
@@ -247,14 +274,8 @@ abstract class NextCloud
 			header('Content-Type: application/json', true);
 			echo json_encode($v, JSON_PRETTY_PRINT);
 		}
-		elseif ($route == 'webdav') {
-			return ['route' => $route, 'base_uri' => '/' . $v];
-		}
-		elseif ($route == 'direct') {
-			return ['route' => $route, 'uri' => $v];
-		}
 
-		return compact('route');
+		return true;
 	}
 
 	protected function xml(array $array): string
@@ -286,7 +307,7 @@ abstract class NextCloud
 		}
 	}
 
-	public function nc_webdav(string $uri): string
+	public function nc_webdav(string $uri): void
 	{
 		$this->requireAuth();
 
@@ -304,11 +325,13 @@ abstract class NextCloud
 
 		// Android app is using "/remote.php/dav/files/user//" as root
 		// so let's alias that as well
-		if (preg_match('!^' . preg_quote($base_uri, '!') . 'files/[a-z]+/*!', $uri, $match)) {
+		// ownCloud Android is requesting just /dav/files/
+		if (preg_match('!^' . preg_quote($base_uri, '!') . 'files/(?:[a-z]+/+)?!', $uri, $match)) {
 			$base_uri = $match[0];
 		}
 
-		return $base_uri;
+		$this->server->setBaseURI($base_uri);
+		$this->server->route($uri);
 	}
 
 	public function nc_status(): array
@@ -470,6 +493,18 @@ abstract class NextCloud
 		]);
 	}
 
+	protected function getDirectURL(string $uri, string $user)
+	{
+		$uri = trim($uri, '/');
+		$expire = intval((time() - strtotime('2022-09-01'))/3600) + 8; // 8 hours
+		$hash = $expire . ':' . sha1($user . $uri . $expire . $this->getDirectDownloadSecret($uri, $user));
+
+		$uri = rawurlencode($uri);
+		$uri = str_replace('%2F', '/', $uri);
+
+		return sprintf('%s%s/%s/%s?h=%s', $this->root_url, trim(array_search('direct', self::ROUTES), '/'), $user, $uri, $hash);
+	}
+
 	protected function nc_direct_url(): array
 	{
 		$method = $_SERVER['REQUEST_METHOD'] ?? null;
@@ -493,22 +528,18 @@ abstract class NextCloud
 		$user = strtok($uri, ':');
 		$uri = strtok('');
 
-		if (!$this->exists($uri)) {
+		if (!$this->storage->exists($uri)) {
 			throw new Exception('Invalid fileId', 404);
 		}
 
-		$expire = intval((time() - strtotime('2022-09-01'))/3600) + 8; // 8 hours
-		$hash = $expire . ':' . sha1($user . $uri . $expire . $this->getDirectDownloadSecret($uri, $user));
+		$url = $this->getDirectURL($uri, $user);
 
-		$uri = rawurlencode($uri);
-		$uri = str_replace('%2F', '/', $uri);
-
-		$url = sprintf('%s%s/%s/%s?h=%s', $this->root_url, array_search('direct', self::ROUTES), $user, $uri, $hash);
+		$this->server->log('NextCloud Direct Download URL is: %s', $url);
 
 		return self::nc_ocs(compact('url'));
 	}
 
-	protected function nc_direct(string $uri): string
+	protected function nc_direct(string $uri): void
 	{
 		$method = $_SERVER['REQUEST_METHOD'] ?? null;
 
@@ -523,7 +554,7 @@ abstract class NextCloud
 		$uri = substr(trim($uri, '/'), strlen(trim(array_search('direct', self::ROUTES), '/')));
 
 		$user = strtok($uri, '/');
-		$uri = strtok('');
+		$uri = trim(strtok(''), '/');
 
 		if (!$user || !$uri) {
 			throw new Exception('Invalid URI', 400);
@@ -549,7 +580,10 @@ abstract class NextCloud
 			throw new Exception('Invalid user', 404);
 		}
 
-		return $uri;
+		$this->server->log('Access via NextCloud direct download API');
+		$this->server->setBaseURI('/');
+		$this->server->original_uri = $uri;
+		$this->server->http_get($uri);
 	}
 
 	static public function getDirectID(string $username, string $uri): string
@@ -564,6 +598,79 @@ abstract class NextCloud
 			'meta' => ['status' => 'ok', 'statuscode' => 200, 'message' => 'OK'],
 			'data' => $data,
 		]];
+	}
+
+	/**
+	 * File preview, large
+	 * @see https://help.nextcloud.com/t/getting-image-preview-with-android-library-or-via-webdav/75743
+	 */
+	protected function nc_preview(string $uri): void
+	{
+		$width = $_GET['x'] ?? null;
+		$height = $_GET['y'] ?? null;
+		$crop = !($_GET['a'] ?? null);
+
+		if (!preg_match('/\.(?:jpe?g|gif|png|webp)$/', $uri)) {
+			http_response_code(404);
+			return;
+		}
+
+		// On Android, the app is annoying and asks to download the image
+		// every time ("no resized image available").
+		// So to avoid that we will just redirect to the file if it is not too big.
+		// But you are free to extend this method and resize the image on the fly
+		$url = str_replace('%2F', '/', rawurlencode(rawurldecode($_GET['file'] ?? '')));
+		$url = ltrim($url, '/');
+
+		$size = current($this->storage->properties($url, ['DAV::getcontentlenth'], 0));
+
+		// 1 MB is a large image
+		if ($size > 1024*1024) {
+			http_response_code(404);
+			return;
+		}
+
+		$url = '/remote.php/dav/files/' . $url;
+		$this->server->log('=> Preview: redirect to %s', $url);
+		header('Location: ' . $url);
+	}
+
+	protected function nc_thumbnail(string $uri): void
+	{
+		// Remove "/index.php/apps/files/api/v1/thumbnail/"
+		$uri = str_replace(array_search('thumbnail', self::ROUTES), '', $uri);
+		$uri = trim($uri, '/');
+
+		list($width, $height, $uri) = array_pad(explode('/', $uri, 3), 3, null);
+
+		// We don't support this feature, but you are free to generate cropped thumbnails here
+		http_response_code(404);
+	}
+
+	/**
+	 * This is triggered when a user clicks the edit button for the README.md file of a directory
+	 * (feature is called "rich workspace direct editing")
+	 * A webview will be opened to the 'url' parameter returned.
+	 */
+	protected function nc_workspace_edit(string $uri): ?array
+	{
+		http_response_code(501);
+		return null;
+
+		$path = json_decode(file_get_contents('php://input'))->path ?? null;
+		return self::nc_ocs(['url' => '...']);
+	}
+
+	/**
+	 * Called when removing an account from Android pap
+	 */
+	protected function nc_app_password(): void
+	{
+		$method = $_SERVER['REQUEST_METHOD'] ?? null;
+
+		if ($method == 'DELETE') {
+			// $_SERVER['PHP_AUTH_USER'] / $_SERVER['PHP_AUTH_PW']
+		}
 	}
 
 	protected function nc_chunked(string $uri): void
