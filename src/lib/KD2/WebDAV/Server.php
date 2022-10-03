@@ -73,6 +73,8 @@ class Server
 		'DAV::creationdate',
 		'DAV::lastaccessed',
 		'DAV::ishidden', // Microsoft thingy
+		'DAV::quota-used-bytes',
+		'DAV::quota-available-bytes',
 	];
 
 	// Custom properties
@@ -81,6 +83,11 @@ class Server
 	 * Your implementation should return the hexadecimal encoded MD5 hash of the file
 	 */
 	const PROP_DIGEST_MD5 = 'urn:karadav:digest_md5';
+
+	/**
+	 * Empty value if you want to have the property found and empty, return this constant
+	 */
+	const EMPTY_PROP_VALUE = 'DAV::empty';
 
 	const SHARED_LOCK = 'shared';
 	const EXCLUSIVE_LOCK = 'exclusive';
@@ -591,6 +598,11 @@ class Server
 
 		$ns = [];
 		$dav_ns = null;
+		$default_ns = null;
+
+		if (preg_match('/<propfind[^>]+xmlns="DAV:"/', $body)) {
+			$default_ns = 'DAV:';
+		}
 
 		preg_match_all('!xmlns:(\w+)\s*=\s*"([^"]+)"!', $body, $match, PREG_SET_ORDER);
 
@@ -611,12 +623,12 @@ class Server
 		// Find all properties
 		// Allow for empty namespace, see Litmus FAQ for propnullns
 		// https://github.com/tolsen/litmus/blob/master/FAQ
-		preg_match_all('!<([\w-]+):([\w-]+)|<([\w-]+)[^>]*xmlns="([^"]*)"!', $match[2], $match, PREG_SET_ORDER);
+		preg_match_all('!<(?:([\w-]+):)?([\w-]+)|<([\w-]+)[^>]*xmlns="([^"]*)"!', $match[2], $match, PREG_SET_ORDER);
 
 		$properties = [];
 
 		foreach ($match as $found) {
-			$url = $found[4] ?? array_search($found[1], $ns);
+			$url = $found[4] ?? (array_search($found[1], $ns) ?: $default_ns);
 			$name = isset($found[4]) ? $found[3] : $found[2];
 
 			$properties[$url . ':' . $name] = [
@@ -727,7 +739,12 @@ class Server
 		foreach ($items as $uri => $item) {
 			$e = '<d:response>';
 
-			$path = '/' . str_replace('%2F', '/', rawurlencode(ltrim($this->base_uri . $uri, '/')));
+			$path = '/' . str_replace('%2F', '/', rawurlencode(trim($this->base_uri . $uri, '/')));
+
+			if (($item['DAV::resourcetype'] ?? null) == 'collection') {
+				$path .= '/';
+			}
+
 			$e .= sprintf('<d:href>%s</d:href>', htmlspecialchars($path, ENT_XML1));
 			$e .= '<d:propstat><d:prop>';
 
@@ -750,14 +767,7 @@ class Server
 					$value = '"' . $value . '"';
 				}
 				elseif ($value instanceof \DateTimeInterface) {
-					if ($name == 'DAV::creationdate') {
-						$attributes = 'ns0:dt="dateTime.tz"';
-						$value = $value->format(DATE_RFC3339);
-					}
-					else {
-						//maybe should be only? elseif ($ns == 'DAV:') {
-						$value = $value->format(DATE_RFC1123);
-					}
+					$value = $value->format(DATE_RFC7231);
 				}
 				elseif (is_array($value)) {
 					$attributes = $value['attributes'] ?? '';
@@ -775,7 +785,7 @@ class Server
 					$tag_name = $alias . ':' . $tag_name;
 				}
 
-				if (null === $value) {
+				if (null === $value || self::EMPTY_PROP_VALUE === $value) {
 					$e .= sprintf('<%s%s />', $tag_name, $attributes ? ' ' . $attributes : '');
 				}
 				else {

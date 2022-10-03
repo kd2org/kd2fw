@@ -462,6 +462,7 @@ abstract class NextCloud
 			'email' => null,
 			'storageLocation' => '/secret/whoknows/' . $user,
 			'role' => '',
+			'display-name' => $user,
 			'quota' => [
 				'quota' => -3, // fixed value
 				'relative' => 0, // fixed value
@@ -693,17 +694,20 @@ abstract class NextCloud
 			http_response_code(201);
 		}
 		elseif ($method == 'PUT') {
+			$this->server->log('Storing chunk: %s/%s/%s', $login, $dir, $part);
 			$this->storeChunk($login, $dir, $part, fopen('php://input', 'rb'));
 			http_response_code(201);
 		}
 		elseif ($method == 'MOVE') {
 			$dest = $_SERVER['HTTP_DESTINATION'];
 			$dest = preg_replace('!^.*/remote.php/(?:web)?dav/(?:files/)?[^/]*/!', '', $dest);
-			$dest = rawurldecode($dest);
+			$dest = trim(rawurldecode($dest), '/');
 
 			if (false !== strpos($dest, '..') || false !== strpos($dest, '//')) {
 				throw new Exception('Invalid destination');
 			}
+
+			$this->server->log('Assembling chunks to: %s', $dest);
 
 			$mtime = (int) $_SERVER['HTTP_X_OC_MTIME'] ?: null;
 
