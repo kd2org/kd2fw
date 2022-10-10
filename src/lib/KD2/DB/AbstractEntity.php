@@ -199,7 +199,7 @@ abstract class AbstractEntity
 			case 'bool':
 				return (bool) $value;
 			case 'string':
-				return trim($value);
+				return trim((string) $value);
 		}
 
 		return $value;
