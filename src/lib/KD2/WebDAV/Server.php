@@ -49,16 +49,6 @@ class Exception extends \RuntimeException {}
  */
 class Server
 {
-	/**
-	 * List of language strings used in the web UI
-	 */
-	const LANGUAGE_STRINGS = [
-		'title'  => 'Files',
-		'back'   => 'Parent',
-		'empty'  => 'There are no files in this directory.',
-		'bytes_unit' => 'B', // B for Bytes
-	];
-
 	// List of basic DAV properties that you should return if $requested_properties is NULL
 	const BASIC_PROPERTIES = [
 		'DAV::resourcetype', // should be empty for files, and 'collection' for directories
@@ -119,7 +109,7 @@ class Server
 		$this->base_uri = $uri;
 	}
 
-	protected function html_directory(string $uri, iterable $list, array $strings = self::LANGUAGE_STRINGS): ?string
+	protected function html_directory(string $uri, iterable $list): ?string
 	{
 		// Not a file: let's serve a directory listing if you are browsing with a web browser
 		if (substr($this->original_uri, -1) != '/') {
@@ -128,20 +118,17 @@ class Server
 			return null;
 		}
 
-		$out = '<!DOCTYPE html><html><head><style>
+		$out = sprintf('<!DOCTYPE html><html data-webdav-url="%s"><head><meta name="viewport" content="width=device-width, initial-scale=1.0, target-densitydpi=device-dpi" /><style>
 			body { font-size: 1.1em; font-family: Arial, Helvetica, sans-serif; }
 			table { border-collapse: collapse; }
 			th, td { padding: .5em; text-align: left; border: 2px solid #ccc; }
 			span { font-size: 40px; line-height: 40px; }
-			td img { max-width: 100px; max-height: 100px; }
-			b { font-size: 1.4em; }
-			td:nth-child(1) { text-align: center; }
-			</style>';
+			</style>', $this->base_uri);
 
-		$out .= sprintf('<title>%s</title></head><body><h1>%1$s</h1><table>', htmlspecialchars($uri ? str_replace('/', ' / ', $uri) . ' - ' . $strings['title'] : $strings['title']));
+		$out .= sprintf('<title>%s</title></head><body><h1>%1$s</h1><table>', htmlspecialchars($uri ? str_replace('/', ' / ', $uri) . ' - Files' : 'Files'));
 
 		if (trim($uri)) {
-			$out .= sprintf('<tr><td><span>&#x21B2;</span></td><th colspan=3><a href="../"><b>%s</b></a></th></tr>', $strings['back']);
+			$out .= '<tr><th colspan=3><a href="../"><b>Back</b></a></th></tr>';
 		}
 
 		$props = null;
@@ -154,17 +141,29 @@ class Server
 			$collection = !empty($props['DAV::resourcetype']) && $props['DAV::resourcetype'] == 'collection';
 
 			if ($collection) {
-				$out .= sprintf('<tr><td><span>&#x1F4C1;</span></td><th colspan=3><a href="%s/"><b>%s</b></a></th></tr>', rawurlencode($file), htmlspecialchars($file));
+				$out .= sprintf('<tr><td>[DIR]</td><th><a href="%s/"><b>%s</b></a></th></tr>', rawurlencode($file), htmlspecialchars($file));
 			}
 			else {
-				$icon = '<span>&#x1F5CE;</span>';
+				$size = $props['DAV::getcontentlength'];
 
-				$out .= sprintf('<tr><td>%s</td><th><a href="%s">%s</a></th><td>%s</td><td style="text-align: right">%s</td></tr>',
-					$icon,
+				if ($size > 1024*1024) {
+					$size = sprintf('%d MB', $size / 1024 / 1024);
+				}
+				elseif ($size) {
+					$size = sprintf('%d KB', $size / 1024);
+				}
+
+				$date = $props['DAV::getlastmodified'];
+
+				if ($date instanceof \DateTimeInterface) {
+					$date = $date->format('d/m/Y H:i');
+				}
+
+				$out .= sprintf('<tr><td></td><th><a href="%s">%s</a></th><td>%s</td><td>%s</td></tr>',
 					rawurlencode($file),
 					htmlspecialchars($file),
-					$props['DAV::getcontenttype'] ?? null,
-					isset($props['DAV::getcontentlength']) ? $this->formatBytes($props['DAV::getcontentlength']) : null
+					$size,
+					$date
 				);
 			}
 		}
@@ -172,28 +171,12 @@ class Server
 		$out .= '</table>';
 
 		if (null === $props) {
-			$out .= sprintf('<p>%s</p>', $strings['empty']);
+			$out .= '<p>This directory is empty.</p>';
 		}
 
 		$out .= '</body></html>';
 
 		return $out;
-	}
-
-	public function formatBytes(int $bytes, string $unit = self::LANGUAGE_STRINGS['bytes_unit']): string
-	{
-		if ($bytes >= 1024*1024*1024) {
-			return round($bytes / (1024*1024*1024), 1) . ' G' . $unit;
-		}
-		elseif ($bytes >= 1024*1024) {
-			return round($bytes / (1024*1024), 1) . ' M' . $unit;
-		}
-		elseif ($bytes >= 1024) {
-			return round($bytes / 1024, 1) . ' K' . $unit;
-		}
-		else {
-			return $bytes . ' ' . $unit;
-		}
 	}
 
 
