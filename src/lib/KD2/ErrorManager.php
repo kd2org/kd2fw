@@ -273,7 +273,7 @@ class ErrorManager
 			$html_report = self::htmlReport($report);
 		}
 
-		if (PHP_SAPI == 'cli')
+		if (PHP_SAPI == 'cli' || 0 === strpos($_SERVER['HTTP_USER_AGENT'] ?? '', 'curl/'))
 		{
 			foreach ($report->errors as $e)
 			{
@@ -377,12 +377,17 @@ class ErrorManager
 	 */
 	static public function termPrint($message, $color = null)
 	{
+		if (!defined('\STDERR')) {
+			echo $message . PHP_EOL;
+			return;
+		}
+
 		if ($color && self::$term_color)
 		{
 			$message = chr(27) . $color . $message . chr(27) . "[0m";
 		}
 
-		fwrite(STDERR, $message . PHP_EOL);
+		fwrite(\STDERR, $message . PHP_EOL);
 	}
 
 	/**
