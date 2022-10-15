@@ -13,6 +13,7 @@ namespace KD2\WebDAV;
  * @author BohwaZ
  * @license GNU AGPL v3
  * @see https://api.onlyoffice.com/editors/wopi/
+ * @see https://github.com/CollaboraOnline/collabora-online-sdk-examples/tree/master/webapp/php
  * @see https://interoperability.blob.core.windows.net/files/MS-WOPI/[MS-WOPI].pdf
  * @see https://learn.microsoft.com/en-us/microsoft-365/cloud-storage-partner-program/rest/concepts#access-token
  * @see https://learn.microsoft.com/en-us/microsoft-365/cloud-storage-partner-program/online/wopi-requirements
@@ -28,12 +29,15 @@ class WOPI
 	const PROP_READ_ONLY = self::NS . ':ReadOnly';
 	const PROP_CAN_WRITE = self::NS . ':UserCanWrite';
 	const PROP_CAN_RENAME = self::NS . ':UserCanRename';
+	const PROP_USER_NAME = self::NS . ':FriendlyUserName';
 
 	protected AbstractStorage $storage;
+	protected Server $server;
 
-	public function setStorage(AbstractStorage $storage)
+	public function setServer(Server $server)
 	{
-		$this->storage = $storage;
+		$this->storage = $server->getStorage();
+		$this->server = $server;
 	}
 
 	public function route(?string $uri = null): bool
@@ -79,12 +83,11 @@ class WOPI
 		}
 
 		if ($action == 'contents' && $method == 'GET') {
-			http_response_code(200);
-			$this->storage->get($uri);
+			$this->server->http_get($uri);
 		}
 		elseif ($action == 'contents' && $method == 'POST') {
-			http_response_code(200);
-			$this->storage->put($uri, fopen('php://input', 'rb'));
+			$this->server->http_put($uri);
+			http_response_code(200); // This is required for Collabora
 		}
 		elseif (!$action && $method == 'GET') {
 			$this->getInfo($uri);
@@ -103,6 +106,7 @@ class WOPI
 			'DAV::getlastmodified',
 			'DAV::getetag',
 			self::PROP_READ_ONLY,
+			self::PROP_USER_NAME,
 		], 0);
 
 		$modified = !empty($props['DAV::getlastmodified']) ? $props['DAV::getlastmodified']->format(DATE_ISO8601) : null;
@@ -110,6 +114,7 @@ class WOPI
 
 		$data = [
 			'BaseFileName' => basename($uri),
+			'UserFriendlyName' => $props['DAV::PROP_USER_NAME'] ?? 'User',
 			'OwnerId' => 1,
 			'UserId' => 1,
 			'Size' => $size,
@@ -120,11 +125,9 @@ class WOPI
 			$data['LastModifiedTime'] = $modified;
 		}
 
-		if (!empty($props['self::PROP_READ_ONLY'])) {
-			$data['ReadOnly'] = $props['self::PROP_READ_ONLY'];
-			$data['UserCanWrite'] = !$props['self::PROP_READ_ONLY'];
-			$data['UserCanRename'] = !$props['self::PROP_READ_ONLY'];
-		}
+		$data['ReadOnly'] = $props['self::PROP_READ_ONLY'] ?? false;
+		$data['UserCanWrite'] = !$data['ReadOnly'];
+		$data['UserCanRename'] = !$data['ReadOnly'];
 
 		http_response_code(200);
 		echo json_encode($data, JSON_PRETTY_PRINT);
@@ -278,7 +281,7 @@ class WOPI
 
 
 		// Append WOPI host URL
-		$url = $this->setEditorOptions($editor_url, ['wopisrc' => $src]);
+		$url = $this->setEditorOptions($editor_url, ['WOPISrc' => $src]);
 
 		if (!$token) {
 			throw new Exception('Access forbidden: no token was created', 403);
