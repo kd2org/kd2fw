@@ -703,7 +703,9 @@ class ErrorManager
 
 		foreach ($report->context as $name => $value)
 		{
-			$out .= sprintf('<tr><th>%s</th><td>%s</td></tr>', htmlspecialchars($name), htmlspecialchars($value));
+			$out .= sprintf('<tr><th>%s</th><td>%s</td></tr>',
+				htmlspecialchars($name),
+				htmlspecialchars($value ?? ''));
 		}
 
 		$out .= '</table></article></section>';
