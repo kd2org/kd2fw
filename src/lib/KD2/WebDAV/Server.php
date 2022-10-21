@@ -106,7 +106,7 @@ class Server
 
 	public function setBaseURI(string $uri): void
 	{
-		$this->base_uri = $uri;
+		$this->base_uri = rtrim($uri, '/') . '/';
 	}
 
 	protected function html_directory(string $uri, iterable $list): ?string
@@ -1133,6 +1133,7 @@ class Server
 			$uri = substr($uri, strlen($this->base_uri));
 		}
 		else {
+			$this->log('<= %s is not a managed URL', $uri);
 			return false;
 		}
 
@@ -1202,7 +1203,7 @@ class Server
 			http_response_code($e->getCode());
 		}
 
-		header('application/xml; charset=utf-8', true);
+		header('Content-Type: application/xml; charset=utf-8', true);
 
 		printf('<?xml version="1.0" encoding="utf-8"?><d:error xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns"><s:message>%s</s:message></d:error>', htmlspecialchars($e->getMessage(), ENT_XML1));
 	}
