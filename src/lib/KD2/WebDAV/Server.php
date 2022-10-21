@@ -631,8 +631,7 @@ class Server
 
 		$body = file_get_contents('php://input');
 
-		$this->log('Depth: %s', $depth);
-		$this->log('Body: %s', $body);
+		$this->log('Requested depth: %s', $depth);
 
 		// We don't really care about having a correct XML string,
 		// but we can get better WebDAV compliance if we do
