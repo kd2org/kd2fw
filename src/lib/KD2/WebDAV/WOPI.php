@@ -277,7 +277,7 @@ class WOPI
 
 		$token = $props[self::PROP_TOKEN] ?? null;
 		// access_token_TTL: A 64-bit integer containing the number of milliseconds since January 1, 1970 UTC and representing the expiration date and time stamp of the access_token.
-		$token_ttl = $props[self::PROP_TOKEN_TTL] ?? (time() + 3600) * 1000;
+		$token_ttl = $props[self::PROP_TOKEN_TTL] ?? (time() + 10 * 3600) * 1000;
 
 
 		// Append WOPI host URL
