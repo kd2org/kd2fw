@@ -668,7 +668,7 @@ abstract class NextCloud
 	/**
 	 * Called when removing an account from Android app
 	 */
-	protected function nc_app_password(): void
+	protected function nc_delete_app_password(): void
 	{
 		$method = $_SERVER['REQUEST_METHOD'] ?? null;
 

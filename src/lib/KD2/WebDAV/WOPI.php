@@ -37,6 +37,22 @@ class WOPI
 		$this->server = $server;
 	}
 
+	public function getAuthToken()
+	{
+		// HTTP_AUTHORIZATION might be missing in some installs
+		$header = apache_request_headers()['Authorization'] ?? '';
+
+		if ($header && 0 === stripos($header, 'Bearer ')) {
+			return trim(substr($header, strlen('Bearer ')));
+		}
+		elseif (!empty($_GET['access_token'])) {
+			return trim($_GET['access_token']);
+		}
+		else {
+			throw new Exception('No access_token was provided', 401);
+		}
+	}
+
 	public function route(?string $uri = null): bool
 	{
 		if (!method_exists($this->storage, 'getWopiURI')) {
@@ -55,42 +71,43 @@ class WOPI
 
 		$uri = substr($uri, strlen('wopi/files/'));
 
-		if (!empty($_SERVER['HTTP_AUTHORIZATION']) && 0 === stripos($_SERVER['HTTP_AUTHORIZATION'], 'Bearer ')) {
-			$auth_token = trim(substr($_SERVER['HTTP_AUTHORIZATION'], strlen('Bearer ')));
-		}
-		elseif (!empty($_GET['access_token'])) {
-			$auth_token = trim($_GET['access_token']);
-		}
-		else {
-			$auth_token = null;
-		}
+		$this->server->log('WOPI: => %s', $uri);
 
-		if (!$auth_token) {
-			throw new Exception('No access_token was provided', 401);
-		}
+		try {
+			$auth_token = $this->getAuthToken();
 
-		$method = $_SERVER['REQUEST_METHOD'];
-		$id = rawurldecode(strtok($uri, '/'));
-		$action = trim(strtok(false), '/');
+			$method = $_SERVER['REQUEST_METHOD'];
+			$id = rawurldecode(strtok($uri, '/'));
+			$action = trim(strtok(false), '/');
 
-		$uri = $this->storage->getWopiURI($id, $auth_token);
+			$uri = $this->storage->getWopiURI($id, $auth_token);
 
-		if (!$uri) {
-			throw new Exception('Invalid file ID or invalid token', 404);
-		}
+			if (!$uri) {
+				throw new Exception('Invalid file ID or invalid token', 404);
+			}
 
-		if ($action == 'contents' && $method == 'GET') {
-			$this->server->http_get($uri);
-		}
-		elseif ($action == 'contents' && $method == 'POST') {
-			$this->server->http_put($uri);
+			$this->server->log('WOPI: => Found doc_uri: %s', $uri);
+
+
+			if ($action == 'contents' && $method == 'GET') {
+				$this->server->http_get($uri);
+			}
+			elseif ($action == 'contents' && $method == 'POST') {
+				$this->server->http_put($uri);
+			}
+			elseif (!$action && $method == 'GET') {
+				$this->getInfo($uri);
+			}
+			else {
+				throw new Exception('Invalid URI', 404);
+			}
+
 			http_response_code(200); // This is required for Collabora
 		}
-		elseif (!$action && $method == 'GET') {
-			$this->getInfo($uri);
-		}
-		else {
-			throw new Exception('Invalid URI', 404);
+		catch (Exception $e) {
+			$this->server->log('WOPI: => %d: %s', $e->getCode(), $e->getMessage());
+			http_response_code($e->getCode());
+			echo json_encode(['error' => $e->getMessage()]);
 		}
 
 		return true;
