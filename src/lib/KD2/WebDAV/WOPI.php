@@ -22,13 +22,10 @@ namespace KD2\WebDAV;
 class WOPI
 {
 	const NS = 'https://interoperability.blob.core.windows.net/files/MS-WOPI/';
-	const PROP_FILE_ID = self::NS . ':file-id';
 	const PROP_FILE_URL = self::NS . ':file-url';
 	const PROP_TOKEN = self::NS . ':token';
 	const PROP_TOKEN_TTL = self::NS . ':token-ttl';
 	const PROP_READ_ONLY = self::NS . ':ReadOnly';
-	const PROP_CAN_WRITE = self::NS . ':UserCanWrite';
-	const PROP_CAN_RENAME = self::NS . ':UserCanRename';
 	const PROP_USER_NAME = self::NS . ':FriendlyUserName';
 
 	protected AbstractStorage $storage;
@@ -266,19 +263,18 @@ class WOPI
 	public function getEditorHTML(string $editor_url, string $document_uri, string $title = 'Document')
 	{
 		// You need to extend this method by creating a token for the document_uri first!
-		// Store the token in the document properties using ::PROP_TOKEN
+		// Return the token with the document properties using ::PROP_TOKEN
 
-		$props = $this->storage->properties($document_uri, [self::PROP_TOKEN, self::PROP_TOKEN_TTL], 0);
-		$src = $props[self::PROP_FILE_URL] ?? null;
+		$props = $this->storage->properties($document_uri, [self::PROP_TOKEN, self::PROP_TOKEN_TTL, self::PROP_FILE_URL], 0);
 
-		if (!$src) {
-			throw new Exception('Storage did not provide a file URL for WOPI src', 500);
+		if (count($props) != 3) {
+			throw new Exception('Missing properties for document', 500);
 		}
 
+		$src = $props[self::PROP_FILE_URL] ?? null;
 		$token = $props[self::PROP_TOKEN] ?? null;
 		// access_token_TTL: A 64-bit integer containing the number of milliseconds since January 1, 1970 UTC and representing the expiration date and time stamp of the access_token.
 		$token_ttl = $props[self::PROP_TOKEN_TTL] ?? (time() + 10 * 3600) * 1000;
-
 
 		// Append WOPI host URL
 		$url = $this->setEditorOptions($editor_url, ['WOPISrc' => $src]);
