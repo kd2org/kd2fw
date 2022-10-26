@@ -319,7 +319,7 @@ class UserSession
 		}
 
 		try {
-			return $this->create($this->user->id);
+			return $this->create($this->getUser()->id);
 		}
 		catch (\LogicException $e) {
 			$this->logout();
