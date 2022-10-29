@@ -74,7 +74,7 @@ class Form
 		$expire = floor(time() / 3600) + $expire;
 		$value = $expire . $random . $action;
 
-		$hash = hash_hmac('sha256', $expire . $random . $action, self::$token_secret);
+		$hash = hash_hmac('sha256', $expire . $random . $action, self::$token_secret . session_id());
 
 		return $hash . '/' . dechex($expire) . '/' . dechex($random);
 	}
@@ -118,7 +118,7 @@ class Form
 			return false;
 		}
 
-		$hash = hash_hmac('sha256', $expire . $random . $action, self::$token_secret);
+		$hash = hash_hmac('sha256', $expire . $random . $action, self::$token_secret . session_id());
 
 		return hash_equals($hash, $user_hash);
 	}
@@ -131,7 +131,7 @@ class Form
 	static public function tokenFieldName($action = null)
 	{
 		$action = self::tokenAction($action);
-		return 'ct_' . sha1($action . $_SERVER['DOCUMENT_ROOT'] . $_SERVER['SERVER_NAME'] . $action);
+		return 'ct_' . sha1($action . $_SERVER['DOCUMENT_ROOT'] . $_SERVER['SERVER_NAME'] . session_id());
 	}
 
 	/**
