@@ -1222,4 +1222,16 @@ class Server
 
 		printf('<?xml version="1.0" encoding="utf-8"?><d:error xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns"><s:message>%s</s:message></d:error>', htmlspecialchars($e->getMessage(), ENT_XML1));
 	}
+
+	/**
+	 * Utility function to create HMAC hash of data, useful for NextCloud and WOPI
+	 */
+	static public function hmac(array $data, string $key = '')
+	{
+		// Protect against length attacks by pre-hashing data
+		$data = array_map('sha1', $data);
+		$data = implode(':', $details);
+
+		return hash_hmac('sha1', $data, sha1($key));
+	}
 }
