@@ -631,6 +631,10 @@ class Server
 
 		$body = file_get_contents('php://input');
 
+		if (false !== strpos($body, '<!DOCTYPE ')) {
+			throw new Exception('Invalid XML', 400);
+		}
+
 		$this->log('Requested depth: %s', $depth);
 
 		// We don't really care about having a correct XML string,
@@ -822,6 +826,10 @@ class Server
 
 	static public function parsePropPatch(string $body): array
 	{
+		if (false !== strpos($body, '<!DOCTYPE ')) {
+			throw new Exception('Invalid XML', 400);
+		}
+
 		$xml = @simplexml_load_string($body);
 
 		if (false === $xml) {
