@@ -10,6 +10,7 @@ test_headers();
 test_headers_multiline();
 test_length();
 test_encryption();
+test_invalid_multipart();
 
 function test_cc()
 {
@@ -235,5 +236,14 @@ DAAKCRDyMVUMT0fjjlnQAQDFHUs6TIcxrNTtEZFjUFm1M0PJ1Dng/cDW4xN80fsn
 0QEA22Kr7VkCjeAEC08VSTeV+QFsmz55/lntWkwYWhmvOgE=
 =iIGO
 -----END PGP PUBLIC KEY BLOCK-----');
-	echo $msg->output();
+	Test::assert((bool) preg_match('/-----BEGIN PGP MESSAGE-----.*-----END PGP MESSAGE-----/s', $msg->output()));
+}
+
+function test_invalid_multipart()
+{
+	$msg = new Mail_Message;
+	$msg->parse(file_get_contents(__DIR__ . '/data/mails/multipart.eml'));
+	Test::assert(count($msg->getParts()) === 1);
+	Test::assert((bool) preg_match('/veux pas qu\'ils soient/', $msg->getBody()));
+	Test::assert(!preg_match('/multipart\//', $msg->output()));
 }

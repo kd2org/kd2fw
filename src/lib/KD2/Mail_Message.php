@@ -787,10 +787,14 @@ class Mail_Message
 
 			// Multipart handling
 			$this->_decodeMultipart($body);
+
+			$this->boundaries = [];
 		}
-		else
+
+		// Either the message is not multipart, or decoding multipart failed, treat it as plain text
+		if (empty($this->parts))
 		{
-			if (empty($headers['content-type']))
+			if (empty($headers['content-type']) || stristr($headers['content-type'], 'multipart/'))
 			{
 				$headers['content-type'] = 'text/plain';
 			}
