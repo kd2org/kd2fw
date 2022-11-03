@@ -23,7 +23,7 @@ namespace KD2;
 
 use KD2\Mail_Message;
 
-class SMTP_Exception extends \Exception {}
+class SMTP_Exception extends \RuntimeException {}
 
 class SMTP
 {
