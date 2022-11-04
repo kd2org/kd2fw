@@ -320,7 +320,7 @@ abstract class AbstractEntity
 			$this->id = $id;
 		}
 
-		if (null === $this->id) {
+		if (!isset($this->id)) {
 			throw new \LogicException('This entity does not have an ID yet');
 		}
 
