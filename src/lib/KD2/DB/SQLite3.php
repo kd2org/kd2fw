@@ -34,7 +34,7 @@ use PDO;
 class SQLite3 extends DB
 {
 	/**
-	 * @var SQLite3
+	 * @var \SQLite3
 	 */
 	protected $db;
 
