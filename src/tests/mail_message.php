@@ -11,6 +11,7 @@ test_headers_multiline();
 test_length();
 test_encryption();
 test_invalid_multipart();
+test_multipart_boundary();
 
 function test_cc()
 {
@@ -243,7 +244,15 @@ function test_invalid_multipart()
 {
 	$msg = new Mail_Message;
 	$msg->parse(file_get_contents(__DIR__ . '/data/mails/multipart.eml'));
-	Test::assert(count($msg->getParts()) === 1);
+	Test::equals(1, count($msg->getParts()));
 	Test::assert((bool) preg_match('/veux pas qu\'ils soient/', $msg->getBody()));
 	Test::assert(!preg_match('/multipart\//', $msg->output()));
+}
+
+function test_multipart_boundary()
+{
+	$msg = new Mail_Message;
+	$msg->parse(file_get_contents(__DIR__ . '/data/mails/multipart2.eml'));
+	Test::equals(2, count($msg->getParts()));
+	Test::assert(strstr($msg->outputHeaders(), 'multipart/mixed; boundary="' . $msg->getMimeOutputBoundary()));
 }

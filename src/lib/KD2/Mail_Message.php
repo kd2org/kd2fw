@@ -46,6 +46,11 @@ class Mail_Message
 		$this->output_boundary = '==_=_' . uniqid() . '-' . substr(sha1(microtime(true)), -10);
 	}
 
+	public function getMimeOutputBoundary()
+	{
+		return $this->output_boundary;
+	}
+
 	public function getHeaders()
 	{
 		return $this->headers;
@@ -512,7 +517,7 @@ class Mail_Message
 		}
 		else
 		{
-			if (!isset($headers['content-type']) || !stristr($headers['content-type'], 'multipart/')) {
+			if (!isset($headers['content-type']) || !stristr($headers['content-type'], 'multipart/encrypted')) {
 				$headers['content-type'] = 'multipart/mixed; boundary="' . $this->output_boundary . '"';
 				$headers['content-transfer-encoding'] = '8bit';
 				$headers['mime-version'] = '1.0';
