@@ -125,7 +125,7 @@ class Pie
 
 				if ($this->percentage) {
 					// https://stackoverflow.com/questions/48710188/calculate-the-center-point-of-a-arc-wedge
-					$percent = ceil(($row->data / $sum) * 100);
+					$percent = round(($row->data / $sum) * 100);
 					$a1 = deg2rad($start_angle);
 					$a2 = deg2rad($end_angle);
 					$a = ($a1 + ($a2 > $a1 ? $a2 : $a2 + pi()*2)) * 0.5;
