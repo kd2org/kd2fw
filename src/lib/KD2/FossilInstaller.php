@@ -372,7 +372,7 @@ class FossilInstaller
 			$this->_copy($source, $this->app_path . DIRECTORY_SEPARATOR . $file);
 
 			if (function_exists('opcache_invalidate')) {
-				opcache_invalidate($this->app_path . DIRECTORY_SEPARATOR . $file, true);
+				@opcache_invalidate($this->app_path . DIRECTORY_SEPARATOR . $file, true);
 			}
 		}
 
