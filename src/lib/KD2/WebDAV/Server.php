@@ -777,7 +777,10 @@ class Server
 					$value = '"' . $value . '"';
 				}
 				elseif ($value instanceof \DateTimeInterface) {
-					$value = $value->format(DATE_RFC1123);
+					// Change value to GMT
+					$value = clone $value;
+					$value->setTimezone(new \DateTimeZone('GMT'));
+					$value = $value->format(DATE_RFC7231);
 				}
 				elseif (is_array($value)) {
 					$attributes = $value['attributes'] ?? '';
