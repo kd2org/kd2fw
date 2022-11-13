@@ -329,7 +329,7 @@ abstract class NextCloud
 		// Android app is using "/remote.php/dav/files/user//" as root
 		// so let's alias that as well
 		// ownCloud Android is requesting just /dav/files/
-		if (preg_match('!^' . preg_quote($base_uri, '!') . 'files/(?:[a-z]+/+)?!', $uri, $match)) {
+		if (preg_match('!^' . preg_quote($base_uri, '!') . 'files/(?:[^/]+/+)?!', $uri, $match)) {
 			$base_uri = $match[0];
 		}
 
