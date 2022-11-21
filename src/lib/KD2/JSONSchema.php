@@ -25,8 +25,8 @@ class JSONSchema
 	{
 		$file = json_decode($raw);
 
-		if (json_last_error()) {
-			throw new \RuntimeException(sprintf('JSON parsing failed for "%s": %s', $path ?? $raw, json_last_error_msg()));
+		if (!$file && json_last_error()) {
+			throw new \LogicException(sprintf('JSON parsing of schema failed: %s', json_last_error_msg()));
 		}
 
 		return $file;
@@ -64,7 +64,7 @@ class JSONSchema
 		}
 
 		if (isset($rules->enum) && !in_array($object, $rules->enum, true)) {
-			throw new \RuntimeException(sprintf('%s: did not match any of the accepted values (%s)', $name, implode($rules->enum)));
+			throw new \RuntimeException(sprintf('%s: did not match any of the accepted values (%s)', $name, implode(', ', $rules->enum)));
 		}
 
 		if (!is_array($rules->type)) {
