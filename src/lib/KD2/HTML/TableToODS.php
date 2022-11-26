@@ -106,6 +106,10 @@ class TableToODS
 	{
 		libxml_use_internal_errors(true);
 
+		if (!stristr($html, '<body')) {
+			$html = '<body>' . $html . '</body>';
+		}
+
 		$doc = new DOMDocument;
 		$doc->loadHTML('<meta charset="utf-8" />' . $html, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
 
@@ -167,7 +171,7 @@ class TableToODS
 
 				if ($colspan = $cell->getAttribute('colspan')) {
 					$rows .= sprintf(' table:number-columns-spanned="%d"', $colspan);
-					$end .= str_repeat('<table:covered-table-cell/>', $colspan);
+					$end .= str_repeat('<table:covered-table-cell/>', (int)$colspan - 1);
 				}
 
 				/*
@@ -243,7 +247,7 @@ class TableToODS
 		}
 
 		foreach ($columns_widths as $width) {
-			$name = $this->newStyle('column', ['break-before' => 'auto', 'column-width' => $width . 'px']);
+			$name = $this->newStyle('column', ['break-before' => 'auto', 'column-width' => $width . 'pt']);
 			$this->xml .= sprintf('<table:table-column table:style-name="%s" />', $name);
 		}
 
@@ -359,12 +363,20 @@ class TableToODS
 			$type = substr($style_name, 0, strpos($style_name, '_'));
 			$tags = [];
 
+			if ($type == 'table') {
+				continue;
+			}
+
 			foreach ($properties as $name => $value) {
 				if ($name[0] == '-') {
 					continue;
 				}
 
 				$tag = $this->getStyleTagName($name);
+
+				if (!$tag) {
+					continue;
+				}
 
 				if (!isset($tags[$tag])) {
 					$tags[$tag] = '';
@@ -707,7 +719,7 @@ class TableToODS
 
 	public function getCellWidth(string $line, array $styles): int
 	{
-		$font_size = $this->getFontSizeInPixels($styles['font-size'] ?? '10pt');
+		$font_size = $this->getFontSize($styles['font-size'] ?? '10pt');
 
 		$width = mb_strlen($line) * 7;
 		$width = $width * $font_size / 11;
@@ -720,13 +732,13 @@ class TableToODS
 		return (int) $width;
 	}
 
-	public function getFontSizeInPixels(string $size): int
+	public function getFontSize(string $size): int
 	{
 		$size = strtolower($size);
 		$v = preg_replace('/[^0-9]+/', '', $size);
 
-		if (substr($size, -2) == 'pt') {
-			return (int) ceil($v / 0.75);
+		if (substr($size, -2) == 'px') {
+			return (int) ceil($v * 1.25);
 		}
 
 		return (int) $size;

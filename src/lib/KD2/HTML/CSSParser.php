@@ -392,7 +392,8 @@ class CSSParser
 				// For each parent selector, we try to match parent nodes with this selector
 				// until we run out of selectors or parent nodes
 				while ($last = array_pop($selector)) {
-					while ($parent = $node->parentNode) {
+					$parent = $node;
+					while ($parent = $parent->parentNode) {
 						if ($this->matchSelector($parent, $last)) {
 							// If this matches, go to the next one
 							$node = $parent;
@@ -434,6 +435,7 @@ class CSSParser
 		foreach ($declarations as $declaration) {
 			$properties = array_merge($declaration['properties'], $properties);
 		}
+
 
 		return $properties;
 	}
