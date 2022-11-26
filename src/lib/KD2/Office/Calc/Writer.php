@@ -22,7 +22,6 @@
 namespace KD2\Office\Calc;
 
 use KD2\ZipWriter;
-use DOMDocument;
 
 /**
  * OpenDocument Spreadsheet exporter (very simple)

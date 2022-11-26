@@ -2,7 +2,10 @@
 
 namespace KD2\HTML;
 
-use \DOMNode;
+use DOMDocument;
+use DOMElement;
+use DOMNode;
+use DOMXPath;
 
 /**
  * Simplified CSS parser and matching engine
@@ -28,17 +31,27 @@ class CSSParser
 		// @media / @import / etc.
 		'at-rule' => '\s*@' . self::RULE_NAME_TOKEN . '\s+[^\{\};]+?\s*[\{;]\s*',
 		// Properties: border: 1px solid red; padding: 1px }
-		'property' => '\s*' . self::RULE_NAME_TOKEN . '\s*:\s*[^;]+?\s*[;\}]\s*',
+		'property' => '\s*-?' . self::RULE_NAME_TOKEN . '\s*:\s*[^;]+?\s*[;\}]\s*',
 		'open' => '\s*[^\{\}]+?\s*\{\s*',
 		'close' => '\s*\}\s*',
 	];
 
 	protected array $declarations = [];
 
-	protected function xpath($dom, $query)
+	public function xpath(DOMNode $dom, string $query, int $item = null)
 	{
-		$xpath = new \DOMXPath($dom instanceOf \DOMDocument ? $dom : $dom->ownerDocument);
-		return $xpath->query($query, $dom);
+		$xpath = new DOMXPath($dom instanceOf DOMDocument ? $dom : $dom->ownerDocument);
+		$result = $xpath->query($query, $dom);
+
+		if (null !== $item) {
+			if (!$result->length || $result->length < $item + 1) {
+				return null;
+			}
+
+			return $result->item($item);
+		}
+
+		return $result;
 	}
 
 	/**
@@ -83,7 +96,7 @@ class CSSParser
 		$tags = $this->xpath($dom, './/style[@type="text/css"]');
 
 		foreach ($tags as $style) {
-			if ($media && false === strpos($link->getAttribute('media'), $media)) {
+			if ($media && false === strpos($style->getAttribute('media'), $media)) {
 				continue;
 			}
 
@@ -361,8 +374,9 @@ class CSSParser
 
 	/**
 	 * Return all CSS declarations applying specifically to a node
+	 * (not including inherited properties from parents)
 	 */
-	public function match(\DOMElement $node): array
+	public function match(DOMElement $node): array
 	{
 		$declarations = [];
 
@@ -395,6 +409,33 @@ class CSSParser
 		}
 
 		return $declarations;
+	}
+
+	/**
+	 * Return all properties applying to a node, including inherited properties from parents
+	 */
+	public function get(DOMElement $node): array
+	{
+		$properties = [];
+		$parent = $node->parentNode;
+
+		while ($parent instanceof DOMElement) {
+			$declarations = $this->match($parent);
+
+			foreach ($declarations as $declaration) {
+				$properties = array_merge($declaration['properties'], $properties);
+			}
+
+			$parent = $parent->parentNode;
+		}
+
+		$declarations = $this->match($node);
+
+		foreach ($declarations as $declaration) {
+			$properties = array_merge($declaration['properties'], $properties);
+		}
+
+		return $properties;
 	}
 
 	/**
