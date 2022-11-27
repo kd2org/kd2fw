@@ -175,6 +175,8 @@ abstract class NextCloud
 
 	abstract public function assembleChunks(string $login, string $name, string $target, ?int $mtime): array;
 
+	abstract public function listChunks(string $login, string $name): array;
+
 	// END OF ABSTRACT METHODS
 
 	/**
@@ -264,8 +266,6 @@ abstract class NextCloud
 		}
 
 		$route = current($route);
-
-		header('Access-Control-Allow-Origin: *', true);
 
 		$method = $_SERVER['REQUEST_METHOD'] ?? null;
 		$this->server->log('NC <= %s %s => routed to: %s', $method, $uri, $route);
@@ -759,6 +759,8 @@ abstract class NextCloud
 				header(sprintf('OC-ETag: "%s"', $return['etag']));
 			}
 
+			$this->server->log("=> Chunks assembled to: %s", $dest);
+
 			if (!empty($return['created'])) {
 				http_response_code(201);
 			}
@@ -768,6 +770,26 @@ abstract class NextCloud
 		}
 		elseif ($method == 'DELETE' && !$part) {
 			$this->deleteChunks($login, $dir);
+			$this->server->log("=> Deleted chunks");
+		}
+		elseif ($method == 'PROPFIND') {
+			header('HTTP/1.1 207 Multi-Status', true);
+			$out = '<?xml version="1.0" encoding="utf-8"?>' . PHP_EOL;
+			$out .= '<d:multistatus xmlns:d="DAV:">' . PHP_EOL;
+
+			foreach ($this->listChunks($login, $dir) as $chunk) {
+				$out .= '<d:response>' . PHP_EOL;
+				$chunk = '/' . $uri . '/' . $chunk;
+				$out .= sprintf('<d:href>%s</d:href>', htmlspecialchars($chunk, ENT_XML1)) . PHP_EOL;
+				$out .= '<d:propstat><d:prop><d:getcontenttype>application/octet-stream</d:getcontenttype><d:resoucetype/></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat>' . PHP_EOL;
+				$out .= '</d:response>' . PHP_EOL;
+			}
+
+			$out .= '</d:multistatus>';
+
+			echo $out;
+
+			$this->server->log("=> Body:\n%s", $out);
 		}
 		else {
 			throw new Exception('Invalid method for chunked upload', 400);
