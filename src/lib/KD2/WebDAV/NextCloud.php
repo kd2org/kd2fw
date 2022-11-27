@@ -660,14 +660,6 @@ abstract class NextCloud
 		$url = str_replace('%2F', '/', rawurlencode(rawurldecode($_GET['file'] ?? '')));
 		$url = ltrim($url, '/');
 
-		$size = current($this->storage->properties($url, ['DAV::getcontentlenth'], 0));
-
-		// 1 MB is a large image
-		if ($size > 1024*1024) {
-			http_response_code(404);
-			return;
-		}
-
 		$url = '/remote.php/dav/files/' . $url;
 		$this->server->log('=> Preview: redirect to %s', $url);
 		header('Location: ' . $url);
