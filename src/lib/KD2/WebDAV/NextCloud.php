@@ -214,6 +214,7 @@ abstract class NextCloud
 		'index.php/avatar' => 'avatar',
 		'ocs/v2.php/apps/dav/api/v1/direct' => 'direct_url',
 		'remote.php/direct/' => 'direct',
+		'avatars/' => 'avatar',
 	];
 
 	const AUTH_REDIRECT_URL = 'nc://login/server:%s&user:%s&password:%s';
@@ -483,10 +484,10 @@ abstract class NextCloud
 		$user = $this->getUserName() ?? 'null';
 
 		return $this->nc_ocs([
-			'id' => $user,
+			'id' => sha1($user),
 			'enabled' => true,
 			'email' => null,
-			'storageLocation' => '/secret/whoknows/' . $user,
+			'storageLocation' => '/secret/whoknows/' . sha1($user),
 			'role' => '',
 			'display-name' => $user,
 			'quota' => [
