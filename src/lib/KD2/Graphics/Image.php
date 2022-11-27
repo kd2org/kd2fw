@@ -873,7 +873,7 @@ class Image
 		}
 		else
 		{
-			$this->pointer->cropImage($new_width, $new_height, $src_x, $src_x);
+			$this->pointer->cropImage($new_width, $new_height, $src_x, $src_y);
 			$this->pointer->setImagePage($new_width, $new_height, 0, 0);
 		}
 	}
