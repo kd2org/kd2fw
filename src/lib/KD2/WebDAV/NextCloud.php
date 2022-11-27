@@ -177,6 +177,29 @@ abstract class NextCloud
 
 	abstract public function listChunks(string $login, string $name): array;
 
+	/**
+	 * Thumbnail API
+	 */
+	public function serveThumbnail(string $uri, int $width, int $height, bool $crop): void
+	{
+		if (!preg_match('/\.(?:jpe?g|gif|png|webp)$/', $uri)) {
+			http_response_code(404);
+			return;
+		}
+
+		// We don't support this feature, but you are free to generate cropped thumbnails and send them to the HTTP client
+		http_response_code(404);
+		return;
+
+		// On Android, the app is annoying and asks to download the image
+		// every time ("no resized image available").
+		// So to avoid that you can just redirect to the file if it is not too big.
+		// But you are free to extend this method and resize the image on the fly instead.
+		$url = '/remote.php/dav/files/' . $uri;
+		$this->server->log('=> Preview: redirect to %s', $url);
+		header('Location: ' . $url);
+	}
+
 	// END OF ABSTRACT METHODS
 
 	/**
@@ -255,6 +278,8 @@ abstract class NextCloud
 		if (null === $uri) {
 			$uri = $_SERVER['REQUEST_URI'] ?? '/';
 		}
+
+		$uri = parse_url($uri, PHP_URL_PATH);
 
 		$uri = ltrim($uri, '/');
 		$uri = rawurldecode($uri);
@@ -341,6 +366,15 @@ abstract class NextCloud
 	public function nc_webdav(string $uri): void
 	{
 		$this->requireAuth();
+
+		// ownCloud-Android is using a different preview API
+		// remote.php/dav/files/user/name.jpg?x=224&y=224&c=&preview=1
+		if (!empty($_GET['preview'])) {
+			$x = (int) $_GET['x'] ?? 0;
+			$y = (int) $_GET['y'] ?? 0;
+			$this->serveThumbnail($uri, $x, $y, $x == $y);
+			return;
+		}
 
 		$base_uri = null;
 
@@ -657,21 +691,10 @@ abstract class NextCloud
 		$height = $_GET['y'] ?? null;
 		$crop = !($_GET['a'] ?? null);
 
-		if (!preg_match('/\.(?:jpe?g|gif|png|webp)$/', $uri)) {
-			http_response_code(404);
-			return;
-		}
-
-		// On Android, the app is annoying and asks to download the image
-		// every time ("no resized image available").
-		// So to avoid that we will just redirect to the file if it is not too big.
-		// But you are free to extend this method and resize the image on the fly
-		$url = str_replace('%2F', '/', rawurlencode(rawurldecode($_GET['file'] ?? '')));
+		$url = str_replace('%2F', '/', rawurldecode($_GET['file'] ?? ''));
 		$url = ltrim($url, '/');
 
-		$url = '/remote.php/dav/files/' . $url;
-		$this->server->log('=> Preview: redirect to %s', $url);
-		header('Location: ' . $url);
+		$this->serveThumbnail($url, (int) $width, (int) $height, $crop);
 	}
 
 	protected function nc_thumbnail(string $uri): void
@@ -682,8 +705,7 @@ abstract class NextCloud
 
 		list($width, $height, $uri) = array_pad(explode('/', $uri, 3), 3, null);
 
-		// We don't support this feature, but you are free to generate cropped thumbnails here
-		http_response_code(404);
+		$this->serveThumbnail($uri, (int)$width, (int)$height, $width == $height);
 	}
 
 	/**
