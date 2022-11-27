@@ -6,28 +6,29 @@ abstract class NextCloud
 {
 	/**
 	 * File permissions for NextCloud clients
-	 * from lib/private/Files/Storage/DAV.php
-	 * and apps/dav/lib/Connector/Sabre/Node.php
-	 * in NextCloud
+	 * https://doc.owncloud.com/desktop/next/appendices/architecture.html#server-side-permissions
 	 *
 	 * R = Shareable
 	 * S = Shared
 	 * M = Mounted
 	 * D = Delete
 	 * G = Readable
-	 * NV = Renameable/moveable
-	 * Files only:
-	 * W = Write (Update)
-	 * CK = Create/Update
+	 * N = Can rename
+	 * V = Can move
+	 * W = Can Write (Update)
+	 * C = Can create file in folder
+	 * K = Can create folder (mkdir)
 	 */
 	const PERM_READ = 'G';
 	const PERM_SHARE = 'R';
 	const PERM_SHARED = 'S';
 	const PERM_MOUNTED = 'M';
 	const PERM_DELETE = 'D';
-	const PERM_RENAME_MOVE = 'NV';
+	const PERM_RENAME = 'N';
+	const PERM_MOVE = 'V';
 	const PERM_WRITE = 'W';
-	const PERM_CREATE = 'CK';
+	const PERM_CREATE = 'C';
+	const PERM_MKDIR = 'K';
 
 	const NC_NAMESPACE = 'http://nextcloud.org/ns';
 	const OC_NAMESPACE = 'http://owncloud.org/ns';
