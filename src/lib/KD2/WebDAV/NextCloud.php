@@ -510,7 +510,7 @@ abstract class NextCloud
 		return $this->nc_ocs([]);
 	}
 
-	protected function nc_avatar(): ?array
+	protected function nc_avatar(): void
 	{
 		throw new Exception('Not implemented', 404);
 	}
