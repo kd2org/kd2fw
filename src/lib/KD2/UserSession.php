@@ -526,7 +526,7 @@ class UserSession
 
 	protected function createSelectorValues($user_id, string $user_password, ?string $expiry = null, ?string $selector = null): \stdClass
 	{
-		if (null !== $selector && (!ctype_alnum($selector) || strlen($selector) > 64 || strlen($selector) < 10)) {
+		if (null !== $selector && (!ctype_alnum(str_replace('_', '', $selector)) || strlen($selector) > 64 || strlen($selector) < 10)) {
 			throw new \InvalidArgumentException('Invalid selector');
 		}
 
