@@ -187,6 +187,9 @@ abstract class NextCloud
 		'remote.php/webdav/uploads/' => 'chunked',
 		'remote.php/dav/uploads/' => 'chunked',
 
+		// There's just 3 or 4 different endpoints for avatars, this is ridiculous
+		'remote.php/dav/avatars/' => 'avatar',
+
 		// Main routes
 		'remote.php/webdav/' => 'webdav', // desktop client
 		'remote.php/dav' => 'webdav', // android client
@@ -218,6 +221,15 @@ abstract class NextCloud
 	];
 
 	const AUTH_REDIRECT_URL = 'nc://login/server:%s&user:%s&password:%s';
+
+	// *Every* different NextCloud/ownCloud app uses a different root path
+	// this is ridiculous.
+	// NC Desktop: /remote.php/dav/files/user// (note the double slash at the end)
+	// NC iOS: /remote.php/dav/files/user (note the missing end slash)
+	// ownCloud Android: /remote.php/dav/files/ (note the missing user part)
+	// -> only at first, then it queries the correct path, WTF
+	// See also https://github.com/nextcloud/server/issues/25867
+	const WEBDAV_BASE_REGEXP = '~^.*remote\.php/(?:webdav/|dav/files/(?:(?:(?!/).)+(?:/+|$)|/*$))~';
 
 	public function setRootURL(string $url)
 	{
@@ -348,11 +360,8 @@ abstract class NextCloud
 			throw new Exception('Invalid WebDAV URL', 404);
 		}
 
-		// Android app is using "/remote.php/dav/files/user//" as root
-		// so let's alias that as well
-		// ownCloud Android is requesting just /dav/files/
-		if (preg_match('!^' . preg_quote($base_uri, '!') . 'files/(?:[^/]+/+)?!', $uri, $match)) {
-			$base_uri = $match[0];
+		if (preg_match(self::WEBDAV_BASE_REGEXP, $uri, $match)) {
+			$base_uri = rtrim($match[0], '/') . '/';
 		}
 
 		$this->server->prefix = $this->prefix;
@@ -729,7 +738,7 @@ abstract class NextCloud
 		}
 		elseif ($method == 'MOVE') {
 			$dest = $_SERVER['HTTP_DESTINATION'];
-			$dest = preg_replace('!^.*/remote.php/(?:web)?dav/(?:files/)?[^/]*/!', '', $dest);
+			$dest = preg_replace(self::WEBDAV_BASE_REGEXP, '', $dest);
 			$dest = trim(rawurldecode($dest), '/');
 
 			if (false !== strpos($dest, '..') || false !== strpos($dest, '//')) {
