@@ -208,8 +208,9 @@ abstract class NextCloud
 		'ocs/v1.php/cloud/user' => 'user',
 		'ocs/v1.php/config' => 'config',
 		'ocs/v2.php/apps/files_sharing/api/v1/shares' => 'shares',
-		'ocs/v2.php/apps/user_status/api/v1/predefined_statuses' => 'empty',
+		'ocs/v2.php/apps/user_status' => 'empty',
 		'ocs/v2.php/core/navigation/apps' => 'empty',
+		'index.php/avatar' => 'avatar',
 		'ocs/v2.php/apps/dav/api/v1/direct' => 'direct_url',
 		'remote.php/direct/' => 'direct',
 	];
@@ -505,6 +506,11 @@ abstract class NextCloud
 	protected function nc_empty(): array
 	{
 		return $this->nc_ocs([]);
+	}
+
+	protected function nc_avatar(): ?array
+	{
+		throw new Exception('Not implemented', 404);
 	}
 
 	protected function nc_config(): array
