@@ -179,25 +179,41 @@ abstract class NextCloud
 
 	/**
 	 * Thumbnail API
+	 * @param string $uri URI path to the file we want a thumbnail for
+	 * @param int $width
+	 * @param int $height
+	 * @param bool $crop TRUE if a cropped image is desired
+	 * @param bool $preview TRUE if the thumbnail is for preview (in NextCloud Android, see below)
 	 */
-	public function serveThumbnail(string $uri, int $width, int $height, bool $crop): void
+	public function serveThumbnail(string $uri, int $width, int $height, bool $crop = false, bool $preview = false): void
 	{
 		if (!preg_match('/\.(?:jpe?g|gif|png|webp)$/', $uri)) {
 			http_response_code(404);
 			return;
 		}
 
-		// We don't support this feature, but you are free to generate cropped thumbnails and send them to the HTTP client
-		http_response_code(404);
-		return;
-
+		// We don't support thumbnails, but you are free to generate cropped thumbnails and send them to the HTTP client
+		if (!$preview) {
+			http_response_code(404);
+			return;
+		}
 		// On Android, the app is annoying and asks to download the image
-		// every time ("no resized image available").
-		// So to avoid that you can just redirect to the file if it is not too big.
+		// every time ("no resized image available") if no preview is available.
+		// So to avoid that you can just redirect to the file if it's not too large
 		// But you are free to extend this method and resize the image on the fly instead.
-		$url = '/remote.php/dav/files/' . $uri;
-		$this->server->log('=> Preview: redirect to %s', $url);
-		header('Location: ' . $url);
+		else {
+			$size = $this->server->getStorage()->properties($uri, ['DAV::getcontentlength'], 0);
+			$size = count($size) ? current($size) : null;
+
+			if ($size > 1024*1024 || !$size) {
+				http_response_code(404);
+				return;
+			}
+
+			$url = '/remote.php/dav/files/' . $uri;
+			$this->server->log('=> Preview: redirect to %s', $url);
+			header('Location: ' . $url);
+		}
 	}
 
 	// END OF ABSTRACT METHODS
@@ -696,7 +712,7 @@ abstract class NextCloud
 		$url = str_replace('%2F', '/', rawurldecode($_GET['file'] ?? ''));
 		$url = ltrim($url, '/');
 
-		$this->serveThumbnail($url, (int) $width, (int) $height, $crop);
+		$this->serveThumbnail($url, (int) $width, (int) $height, $crop, true);
 	}
 
 	protected function nc_thumbnail(string $uri): void
