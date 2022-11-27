@@ -331,6 +331,8 @@ abstract class NextCloud
 			$this->server->log("NC => Body:\n%s", $json);
 		}
 
+		$this->server->log('NC Sent response: %d', http_response_code());
+
 		return true;
 	}
 
