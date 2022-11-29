@@ -424,14 +424,23 @@ abstract class NextCloud
 
 	public function nc_status(): array
 	{
+		if (stristr($_SERVER['HTTP_USER_AGENT'], 'owncloud')) {
+			$name = 'ownCloud';
+			$version = '10.11.0';
+		}
+		else {
+			$name = 'NextCloud';
+			$version = '24.0.4';
+		}
+
 		return [
 			'installed'       => true,
 			'maintenance'     => false,
 			'needsDbUpgrade'  => false,
-			'version'         => '24.0.4.1',
-			'versionstring'   => '24.0.4',
+			'version'         => $version,
+			'versionstring'   => $version,
 			'edition'         => '',
-			'productname'     => 'NextCloud',
+			'productname'     => $name,
 			'extendedSupport' => false,
 		];
 	}
