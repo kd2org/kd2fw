@@ -385,6 +385,17 @@ abstract class NextCloud
 	{
 		$this->requireAuth();
 
+		$method = $_SERVER['REQUEST_METHOD'] ?? '';
+
+		if ($method == 'REPORT') {
+			header('Content-Type: text/xml; charset=utf-8', true);
+			header('HTTP/1.1 207 Multi-Status', true);
+
+			echo '<?xml version="1.0"?>' . PHP_EOL;
+			echo '<d:multistatus xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns" xmlns:oc="http://owncloud.org/ns" xmlns:nc="http://nextcloud.org/ns"/>';
+			return;
+		}
+
 		// ownCloud-Android is using a different preview API
 		// remote.php/dav/files/user/name.jpg?x=224&y=224&c=&preview=1
 		if (!empty($_GET['preview'])) {
@@ -410,6 +421,13 @@ abstract class NextCloud
 
 		if (!$base_uri) {
 			throw new Exception('Invalid WebDAV URL', 404);
+		}
+
+		$ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
+
+		if (stristr($ua, 'ownCloudApp') && stristr($ua, 'iOS')) {
+			// Not sure but it seems that ownCloud app is looping indefinitely with gzip?
+			unset($_SERVER['HTTP_ACCEPT_ENCODING']);
 		}
 
 		if (preg_match(self::WEBDAV_BASE_REGEXP, $uri, $match)) {
