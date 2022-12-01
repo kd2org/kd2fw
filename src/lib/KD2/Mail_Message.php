@@ -280,6 +280,11 @@ class Mail_Message
 			throw new \InvalidArgumentException('Content must be a string, but is a ' . gettype($content));
 		}
 
+		if (count($this->parts) <= 1) {
+			// Remove CTE if present
+			unset($this->headers['content-transfer-encoding']);
+		}
+
 		foreach ($this->parts as &$part)
 		{
 			if ($part['type'] == 'text/plain')
@@ -508,10 +513,15 @@ class Mail_Message
 
 		if (count($parts) <= 1)
 		{
-			if (!isset($headers['content-type']) || stristr($headers['content-type'], 'text/plain'))
+			if ((!isset($headers['content-type']) || stristr($headers['content-type'], 'text/plain')))
 			{
 				// Force UTF-8
 				$headers['content-type'] = $parts[0]['type'] . '; charset=utf-8';
+			}
+
+			// Force CTE to quoted-printable if nothing else is present
+			if (stristr($headers['content-type'] ?? '', 'text/plain')
+				&& (!isset($headers['content-transfer-encoding']) || !stristr($headers['content-transfer-encoding'], 'base64'))) {
 				$headers['content-transfer-encoding'] = 'quoted-printable';
 			}
 		}
