@@ -416,11 +416,6 @@ abstract class NextCloud
 
 		$ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
 
-		if (stristr($ua, 'ownCloudApp') && stristr($ua, 'iOS')) {
-			// Not sure but it seems that ownCloud app is looping indefinitely with gzip?
-			unset($_SERVER['HTTP_ACCEPT_ENCODING']);
-		}
-
 		if (preg_match(self::WEBDAV_BASE_REGEXP, $uri, $match)) {
 			$base_uri = rtrim($match[0], '/') . '/';
 		}
