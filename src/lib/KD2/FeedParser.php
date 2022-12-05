@@ -225,7 +225,7 @@ class FeedParser
     static public function parseDate($value)
     {
         // Format => truncate to this length if not null
-        $formats = array(
+        static $formats = array(
             DATE_ATOM => null,
             DATE_RSS => null,
             DATE_COOKIE => null,
@@ -251,6 +251,10 @@ class FeedParser
             'd/m/Y' => 10,
             'm/d/Y' => 10,
         );
+
+        if (!$value) {
+        	return time();
+        }
 
         $value = trim($value);
 
