@@ -310,7 +310,7 @@ class HTMLDocument extends \DOMDocument
 	/**
 	 * Constructor, registers HTML_Node and HTML_Element to add querySelector[All] methods
 	 */
-	public function __construct($version = null, $encoding = null)
+	public function __construct(string $version = '1.0', string $encoding = '')
 	{
 		parent::__construct($version, $encoding);
 		$this->registerNodeClass('DOMNode', '\KD2\HTMLNode');
