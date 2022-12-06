@@ -178,7 +178,7 @@ class HTTP
 	 * @param  resource $write_pointer Pointer to write body to (body will not be returned then)
 	 * @return HTTP_Response
 	 */
-	public function request(string $method, string $url, ?array $data = null, ?array $additional_headers = null, $write_pointer = null)
+	public function request(string $method, string $url, ?string $data = null, ?array $additional_headers = null, $write_pointer = null)
 	{
 		static $redirect_codes = [301, 302, 303, 307, 308];
 
