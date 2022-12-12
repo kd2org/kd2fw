@@ -71,6 +71,7 @@ class Brindille
 	// Escape is the only mandatory modifier
 	protected $_modifiers = ['escape' => 'htmlspecialchars'];
 	protected $_functions = [];
+	protected $_blocks = [];
 
 	protected $_variables = [0 => []];
 
@@ -144,6 +145,11 @@ class Brindille
 	public function registerFunction(string $name, callable $callback): void
 	{
 		$this->_functions[$name] = $callback;
+	}
+
+	public function registerCompileBlock(string $name, callable $callback): void
+	{
+		$this->_blocks[$name] = $callback;
 	}
 
 	public function render(string $tpl_code): string
@@ -347,7 +353,7 @@ class Brindille
 			return sprintf('<?=%s?>', $this->_variable($start . $name . $params, true));
 		}
 
-		if ($start == '#') {
+		if ($start == '#' && array_key_exists($name, $this->_sections)) {
 			$this->_push(self::SECTION, $name);
 			return $this->_section($name, $params, $line);
 		}
@@ -389,8 +395,11 @@ class Brindille
 
 			return $this->_close($name);
 		}
-		elseif ($start == ':') {
+		elseif ($start == ':' && array_key_exists($name, $this->_functions)) {
 			return $this->_function($name, $params, $line);
+		}
+		elseif (array_key_exists($start . $name, $this->_blocks)) {
+			return $this->_block($start . $name, $params, $line);
 		}
 
 		throw new Brindille_Exception('Unknown block: ' . $all);
@@ -425,6 +434,15 @@ class Brindille
 			$params,
 			$line
 		);
+	}
+
+	protected function _block(string $name, string $params, int $line): string
+	{
+		if (!isset($this->_blocks[$name])) {
+			throw new Brindille_Exception(sprintf('unknown section "%s"', $name));
+		}
+
+		return call_user_func($this->_blocks[$name], $name, $params, $this, $line);
 	}
 
 	protected function _if(string $name, string $params, string $tag_name = 'if')
@@ -724,8 +742,21 @@ class Brindille
 		}
 	}
 
+	/**
+	 * Default '{{:assign' function
+	 *
+	 * This *always* assigns variables to level 0 so that the variables are kept in all contexts
+	 *
+	 * This allows these syntaxes:
+	 * {{:assign name="Mr Lonely"}} => {{$name}}
+	 * {{:assign var="people" age=42 name="Mr Lonely"}} => {{$people.age}} {{$people.name}}
+	 * {{:assign .="user"}} => {{$user.name}} (within a section)
+	 * {{:assign var="people[address]" value="42 street"}}
+	 */
 	static public function __assign(array $params, Brindille $tpl)
 	{
+		$unset = [];
+
 		// Special case: {{:assign .="user" ..="loop"}}
 		foreach ($params as $key => $value) {
 			if (!preg_match('/^\.+$/', $key)) {
@@ -735,6 +766,7 @@ class Brindille
 			$level = count($tpl->_variables) - strlen($key);
 
 			$tpl->assign($value, $tpl->_variables[$level], 0);
+			$unset[] = $value;
 			unset($params[$key]);
 		}
 
@@ -744,8 +776,9 @@ class Brindille
 
 			$parts = explode('[', $var);
 			$var_name = array_shift($parts);
+			$unset[] = $var_name;
 
-			if (!isset($tpl->_variables[0][$var_name])) {
+			if (!isset($tpl->_variables[0][$var_name]) || !is_array($tpl->_variables[0][$var_name])) {
 				$tpl->_variables[0][$var_name] = [];
 			}
 
@@ -767,16 +800,32 @@ class Brindille
 				$prev =& $prev[$sub];
 			}
 
-			$prev = $params;
+			// If value is supplied, and nothing else is supplied, then use this value
+			if (isset($params['value']) && count($params) == 1) {
+				$prev = $params['value'];
+			}
+			// Or else assign all params
+			else {
+				$prev = $params;
+			}
+
 			unset($prev);
 		}
-		elseif (isset($params['append'])) {
-			$var = $params['var'];
-			unset($params['var']);
-			$tpl->assign($var, $params, 0);
-		}
+		// {{:assign bla="blou" address="42 street"}}
 		else {
 			$tpl->assignArray($params, 0);
+			$unset = array_keys($params);
+		}
+
+		// Unset all variables of the same name in children contexts,
+		// as we expect the assigned variable to be accessible right away
+		// If we don't do that, calling {{:assign}} in a section with a variable
+		// named like an existing one, and then {{$variable}} in the same section,
+		//  the variable from the section will be used instead of the one just assigned
+		foreach ($unset as $name) {
+			for ($i = count($tpl->_variables) - 1; $i > 0; $i--) {
+				unset($tpl->_variables[$i][$name]);
+			}
 		}
 	}
 }
