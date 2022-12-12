@@ -126,16 +126,16 @@ class SQLite3 extends DB
 
 		// Basic json features
 		// https://www.sqlite.org/json1.html#jquote
-		'json' => '3.9.0+ENABLE_JSON1',
-		'json_quote' => '3.14.0+ENABLE_JSON1',
+		'json' => '3.9.0+ENABLE_JSON1|3.38.0-OMIT_JSON',
+		'json_quote' => '3.14.0+ENABLE_JSON1|3.38.0-OMIT_JSON',
 
 		// json_patch function
 		// https://www.sqlite.org/json1.html#jpatch
-		'json_patch' => '3.18.0+ENABLE_JSON1',
+		'json_patch' => '3.18.0+ENABLE_JSON1|3.38.0-OMIT_JSON',
 
 		// Support for -> and ->> operators
 		// https://www.sqlite.org/json1.html#jptr
-		'json2' => '3.38.0',
+		'json2' => '3.38.0-OMIT_JSON',
 
 		'fts3' => '3.5.0+ENABLE_FTS3',
 		'fts4' => '3.7.4+ENABLE_FTS4',
@@ -967,19 +967,29 @@ class SQLite3 extends DB
 		$version = \SQLite3::version()['versionString'];
 		$compile_options = $this->getCompileOptions();
 
-		foreach (self::FEATURES as $feature => $feature_version) {
-			$feature_version = strtok($feature_version, '+');
-			$option = strtok('');
+		foreach (self::FEATURES as $feature => $test_string) {
+			$tests = explode('|', $test_string);
 
-			if (!version_compare($version, $feature_version, '>=')) {
-				continue;
+			foreach ($tests as $test) {
+				if (!preg_match('/^([\d\.]+)(?:\+([A-Z0-9_]+))?(?:-([A-Z0-9_]+))?$/', $test, $match)) {
+					throw new \LogicException('Invalid test string: ' . $test);
+				}
+
+				if (!version_compare($version, $match[1], '>=')) {
+					continue;
+				}
+
+				if (!empty($match[2]) && !in_array($match[2], $compile_options)) {
+					continue;
+				}
+
+				// if this option is present, then the feature is disabled
+				if (!empty($match[3]) && in_array($match[3], $compile_options)) {
+					continue;
+				}
+
+				$out[] = $feature;
 			}
-
-			if ($option && !in_array($option, $compile_options)) {
-				continue;
-			}
-
-			$out[] = $feature;
 		}
 
 		return $out;
