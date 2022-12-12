@@ -196,6 +196,8 @@ abstract class AbstractEntity
 				return new \DateTime($value);
 			case 'int':
 				return (int) $value;
+			case 'float':
+				return (float) $value;
 			case 'bool':
 				return (bool) $value;
 			case 'string':
