@@ -127,7 +127,13 @@ class Blob
 			// Baseline || Extended Sequential || Progressive
 			if ($data[$i + 1] == "\xC0" || $data[$i + 1] == "\xC1" || $data[$i + 1] == "\xC2")
 			{
-				$info = unpack('nY/nX', substr($data, $i + 5, 4));
+				$data = substr($data, $i + 5, 4);
+
+				if (!strlen($data)) {
+					return false;
+				}
+
+				$info = unpack('nY/nX', $data);
 				return [$info['X'], $info['Y']];
 			}
 			// Skip to next segment
