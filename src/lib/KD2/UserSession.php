@@ -263,10 +263,20 @@ class UserSession
 		];
 	}
 
+	public function id(): ?string
+	{
+		return session_id() ?: null;
+	}
+
+	public function setId(string $id)
+	{
+		session_id($id);
+	}
+
 	public function start(bool $write = false)
 	{
 		// Don't start session if it has been already started
-		if (session_id()) {
+		if (isset($_SESSION)) {
 			return true;
 		}
 
