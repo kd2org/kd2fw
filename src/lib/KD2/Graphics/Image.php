@@ -1033,13 +1033,13 @@ class Image
 
 	protected function gd_create($w, $h)
 	{
-		$new = imagecreatetruecolor($w, $h);
+		$new = imagecreatetruecolor((int)$w, (int)$h);
 
 		if ($this->format == 'png' || $this->format == 'gif')
 		{
 			imagealphablending($new, false);
 			imagesavealpha($new, true);
-			imagefilledrectangle($new, 0, 0, $w, $h, imagecolorallocatealpha($new, 255, 255, 255, 127));
+			imagefilledrectangle($new, 0, 0, (int)$w, (int)$h, imagecolorallocatealpha($new, 255, 255, 255, 127));
 		}
 
 		return $new;
@@ -1052,7 +1052,7 @@ class Image
 		$src_x = floor(($this->width - $new_width) / 2);
 		$src_y = floor(($this->height - $new_height) / 2);
 
-		imagecopy($new, $this->pointer, 0, 0, $src_x, $src_y, $new_width, $new_height);
+		imagecopy($new, $this->pointer, 0, 0, $src_x, $src_y, (int)$new_width, (int)$new_height);
 		imagedestroy($this->pointer);
 		$this->pointer = $new;
 	}
@@ -1075,15 +1075,15 @@ class Image
 			}
 		}
 
-		$new = $this->gd_create($new_width, $new_height);
+		$new = $this->gd_create((int)$new_width, (int)$new_height);
 
 		if ($this->use_gd_fast_resize_trick)
 		{
-			$this->gd_fastimagecopyresampled($new, $this->pointer, 0, 0, 0, 0, $new_width, $new_height, $this->width, $this->height, 2);
+			$this->gd_fastimagecopyresampled($new, $this->pointer, 0, 0, 0, 0, (int)$new_width, (int)$new_height, $this->width, $this->height, 2);
 		}
 		else
 		{
-			imagecopyresampled($new, $this->pointer, 0, 0, 0, 0, $new_width, $new_height, $this->width, $this->height);
+			imagecopyresampled($new, $this->pointer, 0, 0, 0, 0, (int)$new_width, (int)$new_height, $this->width, $this->height);
 		}
 
 		imagedestroy($this->pointer);
@@ -1100,7 +1100,7 @@ class Image
 		// GD is using counterclockwise
 		$angle = -($angle);
 
-		$this->pointer = imagerotate($this->pointer, $angle, 0);
+		$this->pointer = imagerotate($this->pointer, (int)$angle, 0);
 	}
 
 	protected function gd_fastimagecopyresampled(&$dst_image, $src_image, $dst_x, $dst_y, $src_x, $src_y, $dst_w, $dst_h, $src_w, $src_h, $quality = 3)
@@ -1125,14 +1125,14 @@ class Image
 
 		if ($quality < 5 && (($dst_w * $quality) < $src_w || ($dst_h * $quality) < $src_h))
 		{
-			$temp = imagecreatetruecolor ($dst_w * $quality + 1, $dst_h * $quality + 1);
-			imagecopyresized ($temp, $src_image, 0, 0, $src_x, $src_y, $dst_w * $quality + 1, $dst_h * $quality + 1, $src_w, $src_h);
-			imagecopyresampled ($dst_image, $temp, $dst_x, $dst_y, 0, 0, $dst_w, $dst_h, $dst_w * $quality, $dst_h * $quality);
-			imagedestroy ($temp);
+			$temp = imagecreatetruecolor(intval($dst_w * $quality + 1), intval($dst_h * $quality + 1));
+			imagecopyresized($temp, $src_image, 0, 0, (int)$src_x, (int)$src_y, intval($dst_w * $quality + 1), intval($dst_h * $quality + 1), (int)$src_w, (int)$src_h);
+			imagecopyresampled($dst_image, $temp, (int)$dst_x, (int)$dst_y, 0, 0, (int)$dst_w, (int)$dst_h, intval($dst_w * $quality), intval($dst_h * $quality));
+			imagedestroy($temp);
 		}
 		else
 		{
-			imagecopyresampled ($dst_image, $src_image, $dst_x, $dst_y, $src_x, $src_y, $dst_w, $dst_h, $src_w, $src_h);
+			imagecopyresampled($dst_image, $src_image, (int) $dst_x, (int) $dst_y, (int) $src_x, (int) $src_y, (int) $dst_w, (int) $dst_h, (int) $src_w, (int) $src_h);
 		}
 
 		return true;
