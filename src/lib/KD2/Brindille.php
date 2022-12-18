@@ -457,7 +457,7 @@ class Brindille
 		$code = '';
 
 		foreach ($tokens as $token) {
-			if ($token->type == self::T_VAR) {
+			if ($token->type === self::T_VAR) {
 				$code .= $this->_variable($token->value, false);
 			}
 			else {
