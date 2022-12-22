@@ -301,6 +301,11 @@ abstract class AbstractEntity
 		return array_intersect_key($this->asArray($for_database), $this->_modified);
 	}
 
+	public function getModifiedProperty(string $key)
+	{
+		return $this->_modified[$key] ?? null;
+	}
+
 	public function clearModifiedProperties(): void
 	{
 		$this->_modified = [];
