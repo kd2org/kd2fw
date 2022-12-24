@@ -306,9 +306,16 @@ abstract class AbstractEntity
 		return $this->_modified[$key] ?? null;
 	}
 
-	public function clearModifiedProperties(): void
+	public function clearModifiedProperties(?array $properties = null): void
 	{
-		$this->_modified = [];
+		if (null === $properties) {
+			$this->_modified = [];
+			return;
+		}
+
+		foreach ($properties as $key) {
+			unset($this->_modified[$key]);
+		}
 	}
 
 	public function isModified(?string $property = null): bool
