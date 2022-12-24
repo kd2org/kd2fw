@@ -83,6 +83,13 @@ class Server
 	const EXCLUSIVE_LOCK = 'exclusive';
 
 	/**
+	 * Enable on-the-fly gzip compression
+	 * This can use a large amount of resources
+	 * @var boolean
+	 */
+	protected bool $enable_gzip = true;
+
+	/**
 	 * Base server URI (eg. "/index.php/webdav/")
 	 */
 	protected string $base_uri;
@@ -402,17 +409,20 @@ class Server
 
 			$this->log('HTTP Range requested: %s-%s', $start, $end);
 		}
-		elseif (isset($_SERVER['HTTP_ACCEPT_ENCODING'])
+		elseif ($this->enable_gzip
+			&& isset($_SERVER['HTTP_ACCEPT_ENCODING'])
 			&& false !== strpos($_SERVER['HTTP_ACCEPT_ENCODING'], 'gzip')
+			&& isset($props['DAV::getcontentlength'])
+			// Don't compress if size is larger than 8 MiB
+			&& $props['DAV::getcontentlength'] < 8*1024*1024
 			// Don't compress already compressed content
-			&& !preg_match('/\.(?:mp4|m4a|zip|docx|xlsx|ods|odt|odp|7z|gz|bz2|rar|webm|ogg|mp3|ogm|flac|ogv|mkv|avi)$/i', $uri)) {
+			&& !preg_match('/\.(?:cbz|cbr|cb7|mp4|m4a|zip|docx|xlsx|pptx|ods|odt|odp|7z|gz|bz2|lzma|lz|xz|apk|dmg|jar|rar|webm|ogg|mp3|ogm|flac|ogv|mkv|avi)$/i', $uri)) {
 			$gzip = true;
 			header('Content-Encoding: gzip', true);
 		}
 
 		// Try to avoid common issues with output buffering and stuff
-		if (function_exists('apache_setenv'))
-		{
+		if (function_exists('apache_setenv')) {
 			@apache_setenv('no-gzip', 1);
 		}
 
@@ -495,9 +505,9 @@ class Server
 
 		if ($gzip) {
 			$this->log('Using gzip output compression');
-			$gzip = deflate_init(ZLIB_ENCODING_GZIP, ['level' => 9]);
+			$gzip = deflate_init(ZLIB_ENCODING_GZIP);
 
-			$fp = fopen('php://memory', 'wb');
+			$fp = fopen('php://temp', 'wb');
 
 			while (!feof($file['resource'])) {
 				fwrite($fp, deflate_add($gzip, fread($file['resource'], 8192), ZLIB_NO_FLUSH));
