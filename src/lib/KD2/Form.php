@@ -233,6 +233,9 @@ class Form
 		return isset($_POST[$field]) ? $_POST[$field] : null;
 	}
 
+	/**
+	 * @deprecated
+	 */
 	static public function filterField($value, $filter, array $params = [])
 	{
 		switch ($filter)
@@ -260,6 +263,7 @@ class Form
 	 * @param  string   $name     Rule name
 	 * @param  Callable $callback Callback (must return a boolean)
 	 * @return void
+	 * @deprecated
 	 */
 	static public function registerValidationRule($name, Callable $callback)
 	{
@@ -275,6 +279,7 @@ class Form
 	 * @param  Array  $source    Source of the field data
 	 * @param  Array  $rules     Complete list of rules
 	 * @return boolean
+	 * @deprecated
 	 */
 	static public function validateRule($key, $rule_name, Array $params = [], Array $source = null, Array $rules = [])
 	{
@@ -518,6 +523,7 @@ class Form
 	 * @param  Array  $all_rules    List of rules, eg. 'login' => 'required|string'
 	 * @param  Array  &$errors      List of errors encountered
 	 * @return boolean
+	 * @deprecated
 	 */
 	static public function check($token_action, Array $all_rules, Array &$errors = [])
 	{
@@ -541,6 +547,7 @@ class Form
 	 * @param  Array $source    Source of form data, if left empty or NULL,
 	 * $_POST will be used
 	 * @return boolean
+	 * @deprecated
 	 */
 	static public function validate(Array $all_rules, Array &$errors = null, Array $source = null)
 	{
@@ -570,6 +577,7 @@ class Form
 	 * @param  array|string $rules  List of rules, either as an associative array of type rule_name => [...parameters] or a string
 	 * @param  array  $source Source array of user data (eg. $_POST)
 	 * @return array Array containing the first error encountered for the field (as an array), or NULL if no error was found
+	 * @deprecated
 	 */
 	static public function validateField(string $key, $rules, array $source): ?array
 	{
