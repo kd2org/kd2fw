@@ -743,6 +743,7 @@ class ErrorManager
 		if (self::$enabled)
 			return true;
 
+		self::$context['request_started'] = $_SERVER['REQUEST_TIME_FLOAT'] ?? microtime(true);
 
 		self::$enabled = $type;
 
@@ -800,8 +801,6 @@ class ErrorManager
 				self::$context[$a] = $_SERVER[$b];
 			}
 		}
-
-		self::$context['request_started'] = microtime(true);
 	}
 
 	/**
