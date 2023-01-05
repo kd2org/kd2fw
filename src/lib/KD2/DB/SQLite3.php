@@ -173,6 +173,15 @@ class SQLite3 extends DB
 			$st->close();
 		}
 
+		if ($this->db && (time() % 10) == 0) {
+			// https://www.sqlite.org/pragma.html#pragma_optimize
+			// To achieve the best long-term query performance without the need to do
+			// a detailed engineering analysis of the application schema and SQL,
+			// it is recommended that applications run "PRAGMA optimize" (with no arguments)
+			// just before closing each database connection.
+			$this->db->exec('PRAGMA optimize;');
+		}
+
 		parent::__destruct();
 	}
 
