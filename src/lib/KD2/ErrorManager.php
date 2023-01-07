@@ -350,7 +350,7 @@ class ErrorManager
 		}
 	}
 
-	static public function reportExceptionSilent(\Exception $e): void
+	static public function reportExceptionSilent(\Throwable $e): void
 	{
 		extract(self::buildExceptionReport($e));
 
@@ -422,7 +422,7 @@ class ErrorManager
 		return $file;
 	}
 
-	static public function buildExceptionReport(\Exception $e, bool $force_html = false): array
+	static public function buildExceptionReport(\Throwable $e, bool $force_html = false): array
 	{
 		$report = self::makeReport($e);
 		$log = sprintf('=========== Error ref. %s ===========', $report->context->id)
