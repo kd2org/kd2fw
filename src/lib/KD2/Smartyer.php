@@ -1006,7 +1006,15 @@ class Smartyer
 	{
 		return preg_replace_callback('!(isset\s*\(\s*)?(\$[\w\d_]+)((?:\.[\w\d_]+)+)(\s*\))?!', function ($match) {
 			$find = explode('.', $match[3]);
-			return '$this->_magicVar(' . $match[2] . ', ' . var_export(array_slice($find, 1), true) . ')' . ($match[1] ? '' : @$match[4]);
+			$out = '$this->_magicVar(' . $match[2] . ', ' . var_export(array_slice($find, 1), true) . ')' . ($match[1] ? '' : @$match[4]);
+
+			// You cannot isset a method, but the method returns NULL if nothing was found,
+			// so we can test against this
+			if (!empty($match[1])) {
+				$out = 'null !== ' . $out;
+			}
+
+			return $out;
 		}, $str);
 	}
 
