@@ -506,6 +506,16 @@ class DB
 		}
 	}
 
+	/**
+	 * Quote identifier, eg. 'users.index' => '"users"."index"'
+	 */
+	public function quoteIdentifiers(string $value): string
+	{
+		$value = explode('.', $value);
+		$value = array_map([$this, 'quoteIdentifier'], $value);
+		return implode('.', $value);
+	}
+
 	public function preparedQuery(string $query, ...$args)
 	{
 		$key = md5($query . implode(',', array_keys($args)));
