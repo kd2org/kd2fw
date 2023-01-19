@@ -278,7 +278,7 @@ class FeedParser
 
         if ($date !== false) {
             $errors = \DateTime::getLastErrors();
-            if ($errors['error_count'] === 0 && $errors['warning_count'] === 0) return $date->getTimestamp();
+            if (empty($errors['error_count']) && empty($errors['warning_count'])) return $date->getTimestamp();
         }
 
         return 0;
