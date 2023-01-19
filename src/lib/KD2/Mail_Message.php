@@ -513,6 +513,12 @@ class Mail_Message
 
 		if (count($parts) <= 1)
 		{
+			if (isset($headers['content-type']) && strstr($headers['content-type'], 'multipart')) {
+				$headers['content-type'] = $parts[0]['type'] ?? 'text/plain';
+			}
+
+			unset($headers['mime-version']);
+
 			if ((!isset($headers['content-type']) || stristr($headers['content-type'], 'text/plain')))
 			{
 				// Force UTF-8
