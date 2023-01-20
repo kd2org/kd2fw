@@ -41,6 +41,12 @@ class FossilMonitor
 	//const TYPE_FORUM = 'f';
 	//const TYPE_TECH_NOTES = 'e';
 
+	const HTML_TEMPLATE = '<html><head><base href="%s" /><style type="text/css">
+		ins { background: #a0e4b2; text-decoration: none; font-weight: bold; }
+		del { background: #ffc0c0; text-decoration: none; font-weight: bold; }
+		</style></head>
+		<body><h2>%s</h2>%s</body></html>';
+
 	protected string $repo;
 	protected string $url;
 	public string $from_email = 'fossil@localhost';
@@ -155,10 +161,14 @@ class FossilMonitor
 		return $out;
 	}
 
-	public function diff(string $hash): array
+	public function diff(string $comment, string $hash): array
 	{
 		$r = $this->http($this->url . 'info/' . $hash);
 		$out = ['html' => $r];
+
+		if (preg_match('!<div[^>]*sectionmenu.*?</div>(.*?)<script!is', $r, $match)) {
+			$out['html'] = sprintf(self::HTML_TEMPLATE, $this->url, $comment, $match[1]);
+		}
 
 		if (preg_match('!href="/[^/]+?/(vpatch\?from=.*?)"!', $r, $match)) {
 			$out['text'] = $this->http($this->url . html_entity_decode($match[1]));
@@ -234,7 +244,7 @@ class FossilMonitor
 
 		if ($item->type == self::TYPE_CHECKIN) {
 			$subject = sprintf('[%s] %s', $item->branch, $comment);
-			$diff = $this->diff($item->hash);
+			$diff = $this->diff($comment, $item->hash);
 
 			$msg = $comment;
 			$msg .= "\n\n";
@@ -283,11 +293,7 @@ class FossilMonitor
 				$r = $this->http($this->url . 'wdiff?id=' . $item->short_hash);
 
 				if (preg_match('!<table[^>]+class=[\'\"][^\'\"]*diff[^>]*>(.*?)</table>!is', $r, $match)) {
-					$html = sprintf('<html><head><style type="text/css">
-						ins { background: #a0e4b2; text-decoration: none; font-weight: bold; }
-						del { background: #ffc0c0; text-decoration: none; font-weight: bold; }
-						</style></head>
-						<body><h2>%s</h2>%s</body></html>', htmlspecialchars($comment), $match[1]);
+					$html = sprintf(self::HTML_TEMPLATE, $this->url, htmlspecialchars($comment), $match[0]);
 				}
 			}
 		}
