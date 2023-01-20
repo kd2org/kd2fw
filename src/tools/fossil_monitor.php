@@ -330,17 +330,17 @@ class FossilMonitor
 			}
 
 			if (preg_match('!<i>(.*?)</i>!', $comment, $match)) {
-				$label = html_entity_decode($match[1]);
+				$label = $match[1];
 			}
 
-			$subject = sprintf('[ticket] %s: %s', $change, $label);
+			$subject = sprintf('[ticket] %s: %s', $change, html_entity_decode($label));
 
 			$msg = html_entity_decode(strip_tags($comment));
 			$msg .= "\n\n";
 			$msg .= $this->url . 'info/' . $ticket_id;
-			$msg .= "\n\n";
-			$msg .= str_repeat("=", 70);
-			$msg .= "\n\n";
+			//$msg .= "\n\n";
+			//$msg .= str_repeat("=", 70);
+			//$msg .= "\n\n";
 
 			if ($ticket_id) {
 				// TODO
