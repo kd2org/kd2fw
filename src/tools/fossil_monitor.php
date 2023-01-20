@@ -112,19 +112,19 @@ class FossilMonitor
 			$msg.= "Content-Transfer-Encoding: 8bit\r\n\r\n";
 			$msg.= $text . "\r\n\r\n";
 
-			if ($html) {
-				$msg.= sprintf("--%s\r\n", $boundary);
-				$msg.= "Content-Type: text/html; charset=\"utf-8\"\r\n";
-				$msg.= "Content-Transfer-Encoding: 8bit\r\n\r\n";
-				$msg.= $html . "\r\n\r\n";
-			}
-
 			foreach ($attach as $name => $content) {
 				$msg.= sprintf("--%s\r\n", $boundary);
 				$msg.= sprintf("Content-Type: text/plain; charset=\"utf-8\"; name=\"%s\"\r\n", $name);
 				$msg.= "Content-Disposition: attachment\r\n";
 				$msg.= "Content-Transfer-Encoding: 8bit\r\n\r\n";
 				$msg.= $content . "\r\n\r\n";
+			}
+
+			if ($html) {
+				$msg.= sprintf("--%s\r\n", $boundary);
+				$msg.= "Content-Type: text/html; charset=\"utf-8\"\r\n";
+				$msg.= "Content-Transfer-Encoding: 8bit\r\n\r\n";
+				$msg.= $html . "\r\n\r\n";
 			}
 
 			$msg.= sprintf("--%s--", $boundary);
