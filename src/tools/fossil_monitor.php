@@ -191,7 +191,7 @@ class FossilMonitor
 		}
 
 		if (preg_match('!href="/[^/]+?/(vpatch\?from=.*?)"!', $r, $match)) {
-			$out['text'] = $this->http($this->url . html_entity_decode($match[1]));
+			$out['text'] = $this->http($this->url . html_entity_decode($match[1], ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML401));
 		}
 
 		return $out;
@@ -330,12 +330,12 @@ class FossilMonitor
 			}
 
 			if (preg_match('!<i>(.*?)</i>!', $comment, $match)) {
-				$label = $match[1];
+				$label = html_entity_decode($match[1], ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML401);
 			}
 
-			$subject = sprintf('[ticket] %s: %s', $change, html_entity_decode($label));
+			$subject = sprintf('[ticket] %s: %s', $change, $label);
 
-			$msg = html_entity_decode(strip_tags($comment));
+			$msg = html_entity_decode(strip_tags($comment), ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML401);
 			$msg .= "\n\n";
 			$msg .= $this->url . 'info/' . $ticket_id;
 			//$msg .= "\n\n";
