@@ -270,6 +270,10 @@ class FossilMonitor
 			$msg = $comment;
 			$msg .= "\n\n";
 			$msg .= $this->url . 'info/' . $item->short_hash;
+			$msg .= "\n\n";
+			$msg .= str_repeat("-", 70);
+			$msg .= "\n\n";
+			$msg .= $diff['text'];
 
 			$html = $diff['html'];
 			$attach[$item->short_hash . '.patch'] = $diff['text'];
