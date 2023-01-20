@@ -41,12 +41,6 @@ class FossilMonitor
 	//const TYPE_FORUM = 'f';
 	//const TYPE_TECH_NOTES = 'e';
 
-	const HTML_TEMPLATE = '<html><head><base href="%s" /><style type="text/css">
-		ins { background: #a0e4b2; text-decoration: none; font-weight: bold; }
-		del { background: #ffc0c0; text-decoration: none; font-weight: bold; }
-		</style></head>
-		<body><h2>%s</h2>%s</body></html>';
-
 	protected string $repo;
 	protected string $url;
 	public string $from_email = 'fossil@localhost';
@@ -57,6 +51,20 @@ class FossilMonitor
 		$this->repo = $repo;
 		$this->url = rtrim($url, '/') . '/';
 		$this->db = new \SQLite3($repo, \SQLITE3_OPEN_READONLY);
+	}
+
+	protected function html(string $title, string $content): string
+	{
+		$url = parse_url($this->url, PHP_URL_SCHEME) . '://' . parse_url($this->url, PHP_URL_HOST) . '/';
+
+		$content = str_replace('href="/', 'href="' . $url, $content);
+		$content = str_replace('href=\'/', 'href=\'' . $url, $content);
+
+		return sprintf('<html><head><style type="text/css">
+			ins { background: #a0e4b2; text-decoration: none; font-weight: bold; }
+			del { background: #ffc0c0; text-decoration: none; font-weight: bold; }
+			</style></head>
+			<body><h2>%s</h2>%s</body></html>', htmlspecialchars($title), $content);
 	}
 
 	public function http(string $url): ?string
@@ -179,7 +187,7 @@ class FossilMonitor
 		$out = ['html' => $r];
 
 		if (preg_match('!<div[^>]*sectionmenu.*?</div>(.*?)<script!is', $r, $match)) {
-			$out['html'] = sprintf(self::HTML_TEMPLATE, $this->url, $comment, $match[1]);
+			$out['html'] = $this->html($comment, $match[1]);
 		}
 
 		if (preg_match('!href="/[^/]+?/(vpatch\?from=.*?)"!', $r, $match)) {
@@ -304,7 +312,7 @@ class FossilMonitor
 				$r = $this->http($this->url . 'wdiff?id=' . $item->short_hash);
 
 				if (preg_match('!<table[^>]+class=[\'\"][^\'\"]*diff[^>]*>(.*?)</table>!is', $r, $match)) {
-					$html = sprintf(self::HTML_TEMPLATE, $this->url, htmlspecialchars($comment), $match[0]);
+					$html = $this->html($comment, $match[0]);
 				}
 			}
 		}
