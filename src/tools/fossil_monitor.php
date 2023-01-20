@@ -116,7 +116,7 @@ class FossilMonitor
 				$msg.= sprintf("Content-Type: text/plain; charset=\"utf-8\"; name=\"%s\"\r\n", $name);
 				$msg.= "Content-Disposition: attachment\r\n";
 				$msg.= "Content-Transfer-Encoding: 8bit\r\n\r\n";
-				$msg.= $html . "\r\n\r\n";
+				$msg.= $content . "\r\n\r\n";
 			}
 
 			$msg.= sprintf("--%s--", $boundary);
