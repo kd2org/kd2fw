@@ -84,7 +84,7 @@ class FossilMonitor
 		return @file_get_contents($url, false, $ctx);
 	}
 
-	public function email(string $from, string $to, string $subject, string $text, ?string $html = null, array $headers = []): void
+	public function email(string $from, string $to, string $subject, string $text, ?string $html = null, array $headers = [], array $attach = []): void
 	{
 		$msgid = sha1(random_bytes(10)) . '@' . gethostname();
 
@@ -94,7 +94,7 @@ class FossilMonitor
 			$header .= sprintf("%s: %s\r\n", $key, $value);
 		}
 
-		if ($html) {
+		if ($html || count($attach)) {
 			$boundary = sprintf('-----=%s', md5($msgid));
 			$header.= sprintf("MIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=\"%s\"\r\n", $boundary);
 
@@ -103,10 +103,22 @@ class FossilMonitor
 			$msg.= "Content-Type: text/plain; charset=\"utf-8\"\r\n";
 			$msg.= "Content-Transfer-Encoding: 8bit\r\n\r\n";
 			$msg.= $text . "\r\n\r\n";
-			$msg.= sprintf("--%s\r\n", $boundary);
-			$msg.= "Content-Type: text/html; charset=\"utf-8\"\r\n";
-			$msg.= "Content-Transfer-Encoding: 8bit\r\n\r\n";
-			$msg.= $html . "\r\n\r\n";
+
+			if ($html) {
+				$msg.= sprintf("--%s\r\n", $boundary);
+				$msg.= "Content-Type: text/html; charset=\"utf-8\"\r\n";
+				$msg.= "Content-Transfer-Encoding: 8bit\r\n\r\n";
+				$msg.= $html . "\r\n\r\n";
+			}
+
+			foreach ($attach as $name => $content) {
+				$msg.= sprintf("--%s\r\n", $boundary);
+				$msg.= sprintf("Content-Type: text/plain; charset=\"utf-8\"; name=\"%s\"\r\n", $name);
+				$msg.= "Content-Disposition: attachment\r\n";
+				$msg.= "Content-Transfer-Encoding: 8bit\r\n\r\n";
+				$msg.= $html . "\r\n\r\n";
+			}
+
 			$msg.= sprintf("--%s--", $boundary);
 		}
 
@@ -238,6 +250,7 @@ class FossilMonitor
 		$from = sprintf('"%s" <%s>', $item->author, $this->from_email);
 		$comment = $item->comment;
 		$html = null;
+		$attach = [];
 
 		// Replace wiki tags
 		$comment = preg_replace_callback('/\[(.*?)(?:\|(.*?))?\]/', fn($m) => '"' . ($m[2] ?? $m[1]) . '"', $comment);
@@ -249,11 +262,9 @@ class FossilMonitor
 			$msg = $comment;
 			$msg .= "\n\n";
 			$msg .= $this->url . 'info/' . $item->short_hash;
-			$msg .= "\n\n";
-			$msg .= str_repeat("=", 70);
-			$msg .= "\n\n";
-			$msg .= $diff['text'];
+
 			$html = $diff['html'];
+			$attach[$item->short_hash . '.patch'] = $diff['text'];
 		}
 		elseif ($item->type == self::TYPE_WIKI) {
 			$t = substr($comment, 0, 1);
@@ -329,7 +340,7 @@ class FossilMonitor
 			}
 		}
 
-		$this->email($from, $this->to, $subject, $msg, $html, ['Date' => $item->date->format(\DATE_RFC822)]);
+		$this->email($from, $this->to, $subject, $msg, $html, ['Date' => $item->date->format(\DATE_RFC822)], $attach);
 	}
 
 	public function report(string $since = null, int $limit = 100, array $types = [self::TYPE_CHECKIN, self::TYPE_TICKET, self::TYPE_WIKI])
