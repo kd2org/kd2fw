@@ -163,7 +163,7 @@ class FossilMonitor
 
 	public function diff(string $comment, string $hash): array
 	{
-		$r = $this->http($this->url . 'info/' . $hash);
+		$r = $this->http($this->url . 'info/' . $hash . '?diff=1');
 		$out = ['html' => $r];
 
 		if (preg_match('!<div[^>]*sectionmenu.*?</div>(.*?)<script!is', $r, $match)) {
