@@ -6,6 +6,8 @@
  * Fossil Mailer
  * -------------
  *
+ * PHP 7.4+
+ *
  * Just like svnmailer, this tool monitors the changes of a Fossil
  * repository and sends an email for each change.
  *
@@ -21,6 +23,12 @@
  * It is also missing wiki diff in CLI.
  *
  * Your Fossil repository can be private, see example config for details.
+ *
+ * Once you have created your config file, you can invoke this tool via:
+ *
+ * php fossil_mailer.php /path/to/config/file.ini
+ *
+ * You should then put that in a crontab, something like every 5 minutes :)
  */
 
 const EXAMPLE_CONFIG = <<<EOF
