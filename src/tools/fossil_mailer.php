@@ -1,19 +1,61 @@
 <?php
+/**
+ * @author BohwaZ <https://bohwaz.net>
+ * @license WTFPL
+ *
+ * Fossil Mailer
+ * -------------
+ *
+ * Just like svnmailer, this tool monitors the changes of a Fossil
+ * repository and sends an email for each change.
+ *
+ * This script can currently monitor and send changes for:
+ * - check-ins (commits), with text and HTML diff
+ * - tickets changes (and tickets attachments), with comments
+ * - wiki page changes (and wiki attachments), with HTML diff
+ *
+ * You can can choose to receive (or not) each type in the config file.
+ *
+ * This script requires the Fossil repo to be accessible via HTTP, as
+ * the Fossil CLI tool is missing HTML/text diff outside of an open repo.
+ * It is also missing wiki diff in CLI.
+ *
+ * Your Fossil repository can be private, see example config for details.
+ */
+
+const EXAMPLE_CONFIG = <<<EOF
+; Note: comments start with a semi-colon (INI-style)
+; Path to the Fossil repository file you want to monitor
+repository="/home/fossil/myrepo.fossil"
+
+; URL of the Fossil repository
+; If the repo is private (anonymous visitors can't see diffs or artifacts),
+; you'll need to create a read-only user and provide a username/password here
+; like this: "https://user:password@fossil.project.tld/"
+url="https://fossil.project.tld/"
+
+; Location of a text file that will contain the hash of the last
+; change processed by this script
+last_change_file="/home/fossil/myrepo.last.monitor"
+
+; Email address used as the 'From'
+from="dev@project.tld"
+
+; Email address used as the 'To'
+to="changes@project.tld"
+
+; Enable or disable changes types here
+ticket=true
+checkin=true
+wiki=true
+EOF;
 
 $argv = $_SERVER['argv'];
 
 if (empty($argv[1]) || !is_readable($argv[1])) {
 	printf("Usage: %s CONFIG_FILE", $argv[0]) . PHP_EOL;
 	echo "\n\nWhere CONFIG_FILE is the path to the configuration file.\n\nConfiguration example:\n\n";
-
-	echo <<<EOF
-repository="/home/fossil/myrepo.fossil"
-url="https://fossil.project.tld/"
-last_change_file="/home/fossil/myrepo.last.monitor"
-from="dev@project.tld"
-to="changes@project.tld"
-EOF;
-	echo "\n\n";
+	echo EXAMPLE_CONFIG . "\n\n";
 	exit(1);
 }
 
@@ -31,10 +73,6 @@ if ($last) {
 	file_put_contents($config->last_change_file, $last);
 }
 
-/**
- * This tool is useful to monitor a Fossil repository for changes,
- * and sends the diffs by email.
- */
 class FossilMonitor
 {
 	const TYPE_CHECKIN = 'ci';
@@ -352,7 +390,7 @@ class FossilMonitor
 
 			$html = $diff['html'];
 
-			$attach[$item->short_hash . '.patch'] = $diff['text'];
+			//$attach[$item->short_hash . '.patch'] = $diff['text'];
 		}
 		elseif ($item->type == self::TYPE_WIKI) {
 			$t = substr($comment, 0, 1);
