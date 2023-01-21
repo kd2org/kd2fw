@@ -78,6 +78,7 @@ class FossilMonitor
 	const TYPE_CHECKIN = 'ci';
 	const TYPE_TICKET = 't';
 	const TYPE_WIKI = 'w';
+	// TODO:
 	//const TYPE_FORUM = 'f';
 	//const TYPE_TECH_NOTES = 'e';
 
@@ -90,7 +91,6 @@ class FossilMonitor
 	{
 		$this->repo = $repo;
 		$this->url = rtrim($url, '/') . '/';
-		//$this->db = new \SQLite3($repo, \SQLITE3_OPEN_READONLY);
 	}
 
 	protected function html(string $title, string $content): string
@@ -240,47 +240,6 @@ class FossilMonitor
 		return $out;
 	}
 
-	/*
-	public function ticketHistory(string $id): array
-	{
-		$tagid = $this->db->querySingle(sprintf('SELECT tagid FROM tag WHERE tagname GLOB \'tkt-%s*\';', $this->db->escapeString($id)));
-
-		if (!$tagid) {
-			throw new \LogicException('Ticket not found: ' . $id);
-		}
-
-		// From fossil/src/tkt.c:tkthistory_page
-		$sql = sprintf('
-			SELECT datetime(mtime, \'localtime\'), objid, uuid, NULL, NULL, NULL
-			  FROM event, blob
-			  WHERE objid IN (SELECT rid FROM tagxref WHERE tagid=%d)
-				AND blob.rid=event.objid
-			  UNION
-			  SELECT datetime(mtime, \'localtime\'), attachid, uuid, filename,
-					src, user
-			  FROM attachment, blob
-			  WHERE target=(SELECT substr(tagname,5) FROM tag WHERE tagid=%d)
-				AND blob.rid=attachid
-			  ORDER BY 1 DESC', $tagid, $tagid);
-
-		$out = [];
-		$r = $this->db->query($sql);
-
-		while ($row = $r->fetchArray(\SQLITE3_NUM)) {
-			list($date, $obj_id, $uuid, $file_name, $src, $user) = $row;
-
-			if ($file_name && !$src) {
-				$out[$date] = sprintf('%s has deleted an attachment: %s', $user, $file_name);
-			}
-			elseif ($file_name) {
-				$out[$date] = sprintf("%s has added an attachment: %s\nSee: %s", $user, $file_name, $this->url . 'artifact/' . $uuid);
-			}
-			else {
-				$changes = $this->ticketChanges($uuid);
-			}
-		}
-	}
-	*/
 
 	public function ticketChanges(string $uuid): string
 	{
