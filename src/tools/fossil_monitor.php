@@ -4,7 +4,7 @@ $argv = $_SERVER['argv'];
 
 if (empty($argv[1]) || !is_readable($argv[1])) {
 	printf("Usage: %s CONFIG_FILE", $argv[0]) . PHP_EOL;
-	echo "Where CONFIG_FILE is the path to the configuration file.\n\nConfiguration example:\n\n";
+	echo "\n\nWhere CONFIG_FILE is the path to the configuration file.\n\nConfiguration example:\n\n";
 
 	echo <<<EOF
 repository="/home/fossil/myrepo.fossil"
@@ -27,7 +27,9 @@ $since = file_exists($config->last_change_file) ? trim(file_get_contents($config
 
 $last = $f->report($since, $since ? 100 : 10);
 
-file_put_contents($config->last_change_file, $last);
+if ($last) {
+	file_put_contents($config->last_change_file, $last);
+}
 
 /**
  * This tool is useful to monitor a Fossil repository for changes,
@@ -50,7 +52,7 @@ class FossilMonitor
 	{
 		$this->repo = $repo;
 		$this->url = rtrim($url, '/') . '/';
-		$this->db = new \SQLite3($repo, \SQLITE3_OPEN_READONLY);
+		//$this->db = new \SQLite3($repo, \SQLITE3_OPEN_READONLY);
 	}
 
 	protected function html(string $title, string $content): string
@@ -112,19 +114,19 @@ class FossilMonitor
 			$msg.= "Content-Transfer-Encoding: 8bit\r\n\r\n";
 			$msg.= $text . "\r\n\r\n";
 
+			if ($html) {
+				$msg.= sprintf("--%s\r\n", $boundary);
+				$msg.= "Content-Type: text/html; charset=\"utf-8\"\r\n";
+				$msg.= "Content-Transfer-Encoding: 8bit\r\n\r\n";
+				$msg.= $html . "\r\n\r\n";
+			}
+
 			foreach ($attach as $name => $content) {
 				$msg.= sprintf("--%s\r\n", $boundary);
 				$msg.= sprintf("Content-Type: text/plain; charset=\"utf-8\"; name=\"%s\"\r\n", $name);
 				$msg.= "Content-Disposition: attachment\r\n";
 				$msg.= "Content-Transfer-Encoding: 8bit\r\n\r\n";
 				$msg.= $content . "\r\n\r\n";
-			}
-
-			if ($html) {
-				$msg.= sprintf("--%s\r\n", $boundary);
-				$msg.= "Content-Type: text/html; charset=\"utf-8\"\r\n";
-				$msg.= "Content-Transfer-Encoding: 8bit\r\n\r\n";
-				$msg.= $html . "\r\n\r\n";
 			}
 
 			$msg.= sprintf("--%s--", $boundary);
@@ -193,10 +195,14 @@ class FossilMonitor
 		if (preg_match('!href="/[^/]+?/(vpatch\?from=.*?)"!', $r, $match)) {
 			$out['text'] = $this->http($this->url . html_entity_decode($match[1], ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML401));
 		}
+		else {
+			var_dump($r); exit;
+		}
 
 		return $out;
 	}
 
+	/*
 	public function ticketHistory(string $id): array
 	{
 		$tagid = $this->db->querySingle(sprintf('SELECT tagid FROM tag WHERE tagname GLOB \'tkt-%s*\';', $this->db->escapeString($id)));
@@ -205,13 +211,14 @@ class FossilMonitor
 			throw new \LogicException('Ticket not found: ' . $id);
 		}
 
+		// From fossil/src/tkt.c:tkthistory_page
 		$sql = sprintf('
-			SELECT datetime(mtime,toLocal()), objid, NULL, NULL, NULL
+			SELECT datetime(mtime, \'localtime\'), objid, uuid, NULL, NULL, NULL
 			  FROM event, blob
 			  WHERE objid IN (SELECT rid FROM tagxref WHERE tagid=%d)
 				AND blob.rid=event.objid
 			  UNION
-			  SELECT datetime(mtime,toLocal()), attachid, filename,
+			  SELECT datetime(mtime, \'localtime\'), attachid, uuid, filename,
 					src, user
 			  FROM attachment, blob
 			  WHERE target=(SELECT substr(tagname,5) FROM tag WHERE tagid=%d)
@@ -219,10 +226,78 @@ class FossilMonitor
 			  ORDER BY 1 DESC', $tagid, $tagid);
 
 		$out = [];
+		$r = $this->db->query($sql);
 
-		while ($row = $this->db->query($sql)->fetchArray(\SQLITE3_NUM)) {
-			list($date, $obj_id, $file_name, $src, $user) = $row;
+		while ($row = $r->fetchArray(\SQLITE3_NUM)) {
+			list($date, $obj_id, $uuid, $file_name, $src, $user) = $row;
+
+			if ($file_name && !$src) {
+				$out[$date] = sprintf('%s has deleted an attachment: %s', $user, $file_name);
+			}
+			elseif ($file_name) {
+				$out[$date] = sprintf("%s has added an attachment: %s\nSee: %s", $user, $file_name, $this->url . 'artifact/' . $uuid);
+			}
+			else {
+				$changes = $this->ticketChanges($uuid);
+			}
 		}
+	}
+	*/
+
+	public function ticketChanges(string $uuid): string
+	{
+		static $tags = ['status', 'type', 'priority', 'severity', 'foundin', 'resolution', 'title', 'icomment'];
+
+		// https://fossil-scm.org/home/doc/trunk/www/fileformat.wiki#tktchng
+		$artifact = $this->exec('artifact', escapeshellarg($uuid));
+		$artifact = explode("\n", trim($artifact));
+		$user = null;
+		$changes = [];
+
+		foreach ($artifact as $line) {
+			$type = strtok($line, ' ');
+
+			if ($type == 'U') {
+				$user = strtok(false);
+				continue;
+			}
+
+			if ($type != 'J') {
+				continue;
+			}
+
+			$key = strtok(' ');
+			$value = strtok(false);
+
+			if (in_array($key, $tags)) {
+				$changes[$key] = $this->decodeArtifactString($value);
+			}
+		}
+
+		$out = '';
+
+		if (isset($changes['title'])) {
+			$out .= $changes['title'] . "\n" . str_repeat('=', mb_strlen($changes['title'])) . "\n\n";
+			unset($changes['title']);
+		}
+
+		if (isset($changes['icomment'])) {
+			$out .= $changes['icomment'] . "\n\n" . str_repeat('-', 70) . "\n\n";
+			unset($changes['icomment']);
+		}
+
+		$out .= 'Author: ' . $user . "\n\n";
+
+		foreach ($changes as $key => $value) {
+			$out .= sprintf("%s: %s\n", $key, $value);
+		}
+
+		return $out;
+	}
+
+	protected function decodeArtifactString(string $str): string
+	{
+		return strtr($str, ['\\s' => ' ', '\\n' => "\n", '\\\\' => '\\', '\\r' => '', '\\t' => "\t"]);
 	}
 
 	public function getReport(array $types = [self::TYPE_CHECKIN, self::TYPE_TICKET, self::TYPE_WIKI], string $since = null, int $limit = 100)
@@ -276,6 +351,7 @@ class FossilMonitor
 			$msg .= $diff['text'];
 
 			$html = $diff['html'];
+
 			$attach[$item->short_hash . '.patch'] = $diff['text'];
 		}
 		elseif ($item->type == self::TYPE_WIKI) {
@@ -342,14 +418,11 @@ class FossilMonitor
 			$msg = html_entity_decode(strip_tags($comment), ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML401);
 			$msg .= "\n\n";
 			$msg .= $this->url . 'info/' . $ticket_id;
-			//$msg .= "\n\n";
-			//$msg .= str_repeat("=", 70);
-			//$msg .= "\n\n";
+			$msg .= "\n\n";
+			$msg .= str_repeat("-", 70);
+			$msg .= "\n\n";
 
-			if ($ticket_id) {
-				// TODO
-				//$msg .= $this->ticketHistory($ticket_id);
-			}
+			$msg .= $this->ticketChanges($item->hash);
 		}
 
 		$this->email($from, $this->to, $subject, $msg, $html, ['Date' => $item->date->format(\DATE_RFC822)], $attach);
