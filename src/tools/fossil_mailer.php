@@ -6,7 +6,8 @@
  * Fossil Mailer
  * -------------
  *
- * PHP 7.4+
+ * Requires PHP 7.4+ and the 'fossil' binary in the PATH.
+ * Suggested extensions: mbstring, curl.
  *
  * Just like svnmailer, this tool monitors the changes of a Fossil
  * repository and sends an email for each change.
@@ -43,7 +44,8 @@ repository="/home/fossil/myrepo.fossil"
 url="https://fossil.project.tld/"
 
 ; Location of a text file that will contain the hash of the last
-; change processed by this script
+; change processed by this script. If this file doesn't exist,
+; then the last change in the timeline will be sent.
 last_change_file="/home/fossil/myrepo.last.monitor"
 
 ; Email address used as the 'From'
@@ -52,7 +54,7 @@ from="dev@project.tld"
 ; Email address used as the 'To'
 to="changes@project.tld"
 
-; Enable or disable changes types here
+; Enable or disable types to monitor here, by setting them to 'true' or 'false'
 ticket=true
 checkin=true
 wiki=true
@@ -74,8 +76,21 @@ $f->from_email = $config->from;
 $f->to = $config->to;
 
 $since = file_exists($config->last_change_file) ? trim(file_get_contents($config->last_change_file)) : null;
+$types = [];
 
-$last = $f->report($since, $since ? 100 : 10);
+if (!empty($config->ticket)) {
+	$types[] = $f::TYPE_TICKET;
+}
+
+if (!empty($config->checkin)) {
+	$types[] = $f::TYPE_CHECKIN;
+}
+
+if (!empty($config->wiki)) {
+	$types[] = $f::TYPE_WIKI;
+}
+
+$last = $f->report($since, $since ? 100 : 1, $types);
 
 if ($last) {
 	file_put_contents($config->last_change_file, $last);
@@ -282,7 +297,8 @@ class FossilMonitor
 		$out = '';
 
 		if (isset($changes['title'])) {
-			$out .= $changes['title'] . "\n" . str_repeat('=', mb_strlen($changes['title'])) . "\n\n";
+			$len = function_exists('mb_strlen') ? mb_strlen($changes['title']) : strlen($changes['title']);
+			$out .= $changes['title'] . "\n" . str_repeat('=', $len) . "\n\n";
 			unset($changes['title']);
 		}
 
