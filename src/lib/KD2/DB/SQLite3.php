@@ -140,6 +140,8 @@ class SQLite3 extends DB
 		'fts3' => '3.5.0+ENABLE_FTS3',
 		'fts4' => '3.7.4+ENABLE_FTS4',
 		'fts5' => '3.9.0+ENABLE_FTS5',
+
+		'dbstat' => '3.0.0+ENABLE_DBSTAT_VTAB',
 	];
 
 	public function close(): void
@@ -1023,5 +1025,85 @@ class SQLite3 extends DB
 			$version = \SQLite3::version()['versionString'];
 			throw new DB_Exception(sprintf('The required SQLite features (%s) are not available in the installed SQLite version (%s).', implode(', ', $missing_features), $version));
 		}
+	}
+
+	public function getTableSchema(string $name): array
+	{
+		$fk = [];
+
+		$r = $this->db->query(sprintf('PRAGMA foreign_key_list(%s);', $name));
+
+		while ($row = $r->fetchArray(\SQLITE3_ASSOC)) {
+			$columns = explode(',', $row['from']);
+			$columns = array_map('trim', $columns);
+
+			foreach ($columns as $c) {
+				$fk[$c] = $row;
+			}
+		}
+
+		$r->finalize();
+
+		$table = ['name' => $name, 'comment' => null, 'columns' => []];
+
+		$name = $this->quote($name);
+		$schema = $this->db->querySingle(sprintf('SELECT sql FROM sqlite_master WHERE name = %s AND type = \'table\';', $name));
+
+		if (preg_match('/CREATE\s+TABLE\s+(?s:(?!\(|--).*?)--[ ]*(.+)$\s*\(/m', $schema, $match)) {
+			$table['comment'] = trim($match[1]);
+		}
+
+		$r = $this->db->query(sprintf('PRAGMA table_info(%s);', $name));
+
+		while ($row = $r->fetchArray(\SQLITE3_ASSOC)) {
+			$row['fk'] = $fk[$row['name']] ?? null;
+			$row['comment'] = null;
+
+			$regexp = sprintf('/\b%s\b.*?--(.*?)$/m', preg_quote($row['name'], '/'));
+
+			if (preg_match($regexp, $schema, $match)) {
+				$row['comment'] = trim($match[1]);
+			}
+
+			$table['columns'][$row['name']] = $row;
+		}
+
+		$table['schema'] = $schema;
+
+		$r->finalize();
+
+		return $table;
+	}
+
+	public function getTableIndexes(string $name): array
+	{
+		$columns = [];
+
+		$r = $this->db->query(sprintf('PRAGMA index_list(%s);', $name));
+
+		while ($row = $r->fetchArray(\SQLITE3_ASSOC)) {
+			$r2 = $this->db->query(sprintf('PRAGMA index_xinfo(%s);', $row['name']));
+			$row['columns'] = [];
+
+			while ($row2 = $r2->fetchArray(\SQLITE3_ASSOC)) {
+				$row['columns'][$row2['name']] = $row2;
+			}
+
+			$r2->finalize();
+			$columns[] = $row;
+		}
+
+		$r->finalize();
+
+		return $columns;
+	}
+
+	public function getTableSize(string $name): ?int
+	{
+		if (!$this->hasFeatures('dbstat')) {
+			return null;
+		}
+
+		return (int) $this->db->querySingle(sprintf('SELECT SUM(pgsize) FROM dbstat WHERE name = %s;', $this->quote($name)), false);
 	}
 }
