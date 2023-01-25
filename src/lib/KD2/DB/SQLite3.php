@@ -1059,7 +1059,7 @@ class SQLite3 extends DB
 			$row['fk'] = $fk[$row['name']] ?? null;
 			$row['comment'] = null;
 
-			$regexp = sprintf('/\b%s\b.*?--(.*?)$/m', preg_quote($row['name'], '/'));
+			$regexp = sprintf('/\b%s\s+.*?--(.*?)$/m', preg_quote($row['name'], '/'));
 
 			if (preg_match($regexp, $schema, $match)) {
 				$row['comment'] = trim($match[1]);
