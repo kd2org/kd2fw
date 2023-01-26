@@ -101,7 +101,6 @@ class Smartyer
 	 * @var array
 	 */
 	protected $functions = [
-		'assign' => [__CLASS__, 'templateAssign'],
 	];
 
 	/**
@@ -134,7 +133,9 @@ class Smartyer
 	 * Compile function for unknown blocks
 	 * @var array
 	 */
-	protected $compile_functions = [];
+	protected $compile_functions = [
+		'assign' => [__CLASS__, 'templateAssign'],
+	];
 
 	/**
 	 * Auto-escaping type (any type accepted by self::escape())
@@ -1424,26 +1425,38 @@ class Smartyer
 	}
 
 	/**
-	 * {assign} template function
-	 * @param  array  $args
-	 * @param  object &$tpl Smartyer object
-	 * @return string
+	 * {assign} compile function
 	 */
-	static public function templateAssign(array $args, &$tpl)
+	static public function templateAssign(Smartyer &$tpl, int $line, string $block, string $name, string $raw_args)
 	{
+		$args = $tpl->parseArguments($raw_args, $line);
+
 		// Value can be NULL!
 		if (!isset($args['var']) || !array_key_exists('value', $args))
 		{
 			throw new \BadFunctionCallException('Missing argument "var" or "value" to function {assign}');
 		}
 
-		$tpl->assign($args['var'], $args['value']);
+		$var = $tpl->getValueFromArgument($args['var']);
 
-		if ($tpl->parent) {
-			$tpl->parent::templateAssign($args, $tpl->parent);
+		if (!preg_match('/^[a-zA-Z_\x80-\xff][a-zA-Z0-9_\x80-\xff]*$/', $var)
+			|| $var == 'this'
+			|| substr($var, 0, 1) == '_') {
+			throw new \BadFunctionCallException('Invalid variable name in "var" argument to function {assign}');
 		}
 
-		return '';
+		// Assign variable to _variables array, even for parent templates
+		$code = '$_t = $this; while ($_t) { $_t->assign(%s, %s); $_t = $_t->parent; } unset($_t); ';
+
+		// Assign variable locally
+		$code .= '${%1$s} = %2$s;';
+
+		$code = sprintf($code,
+			var_export($var, true),
+			$tpl->exportArgument($args['value'])
+		);
+
+		return $code;
 	}
 }
 
