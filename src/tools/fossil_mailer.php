@@ -107,6 +107,7 @@ class FossilMonitor
 
 	protected string $repo;
 	protected string $url;
+	protected bool $json;
 	public string $from_email = 'fossil@localhost';
 	public string $to;
 
@@ -114,6 +115,8 @@ class FossilMonitor
 	{
 		$this->repo = $repo;
 		$this->url = rtrim($url, '/') . '/';
+		system('fossil json version > /dev/null 2>&1', $r);
+		$this->json = $r == 0 ? true : false;
 	}
 
 	protected function html(string $title, string $content): string
@@ -191,6 +194,9 @@ class FossilMonitor
 			}
 
 			$msg.= sprintf("--%s--", $boundary);
+		}
+		else {
+			$header .= "Content-Type: text/plain; charset=utf-8\r\n";
 		}
 
 		$header.= "\r\n";
