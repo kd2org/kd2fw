@@ -1427,8 +1427,12 @@ class Smartyer
 	/**
 	 * {assign} compile function
 	 */
-	static public function templateAssign(Smartyer &$tpl, int $line, string $block, string $name, string $raw_args)
+	static public function templateAssign(Smartyer &$tpl, int $line, string $block, string $name, string $raw_args): ?string
 	{
+		if (rtrim(substr($block, 0, 6)) !== 'assign') {
+			return null;
+		}
+
 		$args = $tpl->parseArguments($raw_args, $line);
 
 		// Value can be NULL!
