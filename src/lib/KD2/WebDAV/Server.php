@@ -544,14 +544,16 @@ class Server
 			header('Content-Length: ' . $length, true);
 		}
 
+		$block_size = 8192*4;
+
 		while (!feof($file['resource']) && ($end === null || $end > 0)) {
-			$l = $end !== null ? min(8192, $end) : 8192;
+			$l = $end !== null ? min($block_size, $end) : $block_size;
 
 			echo fread($file['resource'], $l);
 			flush();
 
 			if (null !== $end) {
-				$end -= 8192;
+				$end -= $block_size;
 			}
 		}
 
