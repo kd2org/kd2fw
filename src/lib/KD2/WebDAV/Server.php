@@ -121,6 +121,19 @@ class Server
 		$this->base_uri = rtrim($uri, '/') . '/';
 	}
 
+	/**
+	 * Extend max_execution_time so that upload/download of files don't expire if connection is slow
+	 */
+	protected function extendExecutionTime(): void
+	{
+		if (false === strpos(@ini_get('disable_functions'), 'set_time_limit')) {
+			@set_time_limit(3600);
+		}
+
+		@ini_set('max_execution_time', '3600');
+		@ini_set('max_input_time', '3600');
+	}
+
 	protected function _prefix(string $uri): string
 	{
 		if (!$this->prefix) {
@@ -276,6 +289,8 @@ class Server
 			header('X-OC-MTime: accepted');
 		}
 
+		$this->extendExecutionTime();
+
 		$created = $this->storage->put($uri, fopen('php://input', 'r'), $hash, $mtime);
 
 		$prop = $this->storage->properties($uri, ['DAV::getetag'], 0);
@@ -389,6 +404,8 @@ class Server
 		if (!isset($file['content']) && !isset($file['resource']) && !isset($file['path'])) {
 			throw new \RuntimeException('Invalid file array returned by ::get()');
 		}
+
+		$this->extendExecutionTime();
 
 		$length = $start = $end = null;
 		$gzip = false;
