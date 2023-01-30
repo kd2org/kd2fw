@@ -206,12 +206,27 @@ class FossilMonitor
 
 	protected function exec(string $command, string $args): string
 	{
-		return shell_exec('fossil ' . $command . ' -R ' . escapeshellarg($this->repo) . ' ' . $args);
+		$cmd = 'fossil ' . $command . ' -R ' . escapeshellarg($this->repo) . ' ' . $args;
+
+		$r = shell_exec($cmd);
+
+		if (null === $r) {
+			throw new \RuntimeException('Command failed: ' . $cmd);
+		}
+
+		return $r;
 	}
 
-	public function timeline(string $type, int $limit = 200): array
+	public function timeline(string $type, int $limit = 200, string $since = null): array
 	{
-		$tl = $this->exec('timeline', "-F '%h;%H;%a;%d;%b;%t;%p;%c' -t " . $type . " -v -n " . (int)$limit);
+		$options = "-F '%h;%H;%a;%d;%b;%t;%p;%c' "
+			. sprintf('-t %s -v -n %d', $type, $limit);
+
+		if ($since) {
+			$options = sprintf('after %s %s', escapeshellarg($since), $options);
+		}
+
+		$tl = $this->exec('timeline', $options);
 
 		$tl = explode("\n", $tl);
 
@@ -219,7 +234,7 @@ class FossilMonitor
 		$current = null;
 
 		foreach ($tl as $line) {
-			if (substr($line, 0, 2) == '--') {
+			if (substr($line, 0, 2) == '--' || substr($line, 0, 3) == '+++') {
 				break;
 			}
 
@@ -263,7 +278,7 @@ class FossilMonitor
 			$out['text'] = $this->http($this->url . html_entity_decode($match[1], ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML401));
 		}
 		else {
-			var_dump($r); exit;
+			//var_dump($r); exit;
 		}
 
 		return $out;
@@ -332,7 +347,7 @@ class FossilMonitor
 		$timeline = [];
 
 		foreach ($types as $type) {
-			$timeline = array_merge($timeline, $this->timeline($type, $limit * 2));
+			$timeline = array_merge($timeline, $this->timeline($type, $limit * 2, $since));
 		}
 
 		// Sort by most recent to oldest
