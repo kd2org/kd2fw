@@ -112,6 +112,10 @@ class FossilMonitor
 
 	protected string $repo;
 	protected string $url;
+	protected ?string $user = null;
+	protected ?string $password = null;
+	protected ?string $cookie = null;
+
 	protected bool $json;
 	public string $from_email = 'fossil@localhost';
 	public string $to;
@@ -120,6 +124,14 @@ class FossilMonitor
 	{
 		$this->repo = $repo;
 		$this->url = rtrim($url, '/') . '/';
+
+		$this->user = parse_url($this->url, PHP_URL_USER) ?? null;
+		$this->password = parse_url($this->url, PHP_URL_PASS) ?? null;
+
+		if ($this->user) {
+			$this->url = preg_replace('!://[^@]+@!', '://', $this->url);
+		}
+
 		system('fossil json version > /dev/null 2>&1', $r);
 		$this->json = $r == 0 ? true : false;
 	}
@@ -140,6 +152,12 @@ class FossilMonitor
 
 	public function http(string $url): ?string
 	{
+		$login = substr($url, -6) == '/login';
+
+		if (!$login && $this->user && !$this->cookie) {
+			$this->http($this->url . 'login');
+		}
+
 		if (function_exists('curl_init')) {
 			$c = curl_init();
 
@@ -149,18 +167,64 @@ class FossilMonitor
 				CURLOPT_MAXREDIRS      => 2,
 				CURLOPT_TIMEOUT        => 5,
 				CURLOPT_RETURNTRANSFER => true,
+				CURLOPT_COOKIE         => $this->cookie,
 			]);
 
-			$a = curl_exec($c);
+			if ($login) {
+				curl_setopt_array($c, [
+					CURLOPT_POST           => true,
+					CURLOPT_POSTFIELDS     => http_build_query(['u' => $this->user, 'p' => $this->password, 'in' => 'Login']),
+					//CURLOPT_HTTPAUTH       => $login ? CURLAUTH_ANY : null,
+					//CURLOPT_USERPWD        => $login ? sprintf('%s:%s', $this->user, $this->password) : null,
+					CURLOPT_HEADERFUNCTION => function($c, $header) {
+						if (($pos = stripos($header, 'Set-Cookie: ')) === 0
+							&& preg_match('/^Set-Cookie: (.*?);/', $header, $match)) {
+							$this->cookie = trim($match[1]);
+						}
+
+						return strlen($header);
+					},
+				]);
+			}
+
+			$r = curl_exec($c);
 			curl_close($c);
-			return $a;
+		}
+		else {
+			$ctx = stream_context_create(['http' => [
+				'timeout' => 5,
+				'header'  => $this->cookie ? 'Cookie: ' . $this->cookie . "\r\n" : ($login ? 'Content-Type: application/x-www-form-urlencoded' : null),
+				'method'  => $login ? 'POST' : 'GET',
+				'content' => $login ? http_build_query(['u' => $this->user, 'p' => $this->password, 'in' => 'Login']) : null,
+			]]);
+
+			$r = @file_get_contents($url, false, $ctx);
+
+			if ($login) {
+				foreach ($http_response_header as $header) {
+					if (($pos = stripos($header, 'Set-Cookie: ')) === 0
+						&& preg_match('/^Set-Cookie: (.*?);/', $header, $match)) {
+						$this->cookie = trim($match[1]);
+					}
+				}
+			}
 		}
 
-		$ctx = stream_context_create(['http' => [
-			'timeout' => 5,
-		]]);
+		if ($login) {
+			if (!$this->cookie) {
+				throw new \RuntimeException('Failed to login with supplied user/password');
+			}
 
-		return @file_get_contents($url, false, $ctx);
+			$this->user = null;
+			$this->password = null;
+			return null;
+		}
+
+		if (stristr($r, 'Login/logout</title>')) {
+			throw new \RuntimeException('Cannot access URL (requires login): ' . $url);
+		}
+
+		return $r;
 	}
 
 	public function email(string $from, string $to, string $subject, string $text, ?string $html = null, array $headers = [], array $attach = []): void
@@ -283,7 +347,7 @@ class FossilMonitor
 			$out['text'] = $this->http($this->url . html_entity_decode($match[1], ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML401));
 		}
 		else {
-			//var_dump($r); exit;
+			var_dump($r); exit;
 		}
 
 		return $out;
