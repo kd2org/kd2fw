@@ -90,6 +90,11 @@ if (!empty($config->wiki)) {
 	$types[] = $f::TYPE_WIKI;
 }
 
+if (empty($types)) {
+	echo "No types were specified, aborting\n";
+	exit(1);
+}
+
 $last = $f->report($since, $since ? 100 : 1, $types);
 
 if ($last) {
