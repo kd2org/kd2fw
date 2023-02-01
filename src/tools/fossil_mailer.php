@@ -239,20 +239,26 @@ class FossilMonitor
 
 		if ($html || count($attach)) {
 			$boundary = sprintf('-----=%s', md5($msgid));
+			$boundary_alt = sprintf('-----=alt_%s', md5($msgid));
 			$header.= sprintf("MIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=\"%s\"\r\n", $boundary);
 
 			$msg = "This message contains multiple MIME parts.\r\n\r\n";
 			$msg.= sprintf("--%s\r\n", $boundary);
+			$msg.= sprintf("Content-Type: multipart/alternative; boundary=\"%s\"\r\n\r\n", $boundary_alt);
+
+			$msg.= sprintf("--%s\r\n", $boundary_alt);
 			$msg.= "Content-Type: text/plain; charset=\"utf-8\"\r\n";
 			$msg.= "Content-Transfer-Encoding: 8bit\r\n\r\n";
-			$msg.= $text . "\r\n\r\n";
+			$msg.= rtrim($text) . "\r\n\r\n";
 
 			if ($html) {
-				$msg.= sprintf("--%s\r\n", $boundary);
+				$msg.= sprintf("--%s\r\n", $boundary_alt);
 				$msg.= "Content-Type: text/html; charset=\"utf-8\"\r\n";
 				$msg.= "Content-Transfer-Encoding: 8bit\r\n\r\n";
-				$msg.= $html . "\r\n\r\n";
+				$msg.= rtrim($html) . "\r\n\r\n";
 			}
+
+			$msg.= sprintf("--%s--\r\n\r\n", $boundary_alt);
 
 			foreach ($attach as $name => $content) {
 				$msg.= sprintf("--%s\r\n", $boundary);
