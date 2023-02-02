@@ -266,7 +266,7 @@ class ZipWriter
 
 	protected function encodeFilename(string $original): array
 	{
-		if (preg_match('//u', $original) === $original) {
+		if (!preg_match('//u', $original)) {
 			return [$original, ''];
 		}
 
