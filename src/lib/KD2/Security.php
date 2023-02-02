@@ -393,6 +393,11 @@ class Security
 		// @see http://git.gnupg.org/cgi-bin/gitweb.cgi?p=gpgme.git;a=blob;f=src/gpgme.h.in;h=6cea2c777e2e763f063ad88e7b2135d21ba4bd4a;hb=107bff70edb611309f627058dd4777a5da084b1a#l1506
 		$summary = $return[0]['summary'];
 
-		return ($summary === 0 || ($summary & 0x01) == 0x01) || (($summary & 0x02) == 0x02);
+		return ($summary === 0
+			|| (($summary & 0x04) !== 0x04) // Fail if signature is bad
+			|| (($summary & 0x10) !== 0x10) // Fail if key is revoked
+			|| (($summary & 0x0080) !== 0x0080) // Fail if key is missing
+			|| (($summary & 0x0800) !== 0x0800) // Fail if system error
+		);
 	}
 }
