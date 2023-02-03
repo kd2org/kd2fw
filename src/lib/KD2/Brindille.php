@@ -2,6 +2,8 @@
 
 namespace KD2;
 
+use KD2\Translate;
+
 class Brindille
 {
 	const NONE = 0;
@@ -81,7 +83,15 @@ class Brindille
 
 		// This is because PHP 8.1 sucks (string functions no longer accept NULL)
 		// so we need to force NULLs as strings
-		$this->registerModifier('escape', fn ($str) => htmlspecialchars((string)$str) );
+		$this->registerModifier('escape', function ($str) {
+			if (is_scalar($str) || is_null($str)) {
+				return htmlspecialchars((string)$str);
+			}
+			else {
+				return '<span style="color: #000; background: yellow; padding: 5px; white-space: pre-wrap; display: inline-block; font-family: monospace;">Error: cannot escape this value!<br />'
+					. htmlspecialchars(print_r($str, true)) . '</span>';
+			}
+		});
 
 		$this->registerModifier('args', 'sprintf');
 		$this->registerModifier('nl2br', 'nl2br');
