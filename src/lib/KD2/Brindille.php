@@ -244,8 +244,12 @@ class Brindille
 
 			$found = false;
 
-			if (strstr($name, '.') && ($return = $this->_magic($name, $vars, $found)) && $found) {
-				return $return;
+			if (strstr($name, '.')) {
+				$return = $this->_magic($name, $vars, $found);
+
+				if ($found) {
+					return $return;
+				}
 			}
 		}
 
