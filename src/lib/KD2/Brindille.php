@@ -789,8 +789,7 @@ class Brindille
 
 			$level = count($tpl->_variables) - strlen($key);
 
-			$tpl->assign($value, $tpl->_variables[$level], 0);
-			$unset[] = $value;
+			self::__assign(array_merge($tpl->_variables[$level], ['var' => $value]), $tpl);
 			unset($params[$key]);
 		}
 
