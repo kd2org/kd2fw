@@ -368,7 +368,6 @@ class Brindille
 		}
 
 		if ($start == '#' && array_key_exists($name, $this->_sections)) {
-			$this->_push(self::SECTION, $name);
 			return $this->_section($name, $params, $line);
 		}
 		elseif ($start == 'if') {
@@ -402,18 +401,14 @@ class Brindille
 				return '<?php else: ?>';
 			}
 		}
+		elseif (array_key_exists($start . $name, $this->_blocks)) {
+			return $this->_block($start . $name, $params, $line);
+		}
 		elseif ($start == '/') {
-			if (($start == 'if' && $this->_lastName() != $start) || ($name && $this->_lastName() != $name)) {
-				throw new Brindille_Exception(sprintf('"%s": block closing does not match last block "%s" opened', $all, $this->_lastName()));
-			}
-
-			return $this->_close($name);
+			return $this->_close($name, $all);
 		}
 		elseif ($start == ':' && array_key_exists($name, $this->_functions)) {
 			return $this->_function($name, $params, $line);
-		}
-		elseif (array_key_exists($start . $name, $this->_blocks)) {
-			return $this->_block($start . $name, $params, $line);
 		}
 
 		throw new Brindille_Exception('Unknown block: ' . $all);
@@ -445,6 +440,8 @@ class Brindille
 
 	protected function _section(string $name, string $params, int $line): string
 	{
+		$this->_push(self::SECTION, $name);
+
 		if (!isset($this->_sections[$name])) {
 			throw new Brindille_Exception(sprintf('line %d: unknown section "%s"', $line, $name));
 		}
@@ -491,8 +488,12 @@ class Brindille
 		return sprintf('<?php %s (%s): ?>', $tag_name, $code);
 	}
 
-	protected function _close(string $name)
+	protected function _close(string $name, string $block)
 	{
+		if ($this->_lastName() != $name) {
+			throw new Brindille_Exception(sprintf('"%s": block closing does not match last block "%s" opened', $block, $this->_lastName()));
+		}
+
 		$type = $this->_lastType();
 		$this->_pop();
 
