@@ -416,11 +416,11 @@ class SQLite3 extends DB
 						return \SQLite3::DENY;
 					}
 
-					if (null !== $allowed[$table] && in_array('~' . $column, $allowed[$table])) {
+					if (isset($allowed[$table]) && in_array('~' . $column, $allowed[$table])) {
 						return \SQLite3::IGNORE;
 					}
 
-					if (null !== $allowed[$table] && in_array('-' . $column, $allowed[$table])) {
+					if (isset($allowed[$table]) && in_array('-' . $column, $allowed[$table])) {
 						return \SQLite3::DENY;
 					}
 
