@@ -360,11 +360,11 @@ class Brindille
 
 		// Variable
 		if ($start == '$') {
-			return sprintf('<?=%s?>', $this->_variable('$' . $name . $params, true));
+			return sprintf('<?=%s?>', $this->_variable('$' . $name . $params, true, $line));
 		}
 
 		if ($start == '"' || $start == '\'') {
-			return sprintf('<?=%s?>', $this->_variable($start . $name . $params, true));
+			return sprintf('<?=%s?>', $this->_variable($start . $name . $params, true, $line));
 		}
 
 		if ($start == '#' && array_key_exists($name, $this->_sections)) {
@@ -373,7 +373,7 @@ class Brindille
 		}
 		elseif ($start == 'if') {
 			$this->_push(self::IF, 'if');
-			return $this->_if($name, $params);
+			return $this->_if($name, $params, 'if', $line);
 		}
 		elseif ($start == 'elseif') {
 			if ($this->_lastType() != self::IF) {
@@ -382,7 +382,7 @@ class Brindille
 
 			$this->_pop();
 			$this->_push(self::IF, 'if');
-			return $this->_if($name, $params, 'elseif');
+			return $this->_if($name, $params, 'elseif', $line);
 		}
 		elseif ($start == 'else') {
 			$type = $this->_lastType();
@@ -419,12 +419,21 @@ class Brindille
 		throw new Brindille_Exception('Unknown block: ' . $all);
 	}
 
+	protected function _modifier(string $name, int $line, ... $params) {
+		try {
+			return $this->_modifiers[$name](...$params);
+		}
+		catch (\Exception $e) {
+			throw new Brindille_Exception(sprintf("line %d: modifier '%s' has returned an error: %s\nParameters: %s", $line, $name, $e->getMessage(), json_encode($params)));
+		}
+	}
+
 	protected function _function(string $name, string $params, int $line) {
 		if (!isset($this->_functions[$name])) {
-			throw new Brindille_Exception(sprintf('unknown function "%s"', $name));
+			throw new Brindille_Exception(sprintf('line %d: unknown function "%s"', $line, $name));
 		}
 
-		$params = $this->_parseArguments($params);
+		$params = $this->_parseArguments($params, $line);
 		$params = $this->_exportArguments($params);
 
 		return sprintf('<?=call_user_func($this->_functions[%s], %s, $this, %d)?>',
@@ -437,10 +446,10 @@ class Brindille
 	protected function _section(string $name, string $params, int $line): string
 	{
 		if (!isset($this->_sections[$name])) {
-			throw new Brindille_Exception(sprintf('unknown section "%s"', $name));
+			throw new Brindille_Exception(sprintf('line %d: unknown section "%s"', $line, $name));
 		}
 
-		$params = $this->_parseArguments($params);
+		$params = $this->_parseArguments($params, $line);
 		$params = $this->_exportArguments($params);
 
 		return sprintf('<?php unset($last); foreach (call_user_func($this->_sections[%s], %s, $this, %d) as $key => $value): $this->_variables[] = []; $this->assignArray(array_merge($value, [\'__\' => $value, \'_\' => $key])); ?>',
@@ -459,20 +468,20 @@ class Brindille
 		return call_user_func($this->_blocks[$name], $name, $params, $this, $line);
 	}
 
-	protected function _if(string $name, string $params, string $tag_name = 'if')
+	protected function _if(string $name, string $params, string $tag_name, int $line)
 	{
 		try {
 			$tokens = self::tokenize($params, self::TOK_IF_BLOCK);
 		}
 		catch (\InvalidArgumentException $e) {
-			throw new Brindille_Exception(sprintf('Error in "if" block (%s)', $e->getMessage()));
+			throw new Brindille_Exception(sprintf('line %d: error in "if" block (%s)', $line, $e->getMessage()));
 		}
 
 		$code = '';
 
 		foreach ($tokens as $token) {
 			if ($token->type === self::T_VAR) {
-				$code .= $this->_variable($token->value, false);
+				$code .= $this->_variable($token->value, false, $line);
 			}
 			else {
 				$code .= $token->value;
@@ -498,7 +507,7 @@ class Brindille
 	/**
 	 * Parse a variable, either from a {$block} or from an argument: {block arg=$bla|rot13}
 	 */
-	protected function _variable(string $raw, bool $escape = true): string
+	protected function _variable(string $raw, bool $escape, int $line): string
 	{
 		// Split by pipe (|) except if enclosed in quotes
 		$modifiers = preg_split('/\|(?=(([^\'"]*["\']){2})*[^\'"]*$)/', $raw);
@@ -549,7 +558,7 @@ class Brindille
 				}
 
 				$post = $_post . ')' . $post;
-				$pre .= '$this->_modifiers[' . var_export($mod_name, true) . '](';
+				$pre .= '$this->_modifier(' . var_export($mod_name, true) . ', ' . $line . ', ';
 			}
 		}
 
@@ -564,7 +573,7 @@ class Brindille
 		// auto escape
 		if ($escape)
 		{
-			$var = '$this->_modifiers[\'escape\'](' . $var . ')';
+			$var = '$this->_modifier(\'escape\', ' . $line . ', ' . $var . ')';
 		}
 
 		return $var;
@@ -576,7 +585,7 @@ class Brindille
 	 * @param  integer $line Source code line
 	 * @return array
 	 */
-	protected function _parseArguments(string $str)
+	protected function _parseArguments(string $str, int $line)
 	{
 		$args = [];
 		$name = null;
@@ -605,7 +614,7 @@ class Brindille
 					throw new Brindille_Exception('Unexpected \'=\' after \'' . $last_value . '\'');
 				}
 
-				$args[$name] = $this->_variable($value, false);
+				$args[$name] = $this->_variable($value, false, $line);
 				$name = null;
 				$state = -1;
 			}
