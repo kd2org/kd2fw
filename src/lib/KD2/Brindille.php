@@ -797,7 +797,15 @@ class Brindille
 			$var = $params['var'];
 			unset($params['var']);
 
-			$parts = explode('[', $var);
+			if (strstr($var, '[')) {
+				$separator = '[';
+			}
+			else {
+				$separator = '.';
+			}
+
+			$parts = explode($separator, $var);
+
 			$var_name = array_shift($parts);
 			$unset[] = $var_name;
 
@@ -808,8 +816,9 @@ class Brindille
 			$prev =& $tpl->_variables[0][$var_name];
 
 			// To assign to arrays, eg. {{:assign var="rows[0][label]"}}
+			// or {{:assign var="rows.0.label"}}
 			foreach ($parts as $sub) {
-				$sub = trim($sub, '[]\'" ');
+				$sub = trim($sub, '\'" ' . ($separator == '[' ? '[]' : '.'));
 
 				// Empty key: just increment
 				if (!strlen($sub)) {
