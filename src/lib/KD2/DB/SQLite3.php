@@ -408,12 +408,20 @@ class SQLite3 extends DB
 
 					list($table, $column) = $args;
 
-					if (!array_key_exists($table, $allowed)) {
+					if (!array_key_exists($table, $allowed) && !array_key_exists('*', $allowed)) {
 						return \SQLite3::DENY;
 					}
 
-					if (null !== $allowed[$table] && !in_array($column, $allowed[$table])) {
+					if (array_key_exists('!' . $table, $allowed)) {
+						return \SQLite3::DENY;
+					}
+
+					if (null !== $allowed[$table] && in_array('~' . $column, $allowed[$table])) {
 						return \SQLite3::IGNORE;
+					}
+
+					if (null !== $allowed[$table] && in_array('-' . $column, $allowed[$table])) {
+						return \SQLite3::DENY;
 					}
 
 					return \SQLite3::OK;
@@ -430,7 +438,11 @@ class SQLite3 extends DB
 					}
 
 					foreach ($keyword->tables as $table) {
-						if (!array_key_exists($table, $allowed)) {
+						if (!array_key_exists($table, $allowed) && !array_key_exists('*', $allowed)) {
+							throw new DB_Exception('Unauthorized table: ' . $table);
+						}
+
+						if (array_key_exists('!' . $table, $allowed)) {
 							throw new DB_Exception('Unauthorized table: ' . $table);
 						}
 
