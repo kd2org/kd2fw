@@ -414,7 +414,7 @@ class Brindille
 		throw new Brindille_Exception('Unknown block: ' . $all);
 	}
 
-	protected function _modifier(string $name, int $line, ... $params) {
+	public function _modifier(string $name, int $line, ... $params) {
 		try {
 			return $this->_modifiers[$name](...$params);
 		}
@@ -423,7 +423,7 @@ class Brindille
 		}
 	}
 
-	protected function _function(string $name, string $params, int $line) {
+	public function _function(string $name, string $params, int $line) {
 		if (!isset($this->_functions[$name])) {
 			throw new Brindille_Exception(sprintf('line %d: unknown function "%s"', $line, $name));
 		}
@@ -438,7 +438,7 @@ class Brindille
 		);
 	}
 
-	protected function _section(string $name, string $params, int $line): string
+	public function _section(string $name, string $params, int $line): string
 	{
 		$this->_push(self::SECTION, $name);
 
@@ -456,7 +456,7 @@ class Brindille
 		);
 	}
 
-	protected function _block(string $name, string $params, int $line): string
+	public function _block(string $name, string $params, int $line): string
 	{
 		if (!isset($this->_blocks[$name])) {
 			throw new Brindille_Exception(sprintf('unknown section "%s"', $name));
@@ -465,7 +465,7 @@ class Brindille
 		return call_user_func($this->_blocks[$name], $name, $params, $this, $line);
 	}
 
-	protected function _if(string $name, string $params, string $tag_name, int $line)
+	public function _if(string $name, string $params, string $tag_name, int $line)
 	{
 		try {
 			$tokens = self::tokenize($params, self::TOK_IF_BLOCK);
@@ -488,7 +488,7 @@ class Brindille
 		return sprintf('<?php %s (%s): ?>', $tag_name, $code);
 	}
 
-	protected function _close(string $name, string $block)
+	public function _close(string $name, string $block)
 	{
 		if ($this->_lastName() != $name) {
 			throw new Brindille_Exception(sprintf('"%s": block closing does not match last block "%s" opened', $block, $this->_lastName()));
@@ -508,7 +508,7 @@ class Brindille
 	/**
 	 * Parse a variable, either from a {$block} or from an argument: {block arg=$bla|rot13}
 	 */
-	protected function _variable(string $raw, bool $escape, int $line): string
+	public function _variable(string $raw, bool $escape, int $line): string
 	{
 		// Split by pipe (|) except if enclosed in quotes
 		$modifiers = preg_split('/\|(?=(([^\'"]*["\']){2})*[^\'"]*$)/', $raw);
