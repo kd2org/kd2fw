@@ -124,6 +124,10 @@ class Brindille
 
 	public function assign(string $key, $value, ?int $level = null): void
 	{
+		if (!preg_match('/^[a-zA-Z_\x80-\xff][a-zA-Z0-9_\x80-\xff]*$/', $key)) {
+			throw new \InvalidArgumentException('Invalid variable name: ' . $key);
+		}
+
 		if (!count($this->_variables)) {
 			$this->_variables = [0 => []];
 		}
@@ -777,7 +781,7 @@ class Brindille
 	 * {{:assign .="user"}} => {{$user.name}} (within a section)
 	 * {{:assign var="people[address]" value="42 street"}}
 	 */
-	static public function __assign(array $params, Brindille $tpl)
+	static public function __assign(array $params, Brindille $tpl, int $line)
 	{
 		$unset = [];
 
@@ -789,7 +793,7 @@ class Brindille
 
 			$level = count($tpl->_variables) - strlen($key);
 
-			self::__assign(array_merge($tpl->_variables[$level], ['var' => $value]), $tpl);
+			self::__assign(array_merge($tpl->_variables[$level], ['var' => $value]), $tpl, $line);
 			unset($params[$key]);
 		}
 
@@ -850,8 +854,13 @@ class Brindille
 		}
 		// {{:assign bla="blou" address="42 street"}}
 		else {
-			$tpl->assignArray($params, 0);
-			$unset = array_keys($params);
+			try {
+				$tpl->assignArray($params, 0);
+				$unset = array_keys($params);
+			}
+			catch (\InvalidArgumentException $e) {
+				throw new Brindille_Exception(sprintf('line %d: %s', $line, $e->getMessage()));
+			}
 		}
 
 		// Unset all variables of the same name in children contexts,
