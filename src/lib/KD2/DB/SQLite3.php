@@ -446,9 +446,9 @@ class SQLite3 extends DB
 							throw new DB_Exception('Unauthorized table: ' . $table);
 						}
 
-						if (null !== $allowed[$table]) {
-							//throw new \InvalidArgumentException('Cannot protect columns without PHP 8+');
-						}
+						//if (null !== $allowed[$table]) {
+						//	throw new \InvalidArgumentException('Cannot protect columns without PHP 8+');
+						//}
 					}
 				}
 			}
