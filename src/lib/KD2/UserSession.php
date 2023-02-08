@@ -38,6 +38,18 @@ class UserSession
 	// You should implement those methods in the class that is extending this
 	// one to suit your setup.
 
+	const SID_IN_URL_HOSTS_WHITELIST = ['::1', '127.0.0.1'];
+
+	/**
+	 * Set to TRUE for using the non-locking mode
+	 * If using this mode, the session will be opened and closed immediately.
+	 * To write to the session you will need to call ->start(true), change the value
+	 * $_SESSION and call ->close().
+	 * If set to FALSE (default PHP behaviour), you won't be able to use the
+	 * same session from two requests at the same time.
+	 */
+	protected bool $non_locking = false;
+
 	/**
 	 * Cookie name for the current, short-lived session (PHP session)
 	 * @var string
@@ -280,17 +292,33 @@ class UserSession
 			return true;
 		}
 
+		$session_id = $_COOKIE[$this->cookie_name] ?? null;
+		$session_url = false;
+
+		// Allow to pass session ID in URL for some URLs
+		if (!$session_id && !empty($_GET[$this->cookie_name])
+			&& in_array($_SERVER['REMOTE_ADDR'] ?? null, self::SID_IN_URL_HOSTS_WHITELIST, true)
+			&& preg_match('/^[a-zA-Z0-9-]{1,64}$/', $_GET[$this->cookie_name])) {
+			$session_id = $_GET[$this->cookie_name];
+			$session_url = true;
+		}
+
 		// Only start session if it exists
-		if ($write || isset($_COOKIE[$this->cookie_name]))
+		if ($write || $session_id)
 		{
 			// Check session ID value, in case it is invalid/corrupted
 			// see https://stackoverflow.com/questions/3185779/the-session-id-is-too-long-or-contains-illegal-characters-valid-characters-are
-			if (isset($_COOKIE[$this->cookie_name]) && !preg_match('/^[a-zA-Z0-9-]{1,64}$/', $_COOKIE[$this->cookie_name])) {
+			if (!$session_url && isset($_COOKIE[$this->cookie_name]) && !preg_match('/^[a-zA-Z0-9-]{1,64}$/', $_COOKIE[$this->cookie_name])) {
 				session_regenerate_id();
 			}
 
 			if (headers_sent($file, $line)) {
 				throw new \LogicException(sprintf('Cannot start session: headers already sent in line %d of %s', $line, $file));
+			}
+
+			if ($session_url) {
+				ini_set('session.use_cookies', false);
+				ini_set('session.use_only_cookies', false);
 			}
 
 			session_set_cookie_params([
@@ -303,11 +331,16 @@ class UserSession
 			]);
 
 			session_name($this->cookie_name);
+
 			$return = session_start($this->getSessionOptions());
 
 			if ($return) {
 				$this->data = array_merge($this->data, $_SESSION['userSessionData'] ?? []);
 				$_SESSION['userSessionData'] =& $this->data;
+			}
+
+			if (!$write) {
+				$this->close();
 			}
 
 			return $return;
@@ -316,9 +349,21 @@ class UserSession
 		return false;
 	}
 
-	public function keepAlive()
+	public function close(): void
 	{
-		return $this->start(true);
+		// Release lock so that other processes are not blocked
+		// see https://www.php.net/manual/en/function.session-start.php
+		// and https://ma.ttias.be/php-session-locking-prevent-sessions-blocking-in-requests/
+
+		if ($this->non_locking) {
+			session_write_close();
+		}
+	}
+
+	public function keepAlive(): void
+	{
+		$this->start(true);
+		$this->close();
 	}
 
 	public function refresh(): bool
@@ -416,6 +461,8 @@ class UserSession
 				'remember_me' => $remember_me,
 			];
 
+			$this->close();
+
 			return $this::REQUIRE_OTP;
 		}
 		else
@@ -442,6 +489,7 @@ class UserSession
 
 		$this->start(true);
 		$this->user = $_SESSION['userSession'] = $user;
+		$this->close();
 		return true;
 	}
 
