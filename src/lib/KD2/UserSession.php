@@ -232,6 +232,8 @@ class UserSession
 	const REQUIRE_OTP = 'otp';
 	const HIBP_API_URL = 'https://api.pwnedpasswords.com/range/%s';
 
+	protected bool $modified = false;
+
 	protected $cookie;
 	protected $user;
 
@@ -263,6 +265,16 @@ class UserSession
 		}
 	}
 
+	public function __destruct()
+	{
+		// Save data
+		if ($this->modified) {
+			$this->start(true);
+			$_SESSION['userSessionData'] = $this->data;
+			$this->close();
+		}
+	}
+
 	protected function getSessionOptions()
 	{
 		return [
@@ -288,55 +300,62 @@ class UserSession
 	public function start(bool $write = false)
 	{
 		// Don't start session if it has been already started
-		if (isset($_SESSION)) {
+		if (isset($_SESSION) && !($write && $this->non_locking)) {
 			return true;
 		}
 
-		$session_id = $_COOKIE[$this->cookie_name] ?? null;
-		$session_url = false;
+		$init = false;
+		$session_id = false;
 
-		// Allow to pass session ID in URL for some URLs
-		if (!$session_id && !empty($_GET[$this->cookie_name])
-			&& in_array($_SERVER['REMOTE_ADDR'] ?? null, self::SID_IN_URL_HOSTS_WHITELIST, true)
-			&& preg_match('/^[a-zA-Z0-9-]{1,64}$/', $_GET[$this->cookie_name])) {
-			$session_id = $_GET[$this->cookie_name];
-			$session_url = true;
+		if (!isset($_SESSION)) {
+			$session_id = $_COOKIE[$this->cookie_name] ?? null;
+			$session_url = false;
+
+			// Allow to pass session ID in URL for some URLs
+			if (!$session_id && !empty($_GET[$this->cookie_name])
+				&& in_array($_SERVER['REMOTE_ADDR'] ?? null, self::SID_IN_URL_HOSTS_WHITELIST, true)
+				&& preg_match('/^[a-zA-Z0-9-]{1,64}$/', $_GET[$this->cookie_name])) {
+				$session_id = $_GET[$this->cookie_name];
+				$session_url = true;
+			}
+
+			// Only start session if it exists
+			if ($write || $session_id)
+			{
+				// Check session ID value, in case it is invalid/corrupted
+				// see https://stackoverflow.com/questions/3185779/the-session-id-is-too-long-or-contains-illegal-characters-valid-characters-are
+				if (!$session_url && isset($_COOKIE[$this->cookie_name]) && !preg_match('/^[a-zA-Z0-9-]{1,64}$/', $_COOKIE[$this->cookie_name])) {
+					session_regenerate_id();
+				}
+
+				if (headers_sent($file, $line)) {
+					throw new \LogicException(sprintf('Cannot start session: headers already sent in line %d of %s', $line, $file));
+				}
+
+				if ($session_url) {
+					ini_set('session.use_cookies', false);
+					ini_set('session.use_only_cookies', false);
+				}
+
+				session_set_cookie_params([
+					'lifetime' => 0,
+					'path'     => $this->cookie_path,
+					'domain'   => $this->cookie_domain,
+					'secure'   => $this->cookie_secure,
+					'httponly' => true,
+					'samesite' => 'Lax',
+				]);
+
+				session_name($this->cookie_name);
+				$init = true;
+			}
 		}
 
-		// Only start session if it exists
-		if ($write || $session_id)
-		{
-			// Check session ID value, in case it is invalid/corrupted
-			// see https://stackoverflow.com/questions/3185779/the-session-id-is-too-long-or-contains-illegal-characters-valid-characters-are
-			if (!$session_url && isset($_COOKIE[$this->cookie_name]) && !preg_match('/^[a-zA-Z0-9-]{1,64}$/', $_COOKIE[$this->cookie_name])) {
-				session_regenerate_id();
-			}
-
-			if (headers_sent($file, $line)) {
-				throw new \LogicException(sprintf('Cannot start session: headers already sent in line %d of %s', $line, $file));
-			}
-
-			if ($session_url) {
-				ini_set('session.use_cookies', false);
-				ini_set('session.use_only_cookies', false);
-			}
-
-			session_set_cookie_params([
-				'lifetime' => 0,
-				'path'     => $this->cookie_path,
-				'domain'   => $this->cookie_domain,
-				'secure'   => $this->cookie_secure,
-				'httponly' => true,
-				'samesite' => 'Lax',
-			]);
-
-			session_name($this->cookie_name);
-
+		if ($write || $session_id) {
 			$return = session_start($this->getSessionOptions());
 
-			if ($return) {
+			if ($init) {
 				$this->data = array_merge($this->data, $_SESSION['userSessionData'] ?? []);
-				$_SESSION['userSessionData'] =& $this->data;
 			}
 
 			if (!$write) {
@@ -418,7 +437,12 @@ class UserSession
 
 	public function set($key, $value)
 	{
+		if (array_key_exists($key, $this->data) && $this->data[$key] === $value) {
+			return;
+		}
+
 		$this->data[$key] = $value;
+		$this->modified = true;
 	}
 
 	public function get($key)
