@@ -122,10 +122,16 @@ class Brindille
 		$this->registerSection('foreach', [self::class, '__foreach']);
 	}
 
-	public function assign(string $key, $value, ?int $level = null): void
+	public function assign(string $key, $value, ?int $level = null, bool $throw_on_invalid_name = true): void
 	{
 		if (!preg_match('/^[\w\d_]*$/', $key)) {
-			throw new \InvalidArgumentException('Invalid variable name: ' . $key);
+			if ($throw_on_invalid_name) {
+				throw new \InvalidArgumentException('Invalid variable name: ' . $key);
+			}
+
+			// For assign from a section, don't throw an error, just ignore
+
+			return;
 		}
 
 		if (!count($this->_variables)) {
@@ -139,10 +145,10 @@ class Brindille
 		$this->_variables[$level][$key] = $value;
 	}
 
-	public function assignArray(array $array, ?int $level = null): void
+	public function assignArray(array $array, ?int $level = null, bool $throw_on_invalid_name = true): void
 	{
 		foreach ($array as $key => $value) {
-			$this->assign($key, $value, $level);
+			$this->assign($key, $value, $level, $throw_on_invalid_name);
 		}
 	}
 
@@ -453,7 +459,7 @@ class Brindille
 		$params = $this->_parseArguments($params, $line);
 		$params = $this->_exportArguments($params);
 
-		return sprintf('<?php unset($last); foreach (call_user_func($this->_sections[%s], %s, $this, %d) as $key => $value): $this->_variables[] = []; $this->_assignFromTemplate(array_merge($value, [\'__\' => $value, \'_\' => $key]), null, %3$d); ?>',
+		return sprintf('<?php unset($last); foreach (call_user_func($this->_sections[%s], %s, $this, %d) as $key => $value): $this->_variables[] = []; $this->assignArray(array_merge($value, [\'__\' => $value, \'_\' => $key]), null, false); ?>',
 			var_export($name, true),
 			$params,
 			$line
@@ -856,7 +862,12 @@ class Brindille
 		else {
 			$unset = array_keys($params);
 
-			$tpl->_assignFromTemplate($params, 0, $line);
+			try {
+				$tpl->assignArray($params, 0);
+			}
+			catch (\InvalidArgumentException $e) {
+				throw new Brindille_Exception(sprintf('line %d: %s', $line, $e->getMessage()));
+			}
 		}
 
 		// Unset all variables of the same name in children contexts,
@@ -868,16 +879,6 @@ class Brindille
 			for ($i = count($tpl->_variables) - 1; $i > 0; $i--) {
 				unset($tpl->_variables[$i][$name]);
 			}
-		}
-	}
-
-	public function _assignFromTemplate(array $params, ?int $level, int $line)
-	{
-		try {
-			$this->assignArray($params, $level);
-		}
-		catch (\InvalidArgumentException $e) {
-			throw new Brindille_Exception(sprintf('line %d: %s', $line, $e->getMessage()));
 		}
 	}
 }
