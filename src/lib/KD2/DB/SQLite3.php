@@ -171,11 +171,18 @@ class SQLite3 extends DB
 
 	public function __destruct()
 	{
-		foreach ($this->statements as $st) {
-			$st->close();
+		if ($this->db) {
+			try {
+				foreach ($this->statements as $st) {
+					$st->close();
+				}
+			}
+			catch (\Exception $e) {
+				// Ignore errors
+			}
 		}
 
-		if ($this->db && (time() % 10) == 0) {
+		if ($this->db && ($this->flags & \SQLITE3_OPEN_READWRITE) && (time() % 20) == 0) {
 			// https://www.sqlite.org/pragma.html#pragma_optimize
 			// To achieve the best long-term query performance without the need to do
 			// a detailed engineering analysis of the application schema and SQL,
