@@ -414,8 +414,6 @@ abstract class NextCloud
 			throw new Exception('Invalid WebDAV URL', 404);
 		}
 
-		$ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
-
 		if (preg_match(self::WEBDAV_BASE_REGEXP, $uri, $match)) {
 			$base_uri = rtrim($match[0], '/') . '/';
 		}
