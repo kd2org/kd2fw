@@ -67,7 +67,7 @@ class Brindille
 		# regexp modifiers
 		%sx';
 
-	protected $_stack = [];
+	public $_stack = [];
 
 	protected $_sections = [];
 	// Escape is the only mandatory modifier
