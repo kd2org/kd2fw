@@ -87,7 +87,7 @@ class JSONSchema
 			$this->validateArray($object, $rules, $name);
 		}
 		else {
-			throw new \RuntimeException(sprintf('%s: invalid object type, expected "%s" got "%s"', $name, implode('|', $types), gettype($object)));
+			throw new \RuntimeException(sprintf('%s: invalid object type, expected "%s" got "%s"', $name, implode('|', $types), strtolower(gettype($object))));
 		}
 	}
 
