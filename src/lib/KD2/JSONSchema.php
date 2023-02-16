@@ -130,8 +130,8 @@ class JSONSchema
 			throw new \RuntimeException(sprintf('%s: is too short (minimum %d characters)', $name, $rules->minLength));
 		}
 
-		if (isset($rules->maxLength) && strlen($object) > $rules->minLength) {
-			throw new \RuntimeException(sprintf('%s: is too long (maximum %d characters)', $name, $rules->minLength));
+		if (isset($rules->maxLength) && strlen($object) > $rules->maxLength) {
+			throw new \RuntimeException(sprintf('%s: is too long (maximum %d characters)', $name, $rules->maxLength));
 		}
 
 		if (isset($rules->format)) {
