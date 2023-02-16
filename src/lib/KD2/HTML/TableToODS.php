@@ -161,7 +161,7 @@ class TableToODS
 				$styles = $this->css->get($cell);
 
 				$value = $cell->textContent;
-				$value = htmlspecialchars_decode($value);
+				$value = html_entity_decode($value);
 				$value = trim($value);
 				$type = $this->getCellType($value, $styles['-spreadsheet-cell-type'] ?? null);
 				$styles['-spreadsheet-cell-type'] = $type;
@@ -217,7 +217,7 @@ class TableToODS
 				$html = preg_replace("/[\n\r]/", '', $html);
 				$html = preg_replace('/<br[^>]*>/U', "\n", $html);
 				$html = strip_tags($html);
-				$html = htmlspecialchars_decode($html);
+				$html = html_entity_decode($html);
 				$html = explode("\n", trim($html));
 
 				$column_width = 0;
