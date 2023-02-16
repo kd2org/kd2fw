@@ -148,7 +148,7 @@ class JSONSchema
 		}
 
 		// Only one rule to validate against
-		if (is_object($rules->items)) {
+		if (isset($rules->items) && is_object($rules->items)) {
 			foreach ($object as $_item) {
 				$this->validate($_item, $rules->items, $name);
 			}
