@@ -8,6 +8,8 @@ use DateTime;
 
 class JSONSchema
 {
+	const TYPES = ['string', 'array', 'integer', 'object', 'null', 'number', 'bool'];
+
 	protected $schema;
 
 	public function __construct($object)
@@ -58,46 +60,34 @@ class JSONSchema
 		}
 
 		$name = $rules->description ?? ($key ?? 'root');
+		$types = is_array($rules->type) ? $rules->type : [$rules->type];
 
-		if (!$this->checkType($rules->type, $object)) {
-			throw new \RuntimeException(sprintf('%s: invalid object, expected "%s" got "%s"', $name, is_string($rules->type) ? $rules->type : implode('|', $rules->type), gettype($object)));
-		}
+		$type = $this->findType($name, $types, $object);
 
 		if (isset($rules->enum) && !in_array($object, $rules->enum, true)) {
 			throw new \RuntimeException(sprintf('%s: did not match any of the accepted values (%s)', $name, implode(', ', $rules->enum)));
 		}
 
-		if (!is_array($rules->type)) {
-			$rules->type = [$rules->type];
-		}
-
-		$types = $rules->type;
-
-		if (is_null($object) && in_array('null', $types)) {
+		if ('null' === $type && is_null($object)) {
 			return;
 		}
-
-		if (is_bool($object) && in_array('bool', $types)) {
+		elseif ('bool' === $type && is_bool($object)) {
 			return;
 		}
-
-		if ((is_int($object) || is_float($object)) && (in_array('integer', $types) || in_array('number', $types))) {
+		elseif (('integer' === $type || 'number' === $type) && (is_int($object) || is_float($object))) {
 			$this->validateNumber($object, $rules, $name);
 		}
-		elseif (is_string($object) && in_array('string', $types)) {
+		elseif ('string' === $type && is_string($object)) {
 			$this->validateString($object, $rules, $name);
 		}
-		elseif (is_string($object) && in_array('string', $types)) {
-			$this->validateString($object, $rules, $name);
-		}
-		elseif ($this->isAssociativeArrayOrObject($object) && in_array('object', $types)) {
+		elseif ('object' === $type && $this->isAssociativeArrayOrObject($object)) {
 			$this->validateObject($object, $rules, $name);
 		}
-		elseif (is_array($object) && in_array('array', $types)) {
+		elseif ('array' === $type && is_array($object)) {
 			$this->validateArray($object, $rules, $name);
 		}
 		else {
-			throw new \LogicException('Invalid type');
+			throw new \RuntimeException(sprintf('%s: invalid object type, expected "%s" got "%s"', $name, implode('|', $types), gettype($object)));
 		}
 	}
 
@@ -223,18 +213,24 @@ class JSONSchema
 		}
 	}
 
-	protected function checkType($type, $object): bool
+	protected function findType(string $name, array $types, $object): ?string
 	{
-		if (is_array($type)) {
-			foreach ($type as $_type) {
-				if ($this->checkType($_type, $object)) {
-					return true;
-				}
+		foreach ($types as $type) {
+			if (!in_array($type, self::TYPES, true)) {
+				throw new \RuntimeException('%s: unknown types "%s"', $name, $type);
 			}
 
-			return false;
+			if ($this->checkType($type, $object)) {
+				// Valid type, stop here
+				return $type;
+			}
 		}
 
+		return null;
+	}
+
+	protected function checkType(string $type, $object): bool
+	{
 		if ($type == 'null' && is_null($object)) {
 			return true;
 		}
