@@ -129,7 +129,7 @@ class JSONSchema
 		}
 	}
 
-	protected function validateArray($object, $rules, $name)
+	protected function validateArray(array $object, $rules, $name)
 	{
 		if (isset($rules->minItems) && count($object) < $rules->minItems) {
 			throw new \RuntimeException(sprintf('%s: does not contain enough items (minimum %s)', $name, $rules->minItems));
@@ -147,6 +147,10 @@ class JSONSchema
 			return;
 		}
 
+		if (!$this->array_is_list($object)) {
+			throw new \RuntimeException(sprintf('%s: is an associative array, but "prefixItems" or "items" properties require an indexed array', $name, strtolower(gettype($object))));
+		}
+
 		// Only one rule to validate against
 		if (isset($rules->items) && is_object($rules->items)) {
 			foreach ($object as $_item) {
@@ -159,6 +163,10 @@ class JSONSchema
 			$rules->prefixItems = $rules->items;
 		}
 
+		if (isset($rules->prefixItems) && (!is_array($rules->prefixItems) || !count($rules->prefixItems))) {
+			throw new \RuntimeException(sprintf('%s: prefixItems (in schema) is not a valid non-empty array', $name));
+		}
+
 		if (isset($rules->items) && $rules->items === false && count($object) > count($rules->prefixItems)) {
 			throw new \RuntimeException(sprintf('%s: only %d items are allowed at most', $name, count($rules->prefixItems)));
 		}
@@ -166,7 +174,7 @@ class JSONSchema
 		if (isset($rules->prefixItems)) {
 			// Validate each row against a rule
 			foreach ($rules->prefixItems as $i => $rule) {
-				if (!isset($object[$i])) {
+				if (!array_key_exists($i, $object)) {
 					break;
 				}
 
@@ -256,9 +264,26 @@ class JSONSchema
 		return false;
 	}
 
-	protected function isAssociativeArrayOrObject($var) {
+	protected function isAssociativeArrayOrObject($var): bool
+	{
 		return is_object($var)
-			|| (is_array($var) && array_keys($var) !== range(0, count($var) - 1));
+			|| (is_array($var) && !$this->array_is_list($var));
+	}
+
+	/**
+	 * Poly-fill for array_is_list (PHP 8.1)
+	 */
+	protected function array_is_list(array $array): bool
+	{
+		$i = 0;
+
+		foreach ($array as $k => $v) {
+			if ($k !== $i++) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	protected function validateFormat(string $format, string $object, string $name): void
