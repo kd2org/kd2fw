@@ -67,7 +67,7 @@ class Smartyer
 	protected $template;
 
 	/**
-	 * Current template complete path (includes ->root_dir)
+	 * Current template complete path
 	 * @var string
 	 */
 	protected $template_path;
@@ -864,12 +864,27 @@ class Smartyer
 				$this->parseError($line, '{include} function requires file parameter.');
 			}
 
-			if (substr($this->getValueFromArgument($args['file']), 0, 2) == './') {
-				$root = dirname($this->template_path);
-				$args['file'] = var_export($root . substr($this->getValueFromArgument($args['file']), 1), true);
+			$root = $this->templates_dir;
+			$file = $this->getValueFromArgument($args['file']);
+
+			if (substr($file, 0, 2) == './') {
+				$file = dirname($this->template_path) . substr($file, 1);
+			}
+			elseif (substr($file, 0, 3) == '../') {
+				$file = dirname(dirname($this->template_path)) . substr($file, 2);
+			}
+			else {
+				$file = $root . '/' . ltrim($file, '/');
 			}
 
-			$file = $this->exportArgument($args['file']);
+			$file = realpath($file);
+
+			if (!$file) {
+				$this->parseError($line, sprintf('Invalid template path for {include} function: %s', $args['file']));
+			}
+
+			$file = var_export($file, true);
+			$file = $this->exportArgument($file);
 			unset($args['file']);
 
 			if (count($args) > 0)
