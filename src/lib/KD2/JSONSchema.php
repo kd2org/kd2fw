@@ -254,7 +254,7 @@ class JSONSchema
 		elseif ($type == 'object' && $this->isAssociativeArrayOrObject($object)) {
 			return true;
 		}
-		elseif ($type == 'number' && is_numeric($object)) {
+		elseif ($type == 'number' && (is_int($object) || is_float($object))) {
 			return true;
 		}
 		elseif ($type == 'bool' && is_bool($object)) {
