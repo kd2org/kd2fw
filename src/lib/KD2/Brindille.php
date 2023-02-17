@@ -424,7 +424,7 @@ class Brindille
 		throw new Brindille_Exception('Unknown block: ' . $all);
 	}
 
-	public function _modifier(string $name, int $line, ... $params) {
+	public function _callModifier(string $name, int $line, ... $params) {
 		try {
 			return $this->_modifiers[$name](...$params);
 		}
@@ -433,7 +433,7 @@ class Brindille
 		}
 	}
 
-	public function _function(string $name, string $params, int $line) {
+	public function _function(string $name, string $params, int $line): string {
 		if (!isset($this->_functions[$name])) {
 			throw new Brindille_Exception(sprintf('line %d: unknown function "%s"', $line, $name));
 		}
@@ -441,11 +441,20 @@ class Brindille
 		$params = $this->_parseArguments($params, $line);
 		$params = $this->_exportArguments($params);
 
-		return sprintf('<?=call_user_func($this->_functions[%s], %s, $this, %d)?>',
+		return sprintf('<?=$this->_callFunction(%s, %s, %d)?>',
 			var_export($name, true),
 			$params,
 			$line
 		);
+	}
+
+	public function _callFunction(string $name, array $params, int $line) {
+		try {
+			return call_user_func($this->_functions[$name], $params, $this, $line);
+		}
+		catch (\Exception $e) {
+			throw new Brindille_Exception(sprintf("line %d: function '%s' has returned an error: %s\nParameters: %s", $line, $name, $e->getMessage(), json_encode($params)));
+		}
 	}
 
 	public function _section(string $name, string $params, int $line): string
@@ -569,7 +578,7 @@ class Brindille
 				}
 
 				$post = $_post . ')' . $post;
-				$pre .= '$this->_modifier(' . var_export($mod_name, true) . ', ' . $line . ', ';
+				$pre .= '$this->_callModifier(' . var_export($mod_name, true) . ', ' . $line . ', ';
 			}
 		}
 
@@ -584,7 +593,7 @@ class Brindille
 		// auto escape
 		if ($escape)
 		{
-			$var = '$this->_modifier(\'escape\', ' . $line . ', ' . $var . ')';
+			$var = '$this->_callModifier(\'escape\', ' . $line . ', ' . $var . ')';
 		}
 
 		return $var;
