@@ -682,9 +682,17 @@ class Brindille
 	 */
 	protected function getValueFromArgument(string $arg)
 	{
+		static $replace = [
+			'\\"'  => '"',
+			'\\\'' => '\'',
+			'\\n'  => "\n",
+			'\\t'  => "\t",
+			'\\\\' => '\\',
+		];
+
 		if (strlen($arg) && ($arg[0] == '"' || $arg[0] == "'"))
 		{
-			return str_replace(['\\"', "\\'"], ['"', "'"], substr($arg, 1, -1));
+			return strtr(substr($arg, 1, -1), $replace);
 		}
 
 		switch ($arg) {
