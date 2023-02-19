@@ -1,13 +1,13 @@
 (function () {
 	function inherit(proto) {
 		function F() {}
-  		F.prototype = proto
-  		return new F
+		F.prototype = proto
+		return new F
 	}
 
 	String.prototype.repeat = function(num)
 	{
-	    return new Array(num + 1).join(this);
+		return new Array(num + 1).join(this);
 	}
 
 	window.codeEditor = function (id)
@@ -84,13 +84,16 @@
 
 		this.lineCounter.innerHTML += '<i>---</i>';
 
-		this.parent.appendChild(this.lineCounter);
+		var editor = document.createElement('div');
+		editor.className = 'editor';
+		editor.appendChild(this.lineCounter);
 
 		// This is to avoid a CSS-spec 'bug' http://snook.ca/archives/html_and_css/absolute-position-textarea
 		var container = document.createElement('div');
 		container.className = 'container';
 		container.appendChild(this.textarea.cloneNode(true));
-		this.parent.appendChild(container);
+		editor.appendChild(container);
+		this.parent.appendChild(editor);
 
 		var pnode = this.textarea.parentNode;
 		pnode.appendChild(this.parent);
