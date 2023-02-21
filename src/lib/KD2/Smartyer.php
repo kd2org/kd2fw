@@ -865,26 +865,30 @@ class Smartyer
 			}
 
 			$root = $this->templates_dir;
-			$file = $this->getValueFromArgument($args['file']);
 
-			if (substr($file, 0, 2) == './') {
-				$file = dirname($this->template_path) . substr($file, 1);
-			}
-			elseif (substr($file, 0, 3) == '../') {
-				$file = dirname(dirname($this->template_path)) . substr($file, 2);
-			}
-			else {
-				$file = $root . '/' . ltrim($file, '/');
+			if (substr($args['file'], 0, 1) == '"' || substr($args['file'], 0, 1) == '\'') {
+				$file = $this->getValueFromArgument($args['file']);
+
+				if (substr($file, 0, 2) == './') {
+					$file = dirname($this->template_path) . substr($file, 1);
+				}
+				elseif (substr($file, 0, 3) == '../') {
+					$file = dirname(dirname($this->template_path)) . substr($file, 2);
+				}
+				else {
+					$file = $root . '/' . ltrim($file, '/');
+				}
+
+				$file = realpath($file);
+
+				if (!$file) {
+					$this->parseError($line, sprintf('Invalid template path for {include} function: %s', $args['file']));
+				}
+
+				$args['file'] = var_export($file, true);
 			}
 
-			$file = realpath($file);
-
-			if (!$file) {
-				$this->parseError($line, sprintf('Invalid template path for {include} function: %s', $args['file']));
-			}
-
-			$file = var_export($file, true);
-			$file = $this->exportArgument($file);
+			$file = $this->exportArgument($args['file']);
 			unset($args['file']);
 
 			if (count($args) > 0)
