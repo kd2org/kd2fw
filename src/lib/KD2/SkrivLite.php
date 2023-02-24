@@ -42,6 +42,8 @@ class SkrivLite
 	public $allow_html = false;
 	public $footnotes_prefix = 'skriv-notes-';
 
+	public $toc = [];
+
 	/**
 	 * Enable <kbd> tags:
 	 * [Ctrl] + [F2] [neat yeah] = <kbd>Ctrl</kbd> + <kbd>F2</kbd> [neat yeah]
@@ -173,10 +175,14 @@ class SkrivLite
 		$this->footnotes_prefix = 'skriv-notes-' . base_convert(rand(0, 50000), 10, 36) . '-';
 	}
 
-	public function registerExtension($name, Callable $callback)
+	public function registerExtension($name, callable $callback): void
 	{
 		$this->_extensions[$name] = $callback;
-		return true;
+	}
+
+	public function registerExtensions(array $list): void
+	{
+		$this->_extensions = array_merge($this->_extensions, $list);
 	}
 
 	public function setCallback($function, $callback)
@@ -247,7 +253,7 @@ class SkrivLite
 		return "\n" . '<div class="footnotes">' . $footnotes . '</div>';
 	}
 
-	public function parseError($msg, $block = false)
+	static public function error($msg, $block = false)
 	{
 		if ($this->throw_exception_on_syntax_error)
 		{
@@ -260,13 +266,13 @@ class SkrivLite
 		}
 	}
 
-	protected function _callExtension($match, $content = null)
+	public function callExtension(array $match, ?string $content = null, bool $block = false): string
 	{
 		$name = strtolower($match[1]);
 
 		if (!array_key_exists($name, $this->_extensions))
 		{
-			return $this->parseError('Unknown extension: ' . $match[1]);
+			return self::error('Unknown extension: ' . $name);
 		}
 
 		$_args = trim($match[2]);
@@ -294,14 +300,14 @@ class SkrivLite
 		}
 		elseif ($_args != '')
 		{
-			return $this->parseError('Invalid arguments (expecting arg1|arg2|arg3… or arg1="value1") for extension "'.$name.'": '.$_args);
+			return self::error('Invalid arguments (expecting arg1|arg2|arg3… or arg1="value1") for extension "'.$name.'": '.$_args);
 		}
 		else
 		{
 			$args = [];
 		}
 
-		return call_user_func($this->_extensions[$name], $args, $content, $this);
+		return call_user_func($this->_extensions[$name], $block, $args, $content, $name, $this);
 	}
 
 	public function escape($text)
@@ -316,7 +322,7 @@ class SkrivLite
 		// Inline extensions: <<extension>> <<extension|param1|param2>> <<extension param1="value" param2>>
 		if ($tag == '<<' && preg_match('/(^[a-z_]+)(.*?)>>/i', $text, $match))
 		{
-			$out = $this->_callExtension($match);
+			$out = $this->callExtension($match);
 		}
 		// Footnotes: ((identifier|Foot note)) or ((numbered foot note))
 		elseif ($tag == '((' && preg_match('/^(.*?)\)\)/', $text, $match))
@@ -581,7 +587,7 @@ class SkrivLite
 		{
 			if (!empty($match[3]))
 			{
-				$line = $this->_callExtension($match, null);
+				$line = $this->callExtension($match, null);
 			}
 			else
 			{
@@ -593,7 +599,7 @@ class SkrivLite
 		// Closing extension block
 		elseif (strpos($line, '>>') === 0 && $this->_extension)
 		{
-			$line = $this->_callExtension($this->_extension, $this->_block);
+			$line = $this->callExtension($this->_extension, $this->_block);
 
 			$this->_block = false;
 			$this->_extension = false;
@@ -604,7 +610,7 @@ class SkrivLite
 			$line = $this->_closeStack();
 			$line .= '<hr />';
 		}
-		// Titles
+		// Titles / headers
 		elseif (preg_match('#^(?<!\\\\)(={1,6})\s*(.*?)(?:\s*(?<!\\\\)\\1(?:\s*(.+))?)?$#', $line, $match))
 		{
 			$level = strlen($match[1]);
@@ -622,7 +628,12 @@ class SkrivLite
 			}
 
 			$id = call_user_func($this->_callback[self::CALLBACK_TITLE_TO_ID], $id);
-			$line = $this->_closeStack() . '<h' . $level . ' id="' . $id . '">' . $this->_renderInline($line) . '</h' . $level . '>';
+
+			$label = $line;
+			$this->toc[] = compact('level', 'id', 'label');
+
+			$label = $this->_renderInline($line);
+			$line = $this->_closeStack() . '<h' . $level . ' id="' . $id . '">' . $label . '</h' . $level . '>';
 		}
 		// Quotes
 		elseif (preg_match('#^(?<!\\\\)((?:>\s*)+)\s*(.*)$#', $line, $match))
@@ -951,12 +962,13 @@ class SkrivLite
 	 * Parse a text string and convert it from SkrivML to HTML
 	 * @param  string $text SrivML formatted text string
 	 * @return string 		HTML formatted text string
-	 */	
+	 */
 	public function render($text, &$metadata = null)
 	{
 		// Reset internal storage of footnotes
 		$this->_footnotes = array();
 		$this->_footnotes_index = 0;
+		$this->toc = [];
 
 		$text = str_replace("\r", '', $text);
 		$text = preg_replace("/\n{3,}/", "\n\n", $text);
@@ -973,7 +985,7 @@ class SkrivLite
 		foreach ($text as $i => &$line)
 		{
 			$line = $this->_renderLine(
-				$line, 
+				$line,
 				($i > 0) ? $text[$i - 1] : null, // Previous line
 				($i + 1 < $max) ? $text[$i + 1] : null // Next line
 			);
