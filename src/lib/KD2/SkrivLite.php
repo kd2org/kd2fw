@@ -253,7 +253,7 @@ class SkrivLite
 		return "\n" . '<div class="footnotes">' . $footnotes . '</div>';
 	}
 
-	static public function error($msg, $block = false)
+	public function error($msg, $block = false)
 	{
 		if ($this->throw_exception_on_syntax_error)
 		{
@@ -272,7 +272,7 @@ class SkrivLite
 
 		if (!array_key_exists($name, $this->_extensions))
 		{
-			return self::error('Unknown extension: ' . $name);
+			return $this->error('Unknown extension: ' . $name);
 		}
 
 		$_args = trim($match[2]);
@@ -300,7 +300,7 @@ class SkrivLite
 		}
 		elseif ($_args != '')
 		{
-			return self::error('Invalid arguments (expecting arg1|arg2|arg3… or arg1="value1") for extension "'.$name.'": '.$_args);
+			return $this->error('Invalid arguments (expecting arg1|arg2|arg3… or arg1="value1") for extension "'.$name.'": '.$_args);
 		}
 		else
 		{
