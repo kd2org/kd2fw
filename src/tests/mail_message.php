@@ -5,9 +5,30 @@ use KD2\Mail_Message;
 
 require __DIR__ . '/_assert.php';
 
+test_cc();
 test_headers();
 test_headers_multiline();
 test_length();
+test_encryption();
+test_invalid_multipart();
+test_multipart_boundary();
+
+function test_cc()
+{
+	$msg = new Mail_Message;
+	$headers = 'From: A <a@email.org>
+To: b@email.org
+Cc: =?UTF-8?Q?Fran=C3=A7ois?= <f@email.fr>, Bruno
+ <b@email.com>';
+	$msg->parse($headers);
+	$headers = $msg->outputHeaders();
+
+	Test::equals('From: "A" <a@email.org>
+To: b@email.org
+Cc: "=?UTF-8?B?RnJhbsOnb2lz?=" <f@email.fr>, "Bruno" <b@email.com>
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: quoted-printable', str_replace("\r", "", $headers));
+}
 
 /**
  * Check that maximum line length of 998 is enforced
@@ -20,6 +41,26 @@ function test_length()
 
 	Test::assert(!preg_match("/[^\r\n]{999,}/", $msg->outputHeaders()));
 	Test::assert(!preg_match("/[^\r\n]{999,}/", $msg->outputBody()));
+}
+
+function test_headers_iconv()
+{
+	$headers = <<<EOF
+Date: Wed, 28 Jul 2021 20:42:01 +0200
+From: =?UTF-8?B?U3TDqXBoYW5l?= G <stephane@example.invalid>
+Subject: Fw: Interventions centres de loisirs - manque de
+ =?UTF-8?B?U3TDqXBoYW5l?=
+ =?UTF-8?B?U3TDqXBoYW5l?=
+ enfants
+Organization: La rustine
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: quoted-printable
+Message-Id: <E1m8oVH-000368-W0@mail.kd2.org>
+EOF;
+	$msg = new Mail_Message;
+	$msg->parse(trim($headers));
+	Test::assertEquals($msg->getFrom(), 'Stéphane G <stephane@example.invalid>');
 }
 
 /**
@@ -69,6 +110,7 @@ X-Spam-Report: score                  = 15.4
                              identical to background
   1.0 FROM_EXCESS_BASE64     From: base64 encoded unnecessarily
 Content-Type: text/plain
+Content-Transfer-Encoding: 8bit
 EOF;
 
 	$msg = new Mail_Message;
@@ -76,7 +118,7 @@ EOF;
 	Test::assert(preg_match("/[^\n\r]{998,}/", $msg->getHeader('X-Spam-Report')));
 
 	$expected = substr_count(trim($headers), "\n");
-	Test::equals($expected, substr_count($msg->outputHeaders(), "\n"));
+	Test::equals($expected, substr_count(trim($msg->outputHeaders()), "\n"));
 }
 
 function test_headers()
@@ -174,3 +216,43 @@ Subject: =?ISO-8859-1?B?SWYgeW91IGNhbiByZWFkIHRoaXMgeW8=?=
 	Test::equals('If you can read this you understand the example.', $msg->getHeader('subject'));
 }
 
+function test_encryption()
+{
+	$msg = new Mail_Message;
+	$msg->setHeader('Subject', 'Plop!');
+	$msg->setHeader('To', 'coucou@plop.example');
+	$msg->setBody('Coucou !');
+	$msg->addPart('text/html', '<b>Coucou !</b>');
+	$msg->encrypt('-----BEGIN PGP PUBLIC KEY BLOCK-----
+Comment: https://www.ietf.org/id/draft-bre-openpgp-samples-01.html
+
+mDMEXEcE6RYJKwYBBAHaRw8BAQdArjWwk3FAqyiFbFBKT4TzXcVBqPTB3gmzlC/U
+b7O1u120JkFsaWNlIExvdmVsYWNlIDxhbGljZUBvcGVucGdwLmV4YW1wbGU+iJAE
+ExYIADgCGwMFCwkIBwIGFQoJCAsCBBYCAwECHgECF4AWIQTrhbtfozp14V6UTmPy
+MVUMT0fjjgUCXaWfOgAKCRDyMVUMT0fjjukrAPoDnHBSogOmsHOsd9qGsiZpgRnO
+dypvbm+QtXZqth9rvwD9HcDC0tC+PHAsO7OTh1S1TC9RiJsvawAfCPaQZoed8gK4
+OARcRwTpEgorBgEEAZdVAQUBAQdAQv8GIa2rSTzgqbXCpDDYMiKRVitCsy203x3s
+E9+eviIDAQgHiHgEGBYIACAWIQTrhbtfozp14V6UTmPyMVUMT0fjjgUCXEcE6QIb
+DAAKCRDyMVUMT0fjjlnQAQDFHUs6TIcxrNTtEZFjUFm1M0PJ1Dng/cDW4xN80fsn
+0QEA22Kr7VkCjeAEC08VSTeV+QFsmz55/lntWkwYWhmvOgE=
+=iIGO
+-----END PGP PUBLIC KEY BLOCK-----');
+	Test::assert((bool) preg_match('/-----BEGIN PGP MESSAGE-----.*-----END PGP MESSAGE-----/s', $msg->output()));
+}
+
+function test_invalid_multipart()
+{
+	$msg = new Mail_Message;
+	$msg->parse(file_get_contents(__DIR__ . '/data/mails/multipart.eml'));
+	Test::equals(1, count($msg->getParts()));
+	Test::assert((bool) preg_match('/veux pas qu\'ils soient/', $msg->getBody()));
+	Test::assert(!preg_match('/multipart\//', $msg->output()));
+}
+
+function test_multipart_boundary()
+{
+	$msg = new Mail_Message;
+	$msg->parse(file_get_contents(__DIR__ . '/data/mails/multipart2.eml'));
+	Test::equals(2, count($msg->getParts()));
+	Test::assert(strstr($msg->outputHeaders(), 'multipart/mixed; boundary="' . $msg->getMimeOutputBoundary()));
+}

@@ -225,7 +225,7 @@ class FeedParser
     static public function parseDate($value)
     {
         // Format => truncate to this length if not null
-        $formats = array(
+        static $formats = array(
             DATE_ATOM => null,
             DATE_RSS => null,
             DATE_COOKIE => null,
@@ -252,6 +252,10 @@ class FeedParser
             'm/d/Y' => 10,
         );
 
+        if (!$value) {
+        	return time();
+        }
+
         $value = trim($value);
 
         foreach ($formats as $format => $length) {
@@ -274,7 +278,7 @@ class FeedParser
 
         if ($date !== false) {
             $errors = \DateTime::getLastErrors();
-            if ($errors['error_count'] === 0 && $errors['warning_count'] === 0) return $date->getTimestamp();
+            if (empty($errors['error_count']) && empty($errors['warning_count'])) return $date->getTimestamp();
         }
 
         return 0;

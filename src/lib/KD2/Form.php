@@ -70,11 +70,11 @@ class Form
 
 		$action = self::tokenAction($action);
 
-		$random = Security::random_int();
+		$random = random_int(0, PHP_INT_MAX);
 		$expire = floor(time() / 3600) + $expire;
 		$value = $expire . $random . $action;
 
-		$hash = hash_hmac('sha256', $expire . $random . $action, self::$token_secret);
+		$hash = hash_hmac('sha256', $expire . $random . $action, self::$token_secret . session_id());
 
 		return $hash . '/' . dechex($expire) . '/' . dechex($random);
 	}
@@ -92,7 +92,7 @@ class Form
 		if (is_null($value))
 		{
 			$name = self::tokenFieldName($action);
-			
+
 			if (empty($_POST[$name]))
 			{
 				return false;
@@ -118,7 +118,7 @@ class Form
 			return false;
 		}
 
-		$hash = hash_hmac('sha256', $expire . $random . $action, self::$token_secret);
+		$hash = hash_hmac('sha256', $expire . $random . $action, self::$token_secret . session_id());
 
 		return hash_equals($hash, $user_hash);
 	}
@@ -131,7 +131,7 @@ class Form
 	static public function tokenFieldName($action = null)
 	{
 		$action = self::tokenAction($action);
-		return 'ct_' . sha1($action . $_SERVER['DOCUMENT_ROOT'] . $_SERVER['SERVER_NAME'] . $action);
+		return 'ct_' . sha1($action . $_SERVER['DOCUMENT_ROOT'] . $_SERVER['SERVER_NAME'] . session_id());
 	}
 
 	/**
@@ -189,7 +189,7 @@ class Form
 		{
 			$name = strtok($rule, ':');
 			$rules[$name] = [];
-			
+
 			while (($param = strtok(',')) !== false)
 			{
 				$rules[$name][] = $param;
@@ -201,7 +201,7 @@ class Form
 
 	/**
 	 * Returns the value for a form field, or NULL
-	 * 
+	 *
 	 * @param  string $key Field name
 	 * @return mixed
 	 */
@@ -233,6 +233,9 @@ class Form
 		return isset($_POST[$field]) ? $_POST[$field] : null;
 	}
 
+	/**
+	 * @deprecated
+	 */
 	static public function filterField($value, $filter, array $params = [])
 	{
 		switch ($filter)
@@ -256,10 +259,11 @@ class Form
 
 	/**
 	 * Register a custom validation rule
-	 * 
+	 *
 	 * @param  string   $name     Rule name
 	 * @param  Callable $callback Callback (must return a boolean)
 	 * @return void
+	 * @deprecated
 	 */
 	static public function registerValidationRule($name, Callable $callback)
 	{
@@ -268,13 +272,14 @@ class Form
 
 	/**
 	 * Check a form field against a rule
-	 * 
+	 *
 	 * @param  string $key       Field name
 	 * @param  string $rule_name Rule name
 	 * @param  Array  $params    Parameters of the rule
 	 * @param  Array  $source    Source of the field data
 	 * @param  Array  $rules     Complete list of rules
 	 * @return boolean
+	 * @deprecated
 	 */
 	static public function validateRule($key, $rule_name, Array $params = [], Array $source = null, Array $rules = [])
 	{
@@ -462,23 +467,11 @@ class Form
 			case 'lte':
 				return isset($params[0]) && isset($source[$params[0]]) && $value <= $source[$params[0]];
 			case 'max':
+				$size = is_array($value) ? count($value) : (isset($rules['string']) ? strlen($value) : $value);
+				return isset($params[0]) && $size <= $params[0];
 			case 'min':
-				if (is_array($value)) {
-					$size = count($value);
-				}
-				elseif (isset($rules['numeric']) || isset($rules['int']) || isset($rules['integer'])) {
-					$size = (int) $value;
-				}
-				else {
-					$size = strlen($value);
-				}
-
-				if ($rule_name == 'max') {
-					return isset($params[0]) && $size <= $params[0];
-				}
-				else {
-					return isset($params[0]) && $size >= $params[0];
-				}
+				$size = is_array($value) ? count($value) : (isset($rules['string']) ? strlen($value) : $value);
+				return isset($params[0]) && $size >= $params[0];
 			case 'not_in':
 				return !in_array($value, $params);
 			case 'numeric':
@@ -525,11 +518,12 @@ class Form
 
 	/**
 	 * Validate but add CSRF token check to that
-	 * 
+	 *
 	 * @param  string $token_action CSRF token action name
 	 * @param  Array  $all_rules    List of rules, eg. 'login' => 'required|string'
 	 * @param  Array  &$errors      List of errors encountered
 	 * @return boolean
+	 * @deprecated
 	 */
 	static public function check($token_action, Array $all_rules, Array &$errors = [])
 	{
@@ -546,13 +540,14 @@ class Form
 	 * Validate the current form against a set of rules
 	 *
 	 * Most rules from Laravel are implemented.
-	 * 
+	 *
 	 * @link https://laravel.com/docs/5.4/validation#available-validation-rules
 	 * @param  Array $all_rules List of rules, eg. 'login' => 'required|string'
 	 * @param  Array &$errors   Filled with list of errors encountered
 	 * @param  Array $source    Source of form data, if left empty or NULL,
 	 * $_POST will be used
 	 * @return boolean
+	 * @deprecated
 	 */
 	static public function validate(Array $all_rules, Array &$errors = null, Array $source = null)
 	{
@@ -568,17 +563,34 @@ class Form
 
 		foreach ($all_rules as $key => $rules)
 		{
-			$rules = is_array($rules) ? $rules : self::parseRules($rules);
-
-			foreach ($rules as $name => $params)
-			{
-				if (!self::validateRule($key, $name, $params, $source, $rules))
-				{
-					$errors[] = ['name' => $key, 'rule' => $name, 'params' => $params];
-				}
+			if ($return = self::validateField($key, $rules, $source)) {
+				$errors[] = $return;
 			}
 		}
 
 		return count($errors) == 0 ? true : false;
+	}
+
+	/**
+	 * Validate a field against a list of rules
+	 * @param  string $key    Name of the field
+	 * @param  array|string $rules  List of rules, either as an associative array of type rule_name => [...parameters] or a string
+	 * @param  array  $source Source array of user data (eg. $_POST)
+	 * @return array Array containing the first error encountered for the field (as an array), or NULL if no error was found
+	 * @deprecated
+	 */
+	static public function validateField(string $key, $rules, array $source): ?array
+	{
+		$rules = is_array($rules) ? $rules : self::parseRules($rules);
+
+		foreach ($rules as $name => $params)
+		{
+			if (!self::validateRule($key, $name, $params, $source, $rules))
+			{
+				return ['name' => $key, 'rule' => $name, 'params' => $params];
+			}
+		}
+
+		return null;
 	}
 }

@@ -5,8 +5,10 @@ require __DIR__ . '/_assert.php';
 use KD2\Security_OTP as OTP;
 use KD2\Test;
 
+$secret = OTP::getRandomSecret();
+
 assert(
-	strlen($secret = OTP::getRandomSecret()) == 16 && (bool)$secret === true,
+	strlen($secret) == 16 && (bool)$secret === true,
 	'Generate random secret'
 );
 

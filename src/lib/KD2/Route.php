@@ -219,7 +219,7 @@ class Route
 		$args = $_SERVER['argv'];
 		array_shift($args);
 		$args = implode(' ', $args);
-		
+
 		return self::route($args, $pattern, $callback);
 	}
 
@@ -302,6 +302,19 @@ class Route
 	static public function isExistingDir($path)
 	{
 		$file_path = rtrim($path, '/\\') . DIRECTORY_SEPARATOR . ltrim(self::requestURI(), '/');
-		return is_dir($file_path);		
+		return is_dir($file_path);
+	}
+
+	static public function isExistingURI()
+	{
+		$uri = self::requestURI();
+		$path = $_SERVER['DOCUMENT_ROOT'] . $uri;
+
+		if (is_file($path))
+		{
+			return true;
+		}
+
+		return false;
 	}
 }

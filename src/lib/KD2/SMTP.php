@@ -21,7 +21,9 @@
 
 namespace KD2;
 
-class SMTP_Exception extends \Exception {}
+use KD2\Mail_Message;
+
+class SMTP_Exception extends \RuntimeException {}
 
 class SMTP
 {
@@ -374,25 +376,36 @@ class SMTP
 		$content = preg_replace("#(?<!\r)\n#si", self::EOL, $content);
 		$content = wordwrap($content, 998, self::EOL, true);
 
-		return (object) ['message' => $content, 'headers' => $headers, 'recipients' => $to];
+		return [
+			'message' => $content,
+			'headers' => $headers,
+			'to'      => $to,
+			'from'    => current(self::extractEmailAddresses($headers['From'])),
+		];
 	}
 
 	/**
 	 * Send an email to $to, using $subject as a subject and $message as content
-	 * @param  mixed  $to      List of recipients, as an array or a string
+	 * @param  array|string|Mail_Message  $r      List of recipients, as an array or a string, OR a Mail_Message object
 	 * @param  string $subject Message subject
 	 * @param  string $message Message content
 	 * @param  mixed  $headers Additional headers, either as an array of key=>value pairs or a string
 	 * @return boolean		   TRUE if success, exception if it fails
 	 */
-	public function send($to, $subject, $message, $headers = [])
+	public function send($r, $subject = null, $message = null, $headers = [])
 	{
-		$msg = $this->buildMessage($to, $subject, $message, $headers);
-
-		$from = self::extractEmailAddresses($msg->headers['From']);
+		if (is_object($r) && $r instanceof Mail_Message) {
+			$message = $r->output(true);
+			$to = $r->getTo() + $r->getCc();
+			$from = current(self::extractEmailAddresses($r->getHeader('Return-Path') ?: $r->getHeader('From')));
+		}
+		else {
+			$msg = $this->buildMessage($r, $subject, $message, $headers);
+			extract($msg);
+		}
 
 		// Send email
-		return $this->rawSend(current($from), $msg->recipients, $msg->message);
+		return $this->rawSend($from, $to, $message);
 	}
 
 	/**
@@ -411,9 +424,9 @@ class SMTP
 			// Filter invalid email addresses
 			foreach ($str as $email)
 			{
-				if (self::checkEmailIsValid($email, false))
+				if ($list = self::extractEmailAddresses($email))
 				{
-					$out[] = $email;
+					$out = array_merge($out, $list);
 				}
 			}
 
@@ -426,7 +439,7 @@ class SMTP
 		foreach ($str as $s)
 		{
 			$s = trim($s);
-			if (preg_match('/(?:([\'"]).*?\1\s*)?<([^>]*)>/', $s, $match) && self::checkEmailIsValid(trim($match[2]), false))
+			if (preg_match('/(?:([\'"])(?!\\").*?\1\s*)?<([^>]*)>/', $s, $match) && self::checkEmailIsValid(trim($match[2]), false))
 			{
 				$out[] = trim($match[2]);
 			}

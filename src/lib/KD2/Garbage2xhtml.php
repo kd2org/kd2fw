@@ -249,7 +249,7 @@ class Garbage2xhtml
         $this->resetInternals();
         $this->allowed_tags = array_merge($this->inline_tags, $this->block_tags);
 
-        $this->matches = preg_split(self::SPLIT_REGEXP, $string, null, PREG_SPLIT_DELIM_CAPTURE);
+        $this->matches = preg_split(self::SPLIT_REGEXP, $string, 0, PREG_SPLIT_DELIM_CAPTURE);
         unset($string);
 
         $nodes = $this->buildTree();

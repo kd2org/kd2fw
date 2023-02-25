@@ -46,134 +46,6 @@ class Security
 	];
 
 	/**
-	 * Timing attack safe string comparison (shim, works with PHP < 5.6)
-	 *
-	 * Compares two strings using the same time whether they're equal or not.
-	 * This function should be used to mitigate timing attacks.
-	 *
-	 * @link https://secure.php.net/manual/en/function.hash-equals.php
-	 *
-	 * @param  string $known_string The string of known length to compare against
-	 * @param  string $user_string  The user-supplied string
-	 * @return boolean
-	 */
-	static public function hash_equals($known_string, $user_string)
-	{
-		$known_string = (string) $known_string;
-		$user_string = (string) $user_string;
-
-		// For PHP 5.6/PHP 7 use the native function
-		if (function_exists('hash_equals'))
-		{
-			return hash_equals($known_string, $user_string);
-		}
-
-		$ret = strlen($known_string) ^ strlen($user_string);
-		$ret |= array_sum(unpack("C*", $known_string^$user_string));
-		return !$ret;
-	}
-
-	/**
-	 * Generates a random number between $min and $max
-	 *
-	 * The number will be crypto secure unless you set $insecure_fallback to TRUE,
-	 * then it can provide a insecure number if no crypto source is available.
-	 *
-	 * @link https://codeascraft.com/2012/07/19/better-random-numbers-in-php-using-devurandom/
-	 * @param  integer $min               Minimum number
-	 * @param  integer $max               Maximum number
-	 * @param  boolean $insecure_fallback Set to true to fallback to mt_rand()
-	 * @return integer                    A random number
-	 * @throws Exception If no secure random source is found and $insecure_fallback is set to false
-	 */
-	static public function random_int($min = 0, $max = PHP_INT_MAX, $insecure_fallback = false)
-	{
-		// Only one possible value, not random
-		if ($max == $min)
-		{
-			return $min;
-		}
-
-		if ($min > $max)
-		{
-			throw new \Exception('Minimum value must be less than or equal to to the maximum value');
-		}
-
-		// Use the native PHP function for PHP 7+
-		if (function_exists('random_int'))
-		{
-			return random_int($min, $max);
-		}
-
-		try {
-			// Get some random bytes
-			$bytes = self::random_bytes(PHP_INT_SIZE);
-		}
-		catch (\Exception $e)
-		{
-			// No crypto random found
-
-			// For trivial stuff we can just use mt_rand() instead
-			if ($insecure_fallback)
-			{
-				return mt_rand($min, min($max, mt_getrandmax()));
-			}
-
-			// But for crypto stuff you should expect this to fail
-			throw $e;
-		}
-
-		// 64-bits
-		if (PHP_INT_SIZE == 8)
-		{
-			list($higher, $lower) = array_values(unpack('N2', $bytes));
-			$value = $higher << 32 | $lower;
-		}
-		// 32 bits
-		else
-		{
-			list($value) = array_values(unpack('Nint', $bytes));
-		}
-
-		$value = $value & PHP_INT_MAX;
-		$value = (float) $value / PHP_INT_MAX; // convert to [0,1]
-		return (int) (round($value * ($max - $min)) + $min);
-	}
-
-	/**
-	 * Returns a specified number of cryptographically secure random bytes
-	 * @param  integer $length Number of bytes to return
-	 * @return string Random bytes
-	 * @throws Exception If an appropriate source of randomness cannot be found, an Exception will be thrown.
-	 */
-	static public function random_bytes($length)
-	{
-		$length = (int) $length;
-
-		if (function_exists('random_bytes'))
-		{
-			return random_bytes($length);
-		}
-
-		if (function_exists('mcrypt_create_iv'))
-		{
-			return mcrypt_create_iv($length, MCRYPT_DEV_URANDOM);
-		} 
-
-		if (file_exists('/dev/urandom') && is_readable('/dev/urandom'))
-		{
-			return file_get_contents('/dev/urandom', false, null, 0, $length);
-		}
-
-		if (function_exists('openssl_random_pseudo_bytes'))
-		{
-			return openssl_random_pseudo_bytes($length);
-		}
-
-		throw new \Exception('An appropriate source of randomness cannot be found.');
-	}
-
-	/**
 	 * Returns a random password of $length characters, picked from $alphabet
 	 * @param  integer $length  Length of password
 	 * @param  string $alphabet Alphabet used for password generation
@@ -185,7 +57,7 @@ class Security
 
 		for ($i = 0; $i < (int)$length; $i++)
 		{
-			$pos = self::random_int(0, strlen($alphabet) - 1);
+			$pos = random_int(0, strlen($alphabet) - 1);
 			$password .= $alphabet[$pos];
 		}
 
@@ -224,14 +96,14 @@ class Security
 				throw new \Exception('Could not find a suitable combination of words.');
 			}
 
-			$rand = self::random_int(0, count($file) - 1);
+			$rand = random_int(0, count($file) - 1);
 			$w = trim($file[$rand]);
 
 			if (!$character_match || preg_match('/^[' . $character_match . ']+$/U', $w))
 			{
 				if ($add_entropy)
 				{
-					$w[self::random_int(0, strlen($w) - 1)] = self::getRandomPassword(1, '23456789=/:!?-._');
+					$w[random_int(0, strlen($w) - 1)] = self::getRandomPassword(1, '23456789=/:!?-._');
 				}
 
 				$selection[] = $w;
@@ -258,7 +130,21 @@ class Security
 	 */
 	static public function base64_decode_url_safe($str)
 	{
-		return base64_decode(str_pad(strtr($str, '-_', '+/'), strlen($str) % 4, '=', STR_PAD_RIGHT)); 
+		return base64_decode(str_pad(strtr($str, '-_', '+/'), strlen($str) % 4, '=', STR_PAD_RIGHT));
+	}
+
+	static public function checkCaptcha(string $secret, string $hash, string $user_value)
+	{
+		$check = sha1(trim($secret) . preg_replace('/\s+/', '', $user_value));
+		return hash_equals($check, $hash);
+	}
+
+	static public function createCaptcha(string $secret, string $locale = 'en_US'): array
+	{
+		$number = random_int(1000, 9999);
+		$spellout = numfmt_create($locale, \NumberFormatter::SPELLOUT)->format((int) $number);
+		$hash = sha1(trim($secret) . $number);
+		return compact('hash', 'spellout');
 	}
 
 	/**
@@ -409,7 +295,7 @@ class Security
 		putenv('GNUPGHOME=' . $tmpdir);
 
 		$gpg = new \gnupg;
-		$gpg->seterrormode(\gnupg::ERROR_EXCEPTION);
+		$gpg->seterrormode(\GNUPG_ERROR_EXCEPTION);
 
 		$info = $gpg->import($key);
 
@@ -424,7 +310,15 @@ class Security
 	static protected function _cleanGnupgEnv($tmpdir)
 	{
 		// Remove files
-		array_map('unlink', glob($tmpdir . DIRECTORY_SEPARATOR . '*') ?: []);
+		foreach (glob($tmpdir . DIRECTORY_SEPARATOR . '*') as $file) {
+			if (is_dir($file)) {
+				@rmdir($file);
+			}
+			else {
+				@unlink($file);
+			}
+		}
+
 		rmdir($tmpdir);
 	}
 
@@ -464,5 +358,46 @@ class Security
 		self::_cleanGnupgEnv($tmpdir);
 
 		return $data;
+	}
+
+	/**
+	 * Verify signed data with a public key
+	 * @param  string  $key    Public key
+	 * @param  string  $data   Data to verify
+	 * @param  string  $signature Signature
+	 * @return boolean
+	 * @see https://stackoverflow.com/questions/32787007/what-do-returned-values-of-php-gnupg-signature-verification-mean
+	 */
+	static public function verifyWithPublicKey(string $key, string $data, string $signature): bool
+	{
+		$gpg = self::_initGnupgEnv($key, $tmpdir, $info);
+
+		$gpg->import($key);
+
+		try {
+			$return = $gpg->verify($data, $signature);
+		}
+		catch (\Exception $e) {
+			if ($e->getMessage() == 'verify failed') {
+				return false;
+			}
+		}
+		finally {
+			self::_cleanGnupgEnv($tmpdir);
+		}
+
+		if (!isset($return[0]['summary'])) {
+			return false;
+		}
+
+		// @see http://git.gnupg.org/cgi-bin/gitweb.cgi?p=gpgme.git;a=blob;f=src/gpgme.h.in;h=6cea2c777e2e763f063ad88e7b2135d21ba4bd4a;hb=107bff70edb611309f627058dd4777a5da084b1a#l1506
+		$summary = $return[0]['summary'];
+
+		return ($summary === 0
+			|| (($summary & 0x04) !== 0x04) // Fail if signature is bad
+			|| (($summary & 0x10) !== 0x10) // Fail if key is revoked
+			|| (($summary & 0x0080) !== 0x0080) // Fail if key is missing
+			|| (($summary & 0x0800) !== 0x0800) // Fail if system error
+		);
 	}
 }

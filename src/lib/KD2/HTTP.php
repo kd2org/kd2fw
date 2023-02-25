@@ -30,14 +30,14 @@ class HTTP
 	const CLIENT_DEFAULT = 'default';
 	const CLIENT_CURL = 'curl';
 
-	public $client = null;
+	public ?string $client = null;
 
 	/**
 	 * A list of common User-Agent strings, one of them is used
 	 * randomly every time an object has a new instance.
 	 * @var array
 	 */
-	public $uas = [
+	public array $uas = [
 		'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Ubuntu Chromium/48.0.2564.116 Chrome/48.0.2564.116 Safari/537.36',
 		'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:45.0) Gecko/20100101 Firefox/45.0',
 		'Mozilla/5.0 (X11; Linux x86_64; rv:38.9) Gecko/20100101 Goanna/2.0 Firefox/38.9 PaleMoon/26.1.1',
@@ -47,13 +47,13 @@ class HTTP
 	 * User agent
 	 * @var string
 	 */
-	public $user_agent = null;
+	public ?string $user_agent = null;
 
 	/**
 	 * Default HTTP headers sent with every request
 	 * @var array
 	 */
-	public $headers = [
+	public array $headers = [
 	];
 
 	/**
@@ -62,7 +62,7 @@ class HTTP
 	 * See http://php.net/manual/en/context.ssl.php
 	 * @var array
 	 */
-	public $ssl_options = [
+	public array $ssl_options = [
 		'verify_peer'		=>	true,
 		'verify_peer_name'	=>	true,
 		'allow_self_signed'	=>	true,
@@ -74,7 +74,7 @@ class HTTP
 	 * See http://php.net/manual/en/context.http.php
 	 * @var array
 	 */
-	public $http_options = [
+	public array $http_options = [
 		'max_redirects'		=>	10,
 		'timeout'			=>	10,
 		'ignore_errors'		=>	true,
@@ -85,14 +85,14 @@ class HTTP
 	 * set by the server after a request.
 	 * @var array
 	 */
-	public $cookies = [];
+	public array $cookies = [];
 
 	/**
 	 * Prepend this string to every request URL
 	 * (helpful for API calls)
 	 * @var string
 	 */
-	public $url_prefix = '';
+	public string $url_prefix = '';
 
 	/**
 	 * Class construct
@@ -112,7 +112,7 @@ class HTTP
 	 * which are allowed by default
 	 * @param boolean $enable TRUE to enable certificate check, FALSE to disable
 	 */
-	public function setSecure($enable = true)
+	public function setSecure(bool $enable = true): void
 	{
 		$this->ssl_options['verify_peer'] = $enable;
 		$this->ssl_options['verify_peer_name'] = $enable;
@@ -123,9 +123,8 @@ class HTTP
 	 * Make a GET request
 	 * @param  string $url                URL to request
 	 * @param  array  $additional_headers Optional headers to send with request
-	 * @return object                     a stdClass object containing 'headers' and 'body'
 	 */
-	public function GET($url, Array $additional_headers = null)
+	public function GET($url, ?array $additional_headers = null): HTTP_Response
 	{
 		return $this->request('GET', $url, null, $additional_headers);
 	}
@@ -138,11 +137,11 @@ class HTTP
 	 * @param  array  $additional_headers Optional headers to send with request
 	 * @return HTTP_Response
 	 */
-	public function POST($url, $data = [], $type = self::FORM, Array $additional_headers = [])
+	public function POST(string $url, array $data = [], string $type = self::FORM, ?array $additional_headers = null): HTTP_Response
 	{
 		if ($type == self::FORM)
 		{
-			$data = http_build_query($data, null, '&');
+			$data = http_build_query($data, '', '&');
 		}
 		elseif ($type == self::JSON)
 		{
@@ -175,10 +174,11 @@ class HTTP
 	 * @param  string $method             HTTP verb (GET, POST, PUT, etc.)
 	 * @param  string $url                URL to request
 	 * @param  string $content            Data to send with request
-	 * @param  [type] $additional_headers [description]
+	 * @param  array $additional_headers
+	 * @param  resource $write_pointer Pointer to write body to (body will not be returned then)
 	 * @return HTTP_Response
 	 */
-	public function request($method, $url, $data = null, Array $additional_headers = null)
+	public function request(string $method, string $url, ?string $data = null, ?array $additional_headers = null, $write_pointer = null)
 	{
 		static $redirect_codes = [301, 302, 303, 307, 308];
 
@@ -207,13 +207,14 @@ class HTTP
 		}
 
 		$previous = null;
+		$response = null;
 
 		// Follow redirect until we reach maximum
 		for ($i = 0; $i <= $max_redirects; $i++)
 		{
 			// Make request
 			$client = $this->client . 'ClientRequest';
-			$response = $this->$client($method, $url, $data, $headers);
+			$response = $this->$client($method, $url, $data, $headers, $write_pointer);
 			$response->previous = $previous;
 
 			// Apply cookies to current client for next request
@@ -256,7 +257,7 @@ class HTTP
 	 * @param  Array  $url
 	 * @return string
 	 */
-	static public function glueURL(Array $url)
+	static public function glueURL(array $url): string
 	{
 		static $parts = [
 			'scheme'   => '%s:',
@@ -294,7 +295,7 @@ class HTTP
 	 * @param  boolean $dismiss_query Set to TRUE to dismiss query part of the primary URL
 	 * @return string
 	 */
-	static public function mergeURLs($a, $b, $dismiss_query = false)
+	static public function mergeURLs(string $a, string $b, bool $dismiss_query = false): string
 	{
 		$a = parse_url($a);
 		$b = parse_url($b);
@@ -303,6 +304,15 @@ class HTTP
 		{
 			// Don't propagate query params between redirects
 			unset($a['query']);
+		}
+		else {
+			parse_str($a['query'] ?? '', $a_query);
+			parse_str($b['query'] ?? '', $b_query);
+			$b['query'] = http_build_query(array_merge($a_query, $b_query));
+
+			if ($b['query'] == '') {
+				unset($b['query']);
+			}
 		}
 
 		// Relative URL
@@ -325,7 +335,7 @@ class HTTP
 	 * @param  string $app_root Directory root of current application (eg. __DIR__ of the public/www directory)
 	 * @return string
 	 */
-	static public function getRootURI($app_root)
+	static public function getRootURI(string $app_root): string
 	{
 		// Convert from Windows paths to UNIX paths
 		$document_root = str_replace('\\', '/', $_SERVER['DOCUMENT_ROOT']);
@@ -373,9 +383,9 @@ class HTTP
 	 * Return current HTTP host / server name
 	 * @return string Host, will be 'host.invalid' if the supplied host (via 'Host' HTTP header or SERVER_NAME is invalid)
 	 */
-	static public function getHost()
+	static public function getHost(): string
 	{
-		if (isset($_SERVER['HTTP_HOST']) && !isset($_SERVER['SERVER_NAME']) && !isset($_SERVER['SERVER_ADDR'])) {
+		if (!isset($_SERVER['HTTP_HOST']) && !isset($_SERVER['SERVER_NAME']) && !isset($_SERVER['SERVER_ADDR'])) {
 			return 'host.unknown';
 		}
 
@@ -407,7 +417,7 @@ class HTTP
 	 * Return current HTTP scheme
 	 * @return string http or https
 	 */
-	static public function getScheme()
+	static public function getScheme(): string
 	{
 		return empty($_SERVER['HTTPS']) || $_SERVER['HTTPS'] === 'off' ? 'http' : 'https';
 	}
@@ -416,7 +426,7 @@ class HTTP
 	 * Return complete app URL
 	 * @return string
 	 */
-	static public function getAppURL($app_root)
+	static public function getAppURL(string $app_root): string
 	{
 		return self::getScheme() . '://' . self::getHost() . self::getRootURI($app_root);
 	}
@@ -426,7 +436,7 @@ class HTTP
 	 * @param bool $with_query_string Use FALSE to return the request URL without the query string (?param=a...)
 	 * @return string
 	 */
-	static public function getRequestURL($with_query_string = true)
+	static public function getRequestURL(bool $with_query_string = true): string
 	{
 		$path = $_SERVER['REQUEST_URI'];
 
@@ -444,7 +454,7 @@ class HTTP
 	 * @link  https://www.rfc-editor.org/rfc/rfc6570.txt
 	 * @return string
 	 */
-	static public function URITemplate($uri, Array $params = [])
+	static public function URITemplate(string $uri, Array $params = []): string
 	{
 		static $var_name = '(?:[0-9a-zA-Z_]|%[0-9A-F]{2})+';
 
@@ -498,7 +508,7 @@ class HTTP
 	 * @param  array $headers
 	 * @return HTTP_Response
 	 */
-	protected function defaultClientRequest($method, $url, $data, Array $headers)
+	protected function defaultClientRequest(string $method, string $url, ?string $data, array $headers, $write_pointer = null): HTTP_Response
 	{
 		$request = '';
 
@@ -512,6 +522,10 @@ class HTTP
 				if (!empty($headers['Cookie'])) $headers['Cookie'] .= '; ';
 				$headers['Cookie'] .= $key . '=' . $value;
 			}
+		}
+
+		if (!empty($this->http_options['proxy_auth'])) {
+			$headers['Proxy-Authorization'] = sprintf('Basic %s', base64_encode($this->http_options['proxy_auth']));
 		}
 
 		foreach ($headers as $key=>$value)
@@ -541,7 +555,13 @@ class HTTP
 		$r->request = $request;
 
 		try {
-			$r->body = file_get_contents($url, false, $context);
+			if (null === $write_pointer) {
+				$r->body = file_get_contents($url, false, $context);
+			}
+			else {
+				$r->pointer = fopen($url, 'rb', false, $context);
+				$r->body = null;
+			}
 		}
 		catch (\Exception $e)
 		{
@@ -554,8 +574,9 @@ class HTTP
 			throw $e;
 		}
 
-		if ($r->body === false && empty($http_response_header))
+		if ($r->body === false && empty($http_response_header)) {
 			return $r;
+		}
 
 		$r->fail = false;
 		$r->size = strlen($r->body);
@@ -593,6 +614,35 @@ class HTTP
 			}
 		}
 
+		if (!$r->fail && $write_pointer) {
+			$hash = hash_init('md5');
+			$mime = null;
+			$size = 0;
+
+			while (!feof($in))
+			{
+				$line = fread($in, 8192);
+				$size += fwrite($write_pointer, $line);
+				hash_update($hash, $line);
+
+				if (is_null($mime)) {
+					$finfo = new \finfo(FILEINFO_MIME);
+					$mime = $finfo->buffer($line);
+					unset($finfo);
+				}
+
+				if ($size <= 1) {
+					break;
+				}
+			}
+
+			fclose($in);
+
+			$r->hash = hash_final($hash);
+			$r->mimetype = $mime;
+			$r->size = $size;
+		}
+
 		return $r;
 	}
 
@@ -604,7 +654,7 @@ class HTTP
 	 * @param  array $headers
 	 * @return HTTP_Response
 	 */
-	protected function curlClientRequest($method, $url, $data, Array $headers)
+	protected function curlClientRequest(string $method, string $url, ?string $data, array $headers, $write_pointer = null)
 	{
 		// Sets headers in the right format
 		foreach ($headers as $key=>&$header)
@@ -612,14 +662,15 @@ class HTTP
 			$header = $key . ': ' . $header;
 		}
 
+		unset($header);
+
 		$r = new HTTP_Response;
 
-		$c = curl_init();
+		$c = \curl_init();
 
-		curl_setopt_array($c, [
+		\curl_setopt_array($c, [
 			CURLOPT_URL            => $url,
 			CURLOPT_HTTPHEADER     => $headers,
-			CURLOPT_RETURNTRANSFER => true,
 			CURLOPT_FOLLOWLOCATION => false,
 			CURLOPT_MAXREDIRS      => 1,
 			CURLOPT_SSL_VERIFYPEER => !empty($this->ssl_options['verify_peer']),
@@ -631,19 +682,35 @@ class HTTP
 			CURLINFO_HEADER_OUT    => true,
 		]);
 
+		if (null === $write_pointer) {
+			curl_setopt($c, CURLOPT_RETURNTRANSFER, true);
+		}
+		else {
+			curl_setopt($c, CURLOPT_FILE, $write_pointer);
+		}
+
+		if (!empty($this->http_options['proxy'])) {
+			\curl_setopt($c, CURLOPT_PROXY, str_replace('tcp://', '', $this->http_options['proxy']));
+			\curl_setopt($c, CURLOPT_PROXY_SSL_VERIFYHOST, !empty($this->ssl_options['verify_peer_name']) ? 2 : 0);
+
+			if (!empty($this->http_options['proxy_auth'])) {
+				\curl_setopt($c, CURLOPT_PROXYUSERPWD, $this->http_options['proxy_auth']);
+			}
+		}
+
 		if ($data !== null)
 		{
-			curl_setopt($c, CURLOPT_POSTFIELDS, $data);
+			\curl_setopt($c, CURLOPT_POSTFIELDS, $data);
 		}
 
 		if (!empty($this->ssl_options['cafile']))
 		{
-			curl_setopt($c, CURLOPT_CAINFO, $this->ssl_options['cafile']);
+			\curl_setopt($c, CURLOPT_CAINFO, $this->ssl_options['cafile']);
 		}
 
 		if (!empty($this->ssl_options['capath']))
 		{
-			curl_setopt($c, CURLOPT_CAPATH, $this->ssl_options['capath']);
+			\curl_setopt($c, CURLOPT_CAPATH, $this->ssl_options['capath']);
 		}
 
 		if (count($this->cookies) > 0)
@@ -658,10 +725,10 @@ class HTTP
 
 			$cookies = implode('; ', $cookies);
 
-			curl_setopt($c, CURLOPT_COOKIE, $cookies);
+			\curl_setopt($c, CURLOPT_COOKIE, $cookies);
 		}
 
-		curl_setopt($c, CURLOPT_HEADERFUNCTION, function ($c, $header) use (&$r) {
+		\curl_setopt($c, CURLOPT_HEADERFUNCTION, function ($c, $header) use (&$r) {
 			$name = trim(strtok($header, ':'));
 			$value = strtok('');
 
@@ -693,10 +760,10 @@ class HTTP
 
 		$r->url = $url;
 
-		$r->body = curl_exec($c);
-		$r->request = curl_getinfo($c, CURLINFO_HEADER_OUT) . $data;
+		$r->body = \curl_exec($c);
+		$r->request = \curl_getinfo($c, CURLINFO_HEADER_OUT) . $data;
 
-		if ($error = curl_error($c))
+		if ($error = \curl_error($c))
 		{
 			if (!empty($this->http_options['ignore_errors']))
 			{
@@ -712,11 +779,15 @@ class HTTP
 			return $r;
 		}
 
+		if (null !== $write_pointer) {
+			rewind($write_pointer);
+		}
+
 		$r->fail = false;
 		$r->size = strlen($r->body);
-		$r->status = curl_getinfo($c, CURLINFO_HTTP_CODE);
+		$r->status = \curl_getinfo($c, CURLINFO_HTTP_CODE);
 
-		curl_close($c);
+		\curl_close($c);
 
 		return $r;
 	}
@@ -727,6 +798,15 @@ class HTTP_Response
 	public $url = null;
 	public $headers = [];
 	public $body = null;
+	public $pointer = null;
+
+	/**
+	 * Set only if write_pointer is set
+	 * @var null
+	 */
+	public ?string $mimetype = null;
+	public ?string $hash = null;
+
 	public $fail = true;
 	public $cookies = [];
 	public $status = null;
@@ -742,7 +822,7 @@ class HTTP_Response
 
 	public function __toString()
 	{
-		return $this->body;
+		return (string)$this->body;
 	}
 }
 
@@ -775,24 +855,25 @@ class HTTP_Headers implements \ArrayAccess
 		}
 	}
 
+	#[\ReturnTypeWillChange]
 	public function offsetGet($key)
 	{
 		return $this->__get($key);
 	}
 
-	public function offsetExists($key)
+	public function offsetExists($key): bool
 	{
 		$key = strtolower($key);
 
 		return array_key_exists($key, $this->headers);
 	}
 
-	public function offsetSet($key, $value)
+	public function offsetSet($key, $value): void
 	{
-		return $this->__set($key, $value);
+		$this->__set($key, $value);
 	}
 
-	public function offsetUnset($key)
+	public function offsetUnset($key): void
 	{
 		unset($this->headers[strtolower($key)]);
 	}

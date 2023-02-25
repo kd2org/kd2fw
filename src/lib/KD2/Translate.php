@@ -79,8 +79,6 @@ class Translate
 	 */
 	static public function setLocale($locale)
 	{
-		\setlocale(LC_ALL, $locale);
-
 		$locale = strtok($locale, '@.-+=%:; ');
 
 		self::$locale = $locale;
@@ -149,7 +147,7 @@ class Translate
 	 * @param  string $domain Domain
 	 * @return boolean
 	 */
-	static protected function _loadTranslations($domain, $locale = null)
+	static protected function _loadTranslations(?string $domain = null, string $locale = null)
 	{
 		// Fallback to default domain
 		if (is_null($domain))
@@ -157,10 +155,14 @@ class Translate
 			$domain = self::$default_domain;
 		}
 
+		if (is_null($domain)) {
+			return null;
+		}
+
 		if (is_null($locale))
 		{
 			$locale = self::$locale;
-			$locale_short = strtok($locale, '_');
+			$locale_short = $locale ? substr($locale, strpos($locale, '_')) : null;
 		}
 
 		// Already loaded
@@ -361,7 +363,7 @@ class Translate
 			// Romance family: Italian, Portuguese, Spanish
 			// Artificial: Esperanto
 			// Turkic/Altaic family: Turkish
-   			default:
+			default:
 				return (int) $n != 1;
 		}
 	}
@@ -667,182 +669,229 @@ class Translate
 	{
 		if (empty($_SERVER['HTTP_ACCEPT_LANGUAGE']))
 		{
-			return false;
+			return null;
 		}
 
 		// Convenient PECL Intl function
 		if (function_exists('locale_accept_from_http'))
 		{
-			$locale = locale_accept_from_http($_SERVER['HTTP_ACCEPT_LANGUAGE']);
-		}
-		// Let's do the same thing by hand
-		else
-		{
-			$http_langs = explode(',', $_SERVER['HTTP_ACCEPT_LANGUAGE']);
-			$locale = null;
-			$locale_priority = 0;
+			$default = ini_get('intl.use_exceptions');
+			ini_set('intl.use_exceptions', 1);
 
-			// For each locale extract its priority
-			foreach ($http_langs as $lang)
-			{
-				if (preg_match('/;q=([0-9.,]+)/', $lang, $match))
-				{
-					$q = (int) $match[1] * 10;
-					$lang = str_replace($match[0], '', $lang);
-				}
-				else
-				{
-					$q = 10;
-				}
-
-				$lang = strtolower(trim($lang));
-
-				if (strlen($lang) > 2)
-				{
-					$lang = explode('-', $lang);
-					$lang = array_slice($lang, 0, 2);
-					$lang = $lang[0] . '_' . strtoupper($lang[1]);
-				}
-
-				// Higher priority than the previous one?
-				// Let's use it then!
-				if ($q > $locale_priority)
-				{
-					$locale = $lang;
-				}
+			try {
+				$locale = locale_accept_from_http($_SERVER['HTTP_ACCEPT_LANGUAGE']);
+				return ($full_locale || !$locale) ? $locale : substr($locale, 0, 2);
+			}
+			catch (\IntlException $e) {
+				return null;
+			}
+			finally {
+				ini_set('intl.use_exceptions', $default);
 			}
 		}
 
-		if (is_null($locale))
+		// Let's do the same thing by hand
+		$http_langs = explode(',', $_SERVER['HTTP_ACCEPT_LANGUAGE']);
+		$locale = null;
+		$locale_priority = 0;
+
+		// For each locale extract its priority
+		foreach ($http_langs as $lang)
 		{
-			return false;
+			if (preg_match('/;q=([0-9.,]+)/', $lang, $match))
+			{
+				$q = (int) $match[1] * 10;
+				$lang = str_replace($match[0], '', $lang);
+			}
+			else
+			{
+				$q = 10;
+			}
+
+			$lang = strtolower(trim($lang));
+
+			if (strlen($lang) > 2)
+			{
+				$lang = explode('-', $lang);
+				$lang = array_slice($lang, 0, 2);
+				$lang = $lang[0] . '_' . strtoupper($lang[1]);
+			}
+
+			// Higher priority than the previous one?
+			// Let's use it then!
+			if ($q > $locale_priority)
+			{
+				$locale = $lang;
+			}
 		}
 
-		return $full_locale ? $locale : substr($locale, 0, 2);
+		return ($full_locale || !$locale) ? $locale : substr($locale, 0, 2);
 	}
 
 	/**
-	 * Locale-formatted strftime using IntlDateFormatter as a shim if the locale
-	 * is not installed
+	 * Locale-formatted strftime using \IntlDateFormatter (PHP 8.1 compatible)
 	 * @param  string $format Date format
-	 * @param  integer $timestamp Timestamp
-	 * @param  string|\DateTimeZone $timezone Timezone
+	 * @param  integer|string|DateTime $timestamp Timestamp
 	 * @return string
+	 * @see https://github.com/alphp/strftime
+	 * @see https://gist.github.com/bohwaz/42fc223031e2b2dd2585aab159a20f30
 	 */
-	static public function strftime($format, $timestamp = null, $timezone = null)
+	static public function strftime(string $format, $timestamp = null, ?string $locale = null): string
 	{
-		// Use IntlDateFormatter to get locale time strings
-		// This is better than strftime because this doesn't depend on having
-		// the actual locale installed on the system
-		static $strftime_to_intl_format = [
+		if (null === $timestamp) {
+			$timestamp = new \DateTime;
+		}
+		elseif (is_numeric($timestamp)) {
+			$timestamp = date_create('@' . $timestamp);
+		}
+		elseif (is_string($timestamp)) {
+			$timestamp = date_create($timestamp);
+		}
+
+		if (!($timestamp instanceof \DateTimeInterface)) {
+			throw new \InvalidArgumentException('$timestamp argument is neither a valid UNIX timestamp, a valid date-time string or a DateTime object.');
+		}
+
+		$locale = substr($locale ?? (string) self::$locale, 0, 5);
+
+		$intl_formats = [
 			'%a' => 'EEE',	// An abbreviated textual representation of the day	Sun through Sat
 			'%A' => 'EEEE',	// A full textual representation of the day	Sunday through Saturday
 			'%b' => 'MMM',	// Abbreviated month name, based on the locale	Jan through Dec
 			'%B' => 'MMMM',	// Full month name, based on the locale	January through December
 			'%h' => 'MMM',	// Abbreviated month name, based on the locale (an alias of %b)	Jan through Dec
-			'%p' => 'aa',	// UPPER-CASE 'AM' or 'PM' based on the given time	Example: AM for 00:31, PM for 22:23
-			'%P' => 'aa',	// lower-case 'am' or 'pm' based on the given time	Example: am for 00:31, pm for 22:23
 		];
 
-		if (null === $timestamp)
-		{
-			$timestamp = time();
-		}
-
-		if (!is_numeric($timestamp))
-		{
-			$timestamp = strtotime($timestamp);
-
-			if (false === $timestamp)
-			{
-				throw new \InvalidArgumentException('Timestamp argument is neither a valid UNIX timestamp or a valid date-time string.');
-			}
-		}
-
-		if (null === $timezone)
-		{
-			$timezone = date_default_timezone_get();
-		}
-
-		if (is_object($timezone) && $timezone instanceof \DateTimeZone)
-		{
-			$timezone = $timezone->getName();
-		}
-
-		if (!is_string($timezone))
-		{
-			throw new \InvalidArgumentException('Timezone argument is neither a string or DateTimeZone object.');
-		}
-
-		// Windows support shims
-		$format = str_replace('%e', date('j', $timestamp), $format);
-		$format = str_replace('%z', date('O', $timestamp), $format);
-		$format = str_replace('%Z', date('T', $timestamp), $format);
-
-		// get current locale
-		$locale = self::$locale ?: \setlocale(LC_TIME, 0);
-		$locale = substr(strtolower($locale), 0, 4);
-
-		$system_locale = substr(strtolower(\setlocale(LC_TIME, 0)), 0, 4);
-
-		$reset_timezone = null;
-
-		if (date_default_timezone_get() != $timezone)
-		{
-			$reset_timezone = date_default_timezone_get();
-			date_default_timezone_set($timezone);
-		}
-
-		// Fallback to IntlDateFormatter if the date locale is not installed/correctly set
-		// (and if Intl extension is installed)
-		if (class_exists('IntlDateFormatter') && $system_locale != $locale)
-		{
-			// helpful for conversion to ISO format
-			$format = str_replace('%r', '%I:%M:%S %p', $format);
+		$intl_formatter = function (\DateTimeInterface $timestamp, string $format) use ($intl_formats, $locale) {
+			$tz = $timestamp->getTimezone();
+			$date_type = \IntlDateFormatter::FULL;
+			$time_type = \IntlDateFormatter::FULL;
+			$pattern = '';
 
 			// %c = Preferred date and time stamp based on locale
 			// Example: Tue Feb 5 00:45:10 2009 for February 5, 2009 at 12:45:10 AM
-			$format = preg_replace_callback('/(?<!%)%c/',
-				function ($match) use ($locale, $timestamp, $timezone) {
-					$dateFormat = new IntlDateFormatter($locale,
-						IntlDateFormatter::LONG,
-						IntlDateFormatter::SHORT,
-						$timezone);
-					return $dateFormat->format($timestamp);
-				}, $format);
-
+			if ($format == '%c') {
+				$date_type = \IntlDateFormatter::LONG;
+				$time_type = \IntlDateFormatter::SHORT;
+			}
 			// %x = Preferred date representation based on locale, without the time
 			// Example: 02/05/09 for February 5, 2009
-			$format = preg_replace_callback('/(?<!%)%x/',
-				function ($match) use ($locale, $timestamp, $timezone) {
-					$dateFormat = new IntlDateFormatter($locale,
-						IntlDateFormatter::SHORT,
-						IntlDateFormatter::NONE,
-						$timezone);
-					return $dateFormat->format($timestamp);
-				}, $format);
+			elseif ($format == '%x') {
+				$date_type = \IntlDateFormatter::SHORT;
+				$time_type = \IntlDateFormatter::NONE;
+			}
+			// Localized time format
+			elseif ($format == '%X') {
+				$date_type = \IntlDateFormatter::NONE;
+				$time_type = \IntlDateFormatter::MEDIUM;
+			}
+			else {
+				$pattern = $intl_formats[$format];
+			}
 
-			// Other locale-specific formats
-			$format = preg_replace_callback('/(?<!%)(%[aAbBhpP])/',
-				function ($match) use ($locale, $timestamp, $timezone, $strftime_to_intl_format) {
-					$dateFormat = new IntlDateFormatter($locale,
-						IntlDateFormatter::FULL,
-						IntlDateFormatter::FULL,
-						$timezone,
-						IntlDateFormatter::GREGORIAN,
-						$strftime_to_intl_format[$match[1]]);
-					return $dateFormat->format($timestamp);
-				}, $format);
-		}
+			return (new \IntlDateFormatter($locale, $date_type, $time_type, $tz, null, $pattern))->format($timestamp);
+		};
 
-		// Use strftime
-		$out = \strftime($format, $timestamp);
+		// Same order as https://www.php.net/manual/en/function.strftime.php
+		$translation_table = [
+			// Day
+			'%a' => $intl_formatter,
+			'%A' => $intl_formatter,
+			'%d' => 'd',
+			'%e' => function ($timestamp) {
+				return sprintf('% 2u', $timestamp->format('j'));
+			},
+			'%j' => function ($timestamp) {
+				// Day number in year, 001 to 366
+				return sprintf('%03d', $timestamp->format('z')+1);
+			},
+			'%u' => 'N',
+			'%w' => 'w',
 
-		if (null !== $reset_timezone)
-		{
-			date_default_timezone_set($reset_timezone);
-		}
+			// Week
+			'%U' => function ($timestamp) {
+				// Number of weeks between date and first Sunday of year
+				$day = new \DateTime(sprintf('%d-01 Sunday', $timestamp->format('Y')));
+				return sprintf('%02u', 1 + ($timestamp->format('z') - $day->format('z')) / 7);
+			},
+			'%V' => 'W',
+			'%W' => function ($timestamp) {
+				// Number of weeks between date and first Monday of year
+				$day = new \DateTime(sprintf('%d-01 Monday', $timestamp->format('Y')));
+				return sprintf('%02u', 1 + ($timestamp->format('z') - $day->format('z')) / 7);
+			},
 
+			// Month
+			'%b' => $intl_formatter,
+			'%B' => $intl_formatter,
+			'%h' => $intl_formatter,
+			'%m' => 'm',
+
+			// Year
+			'%C' => function ($timestamp) {
+				// Century (-1): 19 for 20th century
+				return floor($timestamp->format('Y') / 100);
+			},
+			'%g' => function ($timestamp) {
+				return substr($timestamp->format('o'), -2);
+			},
+			'%G' => 'o',
+			'%y' => 'y',
+			'%Y' => 'Y',
+
+			// Time
+			'%H' => 'H',
+			'%k' => function ($timestamp) {
+				return sprintf('% 2u', $timestamp->format('G'));
+			},
+			'%I' => 'h',
+			'%l' => function ($timestamp) {
+				return sprintf('% 2u', $timestamp->format('g'));
+			},
+			'%M' => 'i',
+			'%p' => 'A', // AM PM (this is reversed on purpose!)
+			'%P' => 'a', // am pm
+			'%r' => 'h:i:s A', // %I:%M:%S %p
+			'%R' => 'H:i', // %H:%M
+			'%S' => 's',
+			'%T' => 'H:i:s', // %H:%M:%S
+			'%X' => $intl_formatter, // Preferred time representation based on locale, without the date
+
+			// Timezone
+			'%z' => 'O',
+			'%Z' => 'T',
+
+			// Time and Date Stamps
+			'%c' => $intl_formatter,
+			'%D' => 'm/d/Y',
+			'%F' => 'Y-m-d',
+			'%s' => 'U',
+			'%x' => $intl_formatter,
+		];
+
+		$out = preg_replace_callback('/(?<!%)(%[a-zA-Z])/', function ($match) use ($translation_table, $timestamp) {
+			if ($match[1] == '%n') {
+				return "\n";
+			}
+			elseif ($match[1] == '%t') {
+				return "\t";
+			}
+
+			if (!isset($translation_table[$match[1]])) {
+				throw new \InvalidArgumentException(sprintf('Format "%s" is unknown in time format', $match[1]));
+			}
+
+			$replace = $translation_table[$match[1]];
+
+			if (is_string($replace)) {
+				return $timestamp->format($replace);
+			}
+			else {
+				return $replace($timestamp, $match[1]);
+			}
+		}, $format);
+
+		$out = str_replace('%%', '%', $out);
 		return $out;
 	}
 
@@ -877,21 +926,25 @@ class Translate
 	 */
 	static public function extendSmartyer(Smartyer &$tpl)
 	{
-		$tpl->register_modifier('date_format', function ($timestamp, $format = '%c') {
-			if (!is_numeric($timestamp))
+		$tpl->register_modifier('date_format', function ($date, $format = '%c') {
+			if (is_object($date))
 			{
-				$timestamp = strtotime($timestamp);
+				$date = $date->getTimestamp();
+			}
+			elseif (!is_numeric($date))
+			{
+				$date = strtotime($date);
 			}
 
 			if (strpos('DATE_', $format) === 0 && defined($format))
 			{
-				return date(constant($format), $timestamp);
+				return date(constant($format), $date);
 			}
 
-			return \KD2\Translate::strftime($format, $timestamp);
+			return \KD2\Translate::strftime($format, $date);
 		});
 
-		return (new Translate)->_registerSmartyerBlock($tpl);
+		return $tpl->register_compile_function('KD2\Translate', [self::class, '_smartyerBlock']);
 	}
 
 	/**
@@ -899,92 +952,90 @@ class Translate
 	 * @link   https://bugs.php.net/bug.php?id=68792
 	 * @param  Smartyer $tpl Smartyer instance
 	 */
-	protected function _registerSmartyerBlock(Smartyer &$tpl)
+	static public function _smartyerBlock(Smartyer &$s, $pos, $block, $name, $raw_args)
 	{
-		return $tpl->register_compile_function('\KD2\Translate\SmartyerTranslate', function ($pos, $block, $name, $raw_args) {
-			$block = trim($block);
+		$block = trim($block);
 
-			if ($block[0] != '{')
+		if ($block[0] != '{')
+		{
+			return false;
+		}
+
+		// Extract strings from arguments
+		$block = preg_split('#\{((?:[^\{\}]|(?R))*?)\}#i', $block, 0, PREG_SPLIT_DELIM_CAPTURE);
+		$raw_args = '';
+		$strings = [];
+
+		foreach ($block as $k=>$v)
+		{
+			if ($k % 2 == 0)
 			{
-				return false;
-			}
-
-			// Extract strings from arguments
-			$block = preg_split('#\{((?:[^\{\}]|(?R))*?)\}#i', $block, 0, PREG_SPLIT_DELIM_CAPTURE);
-			$raw_args = '';
-			$strings = [];
-
-			foreach ($block as $k=>$v)
-			{
-				if ($k % 2 == 0)
-				{
-					$raw_args .= $v;
-				}
-				else
-				{
-					$strings[] = trim($v);
-				}
-			}
-
-			$nb_strings = count($strings);
-
-			if ($nb_strings < 1)
-			{
-				$this->parseError($pos, 'No string found in translation block: ' . $block);
-			}
-
-			// Only one plural is allowed
-			if ($nb_strings > 2)
-			{
-				$this->parseError($pos, 'Maximum number of translation strings is 2, found ' . $nb_strings . ' in: ' . $block);
-			}
-
-			$args = $this->parseArguments($raw_args);
-
-			$code = sprintf('\KD2\Translate::gettext(%s, ', var_export($strings[0], true));
-
-			if ($nb_strings > 1)
-			{
-				if (!isset($args['n']))
-				{
-					$this->parseError($pos, 'Multiple strings in translation block, but no \'n\' argument.');
-				}
-
-				$code .= sprintf('%s, (int) %s, ', var_export($strings[1], true), $args['n']);
+				$raw_args .= $v;
 			}
 			else
 			{
-				$code .= 'null, null, ';
+				$strings[] = trim($v);
 			}
+		}
 
-			// Add domain and context
-			$code .= sprintf('%s, %s)',
-				isset($args['domain']) ? $args['domain'] : 'null',
-				isset($args['context']) ? $args['context'] : 'null');
+		$nb_strings = count($strings);
 
-			$escape = $this->escape_type;
+		if ($nb_strings < 1)
+		{
+			$s->parseError($pos, 'No string found in translation block: ' . $block);
+		}
 
-			if (isset($args['escape']))
+		// Only one plural is allowed
+		if ($nb_strings > 2)
+		{
+			$s->parseError($pos, 'Maximum number of translation strings is 2, found ' . $nb_strings . ' in: ' . $block);
+		}
+
+		$args = $s->parseArguments($raw_args);
+
+		$code = sprintf('\KD2\Translate::gettext(%s, ', var_export($strings[0], true));
+
+		if ($nb_strings > 1)
+		{
+			if (!isset($args['n']))
 			{
-				$escape = strtolower($args['escape']);
+				$s->parseError($pos, 'Multiple strings in translation block, but no \'n\' argument.');
 			}
 
-			unset($args['escape'], $args['domain'], $args['context']);
+			$code .= sprintf('%s, (int) %s, ', var_export($strings[1], true), $args['n']);
+		}
+		else
+		{
+			$code .= 'null, null, ';
+		}
 
-			// Use named arguments: %name, %nb_apples...
-			// This will cause weird bugs if you use %s, or %d etc. before or between named arguments
-			if (!empty($args))
-			{
-				$code = sprintf('\KD2\Translate::named_sprintf(%s, %s)', $code, $this->exportArguments($args));
-			}
+		// Add domain and context
+		$code .= sprintf('%s, %s)',
+			isset($args['domain']) ? $args['domain'] : 'null',
+			isset($args['context']) ? $args['context'] : 'null');
 
-			if ($escape != 'false' && $escape != 'off' && $escape !== '')
-			{
-				$code = sprintf('self::escape(%s, %s)', $code, var_export($escape, true));
-			}
+		$escape = $s->getEscapeType();
 
-			return 'echo ' . $code . ';';
-		});
+		if (isset($args['escape']))
+		{
+			$escape = strtolower($args['escape']);
+		}
+
+		unset($args['escape'], $args['domain'], $args['context']);
+
+		// Use named arguments: %name, %nb_apples...
+		// This will cause weird bugs if you use %s, or %d etc. before or between named arguments
+		if (!empty($args))
+		{
+			$code = sprintf('\KD2\Translate::named_sprintf(%s, %s)', $code, $s->exportArguments($args));
+		}
+
+		if ($escape != 'false' && $escape != 'off' && $escape !== '')
+		{
+			$code = sprintf('self::escape(%s, %s)', $code, var_export($escape, true));
+		}
+
+		return 'echo ' . $code . ';';
 	}
 }
 
@@ -993,16 +1044,6 @@ class Translate
 	Just prefix calls to gettext functions by \KD2\
 	eg _("Hi!") => \KD2\_("Hi!")
 	Or add at the top of your files:
-
-	// PHP 5.6
-	use function \KD2\_;
-	use function \KD2\gettext;
-	use function \KD2\ngettext;
-	use function \KD2\dgettext;
-	use function \KD2\dngettext;
-	use function \KD2\bindtextdomain;
-	use function \KD2\textdomain;
-	use function \KD2\setlocale;
 
 	// PHP 7+
 	use function \KD2\{_, gettext, ngettext, dgettext, dngettext, bindtextdomain, textdomain, setlocale}
@@ -1060,12 +1101,7 @@ function textdomain($domain)
 
 function setlocale($category, $locale)
 {
-	if ($category == \LC_MESSAGES || $category == \LC_ALL)
-	{
-		Translate::setLocale($locale);
-	}
-
-	return call_user_func_array('setlocale', func_get_args());
+	return Translate::setLocale($locale);
 }
 
 

@@ -1,22 +1,22 @@
 <?php
 /*
-    This file is part of KD2FW -- <http://dev.kd2.org/>
+	This file is part of KD2FW -- <http://dev.kd2.org/>
 
-    Copyright (c) 2001-2019 BohwaZ <http://bohwaz.net/>
-    All rights reserved.
+	Copyright (c) 2001-2019 BohwaZ <http://bohwaz.net/>
+	All rights reserved.
 
-    KD2FW is free software: you can redistribute it and/or modify
-    it under the terms of the GNU Affero General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
+	KD2FW is free software: you can redistribute it and/or modify
+	it under the terms of the GNU Affero General Public License as published by
+	the Free Software Foundation, either version 3 of the License, or
+	(at your option) any later version.
 
-    Foobar is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU Affero General Public License for more details.
+	Foobar is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	GNU Affero General Public License for more details.
 
-    You should have received a copy of the GNU Affero General Public License
-    along with Foobar.  If not, see <https://www.gnu.org/licenses/>.
+	You should have received a copy of the GNU Affero General Public License
+	along with Foobar.  If not, see <https://www.gnu.org/licenses/>.
 */
 
 namespace KD2;
@@ -60,7 +60,7 @@ class ZipWriter
 	 * @param integer $compression 0 to 9
 	 * @return void
 	 */
-	public function setCompression($compression)
+	public function setCompression(int $compression): void
 	{
 		$compression = (int) $compression;
 		$this->compression = max(min($compression, 9), 0);
@@ -71,7 +71,7 @@ class ZipWriter
 	 * @param string $data
 	 * @return void
 	 */
-	protected function write($data)
+	protected function write(string $data): void
 	{
 		// We can't use fwrite and ftell directly as ftell doesn't work on some pointers
 		// (eg. php://output)
@@ -81,10 +81,10 @@ class ZipWriter
 
 	/**
 	 * Returns the content of the ZIP file
-	 * 
+	 *
 	 * @return string
 	 */
-	public function get()
+	public function get(): string
 	{
 		fseek($this->handle, 0);
 		return stream_get_contents($this->handle);
@@ -100,23 +100,28 @@ class ZipWriter
 	 *
 	 * @param string $file File name
 	 * @param string|null $data binary content of the file to add
+	 * @param string|null $source Source file to use if no data is supplied
 	 * @throws LogicException
 	 * @throws RuntimeException
 	 */
-	public function add($file, $data = null)
+	public function add(string $file, ?string $data = null, ?string $source = null): void
 	{
 		if ($this->closed)
 		{
 			throw new LogicException('Archive has been closed, files can no longer be added');
 		}
 
+		if (null === $data && null === $source) {
+			throw new LogicException('No source file or data has been supplied');
+		}
+
 		$source_handle = null;
 
 		if ($data === null)
 		{
-			$csize = $size = filesize($file);
-			list(, $crc) = unpack('N', hash_file('crc32b', $file, true));
-			$source_handle = fopen($file, 'r');
+			$csize = $size = filesize($source);
+			list(, $crc) = unpack('N', hash_file('crc32b', $source, true));
+			$source_handle = fopen($source, 'r');
 
 			if ($this->compression)
 			{
@@ -171,7 +176,7 @@ class ZipWriter
 	 * Add the closing footer to the archive
 	 * @throws LogicException
 	 */
-	public function finalize()
+	public function finalize(): void
 	{
 		if ($this->closed)
 		{
@@ -201,7 +206,7 @@ class ZipWriter
 	 * Close the file handle
 	 * @return void
 	 */
-	public function close()
+	public function close(): void
 	{
 		if (!$this->closed)
 		{
@@ -226,20 +231,22 @@ class ZipWriter
 	 * @param  integer|null  $offset
 	 * @return string
 	 */
-	protected function makeRecord($central = false, $filename, $size, $compressed_size, $crc, $offset)
+	protected function makeRecord(bool $central, string $filename, int $size, int $compressed_size, string $crc, ?int $offset): string
 	{
 		$header = ($central ? "\x50\x4b\x01\x02\x0e\x00" : "\x50\x4b\x03\x04");
 
+		list($filename, $extra) = $this->encodeFilename($filename);
+
 		$header .=
 			"\x14\x00" // version needed to extract - 2.0
-			. "\x00\x00" // general purpose flag - no flags set
+			. "\x00\x08" // general purpose flag - bit 11 set = enable UTF-8 support
 			. ($this->compression ? "\x08\x00" : "\x00\x00") // compression method - none
 			. "\x01\x80\xe7\x4c" //  last mod file time and date
 			. pack('V', $crc) // crc-32
 			. pack('V', $compressed_size) // compressed size
 			. pack('V', $size) // uncompressed size
 			. pack('v', strlen($filename)) // file name length
-			. "\x00\x00"; // extra field length
+			. pack('v', strlen($extra)); // extra field length
 
 		if ($central)
 		{
@@ -252,7 +259,26 @@ class ZipWriter
 		}
 
 		$header .= $filename;
+		$header .= $extra;
 
 		return $header;
+	}
+
+	protected function encodeFilename(string $original): array
+	{
+		if (!preg_match('//u', $original)) {
+			return [$original, ''];
+		}
+
+		$data = "\x01" // version
+			. pack('V', crc32($original))
+			. $original;
+
+		return [
+			$original,
+			"\x70\x75" // tag
+			. pack('v', strlen($data)) // length of data
+			. $data
+		];
 	}
 }

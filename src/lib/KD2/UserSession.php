@@ -27,7 +27,7 @@
 
 namespace KD2;
 
-use KD2\DB;
+use KD2\DB\DB;
 use KD2\QRCode;
 use KD2\Security_OTP;
 
@@ -37,6 +37,18 @@ class UserSession
 	// Methods and properties that should be reimplemented in the child class
 	// You should implement those methods in the class that is extending this
 	// one to suit your setup.
+
+	const SID_IN_URL_HOSTS_WHITELIST = ['::1', '127.0.0.1'];
+
+	/**
+	 * Set to TRUE for using the non-locking mode
+	 * If using this mode, the session will be opened and closed immediately.
+	 * To write to the session you will need to call ->start(true), change the value
+	 * $_SESSION and call ->close().
+	 * If set to FALSE (default PHP behaviour), you won't be able to use the
+	 * same session from two requests at the same time.
+	 */
+	protected bool $non_locking = false;
 
 	/**
 	 * Cookie name for the current, short-lived session (PHP session)
@@ -75,6 +87,8 @@ class UserSession
 	 * @var string
 	 */
 	protected $remember_me_expiry = '+3 months';
+
+	protected array $data = [];
 
 	/**
 	 * Checks a password supplied at login ($supplied_password) against a stored
@@ -218,6 +232,8 @@ class UserSession
 	const REQUIRE_OTP = 'otp';
 	const HIBP_API_URL = 'https://api.pwnedpasswords.com/range/%s';
 
+	protected bool $modified = false;
+
 	protected $cookie;
 	protected $user;
 
@@ -249,6 +265,16 @@ class UserSession
 		}
 	}
 
+	public function __destruct()
+	{
+		// Save data
+		if ($this->modified) {
+			$this->start(true);
+			$_SESSION['userSessionData'] = $this->data;
+			$this->close();
+		}
+	}
+
 	protected function getSessionOptions()
 	{
 		return [
@@ -257,43 +283,122 @@ class UserSession
 			'cookie_domain'   => $this->cookie_domain,
 			'cookie_secure'   => $this->cookie_secure,
 			'cookie_httponly' => true,
+			'cookie_samesite' => 'Lax',
 		];
 	}
 
-	public function start($write = false)
+	public function id(): ?string
+	{
+		return session_id() ?: null;
+	}
+
+	public function setId(string $id)
+	{
+		session_id($id);
+	}
+
+	public function start(bool $write = false)
 	{
 		// Don't start session if it has been already started
-		if (isset($_SESSION))
-		{
+		if (isset($_SESSION) && !($write && $this->non_locking)) {
 			return true;
 		}
 
-		// Only start session if it exists
-		if ($write || isset($_COOKIE[$this->cookie_name]))
-		{
-			session_set_cookie_params(0, $this->cookie_path, $this->cookie_domain, $this->cookie_secure, true);
-			session_name($this->cookie_name);
-			return session_start($this->getSessionOptions());
+		$init = false;
+		$session_id = false;
+
+		if (!isset($_SESSION)) {
+			$session_id = $_COOKIE[$this->cookie_name] ?? null;
+			$session_url = false;
+
+			// Allow to pass session ID in URL for some URLs
+			if (!$session_id && !empty($_GET[$this->cookie_name])
+				&& in_array($_SERVER['REMOTE_ADDR'] ?? null, self::SID_IN_URL_HOSTS_WHITELIST, true)
+				&& preg_match('/^[a-zA-Z0-9-]{1,64}$/', $_GET[$this->cookie_name])) {
+				$session_id = $_GET[$this->cookie_name];
+				$session_url = true;
+			}
+
+			// Only start session if it exists
+			if ($write || $session_id)
+			{
+				// Check session ID value, in case it is invalid/corrupted
+				// see https://stackoverflow.com/questions/3185779/the-session-id-is-too-long-or-contains-illegal-characters-valid-characters-are
+				if (!$session_url && isset($_COOKIE[$this->cookie_name]) && !preg_match('/^[a-zA-Z0-9-]{1,64}$/', $_COOKIE[$this->cookie_name])) {
+					session_regenerate_id();
+				}
+
+				if (headers_sent($file, $line)) {
+					throw new \LogicException(sprintf('Cannot start session: headers already sent in line %d of %s', $line, $file));
+				}
+
+				if ($session_url) {
+					ini_set('session.use_cookies', false);
+					ini_set('session.use_only_cookies', false);
+				}
+
+				session_set_cookie_params([
+					'lifetime' => 0,
+					'path'     => $this->cookie_path,
+					'domain'   => $this->cookie_domain,
+					'secure'   => $this->cookie_secure,
+					'httponly' => true,
+					'samesite' => 'Lax',
+				]);
+
+				session_name($this->cookie_name);
+				$init = true;
+			}
+		}
+
+		if ($write || $session_id) {
+			$return = session_start($this->getSessionOptions());
+
+			if ($init) {
+				$this->data = array_merge($this->data, $_SESSION['userSessionData'] ?? []);
+			}
+
+			if (!$write) {
+				$this->close();
+			}
+
+			return $return;
 		}
 
 		return false;
 	}
 
-	public function keepAlive()
+	public function close(): void
 	{
-		return $this->start(true);
+		// Release lock so that other processes are not blocked
+		// see https://www.php.net/manual/en/function.session-start.php
+		// and https://ma.ttias.be/php-session-locking-prevent-sessions-blocking-in-requests/
+
+		if ($this->non_locking) {
+			session_write_close();
+		}
 	}
 
-	public function refresh($clear_data = true)
+	public function keepAlive(): void
+	{
+		$this->start(true);
+		$this->close();
+	}
+
+	public function refresh(): bool
 	{
 		if (!$this->isLogged())
 		{
 			throw new \LogicException('User is not logged in.');
 		}
 
-		$_SESSION['userSessionData'] = [];
-
-		return $this->create($this->user->id);
+		try {
+			return $this->create($this->getUser()->id);
+		}
+		catch (\LogicException $e) {
+			$this->logout();
+			return false;
+		}
 	}
 
 	public function isLogged()
@@ -332,22 +437,18 @@ class UserSession
 
 	public function set($key, $value)
 	{
-		if (!isset($_SESSION['userSessionData']))
-		{
-			$_SESSION['userSessionData'] = [];
+		if (array_key_exists($key, $this->data) && $this->data[$key] === $value) {
+			return;
 		}
 
-		$_SESSION['userSessionData'][$key] = $value;
+		$this->data[$key] = $value;
+		$this->modified = true;
 	}
 
 	public function get($key)
 	{
-		if (isset($_SESSION['userSessionData'][$key]))
-		{
-			return $_SESSION['userSessionData'][$key];
-		}
-
-		return null;
+		$this->start();
+		return $this->data[$key] ?? null;
 	}
 
 	public function login($login, $password, $remember_me = false)
@@ -355,6 +456,11 @@ class UserSession
 		assert(is_bool($remember_me));
 		assert(is_string($login));
 		assert(is_string($password));
+
+		// Prevent DoS attacks
+		if (strlen($login) > 256 || strlen($password) > 512) {
+			return false;
+		}
 
 		$user = $this->getUserForLogin(trim($login));
 
@@ -379,6 +485,8 @@ class UserSession
 				'remember_me' => $remember_me,
 			];
 
+			$this->close();
+
 			return $this::REQUIRE_OTP;
 		}
 		else
@@ -394,7 +502,7 @@ class UserSession
 		}
 	}
 
-	protected function create($user_id)
+	protected function create($user_id): bool
 	{
 		$user = $this->getUserDataForSession($user_id);
 
@@ -405,27 +513,37 @@ class UserSession
 
 		$this->start(true);
 		$this->user = $_SESSION['userSession'] = $user;
+		$this->close();
 		return true;
 	}
 
-	public function logout()
+	public function logout(bool $all = false)
 	{
+		if ($all && $this->isLogged()) {
+			$this->deleteAllRememberMeSelectors($this->getUser()->id);
+		}
+
 		if ($cookie = $this->getRememberMeCookie())
 		{
-			$this->deleteRememberMeSelector($cookie->selector);
+			if (!$all) {
+				$this->deleteRememberMeSelector($cookie->selector);
+			}
 
-			setcookie($this->remember_me_cookie_name, null, -1, $this->cookie_path,
+			setcookie($this->remember_me_cookie_name, '', -1, $this->cookie_path,
 				$this->cookie_domain, $this->cookie_secure, true);
 			unset($_COOKIE[$this->remember_me_cookie_name]);
 		}
 
 		$this->start(true);
-		$_SESSION = [];
+		session_destroy();
+		$_SESSION = null;
 
-		setcookie($this->cookie_name, null, -1, $this->cookie_path,
+		setcookie($this->cookie_name, '', -1, $this->cookie_path,
 			$this->cookie_domain, $this->cookie_secure, true);
 
 		unset($_COOKIE[$this->cookie_name]);
+
+		$this->user = null;
 
 		return true;
 	}
@@ -488,6 +606,21 @@ class UserSession
 	//////////////////////////////////////////////////////////////////////
 	// "Remember me" feature
 
+	protected function createSelectorValues($user_id, string $user_password, ?string $expiry = null, ?string $selector = null): \stdClass
+	{
+		if (null !== $selector && (!ctype_alnum(str_replace('_', '', $selector)) || strlen($selector) > 64 || strlen($selector) < 10)) {
+			throw new \InvalidArgumentException('Invalid selector');
+		}
+
+		$selector = $selector ?? hash($this::HASH_ALGO, random_bytes(10));
+		$verifier = hash($this::HASH_ALGO, random_bytes(10));
+		$expiry = (new \DateTime)->modify($expiry ?? $this->remember_me_expiry);
+		$expiry = $expiry->getTimestamp();
+
+		$hash = hash($this::HASH_ALGO, $selector . $verifier . $user_password . $expiry);
+		return (object) compact('hash', 'selector', 'expiry', 'verifier');
+	}
+
 	/**
 	 * Creates a permanent "remember me" session
 	 * @link   https://www.databasesandlife.com/persistent-login/
@@ -499,21 +632,26 @@ class UserSession
 	 */
 	protected function createRememberMeSelector($user_id, $user_password)
 	{
-		$selector = hash($this::HASH_ALGO, Security::random_bytes(10));
-		$verifier = hash($this::HASH_ALGO, Security::random_bytes(10));
-		$expiry = (new \DateTime)->modify($this->remember_me_expiry);
-		$expiry = $expiry->getTimestamp();
+		$s = $this->createSelectorValues($user_id, $user_password);
 
-		$hash = hash($this::HASH_ALGO, $selector . $verifier . $user_password . $expiry);
+		$this->storeRememberMeSelector($s->selector, $s->hash, $s->expiry, $user_id);
 
-		$this->storeRememberMeSelector($selector, $hash, $expiry, $user_id);
+		$cookie = $s->selector . '|' . $s->verifier;
 
-		$cookie = $selector . '|' . $verifier;
-
-		setcookie($this->remember_me_cookie_name, $cookie, $expiry,
+		setcookie($this->remember_me_cookie_name, $cookie, $s->expiry,
 			$this->cookie_path, $this->cookie_domain, $this->cookie_secure, true);
 
 		return true;
+	}
+
+	protected function checkRememberMeSelector(\stdClass $selector, string $verifier): bool
+	{
+		// Here we are using the user password. If the user changes his password,
+		// any previously opened session will be invalid.
+		$hash = hash($this::HASH_ALGO, $selector->selector . $verifier . $selector->user_password . $selector->expiry);
+
+		// Check the token hash
+		return hash_equals($selector->hash, $hash);
 	}
 
 	/**
@@ -550,12 +688,8 @@ class UserSession
 		// The selector is useless now, delete it so that it can't be reused
 		$this->deleteRememberMeSelector($cookie->selector);
 
-		// Here we are using the user password. If the user changes his password,
-		// any previously opened session will be invalid.
-		$hash = hash($this::HASH_ALGO, $cookie->selector . $cookie->verifier . $selector->user_password . $selector->expiry);
-
 		// Check the token hash
-		if (!hash_equals($selector->hash, $hash))
+		if (!$this->checkRememberMeSelector($selector, $cookie->verifier))
 		{
 			// If we get there it means that the selector is valid, but not its verifier token hash
 			// Either the cookie has been stolen, then the attacker has obtained a
@@ -610,7 +744,7 @@ class UserSession
 		return !empty($_SESSION['userSessionRequireOTP']);
 	}
 
-	public function loginOTP($code)
+	public function loginOTP(string $code): bool
 	{
 		$this->start();
 

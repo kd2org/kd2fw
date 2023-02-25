@@ -9,6 +9,7 @@
 		this.id = id;
 		this.textarea = document.getElementById(id);
 		this.shortcuts = [];
+		this.supportsExecCommand = null;
 
 		// Browser too old
 		if (!('selectionStart' in this.textarea))
@@ -93,19 +94,46 @@
 
 	textEditor.prototype.replaceSelection = function (selection, replace_str)
 	{
-		var e = this.textarea;
 		var start_pos = selection.start;
 		var end_pos = start_pos + replace_str.length;
-		e.value = e.value.substr(0, start_pos) + replace_str + e.value.substr(selection.end, e.value.length);
+
+		this.setSelection(start_pos, selection.end);
+
+		this.insert(replace_str);
+
 		this.setSelection(start_pos, end_pos);
+
 		return {start: start_pos, end: end_pos, length: replace_str.length, text: replace_str};
+	};
+
+	textEditor.prototype.insert = function (text) {
+		if (this.supportsExecCommand === true) {
+			document.execCommand("insertText", false, text);
+		}
+		else if (this.supportsExecCommand === null) {
+			// We still don't know if document.execCommand("insertText") is supported
+			let value = this.textarea.value;
+
+			document.execCommand("insertText", false, text);
+
+			this.supportsExecCommand = value !== this.textarea.value;
+		}
+
+		if (this.supportsExecCommand === false) {
+			this.textarea.setRangeText(text, this.textarea.selectionStart, this.textarea.selectionEnd, "end");
+		}
+
+		return this.supportsExecCommand;
 	};
 
 	textEditor.prototype.insertAtPosition = function (start_pos, str, new_pos)
 	{
 		var end_pos = start_pos + str.length;
-		var e = this.textarea;
-		e.value = e.value.substr(0, start_pos) + str + e.value.substr(start_pos, e.value.length - start_pos);
+		var sel = this.getSelection();
+
+		this.setSelection(sel.start, sel.end);
+		this.insert(str);
+
 		if (!new_pos) new_pos = end_pos;
 		return this.setSelection(new_pos, new_pos);
 	};

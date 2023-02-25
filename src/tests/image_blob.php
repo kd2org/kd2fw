@@ -1,6 +1,6 @@
 <?php
 
-use KD2\Image_Blob as IB;
+use KD2\Graphics\Blob as IB;
 use KD2\Test;
 
 require __DIR__ . '/_assert.php';

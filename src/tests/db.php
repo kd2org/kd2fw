@@ -1,8 +1,8 @@
 <?php
 
 use KD2\Test;
-use KD2\DB;
-use KD2\DB_SQLite3;
+use KD2\DB\DB;
+use KD2\DB\SQLite3;
 
 require __DIR__ . '/_assert.php';
 
@@ -12,7 +12,7 @@ Test::assert($db instanceof DB);
 
 test_methods($db, PDOException::class);
 
-$db = new DB_SQLite3(':memory:');
+$db = new SQLite3('sqlite', ['file' => ':memory:']);
 test_methods($db, Exception::class);
 
 function test_methods($db, $exception_name)
