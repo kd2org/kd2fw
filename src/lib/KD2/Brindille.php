@@ -860,7 +860,7 @@ class Brindille
 			}
 
 			// If value is supplied, and nothing else is supplied, then use this value
-			if (isset($params['value']) && count($params) == 1) {
+			if (array_key_exists('value', $params) && count($params) == 1) {
 				$prev = $params['value'];
 			}
 			// Same for 'from', but use it as a variable name
