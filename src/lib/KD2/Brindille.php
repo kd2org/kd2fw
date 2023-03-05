@@ -18,7 +18,7 @@ class Brindille
 	// $var.subvar , "quoted string even with \" escape quotes", 'even single quotes'
 	const RE_LITERAL = '\$[\w.]+|"(.*?(?<!\\\\))"|\'(.*?(?<!\\\\))\'';
 
-	const RE_SCALAR = 'null|true|false|\d+|\d+\.\d+';
+	const RE_SCALAR = 'null|true|false|-?\d+|-?\d+\.\d+';
 
 	// Modifier argument: :"string", :$variable.subvar, :42, :false, :null
 	const RE_MODIFIER_ARGUMENTS = '(?::(?:' . self::RE_LITERAL . '|' . self::RE_SCALAR . '))*';
