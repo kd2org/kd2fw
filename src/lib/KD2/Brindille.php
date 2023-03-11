@@ -53,7 +53,7 @@ class Brindille
 		# ignore spaces at start of block
 		\s*
 		# capture block type/name
-		(if|else\s?if|else|endif|literal|
+		(if|else\s?if|else|endif|literal|/literal|
 		# sections, variables, functions, MUST have a valid name
 		[:$#/]([\w._]+)|
 		# quoted strings can be chained to modifiers as well
@@ -350,11 +350,11 @@ class Brindille
 
 	protected function _walk(string $all, ?string $start, string $name, ?string $params, int $line): string
 	{
-		if (!$start && $name == 'literal') {
+		if ($name == 'literal') {
 			$this->_push(self::LITERAL, $name);
 			return '';
 		}
-		elseif ($start == '/' && $name == 'literal') {
+		elseif ($start == '/literal') {
 			if ($this->_lastType() != self::LITERAL) {
 				throw new Brindille_Exception('closing of a literal block that wasn\'t opened');
 			}
