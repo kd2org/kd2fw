@@ -8,7 +8,7 @@ use DateTime;
 
 class JSONSchema
 {
-	const TYPES = ['string', 'array', 'integer', 'object', 'null', 'number', 'bool'];
+	const TYPES = ['string', 'array', 'integer', 'object', 'null', 'number', 'boolean'];
 
 	protected $schema;
 
@@ -71,7 +71,7 @@ class JSONSchema
 		if ('null' === $type && is_null($object)) {
 			return;
 		}
-		elseif ('bool' === $type && is_bool($object)) {
+		elseif ('boolean' === $type && is_bool($object)) {
 			return;
 		}
 		elseif (('integer' === $type || 'number' === $type) && (is_int($object) || is_float($object))) {
@@ -257,7 +257,7 @@ class JSONSchema
 		elseif ($type == 'number' && (is_int($object) || is_float($object))) {
 			return true;
 		}
-		elseif ($type == 'bool' && is_bool($object)) {
+		elseif ($type == 'boolean' && is_bool($object)) {
 			return true;
 		}
 
