@@ -49,6 +49,23 @@ class JSONSchema
 		$this->validate(self::parse($file));
 	}
 
+	public function validateOnly($object, array $keys): void
+	{
+		$rules = clone $this->schema;
+
+		foreach ($rules->properties as $name => $prop) {
+			if (!array_key_exists($name, $keys)) {
+				unset($rules->$name);
+
+				if (isset($rules->required) && false !== ($found = array_search($name, $rules->required))) {
+					unset($rules->required[$found]);
+				}
+			}
+		}
+
+		$this->validate($object, $keys);
+	}
+
 	public function validate($object, $rules = null, $key = null): void
 	{
 		if (null === $rules) {
