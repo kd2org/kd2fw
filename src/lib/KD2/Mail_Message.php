@@ -1161,7 +1161,7 @@ class Mail_Message
 	 */
 	public function isPermanentRejection(string $error_message): ?bool
 	{
-		if (preg_match('/unavailable|doesn\'t\s*have|quota|does\s*not\s*exist|invalid|Unrouteable|unknown|illegal|no\s*such\s*user|blocked|disabled|Relay\s*access\s*denied|not\s*found/i', $error_message))
+		if (preg_match('/unavailable|doesn\'t\s*have|quota|does\s*not\s*exist|invalid|Unrouteable|unknown|illegal|no\s*such\s*user|disabled|Relay\s*access\s*denied|not\s*found/i', $error_message))
 		{
 			return true;
 		}
