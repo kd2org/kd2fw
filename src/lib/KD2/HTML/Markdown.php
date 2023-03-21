@@ -149,6 +149,8 @@ class Markdown extends Parsedown
 		$allowed[] = 'lang';
 		$allowed[] = 'title';
 
+		$style = $attributes['style'] ?? null;
+
 		foreach ($attributes as $key => $value) {
 			if (!in_array($key, $allowed)) {
 				unset($attributes[$key]);
@@ -170,6 +172,15 @@ class Markdown extends Parsedown
 
 			$attributes['referrerpolicy'] = 'no-referrer';
 			$attributes['sandbox'] = 'allow-same-origin allow-scripts';
+			$attributes['frameborder'] = 0;
+
+			if ($style && preg_match('/width:\s*(\d+(?:px|%)?)/', $style, $match)) {
+				$attributes['width'] = $match[1];
+			}
+
+			if ($style && preg_match('/height:\s*(\d+(?:px|%)?)/', $style, $match)) {
+				$attributes['height'] = $match[1];
+			}
 		}
 
 		if (isset($attributes['src'])) {
@@ -1679,6 +1690,10 @@ class Parsedown
 		if (isset($Block['closed']) or isset($Block['interrupted']))
 		{
 			return;
+		}
+
+		if (!isset($Block['element']['rawHtml'])) {
+			$Block['element']['rawHtml'] = '';
 		}
 
 		$Block['element']['rawHtml'] .= "\n" . $Line['body'];
