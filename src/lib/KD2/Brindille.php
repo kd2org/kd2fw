@@ -14,9 +14,15 @@ class Brindille
 
 	const T_VAR = 'var';
 	const T_PARAMS = 'params';
+	const T_SPACE = 'space';
+	const T_SCALAR = 'scalar';
+	const T_OPERATOR = 'operator';
+	const T_ANDOR = 'andor';
+	//const T_OPEN_PARENTHESIS = 'open';
+	//const T_CLOSE_PARENTHESIS = 'close';
 
 	// $var.subvar , "quoted string even with \" escape quotes", 'even single quotes'
-	const RE_LITERAL = '\$[\w.]+|"(.*?(?<!\\\\))"|\'(.*?(?<!\\\\))\'';
+	const RE_LITERAL = '\$[\w.]+|"(?:.*?(?<!\\\\))"|\'(?:.*?(?<!\\\\))\'';
 
 	const RE_SCALAR = 'null|true|false|-?\d+|-?\d+\.\d+';
 
@@ -32,19 +38,23 @@ class Brindille
 	// block parameters
 	const RE_PARAMETERS = '[:\w]+=(?:' . self::RE_VARIABLE . '|' . self::RE_SCALAR . ')';
 
+	const RE_SPACE = '\s+';
+
 	// Tokens allowed in an if statement
 	const TOK_IF_BLOCK = [
-		'>=', '<=', '===', '!==', '==', '!=', '>', '<', '!',
-		'&&', '\|\|', '\(', '\)',
+		self::T_OPERATOR => '(?:>=|<=|===|!==|==|!=|>|<|!)',
+		self::T_ANDOR => '(?:&&|\|\|)',
+		//self::T_OPEN_PARENTHESIS => '\(',
+		//self::T_CLOSE_PARENTHESIS => '\)',
 		self::T_VAR => self::RE_VARIABLE,
-		self::RE_SCALAR,
-		'\s+',
+		self::T_SCALAR => self::RE_SCALAR,
+		self::T_SPACE => self::RE_SPACE,
 	];
 
 	const TOK_VAR_BLOCK = [
 		self::T_VAR => self::RE_VARIABLE,
 		self::T_PARAMS => self::RE_PARAMETERS,
-		'\s+',
+		self::T_SPACE => self::RE_SPACE,
 	];
 
 	const PARSE_PATTERN = '%
@@ -490,12 +500,55 @@ class Brindille
 			$tokens = self::tokenize($params, self::TOK_IF_BLOCK);
 		}
 		catch (\InvalidArgumentException $e) {
-			throw new Brindille_Exception(sprintf('line %d: error in "if" block (%s)', $line, $e->getMessage()));
+			throw new Brindille_Exception(sprintf('Error in "if" block: %s', $e->getMessage()));
 		}
 
 		$code = '';
+		$count = count($tokens);
 
-		foreach ($tokens as $token) {
+		foreach ($tokens as $i => $token) {
+			$prev = null;
+			$next = null;
+
+			for ($j = $i - 1; $j >= 0; $j--) {
+				$prev = $tokens[$j];
+
+				// Skip spaces
+				if ($prev->type === self::T_SPACE) {
+					continue;
+				}
+
+				break;
+			}
+
+			for ($j = $i + 1; $j < $count; $j++) {
+				$next = $tokens[$j];
+
+				// Skip spaces
+				if ($next->type !== self::T_SPACE) {
+					break;
+				}
+			}
+
+			// Validate if condition: a scalar or variable can only follow a non-scalar/variable
+			if ($token->type === self::T_SCALAR || $token->type === self::T_VAR) {
+				if ($prev && ($prev->type === self::T_SCALAR || $prev->type === self::T_VAR)) {
+					throw new Brindille_Exception(sprintf('Error in "if" block: unexpected "%s" after "%s" at position %d', $token->value, $prev->value, $token->offset));
+				}
+			}
+			elseif ($token->type === self::T_OPERATOR && $token->value === '!') {
+				if (!$next || ($next->type !== self::T_VAR && $next->type !== self::T_SCALAR)) {
+					throw new Brindille_Exception(sprintf('Error in "if" block: unexpected operator "%s" before "%s" at position %d', $token->value, $prev->value, $token->offset));
+				}
+			}
+			// a non-scalar/variable can only follow a variable/scalar value
+			// eg. "$var && $var === 1" is correct, but "$var && && 1" is not
+			elseif ($token->type !== self::T_SPACE) {
+				if ($prev && !($prev->type === self::T_SCALAR || $prev->type === self::T_VAR)) {
+					throw new Brindille_Exception(sprintf('Error in "if" block: unexpected "%s" after "%s" at position %d', $token->value, $prev->value, $token->offset));
+				}
+			}
+
 			if ($token->type === self::T_VAR) {
 				$code .= $this->_variable($token->value, false, $line);
 			}
