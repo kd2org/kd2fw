@@ -63,7 +63,7 @@ class JSONSchema
 			}
 		}
 
-		$this->validate($object, $keys);
+		$this->validate($object, $rules);
 	}
 
 	public function validate($object, $rules = null, $key = null): void
@@ -217,7 +217,7 @@ class JSONSchema
 		if (isset($rules->required)) {
 			foreach ($rules->required as $required) {
 				if (!property_exists($object, $required)) {
-					throw new \RuntimeException(sprintf('%s: the "%s" property is required but missing', $name, $required));
+					throw new \RuntimeException(sprintf('%s: the "%s" property is required but is missing', $name, $required));
 				}
 			}
 		}
@@ -242,7 +242,7 @@ class JSONSchema
 	{
 		foreach ($types as $type) {
 			if (!in_array($type, self::TYPES, true)) {
-				throw new \RuntimeException('%s: unknown types "%s"', $name, $type);
+				throw new \RuntimeException(sprintf('%s: unknown types "%s"', $name, $type));
 			}
 
 			if ($this->checkType($type, $object)) {
