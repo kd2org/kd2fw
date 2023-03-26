@@ -10,21 +10,45 @@ use DOMNode;
 
 
 /**
+ * This class takes one or more HTML tables, and convert them to a single ODS document.
+ *
+ * - a basic set of CSS properties are supported!
+ * - colspan (but not rowspan)
+ * - automatic column width
+ * - custom CSS properties
+ * - each table is handled as a sheet, the <caption> will act as the name of the sheet
+ * - detection of cell type, or force cell type using '-spreadsheet-cell-type'
+ *
+ * What is NOT supported:
+ * - rowspan
+ * - formulas
+ *
+ * Usage: $ods = new TableToODS; $ods->import('<table...</table>'); $ods->save('file.ods');
+ *
  * Supported CSS properties:
- * 'initial' value
- * font-style: italic
- * font-weight: bold
- * font-size: XXpt
- * color: #aabbcc
- * background-color: #aabbcc
- * text-align: left|center|right
- * vertical-align: top|middle|bottom
- * padding: XXmm
- * border[-left/right/bottom/top]: none|0.06pt solid #aabbcc
- * wrap: wrap|nowrap
- * hyphens: auto|none
- * transform: rotate(90deg)
- * -spreadsheet-cell-type: number|
+ * - the following color names: black, white, red, green, blue, yellow, magenta, cyan
+ * - 'initial' value to restore to default
+ * - font-style: italic
+ * - font-weight: bold
+ * - font-size: XXpt
+ * - color: #aabbcc|name
+ * - background-color: #aabbcc|name
+ * - text-align: left|center|right
+ * - vertical-align: top|middle|bottom
+ * - padding: XXmm
+ * - border[-left|-right|-bottom|-top]: none|0.06pt solid #aabbcc|color
+ * - wrap: wrap|nowrap
+ * - hyphens: auto|none
+ * - transform: rotate(90deg)
+ *
+ * Other properties, as well as units (eg. '2em', '99%', etc.), are not
+ * supported and might end up in weird results.
+ *
+ * This supports a number of custom CSS properties (note the leading dash '-').
+ * See TableToODS::CUSTOM_CSS_PROPERTIES for details.
+ * Note that those properties are also cascading.
+ *
+ * @author bohwaz <https://bohwaz.net/>
  */
 class TableToODS
 {
@@ -43,22 +67,41 @@ class TableToODS
 	];
 
 	const CUSTOM_CSS_PROPERTIES = [
+		// Which language is the spreadsheet document in?
 		// fr-BE, en_AU, etc.
 		'-spreadsheet-locale',
-		// auto, string, currency, date, number, percentage
+
+		// Force the type of the cell
+		// auto (default), string, currency, date, number, percentage
+		// 'auto' means the type will be detected as best as we can (see ::getCellType)
 		'-spreadsheet-cell-type',
-		// see https://unicode-org.github.io/icu/userguide/format_parse/date/#date-field-symbol-table
-		// or one of the strings in DATE_FORMATS array
+
+		// Force the displayed date format of dates
+		// Default is 'short'
+		// The format may be one of the strings in ::DATE_FORMATS array, or any ICU format:
+		// https://unicode-org.github.io/icu/userguide/format_parse/date/#date-field-symbol-table
 		'-spreadsheet-date-format',
+
+		// Force the display of the number
+		// Default is 'float'
 		// integer, float, percentage_integer, percentage_float
 		'-spreadsheet-number-format',
-		// EUR, GBP
+
+		// Force the currency of the number
+		// EUR (default), GBP, etc.
 		'-spreadsheet-currency',
-		// €, $, etc.
+
+		// Force the currency symbol
+		// € (default if currency is EUR), $, etc.
 		'-spreadsheet-currency-symbol',
+
+		// Force the position of the currency symbol, to place it before or after the number
 		// 'prefix' (default) or 'suffix'
 		'-spreadsheet-currency-position',
-		// true or false
+
+		// Name of the text color for a negative number,
+		// or 'none' to disable coloring negative numbers
+		// Supported color names: black, white, red, green, blue, yellow, magenta, cyan
 		'-spreadsheet-number-negative-color'
 	];
 
@@ -273,19 +316,21 @@ class TableToODS
 			return $type;
 		}
 
+		$number_value = str_replace([' ', "\xC2\xA0"], '', trim($value));
+
 		if (is_object($value) && $value instanceof \DateTimeInterface) {
 			return 'date';
 		}
-		elseif (is_int($value) || is_float($value) || (substr((string) $value, 0, 1) != '0' && preg_match('/^-?\d+(?:[,.]\d+)?$/', (string) $value))) {
+		elseif (is_int($value) || is_float($value) || (substr((string) $number_value, 0, 1) != '0' && preg_match('/^-?\d+(?:[,.]\d+)?$/', (string) $number_value))) {
 			return 'number';
 		}
 		elseif (preg_match('!^(?:\d\d?/\d\d?/\d\d(?:\d\d)?|\d{4}-\d{2}-\d{2})(?:\s+\d\d?[:\.]\d\d?(?:[:\.]\d\d?))?$!', $value)) {
 			return 'date';
 		}
-		elseif (preg_match('/^-?\d+(?:[,.]\d+)?\s*%$/', trim($value))) {
+		elseif (preg_match('/^-?\d+(?:[,.]\d+)?\s*%$/', $number_value)) {
 			return 'percentage';
 		}
-		elseif (preg_match('/^-?\d+(?:[,.]\d+)?\s*(?:€|\$|EUR|CHF)$/', trim($value))) {
+		elseif (preg_match('/^-?\d+(?:[,.]\d+)?\s*(?:€|\$|EUR|CHF)$/', $number_value)) {
 			return 'currency';
 		}
 

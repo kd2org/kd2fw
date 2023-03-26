@@ -6,6 +6,17 @@ use DOMDocument;
 use DOMNode;
 use DOMXPath;
 
+/**
+ * Converts the first HTML table of a document to CSV
+ *
+ * - only the first table is handled
+ * - colspan is supported
+ * - rowspan is *NOT* supported
+ *
+ * Usage: $csv = new TableToCSV; $csv->import('<table...</table>'); $csv->save('file.csv');
+ *
+ * @author bohwaz <https://bohwaz.net/>
+ */
 class TableToCSV
 {
 	protected string $csv = '';
@@ -25,6 +36,7 @@ class TableToCSV
 
 		foreach ($this->xpath($doc, './/table') as $i => $table) {
 			$this->add($table, $i);
+			break; // We only support the first table currently
 		}
 
 		unset($doc);
