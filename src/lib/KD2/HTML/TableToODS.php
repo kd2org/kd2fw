@@ -175,76 +175,88 @@ class TableToODS
 				}
 
 				/*
+				// FIXME: support rowspan
 				if ($rowspan = $cell->getAttribute('rowspan')) {
 					$this->xml .= sprintf(' table:number-rows-spanned="%d"', $rowspan);
 				}
 				*/
-				$number_value = str_replace(' ', '', $cell->getAttribute('data-spreadsheet-number') ?: $value);
 
-				if (preg_match('/^-?\d+(?:[,.]\d+)?$/', $number_value)) {
-					$number_value = str_replace(',', '.', $value);
+				if ($value === '') {
+					// Handle empty cells
+					$column_width = 10;
+					$rows .= '>';
 				}
 				else {
-					$number_value = null;
-				}
+					// Remove space and non-breaking space
+					$number_value = str_replace([' ', "\xC2\xA0"], '', $cell->getAttribute('data-spreadsheet-number') ?: $value);
 
-				if ($type == 'date'
-					&& ($date = strtotime($cell->getAttribute('data-spreadsheet-date') ?: $value)))
-				{
-					$format = !intval(date('His', $date)) ? 'Y-m-d' : 'Y-m-d\TH:i:s';
-					$rows .= sprintf(' calcext:value-type="date" office:date-value="%s" office:value-type="date" ', date($format, $date));
-				}
-				elseif ($type == 'percentage' && null !== $number_value) {
-					$rows .= sprintf(' office:value-type="percentage" office:value="%f" calcext:value-type="percentage"', $number_value / 100);
-				}
-				elseif ($type == 'currency' && null !== $number_value) {
-					$currency = $styles['-spreadsheet-currency'] ?? 'EUR';
-					$rows .= sprintf(' office:value-type="currency" office:currency="%s" office:value="%f" calcext:value-type="currency"', $currency, $number_value);
-				}
-				elseif ($type == 'number' && null !== $number_value) {
-					$rows .= sprintf(' calcext:value-type="float" office:value="%f" office:value-type="float"', $number_value);
-				}
-				else {
-					$rows .= ' calcext:value-type="string" office:value-type="string"';
-				}
+					if (preg_match('/^-?\d+(?:[,.]\d+)?$/', $number_value)) {
+						$number_value = str_replace(',', '.', $number_value);
+					}
+					else {
+						$number_value = null;
+					}
 
-				$rows .= '>';
+					if ($type == 'date'
+						&& ($date = strtotime($cell->getAttribute('data-spreadsheet-date') ?: $value)))
+					{
+						$format = !intval(date('His', $date)) ? 'Y-m-d' : 'Y-m-d\TH:i:s';
+						$rows .= sprintf(' calcext:value-type="date" office:date-value="%s" office:value-type="date" ', date($format, $date));
+					}
+					elseif ($type == 'percentage' && null !== $number_value) {
+						$rows .= sprintf(' office:value-type="percentage" office:value="%f" calcext:value-type="percentage"', $number_value / 100);
+					}
+					elseif ($type == 'currency' && null !== $number_value) {
+						$currency = $styles['-spreadsheet-currency'] ?? 'EUR';
+						$rows .= sprintf(' office:value-type="currency" office:currency="%s" office:value="%f" calcext:value-type="currency"', $currency, $number_value);
+					}
+					elseif ($type == 'number' && null !== $number_value) {
+						$rows .= sprintf(' calcext:value-type="float" office:value="%f" office:value-type="float"', $number_value);
+					}
+					else {
+						$rows .= ' calcext:value-type="string" office:value-type="string"';
+					}
 
-				// get innerhtml
-				$html = implode(array_map([$cell->ownerDocument,"saveHTML"], iterator_to_array($cell->childNodes)));
+					$rows .= '>';
 
-				// Break in multiple lines if required
-				$html = preg_replace("/[\n\r]/", '', $html);
-				$html = preg_replace('/<br[^>]*>/U', "\n", $html);
-				$html = strip_tags($html);
-				$html = html_entity_decode($html);
-				$html = explode("\n", trim($html));
+					// get innerhtml
+					$html = implode(array_map([$cell->ownerDocument,"saveHTML"], iterator_to_array($cell->childNodes)));
 
-				$column_width = 0;
+					// Break in multiple lines if required
+					$html = preg_replace("/[\n\r]/", '', $html);
+					$html = preg_replace('/<br[^>]*>/U', "\n", $html);
+					$html = strip_tags($html);
+					$html = html_entity_decode($html);
+					$html = explode("\n", trim($html));
 
-				foreach ($html as $line)
-				{
-					$rows .= sprintf('<text:p>%s</text:p>', htmlspecialchars($line, ENT_XML1, 'UTF-8'));
+					$column_width = 0;
 
-					if (!$colspan) {
-						$cell_width = $this->getCellWidth($line, $styles);
+					foreach ($html as $line)
+					{
+						$rows .= sprintf('<text:p>%s</text:p>', htmlspecialchars($line, ENT_XML1, 'UTF-8'));
 
-						if ($cell_width > $column_width) {
-							$column_width = $cell_width;
+						if (!$colspan) {
+							$cell_width = $this->getCellWidth($line, $styles);
+
+							if ($cell_width > $column_width) {
+								$column_width = $cell_width;
+							}
 						}
 					}
 				}
 
-				if ($column_width > ($columns_widths[$index] ?? 0)) {
+				if ($column_width > ($columns_widths[$index] ?? -1)) {
 					$columns_widths[$index] = $column_width;
 				}
 
 				$rows .= '</table:table-cell>' . $end;
-				$index .= $colspan ?: 1;
+				$index += $colspan ?: 1;
 			}
 
 			$rows .= '</table:table-row>';
 		}
+
+		ksort($columns_widths);
 
 		foreach ($columns_widths as $width) {
 			$name = $this->newStyle('column', ['break-before' => 'auto', 'column-width' => $width . 'pt']);
