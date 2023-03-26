@@ -18,6 +18,9 @@ use DOMNode;
  * - custom CSS properties
  * - each table is handled as a sheet, the <caption> will act as the name of the sheet
  * - detection of cell type, or force cell type using '-spreadsheet-cell-type'
+ * - provide the real number via the "data-spreadsheet-number" HTML attribute
+ *   (eg. if the number is displayed as a graph, or something like that)
+ * - provide the real date via the "data-spreadsheet-date" attribute
  *
  * What is NOT supported:
  * - rowspan
