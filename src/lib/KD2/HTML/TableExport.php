@@ -17,6 +17,9 @@ class TableExport
 		elseif ('xlsx' == $format) {
 		}
 		elseif ('csv' == $format) {
+			header('Content-type: application/csv');
+			header(sprintf('Content-Disposition: attachment; filename="%s.csv"', $name));
+			self::toCSV('php://output', $html);
 		}
 		else {
 			throw new \InvalidArgumentException('Invalid format: ' . $format);
@@ -28,5 +31,12 @@ class TableExport
 		$ods = new TableToODS;
 		$ods->import($html, $css);
 		$ods->save($output);
+	}
+
+	static public function toCSV(string $output, string $html): void
+	{
+		$csv = new TableToCSV;
+		$csv->import($html);
+		$csv->save($output);
 	}
 }
