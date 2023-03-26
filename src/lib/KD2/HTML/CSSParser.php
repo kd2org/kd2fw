@@ -278,7 +278,12 @@ class CSSParser
 
 			foreach ($selector as $part) {
 				preg_match_all('/\.[_a-zA-Z]+[_a-zA-Z0-9-]*|#[_a-zA-Z]+[\_a-zA-Z0-9-]*|[0-9A-Za-z]+/', $part, $match, PREG_PATTERN_ORDER);
-				$part = ['classes' => [], 'name' => '', 'id' => ''];
+				$part = [
+					'classes' => [],
+					'name' => '',
+					'id' => '',
+					//'selector' => implode(' ', $selector), // Useful for debug
+				];
 
 				foreach ($match[0] as $m) {
 					if (substr($m, 0, 1) == '.') {
@@ -376,14 +381,16 @@ class CSSParser
 	 * Return all CSS declarations applying specifically to a node
 	 * (not including inherited properties from parents)
 	 */
-	public function match(DOMElement $node): array
+	public function match(DOMElement $search_node): array
 	{
 		$declarations = [];
 
-		foreach ($this->declarations as $declaration) {
-			foreach ($declaration['selectors'] as $selector) {
-				$last = array_pop($selector);
+		foreach ($this->declarations as &$declaration) {
+			foreach ($declaration['selectors'] as &$selector) {
+				$last = end($selector);
+				$node = $search_node;
 
+				// See if last item in selector matches node
 				if (!$this->matchSelector($node, $last)) {
 					continue;
 				}
@@ -391,7 +398,7 @@ class CSSParser
 				// Try to match parent selectors (if any)
 				// For each parent selector, we try to match parent nodes with this selector
 				// until we run out of selectors or parent nodes
-				while ($last = array_pop($selector)) {
+				while ($last = prev($selector)) {
 					$parent = $node;
 					while ($parent = $parent->parentNode) {
 						if ($this->matchSelector($parent, $last)) {
@@ -408,6 +415,8 @@ class CSSParser
 				$declarations[] = $declaration;
 			}
 		}
+
+		unset($declaration, $selector);
 
 		return $declarations;
 	}
@@ -435,7 +444,6 @@ class CSSParser
 		foreach ($declarations as $declaration) {
 			$properties = array_merge($declaration['properties'], $properties);
 		}
-
 
 		return $properties;
 	}
