@@ -2038,7 +2038,7 @@ class Parsedown
 				$Elements[] = $this->extractElement($Inline);
 
 				# remove the examined text
-				$text = substr($text, $Inline['position'] + $Inline['extent']);
+				$text = substr($text, $Inline['position'] + ($Inline['extent'] ?? 0));
 
 				continue 2;
 			}
