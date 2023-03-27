@@ -266,7 +266,8 @@ class ZipWriter
 
 	protected function encodeFilename(string $original): array
 	{
-		if (!preg_match('//u', $original)) {
+		// For epub/opendocument files
+		if (!preg_match('//u', $original) || $original == 'mimetype') {
 			return [$original, ''];
 		}
 
