@@ -23,21 +23,18 @@ namespace KD2;
 
 use LogicException;
 use RuntimeException;
-use Phar;
-use PharData;
-use FilesystemIterator;
 
 /**
  * Very simple ZIP Archive reader
- * Uses PharData
  *
  * for specs see http://www.pkware.com/appnote
+ * @see https://github.com/splitbrain/php-archive/blob/460c20518033e8478d425c48e7bb0bd348b10486/src/Zip.php
  */
 class ZipReader
 {
-	protected ?PharData $phar;
-	protected string $file;
-	protected string $path;
+	protected $fp = null;
+	protected ?array $entries;
+	protected bool $close = false;
 
 	/**
 	 * Max. allowed uncompressed size: 5 GB
@@ -58,20 +55,24 @@ class ZipReader
 
 	protected bool $security_check = true;
 
-	/**
-	 * Create a new ZIP file
-	 *
-	 * @param string $file
-	 * @throws RuntimeException
-	 */
-	public function __construct(string $file)
+	public function setPointer($fp)
 	{
-		if (!is_readable($file))
-		{
+		$this->fp = $fp;
+		$this->entries = null;
+
+		if ($this->security_check) {
+			$this->securityCheck();
+		}
+	}
+
+	public function open(string $file)
+	{
+		if (!is_readable($file)) {
 			throw new RuntimeException('Could not open ZIP file for reading: ' . $file);
 		}
 
-		$this->file = $file;
+		$this->setPointer(fopen($file, 'rb'));
+		$this->close = true;
 	}
 
 	public function setMaxUncompressedSize(int $size): void
@@ -94,35 +95,16 @@ class ZipReader
 		$this->security_check = $enable;
 	}
 
-	protected function phar(): PharData
-	{
-		if (!isset($this->phar)) {
-			$this->phar = new PharData($this->file,
-				FilesystemIterator::CURRENT_AS_FILEINFO | FilesystemIterator::KEY_AS_PATHNAME
-				| FilesystemIterator::SKIP_DOTS | FilesystemIterator::UNIX_PATHS,
-				null,
-				Phar::ZIP);
-
-			$this->path = dirname($this->phar->getPathName());
-
-			if ($this->security_check) {
-				$this->securityCheck();
-			}
-		}
-
-		return $this->phar;
-	}
-
 	public function securityCheck(): void
 	{
 		$size = 0;
 		$files = 0;
 		$levels = 0;
 
-		foreach ($this->iterate() as $path => $file) {
-			$size += $file->getSize();
+		foreach ($this->iterate() as $file) {
+			$size += $file['size'];
 			$files++;
-			$levels = max($levels, substr_count($path, '/'));
+			$levels = max($levels, substr_count($file['filename'], '/'));
 
 			if ($size > $this->max_size) {
 				throw new \OutOfBoundsException(sprintf('Uncompressed size is larger than max. allowed (%d bytes).', $this->max_size));
@@ -138,33 +120,53 @@ class ZipReader
 		}
 	}
 
-	public function __destruct()
-	{
-		$this->phar = null;
-	}
-
 	public function iterate(): \Generator
 	{
-		$phar = $this->phar();
-		$parent_l = strlen($this->path);
-		foreach (new \RecursiveIteratorIterator($phar) as $path => $file) {
-			$relative_path = substr($path, $parent_l + 1);
-			yield $relative_path => $file;
+		if (isset($this->entries)) {
+			yield from $this->entries;
+			return;
+		}
+
+		$centd = $this->readCentralDir();
+
+		@rewind($this->fp);
+		@fseek($this->fp, $centd['offset']);
+
+		for ($i = 0; $i < $centd['entries']; $i++) {
+			$header = $this->readCentralFileHeader();
+
+			$prev_pos = ftell($this->fp);
+			fseek($this->fp, $header['offset']);
+
+			// Use local file header
+			$header = $this->readFileHeader($header);
+			$header['start'] = ftell($this->fp);
+
+			fseek($this->fp, $prev_pos);
+
+			$this->entries[] = $header;
+			yield $header;
 		}
 	}
 
 	public function fetch(string $path): string
 	{
-		return file_get_contents($this->phar()[$path]);
+		foreach ($this->iterate() as $file) {
+			if ($file['filename'] === $path) {
+				return $this->_extract($file);
+			}
+		}
+
+		throw new \InvalidArgumentException('Cannot find file in archive:' . $path);
 	}
 
-	public function extract(string $destination_dir): int
+	public function extractTo(string $destination_dir): int
 	{
-		$count = 0;
+		$cout = 0;
 
-		foreach ($this->iterate() as $path => $file) {
-			$dest = $destination_dir . str_replace('/', DIRECTORY_SEPARATOR, $path);
-			copy($file->pathName(), $dest);
+		foreach ($this->iterate() as $file) {
+			$dest = $destination_dir . str_replace('/', DIRECTORY_SEPARATOR, $file['filename']);
+			$this->_extract($file, $dest);
 			$count++;
 		}
 
@@ -176,9 +178,228 @@ class ZipReader
 		$size = 0;
 
 		foreach ($this->iterate() as $file) {
-			$size += $file->getSize();
+			$size += $file->size;
 		}
 
 		return $size;
+	}
+
+
+	protected function _extract(array $header, ?string $destination = null): ?string
+	{
+		fseek($this->fp, $header['start']);
+
+		if ($destination) {
+			$out = fopen($destination, 'wb');
+		}
+		else {
+			$str = '';
+		}
+
+		if ($header['compression'] != 0) {
+			$filter = stream_filter_append($this->fp, 'zlib.inflate', \STREAM_FILTER_READ);
+		}
+
+		$limit = $header['size'];
+		$offset = 0;
+
+		while ($offset < $limit) {
+			$length = min(8192, $limit - $offset);
+			$buffer = fread($this->fp, $length);
+
+			if ($buffer === false) {
+				throw new \RuntimeException(sprintf('Error reading the contents of entry "%s".', $header['filename']));
+			}
+
+			if ($destination) {
+				fwrite($out, $buffer);
+			}
+			else {
+				$str .= $buffer;
+			}
+
+			$offset += $length;
+		}
+
+		if ($header['compression'] != 0) {
+			stream_filter_remove($filter);
+		}
+
+		if ($destination) {
+			fclose($out);
+			return null;
+		}
+		else {
+			return $str;
+		}
+	}
+
+	protected function readCentralFileHeader(): array
+	{
+        $binary_data = fread($this->fp, 46);
+        $header      = unpack(
+            'vchkid/vid/vversion/vversion_extracted/vflag/vcompression/vmtime/vmdate/Vcrc/Vcompressed_size/Vsize/vfilename_len/vextra_len/vcomment_len/vdisk/vinternal/Vexternal/Voffset',
+            $binary_data
+        );
+
+		if ($header['filename_len'] != 0) {
+			$header['filename'] = fread($this->fp, $header['filename_len']);
+		} else {
+			$header['filename'] = '';
+		}
+
+		if ($header['extra_len'] != 0) {
+			$header['extra'] = fread($this->fp, $header['extra_len']);
+			$header['extradata'] = $this->parseExtra($header['extra']);
+		} else {
+			$header['extra'] = '';
+			$header['extradata'] = [];
+		}
+
+		if ($header['comment_len'] != 0) {
+			$header['comment'] = fread($this->fp, $header['comment_len']);
+		} else {
+			$header['comment'] = '';
+		}
+
+		$header['mtime'] = $this->makeUnixTime($header['mdate'], $header['mtime']);
+
+		if (substr($header['filename'], -1) == '/') {
+			$header['external'] = 0x41FF0010;
+		}
+
+		$header['dir'] = ($header['external'] == 0x41FF0010 || $header['external'] == 16) ? 1 : 0;
+		return $header;
+	}
+
+	protected function readFileHeader(array $header)
+	{
+		$binary_data = fread($this->fp, 30);
+		$data        = unpack(
+			'vchk/vid/vversion/vflag/vcompression/vmtime/vmdate/Vcrc/Vcompressed_size/Vsize/vfilename_len/vextra_len',
+			$binary_data
+		);
+
+		$header['filename'] = fread($this->fp, $data['filename_len']);
+
+		if ($data['extra_len'] != 0) {
+			$header['extra'] = fread($this->fp, $data['extra_len']);
+			$header['extradata'] = array_merge($header['extradata'],  $this->parseExtra($header['extra']));
+		} else {
+			$header['extra'] = '';
+			$header['extradata'] = array();
+		}
+
+		$header['compression'] = $data['compression'];
+
+		// On ODT files, these headers are 0. Keep the previous value.
+		foreach (['size', 'compressed_size', 'crc'] as $hd) {
+			if ($data[$hd] != 0) {
+				$header[$hd] = $data[$hd];
+			}
+		}
+
+		$header['flag']  = $data['flag'];
+		$header['mtime'] = $this->makeUnixTime($data['mdate'], $data['mtime']);
+		$header['folder'] = ($header['external'] == 0x41FF0010 || $header['external'] == 16) ? 1 : 0;
+		return $header;
+	}
+
+	protected function parseExtra($header)
+	{
+		$extra = [];
+
+		// parse all extra fields as raw values
+		while (strlen($header) !== 0) {
+			$set = unpack('vid/vlen', $header);
+			$header = substr($header, 4);
+			$value = substr($header, 0, $set['len']);
+			$header = substr($header, $set['len']);
+			$extra[$set['id']] = $value;
+		}
+
+		// handle known ones
+		if(isset($extra[0x6375])) {
+			$extra['utf8comment'] = substr($extra[0x7075], 5); // strip version and crc
+		}
+
+		if(isset($extra[0x7075])) {
+			$extra['utf8path'] = substr($extra[0x7075], 5); // strip version and crc
+		}
+
+		return $extra;
+	}
+
+	protected function cpToUtf8($string)
+	{
+		if (function_exists('iconv') && @iconv_strlen('', 'CP437') !== false) {
+			return iconv('CP437', 'UTF-8', $string);
+		} elseif (function_exists('mb_convert_encoding')) {
+			return mb_convert_encoding($string, 'UTF-8', 'CP850');
+		} else {
+			return $string;
+		}
+	}
+
+	protected function makeUnixTime($mdate = null, $mtime = null)
+	{
+		if ($mdate && $mtime) {
+			$year = (($mdate & 0xFE00) >> 9) + 1980;
+			$month = ($mdate & 0x01E0) >> 5;
+			$day = $mdate & 0x001F;
+
+			$hour = ($mtime & 0xF800) >> 11;
+			$minute = ($mtime & 0x07E0) >> 5;
+			$seconde = ($mtime & 0x001F) << 1;
+
+			return mktime($hour, $minute, $seconde, $month, $day, $year);
+		}
+		else {
+			return null;
+		}
+	}
+
+	protected function readCentralDir()
+	{
+		fseek($this->fp, 0, SEEK_END);
+		$size = ftell($this->fp);
+		rewind($this->fp);
+
+		if ($size < 277) {
+			$maximum_size = $size;
+		} else {
+			$maximum_size = 277;
+		}
+
+		@fseek($this->fp, $size - $maximum_size);
+		$pos   = ftell($this->fp);
+		$bytes = 0x00000000;
+
+		while ($pos < $size) {
+			$byte  = @fread($this->fp, 1);
+			$bytes = (($bytes << 8) & 0xFFFFFFFF) | ord($byte);
+			if ($bytes == 0x504b0506) {
+				break;
+			}
+			$pos++;
+		}
+
+		$data = unpack(
+			'vdisk/vdisk_start/vdisk_entries/ventries/Vsize/Voffset/vcomment_size',
+			fread($this->fp, 18)
+		);
+
+		if ($data['comment_size'] != 0) {
+			$data['comment'] = fread($this->fp, $data['comment_size']);
+		}
+
+		return $data;
+	}
+
+	public function __destruct()
+	{
+		if ($this->fp && $this->close) {
+			@fclose($this->fp);
+		}
 	}
 }
