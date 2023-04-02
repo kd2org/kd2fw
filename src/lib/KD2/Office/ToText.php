@@ -21,6 +21,8 @@
 
 namespace KD2\Office;
 
+use KD2\ZipReader;
+
 /**
  * OpenDocument converter to plain text
  * This is mostly a PHP port from ODT2TXT
@@ -28,53 +30,114 @@ namespace KD2\Office;
  */
 class ToText
 {
-	static public function fromFile(string $file): string
+	static public function readZipFileFromPointer($fp, string $search_filename): ?string
+	{
+		$zip = new ZipReader;
+		$zip->setPointer($fp);
+
+		try {
+			return $zip->fetch($search_filename);
+		}
+		catch (\InvalidArgumentException $e) {
+			return null;
+		}
+	}
+
+	static public function from(array $source): ?string
+	{
+		if (isset($source['path'])) {
+			return self::fromPath($source['path']);
+		}
+		elseif (isset($source['pointer'])) {
+			return self::fromPointer($source['pointer']);
+		}
+		elseif (isset($source['string'])) {
+			return self::fromString($source['string']);
+		}
+
+		return null;
+	}
+
+	static public function fromPath(string $file): ?string
 	{
 		$fp = fopen($file, 'rb');
-
 		$header = fread($fp, 4);
 
-		if ($header == "PK\003\004") {
+		try {
+			$out = self::fromPointer($fp);
+			return $out;
+		}
+		finally {
 			fclose($fp);
-			$phar = new \PharData($file, FilesystemIterator::CURRENT_AS_FILEINFO | FilesystemIterator::KEY_AS_PATHNAME
-				| FilesystemIterator::SKIP_DOTS | FilesystemIterator::UNIX_PATHS,
-				null,
-				Phar::ZIP
-			);
+		}
+	}
 
-			if (empty($phar['content.xml'])) {
-				throw new \InvalidArgumentException('Specified file is not a valid OpenDocument file.');
+	static public function fromPointer($fp): ?string
+	{
+		fseek($fp, 0, SEEK_SET);
+		$header = fread($fp, 4);
+		fseek($fp, 0, SEEK_SET);
+
+		if ($header == "PK\003\004") {
+			$contents = self::readZipFileFromPointer($fp, 'content.xml');
+
+			if (empty($contents)) {
+				return null;
 			}
-
-			$contents = file_get_contents($phar['content.xml']);
-			unset($phar);
 		}
 		elseif ($header == '<?xm') {
 			// FODT format (raw)
-			fseek($fp, 0, SEEK_SET);
 			$contents = '';
 
 			while (!feof($fp)) {
 				$contents .= fgets($fp, 8192);
 			}
 
-			fclose($fp);
-
-			if ($pos = strpos($contents, '<office:body>')) {
-				$contents = substr($contents, $pos);
-			}
-
-			/* remove binary */
-			$contents = preg_replace('!<office:binary-data>[^>]*</office:binary-data>!', '', $contents);
+			return self::fromFlatXML($contents);
 		}
 		else {
-			throw new \InvalidArgumentException('Specified file is not a valid OpenDocument file.');
+			return null;
 		}
 
-		return self::fromString($contents);
+		return self::convert($contents);
 	}
 
-	static public function fromString(string $contents): string
+	static public function fromFlatXML(string $contents): string
+	{
+		if ($pos = strpos($contents, '<office:body>')) {
+			$contents = substr($contents, $pos);
+		}
+
+		/* remove binary */
+		$contents = preg_replace('!<office:binary-data>[^>]*</office:binary-data>!', '', $contents);
+
+		return self::convert($contents);
+	}
+
+	static public function fromString(string $str): ?string
+	{
+		$header = substr($str, 0, 4);
+
+		if ($header == '<?xm') {
+			return self::fromFlatXML($str);
+		}
+		elseif ($header == "PK\003\004") {
+			$fp = fopen('php://temp', 'w');
+			fputs($fp, $str);
+
+			try {
+				return self::fromPointer($fp);
+			}
+			finally {
+				fclose($fp);
+			}
+		}
+		else {
+			return null;
+		}
+	}
+
+	static public function convert(string $contents): string
 	{
         /* remove soft-page-breaks. We don't need them and they may disturb later decoding */
         $contents = str_replace('<text:soft-page-break/>', '', $contents);
@@ -111,7 +174,7 @@ class ToText
 		/* remove large vertical spaces */
 		$contents = preg_replace("!\n{3,}!", "\n\n", $contents);
 
-		$contents = htmlspecialchars_decode($contents);
+		$contents = html_entity_decode($contents, ENT_QUOTES | ENT_XHTML, 'UTF-8');
 
 		$contents = trim($contents);
 
