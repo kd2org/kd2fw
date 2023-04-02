@@ -798,7 +798,7 @@ class TableToODS
 	{
 		$font_size = $this->getFontSize($styles['font-size'] ?? '10pt');
 
-		$width = mb_strlen($line) * 7;
+		$width = mb_strlen($line) * 8;
 		$width = $width * $font_size / 11;
 
 		// The size is different if text is rotated
