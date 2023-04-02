@@ -27,22 +27,10 @@ use KD2\ZipReader;
  * OpenDocument converter to plain text
  * This is mostly a PHP port from ODT2TXT
  * @see https://github.com/dstosberg/odt2txt/blob/master/odt2txt.c
+ * @see https://github.com/ankushshah89/python-docx2txt/blob/master/docx2txt/docx2txt.py
  */
 class ToText
 {
-	static public function readZipFileFromPointer($fp, string $search_filename): ?string
-	{
-		$zip = new ZipReader;
-		$zip->setPointer($fp);
-
-		try {
-			return $zip->fetch($search_filename);
-		}
-		catch (\InvalidArgumentException $e) {
-			return null;
-		}
-	}
-
 	static public function from(array $source): ?string
 	{
 		if (isset($source['path'])) {
@@ -79,9 +67,32 @@ class ToText
 		fseek($fp, 0, SEEK_SET);
 
 		if ($header == "PK\003\004") {
-			$contents = self::readZipFileFromPointer($fp, 'content.xml');
+			$zip = new ZipReader;
+			$zip->setPointer($fp);
 
-			if (empty($contents)) {
+			// OpenDocument
+			if ($zip->has('mimetype') && ($contents = $zip->fetch('content.xml'))) {
+				return self::convertOpenDocument($contents);
+			}
+			// DOCX/MS Word
+			elseif ($contents = $zip->fetch('word/document.xml')) {
+				return self::convertDOCX($contents);
+			}
+			elseif ($contents = $zip->fetch('xl/sharedStrings.xml')) {
+				return self::convertXLSX($contents);
+			}
+			elseif ($zip->has('ppt/slides/slide1.xml')) {
+				$contents = '';
+
+				foreach ($zip->iterate() as $name => $file) {
+					if (0 === strpos($name, 'ppt/slides/slide') && substr($name, -4) == '.xml') {
+						$contents .= $zip->fetch($name);
+					}
+				}
+
+				return self::convertPPTX($contents);
+			}
+			else {
 				return null;
 			}
 		}
@@ -93,16 +104,13 @@ class ToText
 				$contents .= fgets($fp, 8192);
 			}
 
-			return self::fromFlatXML($contents);
-		}
-		else {
-			return null;
+			return self::fromOpenDocumentFlatXML($contents);
 		}
 
-		return self::convert($contents);
+		return null;
 	}
 
-	static public function fromFlatXML(string $contents): string
+	static public function fromOpenDocumentFlatXML(string $contents): string
 	{
 		if ($pos = strpos($contents, '<office:body>')) {
 			$contents = substr($contents, $pos);
@@ -111,7 +119,7 @@ class ToText
 		/* remove binary */
 		$contents = preg_replace('!<office:binary-data>[^>]*</office:binary-data>!', '', $contents);
 
-		return self::convert($contents);
+		return self::convertOpenDocument($contents);
 	}
 
 	static public function fromString(string $str): ?string
@@ -119,7 +127,7 @@ class ToText
 		$header = substr($str, 0, 4);
 
 		if ($header == '<?xm') {
-			return self::fromFlatXML($str);
+			return self::fromOpenDocumentFlatXML($str);
 		}
 		elseif ($header == "PK\003\004") {
 			$fp = fopen('php://temp', 'w');
@@ -137,7 +145,12 @@ class ToText
 		}
 	}
 
-	static public function convert(string $contents): string
+	/**
+	 * Converts OpenDocument to plain text
+	 * This is mostly a PHP port from ODT2TXT, but better
+	 * @see https://github.com/dstosberg/odt2txt/blob/master/odt2txt.c
+	 */
+	static public function convertOpenDocument(string $contents): string
 	{
         /* remove soft-page-breaks. We don't need them and they may disturb later decoding */
         $contents = str_replace('<text:soft-page-break/>', '', $contents);
@@ -167,15 +180,55 @@ class ToText
 			fn($m) => sprintf('[-- Image: %s --]', $m[1]),
 			$contents);
 
-		/* replace all remaining tags */
-		$contents = preg_replace('!<[^>]*>!', '', $contents);
+		$contents = self::cleanXML($contents);
+
 		/* remove indentations, e.g. kword */
 		$contents = preg_replace("!\n +!", "\n", $contents);
 		/* remove large vertical spaces */
 		$contents = preg_replace("!\n{3,}!", "\n\n", $contents);
 
-		$contents = html_entity_decode($contents, ENT_QUOTES | ENT_XHTML, 'UTF-8');
+		$contents = trim($contents);
 
+		return $contents;
+	}
+
+	static public function convertDOCX(string $contents): string
+	{
+		// Remove all line breaks
+		$contents = str_replace(["\n", "\r"], '', $contents);
+
+		// Paragraph breaks
+		$contents = str_replace('</w:p>', "\n\n", $contents);
+		// Line breaks
+		$contents = preg_replace('!<w:br[^>]*>!', "\n", $contents);
+
+		return self::cleanXML($contents);
+	}
+
+	static public function convertXLSX(string $contents): string
+	{
+		// Remove all line breaks
+		$contents = str_replace(["\n", "\r"], '', $contents);
+		$contents = str_replace('</t>', "\n", $contents);
+
+		return self::cleanXML($contents);
+	}
+
+	static public function convertPPTX(string $contents): string
+	{
+		// Remove all line breaks
+		$contents = str_replace(["\n", "\r"], '', $contents);
+		$contents = str_replace('</a:t>', "\n", $contents);
+
+		return self::cleanXML($contents);
+	}
+
+	static protected function cleanXML(string $contents): string
+	{
+		// Remove tags
+		$contents = preg_replace('!<[^>]*>!', '', $contents);
+
+		$contents = html_entity_decode($contents, ENT_QUOTES | ENT_XHTML, 'UTF-8');
 		$contents = trim($contents);
 
 		return $contents;
