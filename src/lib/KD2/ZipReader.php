@@ -144,20 +144,30 @@ class ZipReader
 
 			fseek($this->fp, $prev_pos);
 
-			$this->entries[] = $header;
-			yield $header;
+			$name = $header['filename'];
+			$name = str_replace('\\', '/', $name);
+
+			$this->entries[$name] = $header;
+			yield $name => $header;
 		}
 	}
 
-	public function fetch(string $path): string
+	public function has(string $file): bool
 	{
-		foreach ($this->iterate() as $file) {
-			if ($file['filename'] === $path) {
-				return $this->_extract($file);
-			}
+		$this->_load();
+
+		return array_key_exists($file, $this->entries);
+	}
+
+	public function fetch(string $path): ?string
+	{
+		$this->_load();
+
+		if (!array_key_exists($path, $this->entries)) {
+			return null;
 		}
 
-		throw new \InvalidArgumentException('Cannot find file in archive:' . $path);
+		return $this->_extract($this->entries[$path]);
 	}
 
 	public function extractTo(string $destination_dir): int
@@ -184,6 +194,16 @@ class ZipReader
 		return $size;
 	}
 
+	protected function _load(): void
+	{
+		if (isset($this->entries)) {
+			return;
+		}
+
+		foreach ($this->iterate() as $file) {
+			// Just load
+		}
+	}
 
 	protected function _extract(array $header, ?string $destination = null): ?string
 	{
