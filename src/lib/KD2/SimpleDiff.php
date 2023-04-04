@@ -228,7 +228,7 @@ class SimpleDiff
         set to true to have all the context and set to an (int) to have this number of lines of
         context before and after each modified line
      */
-    static public function diff_to_array($diff = false, $old, $new = false, $show_context = true)
+    static public function diff_to_array($diff, $old, $new = false, $show_context = true)
     {
         if ($diff === false && $new === false)
         {
@@ -315,7 +315,7 @@ class SimpleDiff
         $right_index = 0;
         $i = 0;
 
-        // Then we can compile this to an array of changed things
+       // Then we can compile this to an array of changed things
         while ($i < $max_lines)
         {
             $row = array();
@@ -348,10 +348,6 @@ class SimpleDiff
                         $l = isset($old[$left_index]) ? $old[$left_index] : '';
                         $r = isset($new[$right_index]) ? $new[$right_index] : '';
                         $row = array(self::SAME, $l, $r);
-                    }
-                    else
-                    {
-                        $max_lines--;
                     }
                 }
 
