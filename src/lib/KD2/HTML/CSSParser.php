@@ -449,7 +449,7 @@ class CSSParser
 			$declarations = $this->match($parent);
 
 			foreach ($declarations as $declaration) {
-				$properties = array_merge($declaration['properties'], $properties);
+				$properties = array_merge($properties, $declaration['properties']);
 			}
 
 			$parent = $parent->parentNode;
@@ -458,7 +458,7 @@ class CSSParser
 		$declarations = $this->match($node);
 
 		foreach ($declarations as $declaration) {
-			$properties = array_merge($declaration['properties'], $properties);
+			$properties = array_merge($properties, $declaration['properties']);
 		}
 
 		return $properties;
