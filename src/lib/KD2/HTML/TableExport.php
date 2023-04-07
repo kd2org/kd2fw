@@ -12,7 +12,7 @@ class TableExport
 			header('Content-type: application/vnd.oasis.opendocument.spreadsheet');
 			header(sprintf('Content-Disposition: attachment; filename="%s.ods"', $name));
 
-			self::toODS('php://output', $html, $css);
+			self::toODS('php://output', $html, $css, $name);
 		}
 		elseif ('xlsx' == $format) {
 		}
@@ -26,9 +26,14 @@ class TableExport
 		}
 	}
 
-	static public function toODS(string $output, string $html, string $css): void
+	static public function toODS(string $output, string $html, string $css, ?string $title = null): void
 	{
 		$ods = new TableToODS;
+
+		if (isset($title)) {
+			$ods->default_sheet_name = $title;
+		}
+
 		$ods->import($html, $css);
 		$ods->save($output);
 	}
