@@ -117,6 +117,10 @@ class ZipReader
 			if ($levels > $this->max_levels) {
 				throw new \OutOfBoundsException(sprintf('The archive contains more levels of subdirectories than allowed (max. %d levels).', $this->max_levels));
 			}
+
+			if (false !== strpos($file['filename'], '..')) {
+				throw new \OutOfBoundsException('Invalid filename in archive: ' . $file['filename']);
+			}
 		}
 	}
 
@@ -170,12 +174,27 @@ class ZipReader
 		return $this->_extract($this->entries[$path]);
 	}
 
-	public function extractTo(string $destination_dir): int
+	/**
+	 * Extract the whole archive to a a directory, or a specific file to a path
+	 */
+	public function extractTo(string $destination, ?string $path = null): int
 	{
-		$cout = 0;
+		if (null !== $path) {
+			$this->_load();
+
+			if (!isset($this->entries[$path])) {
+				return 0;
+			}
+
+			$this->_extract($this->entries[$path], $destination);
+
+			return 1;
+		}
+
+		$count = 0;
 
 		foreach ($this->iterate() as $file) {
-			$dest = $destination_dir . str_replace('/', DIRECTORY_SEPARATOR, $file['filename']);
+			$dest = $destination . str_replace('/', DIRECTORY_SEPARATOR, $file['filename']);
 			$this->_extract($file, $dest);
 			$count++;
 		}
@@ -183,6 +202,24 @@ class ZipReader
 		return $count;
 	}
 
+	/**
+	 * Extract a file into a file pointer resource
+	 */
+	public function extractToPointer($pointer, string $path): bool
+	{
+		$this->_load();
+
+		if (!isset($this->entries[$path])) {
+			return false;
+		}
+
+		$this->_extract($this->entries[$path], $pointer);
+		return true;
+	}
+
+	/**
+	 * Return the total uncompressed size of all files in the archive
+	 */
 	public function uncompressedSize(): int
 	{
 		$size = 0;
@@ -205,14 +242,20 @@ class ZipReader
 		}
 	}
 
-	protected function _extract(array $header, ?string $destination = null): ?string
+	protected function _extract(array $header, $destination = null): ?string
 	{
 		fseek($this->fp, $header['start']);
 
-		if ($destination) {
-			$out = fopen($destination, 'wb');
+		$is_file = false;
+
+		if (is_string($destination)) {
+			$is_file = true;
+			$destination = fopen($destination, 'wb');
 		}
-		else {
+		elseif (null !== $destination && !is_resource($destination)) {
+			throw new \InvalidArgumentException('Only a file pointer or a string can be specified');
+		}
+		elseif (null === $destination) {
 			$str = '';
 		}
 
@@ -232,7 +275,7 @@ class ZipReader
 			}
 
 			if ($destination) {
-				fwrite($out, $buffer);
+				fwrite($destination, $buffer);
 			}
 			else {
 				$str .= $buffer;
@@ -245,8 +288,11 @@ class ZipReader
 			stream_filter_remove($filter);
 		}
 
+		if ($is_file) {
+			fclose($destination);
+		}
+
 		if ($destination) {
-			fclose($out);
 			return null;
 		}
 		else {
