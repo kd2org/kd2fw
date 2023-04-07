@@ -18,9 +18,9 @@ use DOMNode;
  * - custom CSS properties
  * - each table is handled as a sheet, the <caption> will act as the name of the sheet
  * - detection of cell type, or force cell type using '-spreadsheet-cell-type'
- * - provide the real number via the "data-spreadsheet-number" HTML attribute
+ * - provide the real number via the "data-spreadsheet-value" HTML attribute
  *   (eg. if the number is displayed as a graph, or something like that)
- * - provide the real date via the "data-spreadsheet-date" attribute
+ * - provide the real date via the "data-spreadsheet-value" attribute
  *
  * What is NOT supported:
  * - rowspan
@@ -74,6 +74,12 @@ use DOMNode;
 class TableToODS
 {
 	protected array $styles = [];
+	protected array $rows = [];
+	protected int $row_index = 0;
+	protected int $col_index = 0;
+	protected int $count = 0;
+	protected array $columns_widths = [];
+
 	public string $default_sheet_name = 'Sheet%d';
 
 	const XML_HEADER = '<?xml version="1.0" encoding="UTF-8"?>';
@@ -166,6 +172,11 @@ class TableToODS
 		$this->css = new CSSParser;
 	}
 
+	/**
+	 * Create worksheets from each table found in a HTML string
+	 * using the supplied CSS stylesheet, or any <style> or <link>
+	 * tag, if it mentions 'media="spreadsheet"'
+	 */
 	public function import(string $html, string $css = null): void
 	{
 		libxml_use_internal_errors(true);
@@ -187,148 +198,262 @@ class TableToODS
 
 		$this->xml = '';
 
-		foreach ($this->css->xpath($doc, './/table') as $i => $table) {
-			$this->add($table, $i);
+		foreach ($this->css->xpath($doc, './/table') as $table) {
+			$this->importTable($table);
 		}
 
 		unset($doc);
 	}
 
-	protected function add(DOMNode $table, int $count): void
+	/**
+	 * Create a new table from a Generator, instead of parsing HTML
+	 */
+	public function add(\Generator $iterator, string $sheet_name = null, array $table_styles = [])
 	{
-		$styles = $this->css->get($table);
+		$this->openTable($sheet_name, $table_styles);
 
+		foreach ($iterator as $row) {
+			$row_styles = array_merge($table_styles, $row['styles'] ?? []);
+			$this->openRow($row_styles);
+
+			foreach ($row as $key => $cell) {
+				if ($key === 'styles') {
+					continue;
+				}
+
+				$cell_styles = array_merge($row_styles, $cell['styles'] ?? []);
+
+				$this->appendCell($cell['value'] ?? $cell, $cell['html'] ?? null, $cell_styles, $cell['attributes'] ?? []);
+			}
+
+			$this->closeRow();
+		}
+
+		$this->closeTable();
+	}
+
+
+	public function openTable(string $sheet_name, array $styles = []): void
+	{
+		$this->xml .= sprintf('<table:table table:name="%s" table:style-name="%s">',
+			htmlspecialchars($sheet_name, ENT_XML1),
+			$this->newStyle('table', $styles) ?? 'Default'
+		);
+
+		$this->rows = [];
+		$this->columns_widths = [];
+		$this->row_index = 0;
+	}
+
+	public function closeTable(): void
+	{
+		ksort($this->columns_widths);
+
+		foreach ($this->columns_widths as $width) {
+			$name = $this->newStyle('column', ['break-before' => 'auto', 'column-width' => $width . 'pt']);
+			$this->xml .= sprintf('<table:table-column table:style-name="%s" />', $name);
+			$this->xml .= "\n";
+		}
+
+		foreach ($this->rows as $i => $row) {
+			$this->xml .= sprintf('<table:table-row table:style-name="%s">', $this->newStyle('row', $row['styles'] ?? []) ?? 'ro-default');
+			$this->xml .= "\n";
+
+			unset($row['styles']);
+			ksort($row);
+
+			foreach ($row as $cell) {
+				$this->xml .= $cell;
+				$this->xml .= "\n";
+			}
+
+			$this->xml .= '</table:table-row>';
+			$this->xml .= "\n";
+		}
+
+		$this->xml .= '</table:table>';
+		$this->xml .= "\n";
+
+		$this->rows = [];
+		$this->columns_widths = [];
+		$this->row_index = 0;
+	}
+
+	public function openRow(array $styles = []): void
+	{
+		$this->col_index = 0;
+
+		if (!isset($this->rows[$this->row_index])) {
+			$this->rows[$this->row_index] = [];
+		}
+
+		$this->rows[$this->row_index]['styles'] = $styles;
+	}
+
+	public function closeRow(): void
+	{
+		$this->row_index++;
+	}
+
+	public function appendCell($value, ?string $html = null, array $styles = [], array $attributes = []): void
+	{
+		// Skip rowspan
+		while (isset($this->rows[$this->row_index][$this->col_index])) {
+			$this->col_index++;
+		}
+
+		$value = trim($value);
+		$type = $this->getCellType($value, $attributes['type'] ?? ($styles['-spreadsheet-cell-type'] ?? null));
+
+		// Use real type in styles, useful to set the correct style
+		$styles['-spreadsheet-cell-type'] = $type;
+
+		$end = '';
+		$cell = sprintf('<table:table-cell table:style-name="%s"', $this->newStyle('cell', $styles) ?? 'Default');
+
+		$colspan = intval($attributes['colspan'] ?? 1);
+
+		if ($colspan > 1) {
+			$cell .= sprintf(' table:number-columns-spanned="%d"', $colspan);
+			$end .= str_repeat('<table:covered-table-cell/>', (int)$colspan - 1);
+		}
+
+		$rowspan = intval($attributes['rowspan'] ?? 1);
+
+		if ($rowspan > 1) {
+			$cell .= sprintf(' table:number-rows-spanned="%d"', $rowspan);
+
+			// Pre-fill cells for rowspan
+			for ($i = 1; $i < $rowspan; $i++) {
+				if (!isset($this->rows[$this->row_index + $i])) {
+					$this->rows[$this->row_index + $i] = [];
+				}
+
+				$this->rows[$this->row_index + $i][$this->col_index] = '<table:covered-table-cell />';
+			}
+		}
+
+		if ($value === '') {
+			// Handle empty cells
+			$column_width = 10;
+			$cell .= '>';
+		}
+		else {
+			// Remove space and non-breaking space
+			$number_value = str_replace([' ', "\xC2\xA0"], '', $attributes['number'] ?? $value);
+
+			if (preg_match('/^-?\d+(?:[,.]\d+)?$/', $number_value)) {
+				$number_value = str_replace(',', '.', $number_value);
+			}
+			else {
+				$number_value = null;
+			}
+
+			if ($type == 'date'
+				&& ($date = strtotime($attributes['date'] ?? $value)))
+			{
+				$format = !intval(date('His', $date)) ? 'Y-m-d' : 'Y-m-d\TH:i:s';
+				$cell .= sprintf(' calcext:value-type="date" office:date-value="%s" office:value-type="date" ', date($format, $date));
+			}
+			elseif ($type == 'percentage' && null !== $number_value) {
+				$cell .= sprintf(' office:value-type="percentage" office:value="%f" calcext:value-type="percentage"', $number_value / 100);
+			}
+			elseif ($type == 'currency' && null !== $number_value) {
+				$currency = $styles['-spreadsheet-currency'] ?? 'EUR';
+				$cell .= sprintf(' office:value-type="currency" office:currency="%s" office:value="%f" calcext:value-type="currency"', $currency, $number_value);
+			}
+			elseif ($type == 'number' && null !== $number_value) {
+				$cell .= sprintf(' calcext:value-type="float" office:value="%f" office:value-type="float"', $number_value);
+			}
+			else {
+				$cell .= ' calcext:value-type="string" office:value-type="string"';
+			}
+
+			$cell .= '>';
+
+			if (null !== $html) {
+				// Break in multiple lines if required
+				$html = preg_replace("/[\n\r]/", '', $html);
+
+				$html = preg_replace('/<br[^>]*>/U', "\n", $html);
+				$html = strip_tags($html);
+				$html = html_entity_decode($html, ENT_QUOTES | ENT_XML1, 'UTF-8');
+			}
+			else {
+				// Break in multiple lines if required
+				$value = preg_replace("/[\n\r]/", '', $value);
+			}
+
+			$value = explode("\n", trim($value));
+
+			$column_width = 0;
+
+			foreach ($value as $line)
+			{
+				$cell .= sprintf('<text:p>%s</text:p>', htmlspecialchars($line, ENT_XML1, 'UTF-8'));
+
+				if (!$colspan) {
+					$cell_width = $this->getCellWidth($line, $styles);
+
+					if ($cell_width > $column_width) {
+						$column_width = $cell_width;
+					}
+				}
+			}
+		}
+
+		if ($column_width > ($this->columns_widths[$this->col_index] ?? -1)) {
+			$this->columns_widths[$this->col_index] = $column_width;
+		}
+
+		$cell .= '</table:table-cell>' . $end;
+
+		$this->rows[$this->row_index][$this->col_index] = $cell;
+		$this->col_index += $colspan ?: 1;
+	}
+
+	public function importTable(DOMNode $table): void
+	{
 		if ($caption = $this->css->xpath($table, './/caption', 0)) {
 			$name = $caption->textContent;
 		}
 		else {
-			$name = sprintf($this->default_sheet_name, $count + 1);
+			$name = sprintf($this->default_sheet_name, ++$this->count);
 		}
 
-		$this->xml .= sprintf('<table:table table:name="%s" table:style-name="%s">',
-			htmlspecialchars($name, ENT_XML1),
-			$this->newStyle('table', $styles) ?? 'Default'
-		);
-
-		$rows = '';
-		$columns_widths = [];
+		$this->openTable($name, $this->css->get($table));
 
 		foreach ($this->css->xpath($table, './/tr') as $row) {
-			$styles = $this->css->get($row);
+			$this->openRow($this->css->get($row));
 
 			$cells = $this->css->xpath($row, './/td|.//th');
 
-			$rows .= sprintf('<table:table-row table:style-name="%s">', $this->newStyle('row', $styles) ?? 'ro-default');
-			$index = 0;
-
 			foreach ($cells as $cell) {
-				$styles = $this->css->get($cell);
+				$attributes = [
+					'colspan' => $cell->getAttribute('colspan'),
+					'rowspan' => $cell->getAttribute('rowspan'),
+					'type'    => $cell->getAttribute('data-spreadsheet-type'),
+				];
 
-				$value = $cell->textContent;
+				$value = $cell->getAttribute('data-spreadsheet-value') ?: $cell->textContent;
 				$value = html_entity_decode($value);
 				$value = trim($value);
-				$type = $this->getCellType($value, $styles['-spreadsheet-cell-type'] ?? null);
-				$styles['-spreadsheet-cell-type'] = $type;
+				$html = null;
 
-				$end = '';
-				$rows .= sprintf('<table:table-cell table:style-name="%s"', $this->newStyle('cell', $styles) ?? 'Default');
-
-				if ($colspan = $cell->getAttribute('colspan')) {
-					$rows .= sprintf(' table:number-columns-spanned="%d"', $colspan);
-					$end .= str_repeat('<table:covered-table-cell/>', (int)$colspan - 1);
-				}
-
-				/*
-				// FIXME: support rowspan
-				if ($rowspan = $cell->getAttribute('rowspan')) {
-					$this->xml .= sprintf(' table:number-rows-spanned="%d"', $rowspan);
-				}
-				*/
-
-				if ($value === '') {
-					// Handle empty cells
-					$column_width = 10;
-					$rows .= '>';
-				}
-				else {
-					// Remove space and non-breaking space
-					$number_value = str_replace([' ', "\xC2\xA0"], '', $cell->getAttribute('data-spreadsheet-number') ?: $value);
-
-					if (preg_match('/^-?\d+(?:[,.]\d+)?$/', $number_value)) {
-						$number_value = str_replace(',', '.', $number_value);
-					}
-					else {
-						$number_value = null;
-					}
-
-					if ($type == 'date'
-						&& ($date = strtotime($cell->getAttribute('data-spreadsheet-date') ?: $value)))
-					{
-						$format = !intval(date('His', $date)) ? 'Y-m-d' : 'Y-m-d\TH:i:s';
-						$rows .= sprintf(' calcext:value-type="date" office:date-value="%s" office:value-type="date" ', date($format, $date));
-					}
-					elseif ($type == 'percentage' && null !== $number_value) {
-						$rows .= sprintf(' office:value-type="percentage" office:value="%f" calcext:value-type="percentage"', $number_value / 100);
-					}
-					elseif ($type == 'currency' && null !== $number_value) {
-						$currency = $styles['-spreadsheet-currency'] ?? 'EUR';
-						$rows .= sprintf(' office:value-type="currency" office:currency="%s" office:value="%f" calcext:value-type="currency"', $currency, $number_value);
-					}
-					elseif ($type == 'number' && null !== $number_value) {
-						$rows .= sprintf(' calcext:value-type="float" office:value="%f" office:value-type="float"', $number_value);
-					}
-					else {
-						$rows .= ' calcext:value-type="string" office:value-type="string"';
-					}
-
-					$rows .= '>';
-
+				if ($value !== '') {
 					// get innerhtml
-					$html = implode(array_map([$cell->ownerDocument,"saveHTML"], iterator_to_array($cell->childNodes)));
-
-					// Break in multiple lines if required
-					$html = preg_replace("/[\n\r]/", '', $html);
-					$html = preg_replace('/<br[^>]*>/U', "\n", $html);
-					$html = strip_tags($html);
-					$html = html_entity_decode($html);
-					$html = explode("\n", trim($html));
-
-					$column_width = 0;
-
-					foreach ($html as $line)
-					{
-						$rows .= sprintf('<text:p>%s</text:p>', htmlspecialchars($line, ENT_XML1, 'UTF-8'));
-
-						if (!$colspan) {
-							$cell_width = $this->getCellWidth($line, $styles);
-
-							if ($cell_width > $column_width) {
-								$column_width = $cell_width;
-							}
-						}
-					}
+					$html = implode(array_map([$cell->ownerDocument, 'saveHTML'], iterator_to_array($cell->childNodes)));
 				}
 
-				if ($column_width > ($columns_widths[$index] ?? -1)) {
-					$columns_widths[$index] = $column_width;
-				}
+				$styles = $this->css->get($cell);
+				$this->appendCell($value, $html, $styles, $attributes);
 
-				$rows .= '</table:table-cell>' . $end;
-				$index += $colspan ?: 1;
 			}
 
-			$rows .= '</table:table-row>';
+			$this->closeRow();
 		}
 
-		ksort($columns_widths);
-
-		foreach ($columns_widths as $width) {
-			$name = $this->newStyle('column', ['break-before' => 'auto', 'column-width' => $width . 'pt']);
-			$this->xml .= sprintf('<table:table-column table:style-name="%s" />', $name);
-		}
-
-		$this->xml .= $rows;
-		$this->xml .= '</table:table>';
+		$this->closeTable();
 	}
 
 	protected function getCellType(string $value, ?string $type = null)
