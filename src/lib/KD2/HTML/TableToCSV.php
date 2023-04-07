@@ -19,6 +19,7 @@ use DOMXPath;
  */
 class TableToCSV
 {
+	protected array $rows = [];
 	protected string $csv = '';
 
 	public function import(string $html): void
@@ -32,12 +33,18 @@ class TableToCSV
 		$doc = new DOMDocument;
 		$doc->loadHTML('<meta charset="utf-8" />' . $html, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
 
-		$this->csv = '';
+		$this->rows = [];
 
 		foreach ($this->xpath($doc, './/table') as $i => $table) {
 			$this->add($table, $i);
 			break; // We only support the first table currently
 		}
+
+		foreach ($this->rows as $row) {
+			$this->csv .= implode(',', $row) . PHP_EOL;
+		}
+
+		$this->rows = [];
 
 		unset($doc);
 	}
@@ -60,34 +67,59 @@ class TableToCSV
 
 	protected function add(DOMNode $table, int $count): void
 	{
+		$row_index = 0;
+
 		foreach ($this->xpath($table, './/tr') as $row) {
+			$col_index = 0;
 			$cells = $this->xpath($row, './/td|.//th');
 
 			$row = '';
 
 			foreach ($cells as $cell) {
+				// Skip rowspan
+				while (isset($this->rows[$row_index][$col_index])) {
+					$col_index++;
+				}
+
 				$value = $cell->textContent;
-				$value = html_entity_decode($value);
+				$value = html_entity_decode($value, ENT_QUOTES | ENT_XML1);
 				$value = trim($value);
 
 				// Remove space and non-breaking space
-				$number_value = str_replace([' ', "\xC2\xA0"], '', $cell->getAttribute('data-spreadsheet-number') ?: $value);
+				$number_value = str_replace([' ', "\xC2\xA0"], '', $cell->getAttribute('data-spreadsheet-value') ?: $value);
 
-				if (preg_match('/^-?\d+(?:[,.]\d+)?$/', $number_value)) {
+				if ($cell->getAttribute('data-spreadsheet-type') == 'number' || preg_match('/^-?\d+(?:[,.]\d+)?$/', $number_value)) {
 					$value = $number_value;
 				}
 
 				$value = str_replace('"', '""', $value);
 				$value = $value !== '' ? '"' . $value . '"' : '';
 
-				$row .= ',' . $value;
+				$this->rows[$row_index][$col_index++] = $value;
 
-				if ($colspan = $cell->getAttribute('colspan')) {
-					$row .= str_repeat(',', $colspan - 1);
+				$colspan = intval($cell->getAttribute('colspan') ?: 1);
+
+				if ($colspan > 1) {
+					for ($i = 1; $i < $colspan; $i++) {
+						$this->rows[$row_index][$col_index++] = '';
+					}
+				}
+
+				$rowspan = intval($cell->getAttribute('rowspan') ?: 1);
+
+				if ($rowspan > 1) {
+					// Pre-fill cells for rowspan
+					for ($i = 1; $i < $rowspan; $i++) {
+						if (!isset($this->rows[$row_index + $i])) {
+							$this->rows[$row_index + $i] = [];
+						}
+
+						$this->rows[$row_index + $i][$col_index] = '';
+					}
 				}
 			}
 
-			$this->csv .= substr($row, 1) . PHP_EOL;
+			$row_index++;
 		}
 	}
 
