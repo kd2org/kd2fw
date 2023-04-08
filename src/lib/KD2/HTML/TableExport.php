@@ -2,7 +2,9 @@
 
 namespace KD2\HTML;
 
+use KD2\HTML\TableToCSV;
 use KD2\HTML\TableToODS;
+use KD2\HTML\TableToXLSX;
 
 class TableExport
 {
@@ -15,6 +17,10 @@ class TableExport
 			self::toODS('php://output', $html, $css, $name);
 		}
 		elseif ('xlsx' == $format) {
+			header('Content-type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+			header(sprintf('Content-Disposition: attachment; filename="%s.xlsx"', $name));
+
+			self::toXLSX('php://output', $html, $css, $name);
 		}
 		elseif ('csv' == $format) {
 			header('Content-type: application/csv');
@@ -36,6 +42,18 @@ class TableExport
 
 		$ods->import($html, $css);
 		$ods->save($output);
+	}
+
+	static public function toXLSX(string $output, string $html, string $css, ?string $title = null): void
+	{
+		$x = new TableToXLSX;
+
+		if (isset($title)) {
+			$x->default_sheet_name = $title;
+		}
+
+		$x->import($html, $css);
+		$x->save($output);
 	}
 
 	static public function toCSV(string $output, string $html): void
