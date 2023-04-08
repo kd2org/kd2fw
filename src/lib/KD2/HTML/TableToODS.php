@@ -13,7 +13,7 @@ use DOMNode;
  * This class takes one or more HTML tables, and convert them to a single ODS document.
  *
  * - a basic set of CSS properties are supported!
- * - colspan (but not rowspan)
+ * - support for colspan and rowspan
  * - automatic column width
  * - custom CSS properties
  * - each table is handled as a sheet, the <caption> will act as the name of the sheet
@@ -23,7 +23,7 @@ use DOMNode;
  * - provide the real date via the "data-spreadsheet-value" attribute
  *
  * What is NOT supported:
- * - rowspan
+ * - cells using rowspan AND colspan at the same time
  * - formulas
  *
  * Usage: $ods = new TableToODS; $ods->import('<table...</table>'); $ods->save('file.ods');
@@ -81,6 +81,7 @@ class TableToODS
 	protected array $columns_widths = [];
 
 	public string $default_sheet_name = 'Sheet%d';
+	public string $default_locale = 'fr_FR';
 
 	const XML_HEADER = '<?xml version="1.0" encoding="UTF-8"?>';
 
@@ -303,7 +304,8 @@ class TableToODS
 		}
 
 		$value = trim($value);
-		$type = $this->getCellType($value, $attributes['type'] ?? ($styles['-spreadsheet-cell-type'] ?? null));
+		$type = !empty($attributes['type']) ? $attributes['type'] : ($styles['-spreadsheet-cell-type'] ?? null);
+		$type = $this->getCellType($value, $type);
 
 		// Use real type in styles, useful to set the correct style
 		$styles['-spreadsheet-cell-type'] = $type;
@@ -377,7 +379,7 @@ class TableToODS
 
 				$html = preg_replace('/<br[^>]*>/U', "\n", $html);
 				$html = strip_tags($html);
-				$html = html_entity_decode($html, ENT_QUOTES | ENT_XML1, 'UTF-8');
+				$value = html_entity_decode($html, ENT_QUOTES | ENT_XML1, 'UTF-8');
 			}
 			else {
 				// Break in multiple lines if required
@@ -432,7 +434,7 @@ class TableToODS
 				$attributes = [
 					'colspan' => $cell->getAttribute('colspan'),
 					'rowspan' => $cell->getAttribute('rowspan'),
-					'type'    => $cell->getAttribute('data-spreadsheet-type'),
+					'type'    => $cell->getAttribute('data-spreadsheet-type') ?: null,
 				];
 
 				$value = $cell->getAttribute('data-spreadsheet-value') ?: $cell->textContent;
@@ -467,7 +469,8 @@ class TableToODS
 		if (is_object($value) && $value instanceof \DateTimeInterface) {
 			return 'date';
 		}
-		elseif (is_int($value) || is_float($value) || (substr((string) $number_value, 0, 1) != '0' && preg_match('/^-?\d+(?:[,.]\d+)?$/', (string) $number_value))) {
+		elseif (is_int($value) || is_float($value)
+			|| (preg_match('/^-?(\d+)(?:[,.]\d+)?$/', (string) $number_value, $match) && ($match[1] == 0 || substr($match[1], 0, 1) != '0'))) {
 			return 'number';
 		}
 		elseif (preg_match('!^(?:\d\d?/\d\d?/\d\d(?:\d\d)?|\d{4}-\d{2}-\d{2})(?:\s+\d\d?[:\.]\d\d?(?:[:\.]\d\d?))?$!', $value)) {
@@ -550,11 +553,6 @@ class TableToODS
 		$out .= '</office:spreadsheet></office:body></office:document-content>';
 
 		return $out;
-	}
-
-	protected function outputAutomaticStyles(): string
-	{
-		return '';
 	}
 
 	protected function outputStyles(): string
@@ -814,14 +812,14 @@ class TableToODS
 				$color = 'red';
 			}
 
+			$locale = $this->default_locale;
+
 			if (isset($styles['-spreadsheet-locale']) && preg_match('/^[a-z]{2}[_-][A-Z]{2}$', $styles['-spreadsheet-locale'])) {
-				$lang = substr($styles['-spreadsheet-locale'], 0, 2);
-				$country = substr($styles['-spreadsheet-locale'], 3, 2);
+				$locale = $styles['-spreadsheet-locale'];
 			}
-			else {
-				$lang = 'fr';
-				$country = 'FR';
-			}
+
+			$lang = substr($locale, 0, 2);
+			$country = substr($locale, 3, 2);
 
 			$tag_name = 'number:currency-style';
 			$space = '<number:text> </number:text>';
