@@ -36,6 +36,7 @@ use DOMNode;
  * See KD2/HTML/CSSParser for details.
  *
  * @author bohwaz <https://bohwaz.net/>
+ * @see http://officeopenxml.com/SScontentOverview.php
  */
 
 /*
@@ -481,5 +482,4 @@ class TableToXLSX extends TableToODS
 			</cellStyles>
 		</styleSheet>';
 	}
-
 }
