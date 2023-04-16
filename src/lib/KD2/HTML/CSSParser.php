@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 namespace KD2\HTML;
 
@@ -53,6 +54,7 @@ class CSSParser
 	];
 
 	protected array $declarations = [];
+	protected array $cache = [];
 
 	public function xpath(DOMNode $dom, string $query, int $item = null)
 	{
@@ -394,11 +396,50 @@ class CSSParser
 	}
 
 	/**
+	 * Build the element path, including ID and name, useful for cache
+	 * @see https://github.com/SerenityOS/serenity/blob/master/Userland/Libraries/LibWeb/CSS/StyleComputer.cpp#L1579
+	 * @see https://hacks.mozilla.org/2017/08/inside-a-super-fast-css-engine-quantum-css-aka-stylo/
+	 */
+	public function getElementPath(DOMElement $node): string
+	{
+		$path = [];
+
+		do {
+			$name = $node->nodeName;
+
+			if ($class = $node->getAttribute('class')) {
+				if (false !== strpos($class, ' ')) {
+					$name .= '.' . preg_replace('/\s+/', '.', $class);
+				}
+				else {
+					$name .= '.' . $class;
+				}
+			}
+			else if ($id = $node->getAttribute('id')) {
+				$name .= '#' . $id;
+			}
+
+			$path[] = $name;
+		}
+		while (($node = $node->parentNode) && $node instanceof DOMElement);
+
+		$path = array_reverse($path);
+		return implode('/', $path);
+	}
+
+	/**
 	 * Return all CSS declarations applying specifically to a node
 	 * (not including inherited properties from parents)
 	 */
 	public function match(DOMElement $search_node): array
 	{
+		$path = $this->getElementPath($search_node);
+
+		// Try to use cache, this speeds up things 3x times
+		if (array_key_exists($path, $this->cache)) {
+			return $this->cache[$path];
+		}
+
 		$declarations = [];
 
 		foreach ($this->declarations as &$declaration) {
@@ -433,6 +474,8 @@ class CSSParser
 		}
 
 		unset($declaration, $selector);
+
+		$this->cache[$path] = $declarations;
 
 		return $declarations;
 	}
