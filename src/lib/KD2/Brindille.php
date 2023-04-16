@@ -85,7 +85,7 @@ class Brindille
 	protected $_functions = [];
 	protected $_blocks = [];
 
-	protected $_variables = [0 => []];
+	public $_variables = [0 => []];
 
 	public function registerDefaults()
 	{
