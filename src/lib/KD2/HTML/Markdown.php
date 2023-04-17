@@ -447,7 +447,7 @@ class Markdown extends Parsedown
 
 		// Comments
 		if (preg_match('/<!--.*?-->/', $text, $match)) {
-			return ['element' => ['rawHtml' => ''], 'extent', strlen($match[0])];
+			return ['element' => ['rawHtml' => ''], 'extent' => strlen($match[0])];
 		}
 
 		// Skip if not a tag
