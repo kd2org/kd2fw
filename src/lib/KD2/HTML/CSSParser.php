@@ -55,6 +55,7 @@ class CSSParser
 
 	protected array $declarations = [];
 	protected array $cache = [];
+	protected array $path_cache = [];
 
 	public function xpath(DOMNode $dom, string $query, int $item = null)
 	{
@@ -405,21 +406,26 @@ class CSSParser
 		$path = [];
 
 		do {
-			$name = $node->nodeName;
+			$name = array_search($node, $this->path_cache, true);
 
-			if ($class = $node->getAttribute('class')) {
-				if (false !== strpos($class, ' ')) {
-					$name .= '.' . preg_replace('/\s+/', '.', $class);
+			if (!$name) {
+				$name = $node->nodeName;
+
+				if ($node->hasAttribute('class') && ($class = $node->getAttribute('class'))) {
+					if (false !== strpos($class, ' ')) {
+						$name .= '.' . preg_replace('/\s+/', '.', $class);
+					}
+					else {
+						$name .= '.' . $class;
+					}
 				}
-				else {
-					$name .= '.' . $class;
+				elseif ($node->hasAttribute('id') && ($id = $node->getAttribute('id'))) {
+					$name .= '#' . $id;
 				}
-			}
-			else if ($id = $node->getAttribute('id')) {
-				$name .= '#' . $id;
 			}
 
 			$path[] = $name;
+			$this->path_cache[$name] = $node;
 		}
 		while (($node = $node->parentNode) && $node instanceof DOMElement);
 
@@ -433,13 +439,6 @@ class CSSParser
 	 */
 	public function match(DOMElement $search_node): array
 	{
-		$path = $this->getElementPath($search_node);
-
-		// Try to use cache, this speeds up things 3x times
-		if (array_key_exists($path, $this->cache)) {
-			return $this->cache[$path];
-		}
-
 		$declarations = [];
 
 		foreach ($this->declarations as &$declaration) {
@@ -475,8 +474,6 @@ class CSSParser
 
 		unset($declaration, $selector);
 
-		$this->cache[$path] = $declarations;
-
 		return $declarations;
 	}
 
@@ -485,6 +482,14 @@ class CSSParser
 	 */
 	public function get(DOMElement $node): array
 	{
+		$path = $this->getElementPath($node);
+
+		// Try to use cache, this speeds up things 3x times
+		// If element has same path, classes and ID matches something in cache, just return it
+		if (array_key_exists($path, $this->cache)) {
+			return $this->cache[$path];
+		}
+
 		$properties = [];
 		$parent = $node->parentNode;
 
@@ -503,6 +508,8 @@ class CSSParser
 		foreach ($declarations as $declaration) {
 			$properties = array_merge($properties, $declaration['properties']);
 		}
+
+		$this->cache[$path] = $properties;
 
 		return $properties;
 	}

@@ -681,22 +681,28 @@ class TableToODS
 	protected function newStyle(string $style_type, array $styles): ?string
 	{
 		unset($styles['-spreadsheet-locale']);
-		$styles = $this->normalizeStyles($styles);
 
-		if (!count($styles)) {
-			return null;
-		}
-
-		ksort($styles);
-		$hash = md5(implode(',', array_merge(array_keys($styles), array_values($styles))));
-
+		// Try to find normalization in cache
+		$hash = md5(json_encode($styles));
 		$key = $style_type . '_' . $hash;
 
 		if (array_key_exists($key, $this->styles)) {
 			return $key;
 		}
 
+		$styles = $this->normalizeStyles($styles);
+		ksort($styles);
+
+		if (!count($styles)) {
+			$styles = null;
+		}
+
 		$this->styles[$key] = $styles;
+
+		if (null === $styles) {
+			return null;
+		}
+
 		return $key;
 	}
 
