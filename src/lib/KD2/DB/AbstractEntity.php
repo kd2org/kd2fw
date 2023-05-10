@@ -429,6 +429,12 @@ abstract class AbstractEntity
 			throw new \UnexpectedValueException(sprintf('Value of type \'%s\' for property \'%s\' is invalid (expected \'%s\')', $found_type, $key, $type));
 		}
 
+		// Normalize line breaks to \n
+		if (is_string($value) && (!isset($this->key) || $this->$key !== $value)) {
+			$value = str_replace("\r\n", "\n", $value);
+			$value = str_replace("\r", "\n", $value);
+		}
+
 		$this->$key = $value;
 
 		if ($check_for_changes && $original_value !== $this->getAsString($key)) {
