@@ -265,13 +265,21 @@ class UserSession
 		}
 	}
 
-	public function __destruct()
+	public function save()
 	{
 		// Save data
 		if ($this->modified) {
 			$this->start(true);
 			$_SESSION['userSessionData'] = $this->data;
 			$this->close();
+			$this->modified = false;
+		}
+	}
+
+	public function __destruct()
+	{
+		if ($this->modified) {
+			throw new \LogicException('Session data has been modified but not saved');
 		}
 	}
 
@@ -421,7 +429,7 @@ class UserSession
 			return false;
 		}
 
-		$this->user =& $_SESSION['userSession'];
+		$this->user = $_SESSION['userSession'];
 		return true;
 	}
 
@@ -441,7 +449,13 @@ class UserSession
 			return;
 		}
 
-		$this->data[$key] = $value;
+		if ($value === null) {
+			unset($this->data[$key]);
+		}
+		else {
+			$this->data[$key] = $value;
+		}
+
 		$this->modified = true;
 	}
 
