@@ -597,7 +597,7 @@ class Image
 
 		$sign = 'n';
 
-		if (fread($file, 2) != "\xff\xd8")
+		if (fread($file, 2) !== "\xff\xd8")
 		{
 			return false;
 		}
@@ -605,7 +605,13 @@ class Image
 		while (!feof($file))
 		{
 			$marker = fread($file, 2);
-			$info = unpack('nlength', fread($file, 2));
+			$l = fread($file, 2);
+
+			if (strlen($marker) != 2 || strlen($l) != 2) {
+				return false;
+			}
+
+			$info = unpack('nlength', $l);
 			$section_length = $info['length'];
 
 			if ($marker == "\xff\xe1")
