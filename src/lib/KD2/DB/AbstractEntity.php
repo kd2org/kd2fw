@@ -430,7 +430,7 @@ abstract class AbstractEntity
 		}
 
 		// Normalize line breaks to \n
-		if (is_string($value) && (!isset($this->key) || $this->$key !== $value)) {
+		if (is_string($value) && (!isset($this->$key) || $this->$key !== $value)) {
 			$value = str_replace("\r\n", "\n", $value);
 			$value = str_replace("\r", "\n", $value);
 		}
