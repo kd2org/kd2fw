@@ -63,9 +63,27 @@ class Form
 	 */
 	static public function tokenGenerate($action = null, $expire = 5)
 	{
-		if (is_null(self::$token_secret))
-		{
+		if (is_null(self::$token_secret)) {
 			throw new \RuntimeException('No CSRF token secret has been set.');
+		}
+
+		$user_secret = $_COOKIE['__c'] ?? null;
+
+		if (null === $user_secret) {
+			if (headers_sent()) {
+				throw new \RuntimeException('Headers have already been sent, cannot generate a token');
+			}
+
+			$user_secret = bin2hex(random_bytes(10));
+
+			// Store user secret in a cookie
+			setcookie('__c', $user_secret, [
+				'expires'  => 0,
+				'path'     => '/',
+				'secure'   => !empty($_SERVER['HTTPS']) ? true : false,
+				'httponly' => true,
+				'samesite' => 'Strict',
+			]);
 		}
 
 		$action = self::tokenAction($action);
@@ -74,7 +92,8 @@ class Form
 		$expire = floor(time() / 3600) + $expire;
 		$value = $expire . $random . $action;
 
-		$hash = hash_hmac('sha256', $expire . $random . $action, self::$token_secret);
+
+		$hash = hash_hmac('sha256', $expire . $random . $action, self::$token_secret . sha1($user_secret));
 
 		return $hash . '/' . dechex($expire) . '/' . dechex($random);
 	}
@@ -87,6 +106,12 @@ class Form
 	 */
 	static public function tokenCheck($action = null, $value = null)
 	{
+		$user_secret = $_COOKIE['__c'] ?? null;
+
+		if (!$user_secret) {
+			return false;
+		}
+
 		$action = self::tokenAction($action);
 
 		if (is_null($value))
@@ -118,7 +143,7 @@ class Form
 			return false;
 		}
 
-		$hash = hash_hmac('sha256', $expire . $random . $action, self::$token_secret);
+		$hash = hash_hmac('sha256', $expire . $random . $action, self::$token_secret . sha1($user_secret));
 
 		return hash_equals($hash, $user_hash);
 	}
