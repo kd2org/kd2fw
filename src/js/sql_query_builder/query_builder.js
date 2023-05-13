@@ -91,7 +91,7 @@
 		this.columnSelect = this.buildSelect(options);
 	};
 
-	qb.prototype.addGroup = function (targetParent, operator) {
+	qb.prototype.addGroup = function (targetParent, operator, join_operator) {
 		var f = document.createElement('fieldset');
 		var l = document.createElement('legend');
 		var s = this.buildSelect({
@@ -100,6 +100,7 @@
 			"ADD": this.__("Add a new set of conditions below this one"),
 			"DEL": this.__("Remove this set of conditions"),
 		});
+		s.name = 'operator';
 		s.onfocus = function () {
 			this.oldValue = this.value;
 		};
@@ -124,6 +125,15 @@
 				this.value = this.oldValue;
 			}
 		};
+
+		if (targetParent.childNodes.length >= 1) {
+			var o = this.buildSelect({"AND": this.__("AND"), "OR": this.__("OR")});
+			o.name = 'join_operator';
+			l.appendChild(o);
+			l.appendChild(document.createTextNode(" "));
+			o.value = join_operator;
+		}
+
 		l.appendChild(s);
 		f.appendChild(l);
 
@@ -376,13 +386,17 @@
 				continue;
 			}
 
-			var groupElement = this.addGroup(this.parent, groups[g].operator);
+			var groupElement = this.addGroup(this.parent, groups[g].operator, groups[g].join_operator ?? null);
 
 			for (var i in groups[g].conditions)
 			{
 				var condition = groups[g].conditions[i];
 				var row = this.addRow(groupElement);
 				row.childNodes[1].firstChild.value = condition.column;
+
+				if (!this.columns[condition.column]) {
+					continue;
+				}
 
 				var operator = this.addOperator(row, this.columns[condition.column]);
 				operator.value = condition.operator;
@@ -444,7 +458,8 @@
 			}
 
 			groups.push({
-				"operator": g.parentNode.firstChild.firstChild.value,
+				"operator": g.parentNode.querySelector('select[name=operator]').value,
+				"join_operator": (a = g.parentNode.querySelector('select[name=join_operator]')) ? a.value : null,
 				"conditions": conditions,
 			});
 		}
