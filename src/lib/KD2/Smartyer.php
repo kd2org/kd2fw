@@ -1163,8 +1163,8 @@ class Smartyer
 				$raw_args = substr($modifier, $pos+1);
 				$arguments = [];
 
-				// Split by two points (:) except if enclosed in quotes
-				$arguments = preg_split('/\s*:\s*|("(?:\\\\.|[^"])*?"|\'(?:\\\\.|[^\'])*?\'|[^:\'"\s]+)/', trim($raw_args), 0, PREG_SPLIT_NO_EMPTY | PREG_SPLIT_DELIM_CAPTURE);
+				// Split by two points (:), or comma (,) except if enclosed in quotes
+				$arguments = preg_split('/\s*[:,]\s*|("(?:\\\\.|[^"])*?"|\'(?:\\\\.|[^\'])*?\'|[^:,\'"\s]+)/', trim($raw_args), 0, PREG_SPLIT_NO_EMPTY | PREG_SPLIT_DELIM_CAPTURE);
 				$arguments = array_map([$this, 'exportArgument'], $arguments);
 
 				$_post .= ', ' . implode(', ', $arguments);
