@@ -297,17 +297,35 @@ class Mail_Message
 		return $this->addPart('text/plain', $content);
 	}
 
-	public function getBody($html = false)
+	/**
+	 * Return body text, using HTML as "best source" if available
+	 * (as some HTML emails contain a shitty plaintext alternative),
+	 * but converted to plaintext (MarkDown).
+	 */
+	public function getBodyText(bool $prefer_html = true)
 	{
-		if ($html)
-		{
-			foreach ($this->parts as $part)
-			{
-				if ($part['type'] == 'text/html')
-					return $part['content'];
+		return $this->getBody($prefer_html ? 2 : false);
+	}
+
+	public function getBody($html = null)
+	{
+		if ($html) {
+			$body = null;
+
+			foreach ($this->parts as $part) {
+				if ($part['type'] == 'text/html') {
+					$body = $part['content'];
+					break;
+				}
 			}
 
-			return false;
+			if (null !== $body) {
+				if ($html === true || $html === 1) {
+					return $body;
+				}
+
+				return $this->HTMLToText($body);
+			}
 		}
 
 		foreach ($this->parts as $part)
@@ -385,35 +403,36 @@ class Mail_Message
 	public function HTMLToText($str)
 	{
 		$str = preg_replace('!<br\s*/?>\n!i', '<br />', $str);
-		$str = preg_replace('!</?(?:b|strong)(?:\s+[^>]*)?>!i', '*', $str);
-		$str = preg_replace('!</?(?:i|em)(?:\s+[^>]*)?>!i', '/', $str);
-		$str = preg_replace('!</?(?:u|ins)(?:\s+[^>]*)?>!i', '_', $str);
+		$str = preg_replace('!</?(?:b|strong)(?:\s+[^>]*)?>!i', '**', $str);
+		$str = preg_replace('!</?(?:i|em)(?:\s+[^>]*)?>!i', '*', $str);
+		$str = preg_replace('!</?(?:u|ins)(?:\s+[^>]*)?>!i', '__', $str);
+		$str = preg_replace('!</?(?:s|del)(?:\s+[^>]*)?>!i', '~~', $str);
+
 		$str = preg_replace_callback('!<h(\d)(?:\s+[^>]*)?>!i', function ($match) {
-			return str_repeat('=', (int)$match[1]) . ' ';
+			return str_repeat('#', (int)$match[1]) . ' ';
 		}, $str);
 		$str = preg_replace_callback('!</h(\d)>!i', function ($match) {
-			return ' ' . str_repeat('=', (int)$match[1]);
+			return ' ' . str_repeat('#', (int)$match[1]);
 		}, $str);
 
 		$str = str_replace("\r", "\n", $str);
 		$str = preg_replace("!</p>\n*!i", "\n\n", $str);
 		$str = preg_replace("!<br[^>]*>\n*!i", "\n", $str);
 
-		$str = preg_replace('!<img[^>]*src=([\'"])([^\1]*?)\1[^>]*>!i', 'Image : $2', $str);
+		//$str = preg_replace('!<img[^>]*src=([\'"])([^\1]*?)\1[^>]*>!i', '![]($2)', $str);
 
 		preg_match_all('!<a[^>]href=([\'"])([^\1]*?)\1[^>]*>(.*?)</a>!i', $str, $match, PREG_SET_ORDER);
 
-		if (!empty($match))
-		{
-			foreach ($match as $key=>$link)
-			{
-				if ($link[3] == $link[2])
-				{
-					unset($match[$key]);
-				}
+		foreach ($match as $found) {
+			if ($found[3] == $found[2] || trim($found[3]) === '') {
+				$link = '&lt;' . $found[2] . '&gt;';
+			}
+			else {
+				$link = sprintf('%s &lt;%s&gt;', $found[3], $found[2]);
 			}
 		}
 
+		/*
 		if (!empty($match))
 		{
 			$i = 1;
@@ -426,7 +445,13 @@ class Mail_Message
 				$i++;
 			}
 		}
+		*/
 
+		$str = preg_replace_callback('<blockquote[^>]*>(.*)</blockquote>!is', function ($match) {
+			return preg_replace('!^!m', '> ', trim($match[1]));
+		}, $str);
+
+		$str = preg_replace('!<(script|style).*</\1>!is', '', $str);
 		$str = strip_tags($str);
 
 		$str = html_entity_decode($str, ENT_QUOTES, 'UTF-8');
