@@ -468,6 +468,11 @@ class Image
 		return $this->resize($temp_width, $temp_height)->crop($new_width, $new_height);
 	}
 
+	public function getSupportedFormats(): array
+	{
+		return call_user_func([$this, $this->library . '_formats']);
+	}
+
 	public function save($destination, $format = null)
 	{
 		$this->open();
