@@ -48,6 +48,12 @@ class Image
 	public $use_gd_fast_resize_trick = true;
 
 	/**
+	 * WebP quality, from 0 to 100
+	 * @var integer
+	 */
+	public int $webp_quality = 80;
+
+	/**
 	 * JPEG quality, from 1 to 100
 	 * @var integer
 	 */
@@ -466,13 +472,30 @@ class Image
 	{
 		$this->open();
 
-		if (is_null($format))
-		{
+		$supported = call_user_func([$this, $this->library . '_formats']);
+
+		if (is_null($format)) {
 			$format = $this->format;
 		}
+		// Support for multiple output formats
+		elseif (is_array($format)) {
+			foreach ($format as $f) {
+				if (null === $f) {
+					$format = $this->format;
+					break;
+				}
+				elseif (in_array($f, $supported)) {
+					$format = $f;
+					break;
+				}
+			}
 
-		if (!in_array($format, call_user_func([$this, $this->library . '_formats'])))
-		{
+			if (!is_string($format)) {
+				throw new \InvalidArgumentException(sprintf('None of the specified formats %s can be saved by %s', implode(', ', $format), $this->library));
+			}
+		}
+
+		if (!in_array($format, call_user_func([$this, $this->library . '_formats']))) {
 			throw new \InvalidArgumentException('The specified format ' . $format . ' can not be used by ' . $this->library);
 		}
 
@@ -538,6 +561,7 @@ class Image
 			case 'application/pdf':	return 'pdf';
 			case 'image/vnd.adobe.photoshop': return 'psd';
 			case 'image/x-icon': return 'bmp';
+			case 'image/webp': return 'webp';
 			default:
 				if (preg_match('!^image/([\w\d]+)$!', $type, $match))
 				{
@@ -806,14 +830,14 @@ class Image
 			$this->pointer->setImageCompression(\Imagick::COMPRESSION_LZW);
 			$this->pointer->setImageCompressionQuality($this->compression * 10);
 		}
-		else if ($format == 'jpeg')
+		elseif ($format == 'jpeg')
 		{
 			$this->pointer->setImageCompression(\Imagick::COMPRESSION_JPEG);
 			$this->pointer->setImageCompressionQuality($this->jpeg_quality);
 			$this->pointer->setInterlaceScheme($this->progressive_jpeg ? \Imagick::INTERLACE_PLANE : \Imagick::INTERLACE_NO);
 		}
-		else if ($format == 'webp') {
-			$this->pointer->setImageCompressionQuality($this->jpeg_quality);
+		elseif ($format == 'webp') {
+			$this->pointer->setImageCompressionQuality($this->webp_quality);
 		}
 
 		$this->pointer->stripImage();
@@ -843,6 +867,9 @@ class Image
 			$this->pointer->setImageCompression(\Imagick::COMPRESSION_JPEG);
 			$this->pointer->setImageCompressionQuality($this->jpeg_quality);
 			$this->pointer->setInterlaceScheme($this->progressive_jpeg ? \Imagick::INTERLACE_PLANE : \Imagick::INTERLACE_NO);
+		}
+		elseif ($format == 'webp') {
+			$this->pointer->setImageCompressionQuality($this->webp_quality);
 		}
 
 		if ($format == 'gif' && $this->pointer->getNumberImages() > 1) {
@@ -985,7 +1012,8 @@ class Image
 		if ($this->format == 'png' || $this->format == 'gif') {
 			imagealphablending($this->pointer, false);
 			imagesavealpha($this->pointer, true);
-		}	}
+		}
+	}
 
 	protected function gd_size()
 	{
@@ -1014,7 +1042,7 @@ class Image
 			case 'jpeg':
 				return imagejpeg($this->pointer, $destination, $this->jpeg_quality);
 			case 'webp':
-				return imagewebp($this->pointer, $destination, $this->jpeg_quality);
+				return imagewebp($this->pointer, $destination, $this->webp_quality);
 			default:
 				throw new \InvalidArgumentException('Image format ' . $format . ' is unknown.');
 		}
