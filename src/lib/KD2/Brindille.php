@@ -334,22 +334,22 @@ class Brindille
 		return $var;
 	}
 
-	protected function _push(int $type, ?string $name = null, ?array $params = []): void
+	public function _push(int $type, ?string $name = null, ?array $params = []): void
 	{
 		$this->_stack[] = func_get_args();
 	}
 
-	protected function _pop(): ?array
+	public function _pop(): ?array
 	{
 		return array_pop($this->_stack);
 	}
 
-	protected function _lastType(): int
+	public function _lastType(): int
 	{
 		return count($this->_stack) ? end($this->_stack)[0] : self::NONE;
 	}
 
-	protected function _lastName(): ?string
+	public function _lastName(): ?string
 	{
 		if ($this->_stack) {
 			return end($this->_stack)[1];
@@ -404,24 +404,9 @@ class Brindille
 			return $this->_if($name, $params, 'elseif', $line);
 		}
 		elseif ($start == 'else') {
-			$type = $this->_lastType();
-
-			if ($type != self::IF && $type != self::SECTION) {
-				throw new Brindille_Exception('"else" block is not following a "if" or section block');
-			}
-
-			$name = $this->_lastName();
-			$this->_pop();
-			$this->_push(self::ELSE, $name);
-
-			if ($type == self::SECTION) {
-				return '<?php $last = array_pop($this->_variables); endforeach; if (!isset($last) || !count($last)): ?>';
-			}
-			else {
-				return '<?php else: ?>';
-			}
+			return $this->_else($line);
 		}
-		elseif (array_key_exists($start . $name, $this->_blocks)) {
+		elseif (array_key_exists($start . $name, $this->_blocks) && substr($name, 0, 5) !== 'else:') {
 			return $this->_block($start . $name, $params, $line);
 		}
 		elseif ($start == '/') {
@@ -560,7 +545,30 @@ class Brindille
 		return sprintf('<?php %s (%s): ?>', $tag_name, $code);
 	}
 
-	public function _close(string $name, string $block)
+	public function _else(int $line): string
+	{
+		$type = $this->_lastType();
+
+		if ($type != self::IF && $type != self::SECTION) {
+			throw new Brindille_Exception('"else" block is not following a "if" or section block');
+		}
+
+		$name = $this->_lastName();
+		$this->_pop();
+		$this->_push(self::ELSE, $name);
+
+		if (isset($this->_blocks['else:' . $name])) {
+			return $this->_block('else:' . $name, '', $line);
+		}
+		elseif ($type == self::SECTION) {
+			return '<?php $last = array_pop($this->_variables); endforeach; if (!isset($last) || !count($last)): ?>';
+		}
+		else {
+			return '<?php else: ?>';
+		}
+	}
+
+	public function _close(string $name, string $block): string
 	{
 		if ($this->_lastName() != $name) {
 			throw new Brindille_Exception(sprintf('"%s": block closing does not match last block "%s" opened', $block, $this->_lastName()));
