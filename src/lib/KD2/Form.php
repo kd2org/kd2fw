@@ -207,16 +207,14 @@ class Form
 	 */
 	static protected function parseRules($str)
 	{
-		$str = preg_split('/(?<!\\\\)\|/', $str);
+		$str = preg_split('/(?<!\\\\),/', $str);
 		$rules = [];
 
-		foreach ($str as $rule)
-		{
+		foreach ($str as $rule) {
 			$name = strtok($rule, ':');
 			$rules[$name] = [];
 
-			while (($param = strtok(',')) !== false)
-			{
+			while (($param = strtok(':')) !== false) {
 				$rules[$name][] = $param;
 			}
 		}
@@ -497,6 +495,8 @@ class Form
 			case 'min':
 				$size = is_array($value) ? count($value) : (isset($rules['string']) ? strlen($value) : $value);
 				return isset($params[0]) && $size >= $params[0];
+			case 'money':
+				return preg_match('/^-?(\d+)(?:[.,](\d{1,2}))?$/', $value, $match) && ($match[1]*100 + $match[2]) >= 0;
 			case 'not_in':
 				return !in_array($value, $params);
 			case 'numeric':
