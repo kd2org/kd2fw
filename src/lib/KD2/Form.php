@@ -207,14 +207,23 @@ class Form
 	 */
 	static protected function parseRules($str)
 	{
-		$str = preg_split('/(?<!\\\\),/', $str);
+		if (false !== strpos($str, '|')) {
+			$a = '|';
+			$b = ',';
+		}
+		else {
+			$a = ',';
+			$b = ':';
+		}
+
+		$str = preg_split('/(?<!\\\\)' . $a . '/', $str);
 		$rules = [];
 
 		foreach ($str as $rule) {
 			$name = strtok($rule, ':');
 			$rules[$name] = [];
 
-			while (($param = strtok(':')) !== false) {
+			while (($param = strtok($b)) !== false) {
 				$rules[$name][] = $param;
 			}
 		}
