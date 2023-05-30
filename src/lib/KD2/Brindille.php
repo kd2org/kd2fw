@@ -119,14 +119,14 @@ class Brindille
 			$tz = null;
 
 			if (is_object($date)) {
-				$date = $date->getTimestamp();
 				$tz = $date->getTimezone();
+				$date = $date->getTimestamp();
 			}
 			elseif (!ctype_digit($date)) {
 				$date = strtotime($date);
 			}
 
-			return Translate::strftime($format, $date, $tz);
+			return Translate::strftime($format, $date);
 		});
 
 		$this->registerSection('foreach', [self::class, '__foreach']);
@@ -666,7 +666,7 @@ class Brindille
 	 * @param  integer $line Source code line
 	 * @return array
 	 */
-	protected function _parseArguments(string $str, int $line)
+	public function _parseArguments(string $str, int $line)
 	{
 		$args = [];
 		$name = null;
@@ -709,7 +709,7 @@ class Brindille
 		return $args;
 	}
 
-	protected function _exportArgument(string $raw_arg): string
+	public function _exportArgument(string $raw_arg): string
 	{
 		if (substr($raw_arg, 0, 1) == '$') {
 			return sprintf('$this->get(%s)', var_export(substr($raw_arg, 1), true));
@@ -726,7 +726,7 @@ class Brindille
 	 * @param  array   $args      Arguments to export
 	 * @return string
 	 */
-	protected function _exportArguments(array $args): string
+	public function _exportArguments(array $args): string
 	{
 		if (!count($args)) {
 			return '[]';
@@ -750,7 +750,7 @@ class Brindille
 	 * Returns string value from a quoted or unquoted block argument
 	 * @param  string $arg Extracted argument ({foreach from=$loop item="value"} => [from => "$loop", item => "\"value\""])
 	 */
-	protected function getValueFromArgument(string $arg)
+	public function getValueFromArgument(string $arg)
 	{
 		static $replace = [
 			'\\"'  => '"',
