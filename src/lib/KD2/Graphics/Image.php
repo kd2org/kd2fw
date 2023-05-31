@@ -112,7 +112,12 @@ class Image
 		{
 			$this->path = $path;
 
-			$info = getimagesize($path);
+			try {
+				$info = getimagesize($path);
+			}
+			catch (\Throwable $e) {
+				throw new \RuntimeException(sprintf('Invalid image format: %s (%s)', $path, $e->getMessage()), 0, $e);
+			}
 
 			if (!$info && function_exists('mime_content_type'))
 			{
