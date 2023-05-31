@@ -297,20 +297,41 @@ class Markdown extends Parsedown
 	{
 		$line = $line['text'];
 
-		if (strpos($line, '<<') === 0 && preg_match('/^<<<?(\/?[a-z_]+)((?:(?!>>>?).)*?)(>>>?$|$)/is', trim($line), $match)) {
-			$text = $this->callExtension($match[1], true, $match[2]);
+		if (strpos($line, '<<') === 0 && preg_match('/^<<<?(\/?[a-z_]+)((?:(?!>>>?).)*?)(>>>?$|$)/ism', trim($line), $match)) {
+			$text = $match[3] ? $this->callExtension($match[1], true, $match[2]) : '';
 
 			return [
-				'char'    => $line[0],
-				'element' => [
+				'char'       => $line[0],
+				'ext_name'   => $match[1],
+				'ext_params' => $match[2],
+				'ext_content' => '',
+				'complete'   => $match[3] ? false : true,
+				'closed'     => $match[3] ? true : false,
+				'element'    => [
 					'rawHtml'                => $text,
 					'allowRawHtmlInSafeMode' => true,
 				],
-				'complete' => true,
 			];
 		}
 
 		return null;
+	}
+
+	protected function blockExtensionContinue(array $line, array $block): ?array
+	{
+		if (!empty($block['closed'])) {
+			return null;
+		}
+
+		if (strpos($line['text'], '>>') !== false) {
+			$block['closed'] = true;
+			$block['element']['rawHtml'] = $this->callExtension($block['ext_name'], true, $block['ext_params'], rtrim($block['ext_content']));
+		}
+		else {
+			$block['ext_content'] .= $line['body'] . "\n";
+		}
+
+		return $block;
 	}
 
 	/**
