@@ -208,7 +208,7 @@ class Form
 	static protected function parseRules($str)
 	{
 		if (false !== strpos($str, '|')) {
-			$a = '|';
+			$a = '\|';
 			$b = ',';
 		}
 		else {
