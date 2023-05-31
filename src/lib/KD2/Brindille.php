@@ -885,7 +885,14 @@ class Brindille
 			$var = $params['var'];
 			unset($params['var']);
 
-			if (strstr($var, '[')) {
+			$has_dot = false !== strpos($var, '.');
+			$has_bracket = false !== strpos($var, '[');
+
+			if ($has_bracket && $has_dot) {
+				// You can't have both
+				throw new Brindille_Exception(sprintf('Invalid variable name: ' . $var));
+			}
+			elseif ($has_bracket) {
 				$separator = '[';
 			}
 			else {
@@ -911,6 +918,10 @@ class Brindille
 				// Empty key: just increment
 				if (!strlen($sub)) {
 					$sub = count($prev);
+				}
+
+				if (null === $prev) {
+					break;
 				}
 
 				if (!array_key_exists($sub, $prev)) {
