@@ -748,6 +748,11 @@ class UserSession
 		];
 	}
 
+	public function hasRememberMeCookie(): bool
+	{
+		return !empty($_COOKIE[$this->remember_me_cookie_name]);
+	}
+
 	//////////////////////////////////////////////////////////////////////
 	// Second factor OTP feature
 
