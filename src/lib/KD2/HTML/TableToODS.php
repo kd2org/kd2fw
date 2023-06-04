@@ -694,7 +694,7 @@ class TableToODS
 		ksort($styles);
 
 		if (!count($styles)) {
-			$styles = null;
+			return null;
 		}
 
 		$this->styles[$key] = $styles;
