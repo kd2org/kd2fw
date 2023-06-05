@@ -447,7 +447,7 @@ class Mail_Message
 		}
 		*/
 
-		$str = preg_replace_callback('<blockquote[^>]*>(.*)</blockquote>!is', function ($match) {
+		$str = preg_replace_callback('!<blockquote[^>]*>(.*)</blockquote>!is', function ($match) {
 			return preg_replace('!^!m', '> ', trim($match[1]));
 		}, $str);
 
