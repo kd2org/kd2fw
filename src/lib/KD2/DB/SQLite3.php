@@ -29,6 +29,8 @@
 
 namespace KD2\DB;
 
+use KD2\DB\DB_Exception;
+
 use PDO;
 
 class SQLite3 extends DB
@@ -719,6 +721,11 @@ class SQLite3 extends DB
 		catch (\Exception $e)
 		{
 			$this->rollback();
+
+			if ($this->db->lastErrorCode()) {
+				throw new DB_Exception($this->db->lastErrorMsg(), $this->db->lastErrorCode(), $e);
+			}
+
 			throw $e;
 		}
 
@@ -734,7 +741,16 @@ class SQLite3 extends DB
 			call_user_func($this->callback, __FUNCTION__, 'before', $this, ... func_get_args());
 		}
 
-		$return = $this->db->exec($statement);
+		try {
+			$return = $this->db->exec($statement);
+		}
+		catch (\Exception $e) {
+			if ($this->db->lastErrorCode()) {
+				throw new DB_Exception($this->db->lastErrorMsg(), $this->db->lastErrorCode(), $e);
+			}
+
+			throw $e;
+		}
 
 		if ($this->callback) {
 			call_user_func($this->callback, __FUNCTION__, 'after', $this, ... func_get_args());
