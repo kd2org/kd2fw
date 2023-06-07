@@ -58,7 +58,6 @@ class TableToXLSX extends TableToODS
 	protected array $sheets = [];
 	protected array $merged_cells = [];
 	protected array $styles = [];
-	//protected array $strings = [];
 
 	const XML_HEADER = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
 
@@ -132,8 +131,6 @@ class TableToXLSX extends TableToODS
 		}
 
 		$this->xml .= '</worksheet>';
-
-		//header('Content-Type: text/plain', true); header('Content-Disposition: inline', true); echo($this->xml); exit;
 
 		end($this->sheets);
 		$this->sheets[key($this->sheets)] = $this->xml;
@@ -364,7 +361,7 @@ class TableToXLSX extends TableToODS
 
 		$z->add('xl/workbook.xml', self::XML_HEADER . '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><fileVersion appName="Calc"/><workbookPr backupFile="false" showObjects="all" date1904="false"/><workbookProtection/><bookViews><workbookView showHorizontalScroll="true" showVerticalScroll="true" showSheetTabs="true" xWindow="0" yWindow="0" windowWidth="16384" windowHeight="8192" tabRatio="500" firstSheet="0" activeTab="0"/></bookViews><sheets>' . $s . '</sheets><calcPr iterateCount="100" refMode="A1" iterate="false" iterateDelta="0.001"/></workbook>');
 
-		$z->add('xl/sharedStrings.xml', self::XML_HEADER . '<sst count="39" uniqueCount="36" xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"></sst>');
+		$z->add('xl/sharedStrings.xml', self::XML_HEADER . '<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"></sst>');
 		$z->add('xl/styles.xml', $this->outputStyles());
 
 		$i = 1;
