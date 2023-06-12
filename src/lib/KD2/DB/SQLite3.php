@@ -144,7 +144,7 @@ class SQLite3 extends DB
 		'json_each_readonly' => '3.41.0',
 
 		'fts3' => '3.5.0+ENABLE_FTS3',
-		'fts4' => '3.7.4+ENABLE_FTS4',
+		'fts4' => '3.7.4+ENABLE_FTS3|3.7.4+ENABLE_FTS4',
 		'fts5' => '3.9.0+ENABLE_FTS5',
 
 		'dbstat' => '3.0.0+ENABLE_DBSTAT_VTAB',
