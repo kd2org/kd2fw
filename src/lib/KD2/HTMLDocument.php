@@ -310,7 +310,7 @@ class HTMLDocument extends \DOMDocument
 	/**
 	 * Constructor, registers HTML_Node and HTML_Element to add querySelector[All] methods
 	 */
-	public function __construct(string $version = '1.0', string $encoding = '')
+	public function __construct(string $version = '1.0', string $encoding = 'UTF-8')
 	{
 		parent::__construct($version, $encoding);
 		$this->registerNodeClass('DOMNode', '\KD2\HTMLNode');
@@ -333,6 +333,10 @@ class HTMLDocument extends \DOMDocument
 		// Temporary disable throwing errors / exceptions / warnings
 		// you can see them later using ->getErrors()
 		libxml_use_internal_errors(true);
+
+		if (false === strpos($source, '<?xml')) {
+			$source = '<?xml encoding="utf-8" ?>' . $source;
+		}
 
 		$r = parent::loadHTML($source, $options);
 
