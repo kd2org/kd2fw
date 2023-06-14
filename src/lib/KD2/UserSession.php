@@ -41,6 +41,12 @@ class UserSession
 	const SID_IN_URL_HOSTS_WHITELIST = ['::1', '127.0.0.1'];
 
 	/**
+	 * This is used to secure the use of the session ID in the URL
+	 * @var null|string
+	 */
+	protected ?string $sid_in_url_secret = null;
+
+	/**
 	 * Set to TRUE for using the non-locking mode
 	 * If using this mode, the session will be opened and closed immediately.
 	 * To write to the session you will need to call ->start(true), change the value
@@ -320,9 +326,23 @@ class UserSession
 			$session_url = false;
 
 			// Allow to pass session ID in URL for some URLs
-			if (!$session_id && !empty($_GET[$this->cookie_name])
-				&& in_array($_SERVER['REMOTE_ADDR'] ?? null, self::SID_IN_URL_HOSTS_WHITELIST, true)
+			if (!$session_id
+				&& !empty($_GET[$this->cookie_name])
 				&& preg_match('/^[a-zA-Z0-9-]{1,64}$/', $_GET[$this->cookie_name])) {
+				$allowed = false;
+
+				if (!empty(self::SID_IN_URL_HOSTS_WHITELIST)
+					&& in_array($_SERVER['REMOTE_ADDR'] ?? null, self::SID_IN_URL_HOSTS_WHITELIST, true)) {
+					$allowed = true;
+				}
+				elseif (!empty($this->sid_in_url_secret) && false !== strpos($_SERVER['QUERY_STRING'] ?? '', $this->sid_in_url_secret)) {
+					$allowed = true;
+				}
+
+				if (!$allowed) {
+					return false;
+				}
+
 				$session_id = $_GET[$this->cookie_name];
 				$session_url = true;
 			}
