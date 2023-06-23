@@ -141,7 +141,7 @@ class Smartyer
 	 * Auto-escaping type (any type accepted by self::escape())
 	 * @var string
 	 */
-	protected $escape_type;
+	protected ?string $escape_type = 'html';
 
 	/**
 	 * List of native PHP tags that don't require any argument
@@ -1331,7 +1331,6 @@ class Smartyer
 		switch ($type)
 		{
 			case 'html':
-			case null:
 				return htmlspecialchars($str, ENT_QUOTES, 'UTF-8');
 			case 'xml':
 				return htmlspecialchars($str, ENT_QUOTES | ENT_XML1, 'UTF-8');
