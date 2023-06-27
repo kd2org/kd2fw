@@ -1013,7 +1013,7 @@ class ErrorManager
 					$var = $var2;
 				}
 
-				foreach ($var as $key=>$value)
+				foreach ((array)$var as $key=>$value)
 				{
 					$out .= str_repeat(' ', $level * 2);
 					$out .= is_string($key) ? '["' . $key . '"]' : '[' . $key . ']';
