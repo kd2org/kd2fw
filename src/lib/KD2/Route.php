@@ -269,7 +269,7 @@ class Route
 	{
 		if (!self::$routed)
 		{
-			return call_user_func($callback);
+			return call_user_func($callback, self::requestURI());
 		}
 
 		return false;
