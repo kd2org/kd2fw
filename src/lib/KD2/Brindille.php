@@ -424,7 +424,7 @@ class Brindille
 			return $this->_modifiers[$name](...$params);
 		}
 		catch (\Exception $e) {
-			throw new Brindille_Exception(sprintf("line %d: modifier '%s' has returned an error: %s\nParameters: %s", $line, $name, $e->getMessage(), json_encode($params)));
+			throw new Brindille_Exception(sprintf("line %d: modifier '%s' has returned an error: %s\nParameters: %s", $line, $name, $e->getMessage(), json_encode($params)), 0, $e);
 		}
 	}
 
