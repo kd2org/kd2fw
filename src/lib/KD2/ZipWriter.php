@@ -104,35 +104,17 @@ class ZipWriter
 	 * @throws LogicException
 	 * @throws RuntimeException
 	 */
-	public function add(string $file, ?string $data = null, ?string $source = null): void
+	public function add(string $file, ?string $data = null, ?string $source = null, $pointer = null): void
 	{
 		if ($this->closed)
 		{
 			throw new LogicException('Archive has been closed, files can no longer be added');
 		}
 
-		if (null === $data && null === $source) {
-			throw new LogicException('No source file or data has been supplied');
+		if (null !== $source) {
+			$pointer = fopen($source, 'rb');
 		}
-
-		$source_handle = null;
-
-		if ($data === null)
-		{
-			$csize = $size = filesize($source);
-			list(, $crc) = unpack('N', hash_file('crc32b', $source, true));
-			$source_handle = fopen($source, 'r');
-
-			if ($this->compression)
-			{
-				// Unfortunately it's not possible to use stream_filter_append
-				// to compress data on the fly, as it's not working correctly
-				// with php://output, php://temp and php://memory streams
-				throw new RuntimeException('Compression is not supported with external files');
-			}
-		}
-		else
-		{
+		elseif (null !== $data) {
 			$size = strlen($data);
 			$crc  = crc32($data);
 
@@ -144,26 +126,74 @@ class ZipWriter
 
 			$csize  = strlen($data);
 		}
-
-		$offset = $this->pos;
-
-		// write local file header
-		$this->write($this->makeRecord(false, $file, $size, $csize, $crc, null));
-
-		// we store no encryption header
-
-		// Store uncompressed external file
-		if ($source_handle)
-		{
-			$this->pos += stream_copy_to_stream($source_handle, $this->handle);
-			fclose($source_handle);
+		elseif (null === $pointer) {
+			throw new LogicException('No source file, pointer or data has been supplied');
 		}
-		// Store compressed or uncompressed file
-		// that was supplied
-		else
-		{
-			// write data
-			$this->write($data);
+
+		$tmp = null;
+
+		try {
+			if (null !== $pointer) {
+				$tmp = fopen('php://temp', 'wb');
+				$size = 0;
+				$csize = 0;
+				$crc = hash_init('crc32b');
+				$gzip = $this->compression ? deflate_init(ZLIB_ENCODING_GZIP, ['level' => $this->compression]) : null;
+
+				while (!feof($pointer)) {
+					$data = fread($pointer, 8192);
+					hash_update($crc, $data);
+					$size += strlen($data);
+
+					if ($gzip) {
+						$data = deflate_add($gzip, $data, ZLIB_NO_FLUSH);
+						$csize += strlen($data);
+					}
+
+					fwrite($tmp, $data);
+				}
+
+				list(, $crc) = unpack('N', hash_final($crc, true));
+
+				if ($gzip) {
+					$data = deflate_add($gzip, '', ZLIB_FINISH);
+					$csize += strlen($data);
+					fwrite($tmp, $data);
+				}
+				else {
+					$csize = $size;
+				}
+
+				unset($data, $pointer, $gzip);
+
+				if (-1 === fseek($tmp, 0, SEEK_SET) || ftell($tmp) !== 0) {
+					throw new \RuntimeException('Cannot seek in temporary stream');
+				}
+			}
+
+			$offset = $this->pos;
+
+			// write local file header
+			$this->write($this->makeRecord(false, $file, $size, $csize, $crc, null));
+
+			// we store no encryption header
+
+			// Store external file
+			if ($tmp) {
+				$this->pos += stream_copy_to_stream($tmp, $this->handle);
+			}
+			// Store compressed or uncompressed data
+			// that was supplied
+			else {
+				// write data
+				$this->write($data);
+			}
+		}
+		finally {
+			if (null !== $tmp) {
+				// Always close and delete temporary file
+				fclose($tmp);
+			}
 		}
 
 		// we store no data descriptor
