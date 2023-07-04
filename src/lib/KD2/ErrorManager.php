@@ -1017,10 +1017,16 @@ class ErrorManager
 				{
 					$out .= str_repeat(' ', $level * 2);
 					$out .= is_string($key) ? '["' . $key . '"]' : '[' . $key . ']';
-					$out .= '=> ' . self::dump($value, $hide_values, $level) . PHP_EOL;
+
+					if ($value === $var) {
+						$out .= '=> *RECURSION*' . PHP_EOL;
+					}
+					else {
+						$out .= '=> ' . self::dump($value, $hide_values, $level + 1) . PHP_EOL;
+					}
 				}
 
-				$out .= str_repeat(' ', --$level * 2) . '}';
+				$out .= str_repeat(' ', $level * 2) . '}';
 				return $out;
 			default:
 				return gettype($var);
