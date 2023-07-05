@@ -36,16 +36,19 @@ class Image
 
 	protected $path = null;
 	protected $blob = null;
+	public $srcpointer = null;
 
 	protected $width = null;
 	protected $height = null;
 	protected $type = null;
 	protected $format = null;
+	protected $orientation = null;
 
-	protected $pointer = null;
+	public $pointer = null;
 	protected $library = null;
 
 	public $use_gd_fast_resize_trick = true;
+	protected $close_pointer_quickly = false;
 
 	/**
 	 * WebP quality, from 0 to 100
@@ -77,7 +80,6 @@ class Image
 	public function __construct($path = null, $library = null)
 	{
 		$this->libraries = [
-			'epeg'    => function_exists('\epeg_open'),
 			'imagick' => class_exists('\Imagick', false),
 			'gd'      => function_exists('\imagecreatefromjpeg'),
 		];
@@ -253,15 +255,11 @@ class Image
 		$info = getimagesizefromstring($blob);
 
 		// Find MIME type
-		if (!$info && function_exists('finfo_open'))
-		{
-			$f = finfo_open(FILEINFO_MIME);
-			$info = ['mime' => strstr(finfo_buffer($f, $blob), ';', true)];
-			finfo_close($f);
+		if (!$info) {
+			$info = ['mime' => self::getTypeFromBlob($blob)];
 		}
 
-		if (!$info)
-		{
+		if (!$info) {
 			throw new \RuntimeException('Invalid image format, couldn\'t be read: from string');
 		}
 
@@ -271,6 +269,54 @@ class Image
 		self::$init = false;
 
 		return $obj;
+	}
+
+	static public function createFromPointer($pointer, $library = null, bool $close_pointer_quickly = false)
+	{
+		// Trick to allow empty source in constructor
+		self::$init = true;
+		$obj = new Image(null, $library);
+		$obj->close_pointer_quickly = $close_pointer_quickly;
+
+		$blob = fread($pointer, 1024);
+		rewind($pointer);
+
+		$info = getimagesizefromstring($blob);
+
+		if (!$info) {
+			$info = ['mime' => self::getTypeFromBlob($blob)];
+		}
+
+		if (!$info) {
+			throw new \RuntimeException('Invalid image format, couldn\'t be read: from string');
+		}
+
+		$obj->srcpointer = $pointer;
+		$obj->init($info, $library);
+
+		self::$init = false;
+
+		return $obj;
+	}
+
+	static public function getTypeFromBlob(string $data): ?string
+	{
+		if (substr($data, 0, 3) === "\xff\xd8\xff") {
+			return 'image/jpeg';
+		}
+		elseif (substr($data, 0, 8) !== "\x89PNG\x0d\x0a\x1a\x0a") {
+			return 'image/png';
+		}
+		elseif (in_array(substr($data, 0, 6), ['GIF87a', 'GIF89a', true])) {
+			return 'image/gif';
+		}
+		elseif (substr($data, 0, 4) === 'RIFF'
+			&& is_int(unpack('V', substr($data, 4, 4))[1])
+			&& substr($data, 8, 4) === 'WEBP') {
+			return 'image/webp';
+		}
+
+		return null;
 	}
 
 	/**
@@ -286,6 +332,18 @@ class Image
 		if ($this->path)
 		{
 			call_user_func([$this, $this->library . '_open']);
+		}
+		elseif ($this->srcpointer) {
+			call_user_func([$this, $this->library . '_open_pointer']);
+
+			if ($this->close_pointer_quickly) {
+				if ($this->format() == 'jpeg') {
+					$this->getOrientation();
+				}
+
+				//fclose($this->srcpointer);
+				//$this->srcpointer = null;
+			}
 		}
 		else
 		{
@@ -307,6 +365,7 @@ class Image
 	{
 		$this->blob = null;
 		$this->path = null;
+		$this->srcpointer = null;
 
 		if ($this->pointer)
 		{
@@ -410,6 +469,8 @@ class Image
 		{
 			return $this;
 		}
+
+		$this->orientation = 1;
 
 		if (in_array($orientation, [2, 4, 5, 7]))
 		{
@@ -609,20 +670,35 @@ class Image
 	/**
 	 * Returns orientation of a JPEG file according to its EXIF tag
 	 * @link  http://magnushoff.com/jpeg-orientation.html See to interpret the orientation value
-	 * @return integer|boolean An integer between 1 and 8 or false if no orientation tag have been found
+	 * @return integer|null An integer between 1 and 8 or false if no orientation tag have been found
 	 */
-	public function getOrientation()
+	public function getOrientation(): ?int
 	{
-		if ($this->format != 'jpeg') {
-			return false;
+		if (null !== $this->orientation) {
+			return $this->orientation;
+		}
+
+		$this->open();
+
+		if ($this->format() != 'jpeg') {
+			return null;
 		}
 
 		if (null !== $this->blob) {
 			return Blob::getOrientationJPEG($this->blob);
 		}
 
-		$file = fopen($this->path, 'rb');
+		$file = $this->srcpointer ?? fopen($this->path, 'rb');
 		rewind($file);
+
+		if (fread($file, 2) !== "\xff\xd8")
+		{
+			if (!$this->srcpointer) {
+				fclose($file);
+			}
+
+			return null;
+		}
 
 		// Get length of file
 		fseek($file, 0, SEEK_END);
@@ -631,18 +707,13 @@ class Image
 
 		$sign = 'n';
 
-		if (fread($file, 2) !== "\xff\xd8")
-		{
-			return false;
-		}
-
 		while (!feof($file))
 		{
 			$marker = fread($file, 2);
 			$l = fread($file, 2);
 
 			if (strlen($marker) != 2 || strlen($l) != 2) {
-				return false;
+				break;
 			}
 
 			$info = unpack('nlength', $l);
@@ -652,7 +723,7 @@ class Image
 			{
 				if (fread($file, 6) != "Exif\x00\x00")
 				{
-					return false;
+					break;
 				}
 
 				if (fread($file, 2) == "\x49\x49")
@@ -676,7 +747,8 @@ class Image
 					{
 						fseek($file, 6, SEEK_CUR);
 						$info = unpack(sprintf('%sorientation', $sign), fread($file, 2));
-						return $info['orientation'];
+						$this->orientation = $info['orientation'];
+						break(2);
 					}
 					else
 					{
@@ -694,97 +766,13 @@ class Image
 			}
 		}
 
-		return false;
-	}
-
-	// EPEG methods //////////////////////////////////////////////////////////
-	protected function epeg_open()
-	{
-		$this->pointer = new \Epeg($this->path);
-		$this->format = 'jpeg';
-	}
-
-	protected function epeg_formats()
-	{
-		return ['jpeg'];
-	}
-
-	protected function epeg_blob($data)
-	{
-		$this->pointer = \Epeg::openBuffer($data);
-	}
-
-	protected function epeg_size()
-	{
-		// Do nothing as it only returns the original size of the JPEG
-		// not the resized size
-		/*
-		$size = $this->pointer->getSize();
-		$this->width = $size[0];
-		$this->height = $size[1];
-		*/
-	}
-
-	protected function epeg_close()
-	{
-		$this->pointer = null;
-	}
-
-	protected function epeg_save($destination, $format)
-	{
-		$this->pointer->setQuality($this->jpeg_quality);
-		return $this->pointer->encode($destination);
-	}
-
-	protected function epeg_output($format, $return)
-	{
-		$this->pointer->setQuality($this->jpeg_quality);
-
-		if ($return)
-		{
-			return $this->pointer->encode();
+		if (!$this->srcpointer) {
+			fclose($file);
 		}
 
-		echo $this->pointer->encode();
-		return true;
+		return $this->orientation;
 	}
 
-	protected function epeg_crop($new_width, $new_height)
-	{
-		if (!method_exists($this->pointer, 'setDecodeBounds'))
-		{
-			throw new \RuntimeException('Crop is not supported by EPEG');
-		}
-
-		$x = floor(($this->width - $new_width) / 2);
-		$y = floor(($this->height - $new_height) / 2);
-
-		$this->pointer->setDecodeBounds($x, $y, $new_width, $new_height);
-	}
-
-	protected function epeg_resize($new_width, $new_height, $ignore_aspect_ratio)
-	{
-		if (!$ignore_aspect_ratio)
-		{
-			$in_ratio = $this->width / $this->height;
-
-			$out_ratio = $new_width / $new_height;
-
-			if ($in_ratio >= $out_ratio)
-			{
-				$new_height = $new_width / $in_ratio;
-			}
-			else
-			{
-				$new_width = $new_height * $in_ratio;
-			}
-		}
-
-		$this->width = $new_width;
-		$this->height = $new_height;
-
-		$this->pointer->setDecodeSize($new_width, $new_height, true);
-	}
 
 	// Imagick methods ////////////////////////////////////////////////////////
 	protected function imagick_open()
@@ -795,6 +783,20 @@ class Image
 		catch (\ImagickException $e)
 		{
 			throw new \RuntimeException('Unable to open file: ' . $this->path, false, $e);
+		}
+
+		$this->format = strtolower($this->pointer->getImageFormat());
+	}
+
+	protected function imagick_open_pointer()
+	{
+		try {
+			$this->pointer = new \Imagick;
+			$this->pointer->readImageFile($this->srcpointer);
+		}
+		catch (\ImagickException $e)
+		{
+			throw new \RuntimeException('Unable to open file: ' . $this->srcpointer, false, $e);
 		}
 
 		$this->format = strtolower($this->pointer->getImageFormat());
@@ -987,6 +989,17 @@ class Image
 			imagealphablending($this->pointer, false);
 			imagesavealpha($this->pointer, true);
 		}
+	}
+
+	protected function gd_open_pointer()
+	{
+		$this->path = tempnam(sys_get_temp_dir(), 'php-gd');
+
+		$fp = fopen($this->path, 'wb');
+		stream_copy_to_stream($this->srcpointer, $fp);
+		fclose($fp);
+
+		$this->gd_open();
 	}
 
 	protected function gd_formats()
