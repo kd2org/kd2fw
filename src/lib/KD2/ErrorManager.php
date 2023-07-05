@@ -1004,10 +1004,15 @@ class ErrorManager
 				if ($var instanceof \Traversable) {
 					$var2 = [];
 
-					// Iterate as long as we can
-					while (@$var->valid()) {
-						$var2[] = $var->current();
-						$var->next();
+					try {
+						// Iterate as long as we can
+						while (@$var->valid()) {
+							$var2[] = $var->current();
+							$var->next();
+						}
+					}
+					catch (\Exception $e) {
+						$var2[] = '**' . $e->getMessage() . '**';
 					}
 
 					$var = $var2;
