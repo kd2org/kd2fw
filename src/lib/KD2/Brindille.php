@@ -827,15 +827,29 @@ class Brindille
 
 	static public function __foreach(array $params, $tpl, $line): \Generator
 	{
+		if (array_key_exists('count', $params)) {
+			for ($i = 0; $i < (int)$params['count']; $i++) {
+				$array = [];
+
+				if (isset($params['key']) && is_string($params['key'])) {
+					$array[$params['key']] = $i;
+				}
+
+				yield $array;
+			}
+
+			return;
+		}
+
 		if (!array_key_exists('from', $params)) {
-			throw new Brindille_Exception(sprintf('line %d: missing parameter: "from"', $line));
+			throw new Brindille_Exception(sprintf('line %d: missing parameter: "from" or "count"', $line));
 		}
 
 		if (null == $params['from']) {
 			return null;
 		}
 
-		if (empty($params['item']) || !is_string($params['item'])) {
+		if (!array_key_exists('item', $params) || (!is_null($params['item']) && !is_string($params['item']))) {
 			throw new Brindille_Exception(sprintf('line %d: missing parameter: "item"', $line));
 		}
 
