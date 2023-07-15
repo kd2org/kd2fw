@@ -122,7 +122,7 @@ class Brindille
 				$tz = $date->getTimezone();
 				$date = $date->getTimestamp();
 			}
-			elseif (!ctype_digit($date)) {
+			elseif (!is_int($date) && !(is_string($date) && ctype_digit($date))) {
 				$date = strtotime($date);
 			}
 
