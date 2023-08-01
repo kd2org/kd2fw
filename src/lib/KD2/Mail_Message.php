@@ -185,9 +185,54 @@ class Mail_Message
 		return null;
 	}
 
-	public function getFrom()
+	public function getFrom(): array
 	{
 		return $this->getMultipleAddressHeader('from');
+	}
+
+	public function getFromName(): string
+	{
+		return self::extractNameFromHeader(current($this->getFrom()));
+	}
+
+	public function getFromAddress(): string
+	{
+		return self::extractAddressFromHeader(current($this->getFrom()));
+	}
+
+	static public function extractNameFromHeader(string $from): string
+	{
+		if (preg_match('/["\'](.+?)[\'"]/', $from, $match)) {
+			return $match[1];
+		}
+		elseif (preg_match('/\\((.+?)\\)/', $from, $match)) {
+			return $match[1];
+		}
+		elseif (($pos = strpos($from, '<')) > 0) {
+			return trim(substr($from, 0, $pos));
+		}
+		elseif (($pos = strpos($from, '@')) > 0) {
+			return trim(substr($from, 0, $pos));
+		}
+		else {
+			return $from;
+		}
+	}
+
+	static public function extractAddressFromHeader(string $from): string
+	{
+		if (preg_match('/<(.+@.+)>/', $from, $match)) {
+			return $match[1];
+		}
+		elseif (preg_match('/([^\s]+@[^\s]+)/', $from, $match)) {
+			return $match[1];
+		}
+		elseif (preg_match('/\\((.+?)\\)/', $from, $match)) {
+			return trim(str_replace($match[0], '', $from));
+		}
+		else {
+			return $from;
+		}
 	}
 
 	public function getTo()
@@ -200,7 +245,7 @@ class Mail_Message
 		return $this->getMultipleAddressHeader('cc');
 	}
 
-	public function getMultipleAddressHeader(?string $header, ?string $value = null)
+	public function getMultipleAddressHeader(?string $header, ?string $value = null): array
 	{
 		$header = $value ?? $this->getHeader($header);
 
