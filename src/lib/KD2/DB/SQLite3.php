@@ -962,7 +962,8 @@ class SQLite3 extends DB
 				}
 			}
 
-			$errors[] = sprintf('%s (%s): row %d has an invalid reference to %s (%s)', $row->table, $ref->from, $row->rowid, $row->parent, $ref ? $ref->to : null);
+			$data = $this->first(sprintf('SELECT * FROM %s WHERE rowid = ?;', $row->table), $row->rowid);
+			$errors[] = sprintf("%s (%s): row %d has an invalid reference to %s (%s)\n%s", $row->table, $ref->from, $row->rowid, $row->parent, $ref ? $ref->to : null, json_encode($data));
 		}
 
 		throw new \LogicException(sprintf("Foreign key check: %d errors found\n", count($errors)) . implode("\n", $errors));
