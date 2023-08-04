@@ -111,7 +111,7 @@ class ZipReader
 			}
 
 			if ($files > $this->max_files) {
-				throw new \OutOfBoundsException(sprintf('The archive contains more than files than allowed (max. %d files).', $this->max_files));
+				throw new \OutOfBoundsException(sprintf('The archive contains more files than allowed (max. %d files).', $this->max_files));
 			}
 
 			if ($levels > $this->max_levels) {
@@ -148,7 +148,7 @@ class ZipReader
 
 			fseek($this->fp, $prev_pos);
 
-			$name = $header['filename'];
+			$name = $header['extra']['utf8path'] ?? $header['filename'];
 			$name = str_replace('\\', '/', $name);
 
 			$this->entries[$name] = $header;
@@ -260,6 +260,11 @@ class ZipReader
 		}
 
 		if ($header['compression'] != 0) {
+			// hack, see https://groups.google.com/forum/#!topic/alt.comp.lang.php/37_JZeW63uc
+			$pos = ftell($this->fp);
+			rewind($this->fp);
+			fseek($this->fp, $pos);
+
 			$filter = stream_filter_append($this->fp, 'zlib.inflate', \STREAM_FILTER_READ);
 		}
 
@@ -268,7 +273,17 @@ class ZipReader
 
 		while ($offset < $limit) {
 			$length = min(8192, $limit - $offset);
-			$buffer = fread($this->fp, $length);
+
+			try {
+				$buffer = fread($this->fp, $length);
+			}
+			catch (\Throwable $e) {
+				if (false !== strpos($e->getMessage(), 'zlib: data error')) {
+					throw new \RuntimeException(sprintf('Invalid compressed data for entry "%s".', $header['filename']), 0, $e);
+				}
+
+				throw $e;
+			}
 
 			if ($buffer === false) {
 				throw new \RuntimeException(sprintf('Error reading the contents of entry "%s".', $header['filename']));
@@ -302,11 +317,11 @@ class ZipReader
 
 	protected function readCentralFileHeader(): array
 	{
-        $binary_data = fread($this->fp, 46);
-        $header      = unpack(
-            'vchkid/vid/vversion/vversion_extracted/vflag/vcompression/vmtime/vmdate/Vcrc/Vcompressed_size/Vsize/vfilename_len/vextra_len/vcomment_len/vdisk/vinternal/Vexternal/Voffset',
-            $binary_data
-        );
+		$binary_data = fread($this->fp, 46);
+		$header      = unpack(
+			'vchkid/vid/vversion/vversion_extracted/vflag/vcompression/vmtime/vmdate/Vcrc/Vcompressed_size/Vsize/vfilename_len/vextra_len/vcomment_len/vdisk/vinternal/Vexternal/Voffset',
+			$binary_data
+		);
 
 		if ($header['filename_len'] != 0) {
 			$header['filename'] = fread($this->fp, $header['filename_len']);
@@ -386,11 +401,13 @@ class ZipReader
 
 		// handle known ones
 		if(isset($extra[0x6375])) {
-			$extra['utf8comment'] = substr($extra[0x7075], 5); // strip version and crc
+			$extra['utf8comment'] = substr($extra[0x6375], 5); // strip version and crc
+			unset($extra[0x6375]);
 		}
 
 		if(isset($extra[0x7075])) {
 			$extra['utf8path'] = substr($extra[0x7075], 5); // strip version and crc
+			unset($extra[0x7075]);
 		}
 
 		return $extra;
