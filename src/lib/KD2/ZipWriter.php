@@ -95,6 +95,23 @@ class ZipWriter
 		$this->close();
 	}
 
+	public function addFromPath(string $file, string $path): void
+	{
+		$this->add($file, null, $path);
+	}
+
+	public function addFromPointer(string $file, $pointer): void
+	{
+		$this->add($file, null, null, $pointer);
+	}
+
+
+	public function addFromString(string $file, string $data): void
+	{
+		$this->add($file, $data);
+	}
+
+
 	/**
 	 * Add a file to the current Zip archive using the given $data as content
 	 *
@@ -138,27 +155,28 @@ class ZipWriter
 				$size = 0;
 				$csize = 0;
 				$crc = hash_init('crc32b');
-				$gzip = $this->compression ? deflate_init(ZLIB_ENCODING_GZIP, ['level' => $this->compression]) : null;
+				$filter = null;
+
+				if ($this->compression) {
+					$filter = stream_filter_append($tmp,
+						'zlib.deflate',
+                    	\STREAM_FILTER_WRITE,
+                    	['level' => $this->compression]
+                    );
+				}
 
 				while (!feof($pointer)) {
 					$data = fread($pointer, 8192);
 					hash_update($crc, $data);
 					$size += strlen($data);
-
-					if ($gzip) {
-						$data = deflate_add($gzip, $data, ZLIB_NO_FLUSH);
-						$csize += strlen($data);
-					}
-
 					fwrite($tmp, $data);
 				}
 
-				list(, $crc) = unpack('N', hash_final($crc, true));
+				$crc = (int) hexdec(hash_final($crc));
 
-				if ($gzip) {
-					$data = deflate_add($gzip, '', ZLIB_FINISH);
-					$csize += strlen($data);
-					fwrite($tmp, $data);
+				if ($filter) {
+					stream_filter_remove($filter);
+					$csize = fstat($tmp)['size'];
 				}
 				else {
 					$csize = $size;
@@ -297,19 +315,19 @@ class ZipWriter
 	protected function encodeFilename(string $original): array
 	{
 		// For epub/opendocument files
-		if (!preg_match('//u', $original) || $original == 'mimetype') {
+		if ($original == 'mimetype') {
 			return [$original, ''];
 		}
 
-		$data = "\x01" // version
-			. pack('V', crc32($original))
-			. $original;
+		$extra = pack(
+			'vvCV',
+			0x7075, // tag
+			strlen($original) + 5, // length of file + version + crc
+			1, // version
+			crc32($original) // crc
+		);
+		$extra .= $original;
 
-		return [
-			$original,
-			"\x70\x75" // tag
-			. pack('v', strlen($data)) // length of data
-			. $data
-		];
+		return array($original, $extra);
 	}
 }
