@@ -196,6 +196,7 @@ class Pie_Data
 	public $data = 0.0;
 	public $label = null;
 	public $sublabel = null;
+	public $angle;
 
 	public function __construct($data, $label = null, $fill = 'blue')
 	{
