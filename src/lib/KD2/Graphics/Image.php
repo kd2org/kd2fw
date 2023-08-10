@@ -691,6 +691,11 @@ class Image
 		$file = $this->srcpointer ?? fopen($this->path, 'rb');
 		rewind($file);
 
+		// Get length of file
+		fseek($file, 0, SEEK_END);
+		$length = ftell($file);
+		rewind($file);
+
 		if (fread($file, 2) !== "\xff\xd8")
 		{
 			if (!$this->srcpointer) {
@@ -699,11 +704,6 @@ class Image
 
 			return null;
 		}
-
-		// Get length of file
-		fseek($file, 0, SEEK_END);
-		$length = ftell($file);
-		rewind($file);
 
 		$sign = 'n';
 
