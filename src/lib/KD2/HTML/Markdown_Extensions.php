@@ -164,6 +164,10 @@ class Markdown_Extensions
 			$class .= ' web-grid-debug';
 		}
 
+		if (isset($args['class']) && preg_match('/^[a-z0-9_\s-]+$/', $args['class'])) {
+			$class .= ' ' . $args['class'];
+		}
+
 		$style = self::filterStyleAttribute($style);
 
 		$out .= sprintf('<section class="%s" style="--%s">', $class, htmlspecialchars($style));
