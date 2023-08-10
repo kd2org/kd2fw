@@ -184,8 +184,9 @@ class TableToXLSX extends TableToODS
 			// Remove space and non-breaking space
 			$number_value = str_replace([' ', "\xC2\xA0"], '', $attributes['number'] ?? $value);
 
-			if (preg_match('/^-?\d+(?:[,.]\d+)?$/', $number_value)) {
+			if (preg_match('/^[+-]?\d+(?:[,.]\d+)?$/', $number_value)) {
 				$number_value = str_replace(',', '.', $number_value);
+				$number_value = str_replace('+', '', $number_value);
 			}
 			else {
 				$number_value = null;
