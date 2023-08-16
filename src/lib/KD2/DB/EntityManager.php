@@ -130,6 +130,18 @@ class EntityManager
 		return $out;
 	}
 
+	public function allAssoc(string $query, string $key, ...$params): array
+	{
+		$res = $this->iterate($query, ...$params);
+		$out = [];
+
+		foreach ($res as $row) {
+			$out[$row->$key] = $row;
+		}
+
+		return $out;
+	}
+
 	public function iterate(string $query, ...$params): iterable
 	{
 		$db = $this->DB();
@@ -138,6 +150,9 @@ class EntityManager
 
 		if ($db instanceof SQLite3) {
 			while ($row = $res->fetchArray(\SQLITE3_ASSOC)) {
+				// If you are getting a row containing only NULL values
+				// it probably means you are deleting rows before the iteration
+				// has a chance to fetch it!
 				$obj = new $this->class;
 				$obj->exists(true);
 				$obj->load($row);
