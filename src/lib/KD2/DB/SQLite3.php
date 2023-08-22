@@ -198,6 +198,10 @@ class SQLite3 extends DB
 		}
 
 		parent::__destruct();
+
+		if ($this->callback) {
+			call_user_func($this->callback, __FUNCTION__, null, $this);
+		}
 	}
 
 	public function connect(): void
@@ -227,6 +231,10 @@ class SQLite3 extends DB
 
 		foreach ($this->sqlite_functions as $name => $callback)
 		{
+			if (is_array($callback) && $callback[0] === '$this') {
+				$callback = [$this, $callback[1]];
+			}
+
 			$this->db->createFunction($name, $callback);
 		}
 

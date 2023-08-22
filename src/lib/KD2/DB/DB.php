@@ -68,6 +68,7 @@ class DB
 		'base64_encode'      => 'base64_encode',
 		'rank'               => [__CLASS__, 'sqlite_rank'],
 		'haversine_distance' => [__CLASS__, 'sqlite_haversine'],
+		'escape_like'        => ['$this', 'escapeLike'],
 	];
 
 	protected $sqlite_collations = [
@@ -198,6 +199,10 @@ class DB
 			// Enhance SQLite with default functions
 			foreach ($this->sqlite_functions as $name => $callback)
 			{
+				if (is_array($callback) && $callback[0] === '$this') {
+					$callback = [$this, $callback[1]];
+				}
+
 				$this->pdo->sqliteCreateFunction($name, $callback);
 			}
 
