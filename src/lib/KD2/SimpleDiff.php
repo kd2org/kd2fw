@@ -76,15 +76,21 @@ class SimpleDiff
             $t1 = explode("\n",$old);
 
         $x = array_pop($t1);
-        if ($x>'') $t1[]="$x\n\\ No newline at end of file";
+
+        if ($x !== '') {
+            $t1[] = "$x\n\\ No newline at end of file";
+        }
 
         if (is_array($new))
             $t2 = $new;
         else
             $t2 = explode("\n",$new);
 
-        $x=array_pop($t2);
-        if ($x>'') $t2[]="$x\n\\ No newline at end of file";
+        $x = array_pop($t2);
+
+        if ($x !== '') {
+            $t2[] = "$x\n\\ No newline at end of file";
+        }
 
         # build a reverse-index array using the line as key and line number as value
         # don't store blank lines, so they won't be targets of the shortest distance
