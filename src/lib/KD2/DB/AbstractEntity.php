@@ -380,7 +380,7 @@ abstract class AbstractEntity
 			}
 
 			if ($value !== null) {
-				if (strpos($type, 'int') !== false && is_string($value) && ctype_digit($value)) {
+				if ((false !== strpos($type, 'float') || false !== strpos($type, 'int')) && is_string($value) && ctype_digit($value)) {
 					$value = (int)$value;
 				}
 				elseif ($type == 'DateTime' && is_string($value) && strlen($value) === 19 && ($d = \DateTime::createFromFormat('!Y-m-d H:i:s', $value))) {
