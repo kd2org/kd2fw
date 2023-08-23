@@ -212,9 +212,8 @@ class EntityManager
 		$db = $this->DB();
 
 		if ($entity->exists()) {
-			$data = $entity->modifiedProperties(true);
-
-			if (count($data)) {
+			if ($entity->isModified()) {
+				$data = array_intersect_key($entity->asArray(true), $entity->getModifiedProperties());
 				$return = $db->update($entity::TABLE, $data, $db->where('id', $entity->id()));
 			}
 			else {

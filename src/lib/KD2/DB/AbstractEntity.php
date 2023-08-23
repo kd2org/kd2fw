@@ -296,11 +296,20 @@ abstract class AbstractEntity
 		}
 	}
 
-	public function modifiedProperties(bool $for_database = false): array
+	/**
+	 * Returns an array containing *OLD* values of modified properties
+	 * (*NEW* value is stored in object)
+	 *
+	 * Note that modified properties are cleared after save()
+	 */
+	public function getModifiedProperties(): array
 	{
-		return array_intersect_key($this->asArray($for_database), $this->_modified);
+		return $this->_modified;
 	}
 
+	/**
+	 * Returns the *OLD* value of a modified property
+	 */
 	public function getModifiedProperty(string $key)
 	{
 		return $this->_modified[$key] ?? null;
