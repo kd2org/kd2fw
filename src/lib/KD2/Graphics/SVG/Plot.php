@@ -23,12 +23,16 @@ namespace KD2\Graphics\SVG;
 
 class Plot
 {
+	const POSITION_TOP_RIGHT = 1;
+	const POSITION_BOTTOM_RIGHT = 2;
+
 	protected $width = null;
 	protected $height = null;
 	protected $data = array();
 	protected $title = null;
 	protected $labels = array();
 	protected $legend = true;
+	protected $legend_position = self::POSITION_TOP_RIGHT;
 	protected $count, $min, $max, $margin_top, $margin_left;
 
 	public function __construct($width = 600, $height = 400)
@@ -46,6 +50,11 @@ class Plot
 	public function toggleLegend()
 	{
 		$this->legend = !$this->legend;
+	}
+
+	public function setLegendPosition(int $position)
+	{
+		$this->legend_position = $position;
 	}
 
 	public function setLabels($labels)
@@ -90,8 +99,14 @@ class Plot
 
 		if ($this->legend)
 		{
-			$x = $this->width - ($this->width * 0.06);
-			$y = $this->height * 0.1;
+			if ($this->legend_position == self::POSITION_BOTTOM_RIGHT) {
+				$x = $this->width - ($this->width * 0.06);
+				$y = $this->height * 0.9 - ($this->height * 0.07) * count($this->data);
+			}
+			else {
+				$x = $this->width - ($this->width * 0.06);
+				$y = $this->height * 0.1;
+			}
 
 			foreach ($this->data as $row)
 			{
