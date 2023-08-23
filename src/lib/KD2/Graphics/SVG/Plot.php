@@ -264,16 +264,21 @@ class Plot
 class Plot_Data
 {
 	public $color = 'blue';
-	public $width = '10';
+	public $width = '3';
 	public $title = null;
 	protected $data = array();
 
-	public function __construct($data)
+	public function __construct($data, ?string $title = null, ?string $color = 'blue')
 	{
-		if (is_array($data))
+		if (is_array($data)) {
 			$this->data = $data;
-		elseif (!is_object($data))
+		}
+		elseif (!is_object($data)) {
 			$this->append($data);
+		}
+
+		$this->title = $title;
+		$this->color = $color;
 	}
 
 	public function append($data)
