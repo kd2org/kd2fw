@@ -308,6 +308,14 @@ abstract class AbstractEntity
 	}
 
 	/**
+	 * @deprecated
+	 */
+	public function modifiedProperties(bool $for_database = false): array
+	{
+		return array_intersect_key($this->asArray($for_database), $this->_modified);
+	}
+
+	/**
 	 * Returns the *OLD* value of a modified property
 	 */
 	public function getModifiedProperty(string $key)
