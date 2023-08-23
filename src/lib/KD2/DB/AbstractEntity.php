@@ -262,7 +262,7 @@ abstract class AbstractEntity
 
 	public function getAsString(string $key)
 	{
-		if (null === $this->$key) {
+		if (!isset($this->$key)) {
 			return null;
 		}
 
