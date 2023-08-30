@@ -415,6 +415,38 @@ class Image
 		return $this;
 	}
 
+	public function trim(float $fuzz = 0): self
+	{
+		$this->open();
+
+		$method = $this->library . '_trim';
+
+		if (!method_exists($this, $method))
+		{
+			return $this;
+		}
+
+		$this->$method($fuzz);
+		call_user_func([$this, $this->library . '_size']);
+		return $this;
+	}
+
+	public function reduceColors(int $nb_colors): self
+	{
+		$this->open();
+
+		$method = $this->library . '_reduce_colors';
+
+		if (!method_exists($this, $method))
+		{
+			return $this;
+		}
+
+		$this->$method($nb_colors);
+
+		return $this;
+	}
+
 	public function resize($new_width, $new_height = null, $ignore_aspect_ratio = false)
 	{
 		$this->open();
@@ -978,6 +1010,16 @@ class Image
 		else {
 			$this->pointer->flopImage();
 		}
+	}
+
+	protected function imagick_trim(float $fuzz)
+	{
+		$this->pointer->trimImage($fuzz);
+	}
+
+	protected function imagick_reduce_colors(int $nb_colors)
+	{
+		$this->pointer->quantizeImage($nb_colors, \Imagick::COLORSPACE_RGB, 0, false, false);
 	}
 
 	// GD methods /////////////////////////////////////////////////////////////
