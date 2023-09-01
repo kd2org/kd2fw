@@ -171,7 +171,7 @@ class ZipReader
 			return null;
 		}
 
-		return $this->_extract($this->entries[$path]);
+		return $this->extract($this->entries[$path]);
 	}
 
 	/**
@@ -186,7 +186,7 @@ class ZipReader
 				return 0;
 			}
 
-			$this->_extract($this->entries[$path], $destination);
+			$this->extract($this->entries[$path], $destination);
 
 			return 1;
 		}
@@ -195,7 +195,7 @@ class ZipReader
 
 		foreach ($this->iterate() as $file) {
 			$dest = $destination . str_replace('/', DIRECTORY_SEPARATOR, $file['filename']);
-			$this->_extract($file, $dest);
+			$this->extract($file, $dest);
 			$count++;
 		}
 
@@ -213,7 +213,7 @@ class ZipReader
 			return false;
 		}
 
-		$this->_extract($this->entries[$path], $pointer);
+		$this->extract($this->entries[$path], $pointer);
 		return true;
 	}
 
@@ -242,7 +242,7 @@ class ZipReader
 		}
 	}
 
-	protected function _extract(array $header, $destination = null): ?string
+	public function extract(array $header, $destination = null): ?string
 	{
 		fseek($this->fp, $header['start']);
 
@@ -444,6 +444,12 @@ class ZipReader
 
 	protected function readCentralDir()
 	{
+		rewind($this->fp);
+
+		if (fread($this->fp, 4) !== "PK\x03\x04") {
+			throw new \RuntimeException('Invalid archive: is not a zip file');
+		}
+
 		fseek($this->fp, 0, SEEK_END);
 		$size = ftell($this->fp);
 		rewind($this->fp);
