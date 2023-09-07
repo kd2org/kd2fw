@@ -12,7 +12,7 @@ $skriv->footnotes_prefix = 'test';
 Test::isInstanceOf(SkrivLite::class, $skriv, '$skriv must be an instance of SkrivLite');
 
 $orig = '**strong word** --strike-through-- not-__underlined__';
-$target = '<p><strong>strong word</strong> <s>strike-through</s> not-__underlined__</p>';
+$target = '<p><strong>strong word</strong> <s>strike-through</s> not-<u>underlined</u></p>';
 
 Test::equals($target, $skriv->render($orig), 'inline rendering error');
 
@@ -201,7 +201,7 @@ $target = '<p>Maybe<sup class="footnote-ref"><a href="#cite_note-test1" id="cite
 <p>SkrivML is powerful <sup class="footnote-ref"><a href="#cite_note-test2" id="cite_ref-test2">Skriv</a></sup>
 </p>
 <p>Last try<sup class="footnote-ref"><a href="#cite_note-test3" id="cite_ref-test3">2</a></sup></p>
-<div class="footnotes"><p class="footnote"><a href="#cite_ref-test1" id="cite_note-test1">1</a>. sure</p><p class="footnote"><a href="#cite_ref-test2" id="cite_note-test2">Skriv</a>. <a href="http://markup.skriv.org/">http://markup.skriv.org/</a></p><p class="footnote"><a href="#cite_ref-test3" id="cite_note-test3">2</a>. ok</p></div>';
+<div class="footnotes"><p class="footnote"><a href="#cite_ref-test1" id="cite_note-test1">1</a>. sure</p><p class="footnote"><a href="#cite_ref-test2" id="cite_note-test2">Skriv</a>. <a href="http://markup.skriv.org/" target="_blank" rel="noreferrer noopener">http://markup.skriv.org/</a></p><p class="footnote"><a href="#cite_ref-test3" id="cite_note-test3">2</a>. ok</p></div>';
 
 Test::equals($target, $skriv->render($orig), 'footnote rendering error');
 

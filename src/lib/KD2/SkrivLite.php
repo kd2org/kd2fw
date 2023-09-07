@@ -75,9 +75,6 @@ class SkrivLite
 	/**
 	 * Enable basic inline HTML tags?
 	 * Only allowed attributes: class, title
-	 * Tags are: ins, del, samp, kbd, code, big, small, b, i, u,
-	 * strong, em, tt, cite, dfn, time, var, br, span, sub, sup, q
-	 * FIXME
 	 * @var boolean
 	 */
 	public $enable_basic_html = true;
@@ -548,8 +545,24 @@ class SkrivLite
 			return null;
 		}
 
+		$a = substr($line, 0, 1);
+		$b = substr($line, 0, 2);
+		$c = substr($line, 0, 3);
+
 		// Verbatim/Code
-		if (strpos($line, '[[[') === 0)
+		// Paragraphs breaks
+		if (trim($line) === '')
+		{
+			if ($this->_checkLastStack('pre') && (strlen($line) > 0 || preg_match('/^\s/', $next)))
+			{
+				$line = '';
+			}
+			else
+			{
+				$line = $this->_closeStack();
+			}
+		}
+		elseif ($c === '[[[')
 		{
 			$before = $this->_closeStack();
 			$before .= '<pre>';
@@ -568,7 +581,7 @@ class SkrivLite
 			$this->_verbatim = true;
 		}
 		// Closing verbatim/code block
-		elseif (strpos($line, ']]]') === 0)
+		elseif ($c === ']]]')
 		{
 			$line = '';
 
@@ -583,7 +596,7 @@ class SkrivLite
 		}
 		// Opening of extension block
 		// This regex avoids to match '<<ext|param>> some text <<ext2|other>>' as a block extension
-		elseif (strpos($line, '<<') === 0 && preg_match('/^<<<?([a-z_]+)((?:(?!>>>?).)*?)(>>>?$|$)/i', trim($line), $match))
+		elseif ($b === '<<' && preg_match('/^<<<?([a-z_]+)((?:(?!>>>?).)*?)(>>>?$|$)/i', trim($line), $match))
 		{
 			if (!empty($match[3]))
 			{
@@ -597,7 +610,7 @@ class SkrivLite
 			}
 		}
 		// Closing extension block
-		elseif (strpos($line, '>>') === 0 && $this->_extension)
+		elseif ($b === '>>' && $this->_extension)
 		{
 			$line = $this->callExtension($this->_extension, $this->_block);
 
@@ -605,13 +618,13 @@ class SkrivLite
 			$this->_extension = false;
 		}
 		// Horizontal rule
-		elseif (strpos($line, '----') === 0)
+		elseif ($b === '---')
 		{
 			$line = $this->_closeStack();
 			$line .= '<hr />';
 		}
 		// Titles / headers
-		elseif (preg_match('#^(?<!\\\\)(={1,6})\s*(.*?)(?:\s*(?<!\\\\)\\1(?:\s*(.+))?)?$#', $line, $match))
+		elseif ($a === '=' && preg_match('#^(={1,6})\s*(.*?)(?:\s*(?<!\\\\)\\1(?:\s*(.+))?)?$#', $line, $match))
 		{
 			$level = strlen($match[1]);
 			$line = trim($match[2]);
@@ -636,7 +649,7 @@ class SkrivLite
 			$line = $this->_closeStack() . '<h' . $level . ' id="' . $id . '">' . $label . '</h' . $level . '>';
 		}
 		// Quotes
-		elseif (preg_match('#^(?<!\\\\)((?:>\s*)+)\s*(.*)$#', $line, $match))
+		elseif ($a === '>' && preg_match('#^((?:>\s*)+)\s*(.*)$#', $line, $match))
 		{
 			$before = $after = '';
 
@@ -710,9 +723,11 @@ class SkrivLite
 			$line = $before . $line . $after;
 		}
 		// Preformatted text
-		elseif (preg_match('/^(?<!\\\\)\t+/', $line)
-			|| ($this->pre_whitespace_size > 0 
-				&& preg_match('/^(?<!\\\\)[ ]{' . (int) $this->pre_whitespace_size . ',}/', $line, $match)))
+		elseif ($a === "\t"
+			|| ($a === ' '
+				&& $this->pre_whitespace_size > 0
+				&& substr($line, 0, $this->pre_whitespace_size) === str_repeat(' ', $this->pre_whitespace_size)
+				&& preg_match('/^[ ]{' . (int) $this->pre_whitespace_size . ',}/', $line, $match)))
 		{
 			$before = '';
 
@@ -727,13 +742,13 @@ class SkrivLite
 			$line = $before . $this->escape(substr($line, $length));
 		}
 		// Styled blocks
-		elseif (preg_match('/^(?<!\\\\)((?:\{{3}\s*)+)\s*(.*)$/', $line, $match))
+		elseif ($c === '{{{' && preg_match('/^((?:\{{3}\s*)+)\s*(.*)$/', $line, $match))
 		{
 			$this->_classes[] = trim($match[2]);
 			$line = $this->_closeStack() . '<div class="' . htmlspecialchars(implode(' ', $this->_classes)) . '">';
 		}
 		// Closing styled blocks
-		elseif (preg_match('/^(?<!\\\\)((?:\}{3}\s*)+)$/', $line, $match))
+		elseif ($c === '}}}' && preg_match('/^((?:\}{3}\s*)+)$/', $line, $match))
 		{
 			$nb_closing = substr_count($line, '}}}');
 			$line = '';
@@ -756,7 +771,7 @@ class SkrivLite
 
 		}
 		// Tables
-		elseif (preg_match('/^(?<!\\\\)(!!|\|\|)\s*(.*)$/', $line, $match))
+		elseif (($b === '!!' || $b === '||') && preg_match('/^(?<!\\\\)(!!|\|\|)\s*(.*)$/', $line, $match))
 		{
 			$line = '';
 			$columns = explode($match[1], $match[2]);
@@ -794,7 +809,8 @@ class SkrivLite
 			$line .= '</tr>';
 		}
 		// Match lists but avoid parsing bold/monospace tags **/##.
-		elseif (preg_match('/^(?<!\\\\)([*#]+)\s*(.*)$/', $line, $match) 
+		elseif (($a === '*' || $a === '#')
+			&& preg_match('/^([\*#]+)\s*(.*)$/', $line, $match) 
 			&& !(($this->_checkLastStack('p') || empty($this->_stack)) 
 				&& (trim($match[1]) == '##' || trim($match[1]) == '**')
 				&& preg_match('/\*\*|##/', $match[2])))
@@ -874,18 +890,6 @@ class SkrivLite
 
 			$line = $before . $this->_renderInline($match[2]);
 		}
-		// Paragraphs breaks
-		elseif (trim($line) == '')
-		{
-			if ($this->_checkLastStack('pre') && (strlen($line) > 0 || preg_match('/^\s/', $next)))
-			{
-				$line = '';
-			}
-			else
-			{
-				$line = $this->_closeStack();
-			}
-		}
 		else
 		{
 			$line = $this->_renderInline($line);
@@ -914,7 +918,7 @@ class SkrivLite
 	 * @param  boolean $obj  Return metadata in a stdClass object instead of an array
 	 * @return array         Metadata
 	 */
-	public function parseMetadata(&$text, $obj = false)
+	public function parseMetadata(&$text, $obj = true)
 	{
 		$text = ltrim($text);
 		$text = str_replace("\r", '', $text);
@@ -994,7 +998,6 @@ class SkrivLite
 		// Close tags that are still open
 		$line .= $this->_closeStack();
 
-		$text = array_filter($text);
 		$text = implode("\n", $text);
 
 		// Add footnotes
@@ -1140,9 +1143,10 @@ class SkrivLite_Helper
 
         $translit = false;
 
-        // Use a proper transliterator if available
-        if (function_exists('transliterator_transliterate'))
+        // Disable transliterator as it is slow
+        if (false && function_exists('transliterator_transliterate'))
         {
+        	// Use a proper transliterator if available
         	$default = ini_get('intl.use_exceptions');
         	ini_set('intl.use_exceptions', 1);
 
