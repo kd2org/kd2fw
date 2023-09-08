@@ -71,14 +71,9 @@ abstract class AbstractEntity
 	 */
 	public function __construct()
 	{
-		if (!empty(self::$_types_cache[static::class])) {
-			return $this;
-		}
-
-		// Generate _types array
-		if (version_compare(PHP_VERSION, '7.4', '>=') && empty($this->_types)) {
+		// Generate types cache
+		if (empty(self::$_types_cache[static::class]) && empty($this->_types)) {
 			$r = new \ReflectionClass(static::class);
-			self::$_types_cache[static::class] = [];
 
 			foreach ($r->getProperties(\ReflectionProperty::IS_PROTECTED) as $p) {
 				if ($p->name[0] == '_') {
@@ -100,20 +95,48 @@ abstract class AbstractEntity
 					$type = ($t->allowsNull() ? '?' : '') . $type;
 				}
 
-				self::$_types_cache[static::class][$p->name] = $type;
+				$this->_types[$p->name] = $type;
+			}
+		}
+
+		self::_loadEntityTypesCache($this->_types);
+	}
+
+	static protected function _loadEntityTypesCache(array $types)
+	{
+		if (!empty(self::$_types_cache[static::class])) {
+			return;
+		}
+
+		foreach ($types as $name => $type) {
+			$nullable = false;
+
+			if ($type[0] === '?') {
+				$type = substr($type, 1);
+				$nullable = true;
 			}
 
-			$this->_types = self::$_types_cache[static::class];
-		}
-		else {
-			self::$_types_cache[static::class] = $this->_types;
+			$types = explode('|', $type);
+
+			$prop = (object) compact('name', 'nullable', 'types');
+			$prop->boolean = in_array('bool', $types) || in_array('boolean', $types);
+			$prop->integer = in_array('int', $types) || in_array('integer', $types);
+			$prop->float = in_array('float', $types) || in_array('double', $types);
+			$prop->string = in_array('string', $types);
+			$prop->array = in_array('array', $types);
+			$prop->object = !$prop->boolean && !$prop->integer && !$prop->float && !$prop->string && !$prop->array;
+			$prop->stdclass = in_array('stdClass', $types);
+			$prop->datetime = in_array('DateTime', $types) || in_array('DateTimeInterface', $types);
+			$prop->date = in_array(Date::class, $types) || in_array('date', $types);
+
+			self::$_types_cache[static::class][$name] = $prop;
 		}
 	}
 
 	public function __wakeup(): void
 	{
 		if (empty(self::$_types_cache[static::class])) {
-			self::$_types_cache[static::class] = $this->_types;
+			self::_loadEntityTypesCache($this->_types);
 		}
 	}
 
@@ -125,21 +148,29 @@ abstract class AbstractEntity
 	 */
 	public function load(array $data): self
 	{
-		$properties = array_keys(self::$_types_cache[static::class]);
+		$properties = self::$_types_cache[static::class];
 
 		foreach ($data as $key => $value) {
-			if (!in_array($key, $properties)) {
+			if (!array_key_exists($key, $properties)) {
 				throw new \RuntimeException(sprintf('"%s" is not a property of the entity "%s"', $key, static::class));
 			}
 		}
 
-		foreach ($properties as $key) {
-			if (!array_key_exists($key, $data)) {
-				throw new \RuntimeException('Missing key in array: ' . $key);
+		foreach ($properties as $name => $prop) {
+			if (!array_key_exists($name, $data)) {
+				throw new \RuntimeException('Missing key in array: ' . $name);
 			}
 
-			$value = $data[$key];
-			$this->set($key, $value, true, false);
+			$value = $data[$name];
+
+			if (is_int($value) && $prop->boolean) {
+				$value = (bool) $value;
+			}
+			elseif (is_string($value) && !$prop->string) {
+				$value = $this->transformValue($name, $value);
+			}
+
+			$this->$name = $value;
 		}
 
 		return $this;
@@ -162,18 +193,14 @@ abstract class AbstractEntity
 		$data = array_intersect_key($source, self::$_types_cache[static::class]);
 
 		foreach ($data as $key => $value) {
-			$type = self::$_types_cache[static::class][$key];
+			$prop = self::$_types_cache[static::class][$key];
 
-			if (substr($type, 0, 1) == '?') {
-				$type = substr($type, 1);
-
-				if (is_string($value) && trim($value) === '') {
-					$value = null;
-				}
+			if ($prop->nullable && is_string($value) && trim($value) === '') {
+				$value = null;
 			}
 
-			$value = $this->filterUserValue($type, $value, $key);
-			$this->set($key, $value, true, true);
+			$value = $this->filterUserValue($prop->types[0], $value, $key); // FIXME don't use first type only
+			$this->setFromAnyValue($key, $value);
 		}
 
 		return $this;
@@ -227,14 +254,14 @@ abstract class AbstractEntity
 	{
 		$this->assert(!isset($this->id) || (is_numeric($this->id) && $this->id > 0));
 
-		foreach (self::$_types_cache[static::class] as $key => $type) {
+		foreach (self::$_types_cache[static::class] as $prop_name => $prop) {
 			// Skip ID
-			if ($key == 'id') {
+			if ($prop_name == 'id') {
 				continue;
 			}
 
-			if (!isset($this->$key) && substr($type, 0, 1) != '?') {
-				throw new \UnexpectedValueException(sprintf('Entity property "%s" cannot be left null', $key));
+			if (!isset($this->$prop_name) && !$prop->nullable) {
+				throw new \UnexpectedValueException(sprintf('Entity property "%s" cannot be left NULL', $prop_name));
 			}
 		}
 	}
@@ -266,31 +293,31 @@ abstract class AbstractEntity
 			return null;
 		}
 
-		$type = self::$_types_cache[static::class][$key];
+		$value = $this->$key;
 
-		if (substr($type, 0, 1) == '?') {
-			$type = substr($type, 1);
-		}
+		switch (gettype($value)) {
+			case 'object':
+				if ($value instanceof \stdClass) {
+					return json_encode($value);
+				}
+				elseif ($value instanceof Date) {
+					return $value->format('Y-m-d');
+				}
+				elseif ($value instanceof \DateTimeInterface) {
+					return $value->format('Y-m-d H:i:s');
+				}
 
-		switch ($type) {
-			// Export dates
-			case 'date':
-			case Date::class:
-				return $this->$key->format('Y-m-d');
-			case 'DateTime':
-				return $this->$key->format('Y-m-d H:i:s');
+				return (string) $value;
 			case 'bool':
 			case 'boolean':
-				return (int) $this->$key;
-			case 'stdClass':
-				return json_encode($this->$key);
+				return (int) $value;
 			case 'array':
-				return json_encode($this->$key);
+				return json_encode($value);
 			case 'int':
 			case 'integer':
 			case 'double':
 			case 'float':
-				return $this->$key;
+				return $value;
 			default:
 				return (string) $this->$key;
 		}
@@ -371,79 +398,92 @@ abstract class AbstractEntity
 		return $this->_exists;
 	}
 
-	public function set(string $key, $value, bool $loose = false, bool $check_for_changes = true) {
-		if (!property_exists($this, $key)) {
+	public function setFromAnyValue(string $key, $value)
+	{
+		$this->set($key, $this->transformValue($key, $value));
+	}
+
+	/**
+	 * Transforms the value from loosely typed to be suitable to expected type of a property
+	 * eg. (string)'42' => (int)42
+	 */
+	public function transformValue(string $key, $value)
+	{
+		$prop = self::$_types_cache[static::class][$key] ?? null;
+
+		if (null === $prop) {
 			throw new \InvalidArgumentException(sprintf('Unknown "%s" property: "%s"', static::class, $key));
 		}
 
-		if (isset($this->$key)) {
-			$original_value = $this->getAsString($key);
+		if (is_string($value) && trim($value) === '' && $prop->nullable) {
+			$value = null;
+		}
+		elseif (($prop->float || $prop->integer) && is_string($value) && ctype_digit($value)) {
+			$value = (int)$value;
+		}
+		elseif ($prop->datetime && is_string($value) && strlen($value) === 19 && ($d = \DateTime::createFromFormat('!Y-m-d H:i:s', $value))) {
+			$value = $d;
+		}
+		elseif ($prop->datetime && is_string($value) && strlen($value) === 16 && ($d = \DateTime::createFromFormat('!Y-m-d H:i', $value))) {
+			$value = $d;
+		}
+		elseif ($prop->date && is_string($value) && strlen($value) === 10 && ($d = Date::createFromFormat('!Y-m-d', $value))) {
+			$value = $d;
+		}
+		elseif ($prop->date && is_object($value) && $value instanceof \DateTime && !($value instanceof Date)) {
+			$value = Date::createFromInterface($value);
+		}
+		elseif ($prop->boolean && is_numeric($value) && ($value == 0 || $value == 1)) {
+			$value = (bool) $value;
+		}
+		elseif ($prop->array && is_string($value)) {
+			$value = json_decode($value, true);
+
+			if (null === $value) {
+				throw new \RuntimeException(sprintf('Cannot decode JSON string for key "%s"', $key));
+			}
+		}
+		elseif ($prop->stdclass && is_string($value)) {
+			$value = json_decode($value);
+
+			if (null === $value) {
+				throw new \RuntimeException(sprintf('Cannot decode JSON string for key "%s"', $key));
+			}
+		}
+
+		return $value;
+	}
+
+	public function set(string $key, $value)
+	{
+		$prop = self::$_types_cache[static::class][$key] ?? null;
+
+		if (null === $prop) {
+			throw new \InvalidArgumentException(sprintf('Unknown "%s" property: "%s"', static::class, $key));
+		}
+
+		if (isset($this->$key) && is_object($this->$key)) {
+			$original_value = clone $this->$key;
+		}
+		elseif (isset($this->$key)) {
+			$original_value = $this->$key;
 		}
 		else {
 			$original_value = null;
 		}
 
-		$type = self::$_types_cache[static::class][$key];
-		$nullable = false;
-
-		if ($type[0] == '?') {
-			$nullable = true;
-			$type = substr($type, 1);
-		}
-
-		if ($loose) {
-			if (is_string($value) && trim($value) === '' && $nullable) {
-				$value = null;
-			}
-
-			if ($value !== null) {
-				if ((false !== strpos($type, 'float') || false !== strpos($type, 'int')) && is_string($value) && ctype_digit($value)) {
-					$value = (int)$value;
-				}
-				elseif ($type == 'DateTime' && is_string($value) && strlen($value) === 19 && ($d = \DateTime::createFromFormat('!Y-m-d H:i:s', $value))) {
-					$value = $d;
-				}
-				elseif ($type == 'DateTime' && is_string($value) && strlen($value) === 16 && ($d = \DateTime::createFromFormat('!Y-m-d H:i', $value))) {
-					$value = $d;
-				}
-				elseif (($type == 'date' || $type == Date::class) && is_string($value) && strlen($value) === 10 && ($d = Date::createFromFormat('!Y-m-d', $value))) {
-					$value = $d;
-				}
-				elseif (($type == 'date' || $type == Date::class) && is_object($value) && $value instanceof \DateTime && !($value instanceof Date)) {
-					$value = Date::createFromInterface($value);
-				}
-				elseif ($type == 'bool' && is_numeric($value) && ($value == 0 || $value == 1)) {
-					$value = (bool) $value;
-				}
-				elseif ($type == 'array' && is_string($value)) {
-					$value = json_decode($value, true);
-
-					if (null === $value) {
-						throw new \RuntimeException(sprintf('Cannot decode JSON string for key "%s"', $key));
-					}
-				}
-				elseif ($type == 'stdClass' && is_string($value)) {
-					$value = json_decode($value);
-
-					if (null === $value) {
-						throw new \RuntimeException(sprintf('Cannot decode JSON string for key "%s"', $key));
-					}
-				}
-			}
-		}
-
-		if (!$nullable && null === $value) {
+		if (null === $value && !$prop->nullable) {
 			throw new \RuntimeException(sprintf('Unexpected NULL value for "%s"', $key));
 		}
 
-		if (null !== $value && !$this->_checkType($key, $value, $type)) {
-			$found_type = $this->_getType($value);
+		if (null !== $value && !$this->_checkValueType($value, $prop)) {
+			$found_type = $this->_getValueType($value);
 
 			if ('object' == $found_type) {
 				$found_type = get_class($value);
 			}
 
-			throw new \UnexpectedValueException(sprintf('Value of type \'%s\' for property \'%s\' is invalid (expected \'%s\')', $found_type, $key, $type));
+			throw new \UnexpectedValueException(sprintf('Value of type \'%s\' for property \'%s\' is invalid (expected \'%s\')', $found_type, $key, implode('|', $prop->types)));
 		}
 
 		// Normalize line breaks to \n
@@ -454,7 +494,7 @@ abstract class AbstractEntity
 
 		$this->$key = $value;
 
-		if ($check_for_changes && $original_value !== $this->getAsString($key)) {
+		if ($original_value !== $this->getAsString($key)) {
 			$this->_modified[$key] = $original_value;
 		}
 	}
@@ -466,7 +506,7 @@ abstract class AbstractEntity
 
 	public function __set(string $key, $value)
 	{
-		$this->set($key, $value, false, true);
+		$this->set($key, $value);
 	}
 
 	public function __get(string $key)
@@ -488,42 +528,33 @@ abstract class AbstractEntity
 		$this->_exists = false;
 	}
 
-	protected function _checkType(string $key, $value, string $type): bool
+	protected function _checkValueType($value, \stdClass $prop): bool
 	{
-		if (false !== strpos($type, '|')) {
-			$types = explode('|', $type);
+		$type = $this->_getValueType($value);
 
-			foreach ($types as $type) {
-				if ($this->_checkType($key, $value, $type)) {
-					return true;
-				}
-			}
-
-			return false;
+		if ($type !== 'object' && isset($prop->$type) && $prop->$type === true) {
+			return true;
+		}
+		elseif ($prop->date && $value instanceof Date) {
+			return true;
+		}
+		elseif ($prop->datetime && $value instanceof \DateTimeInterface) {
+			return true;
+		}
+		elseif ($prop->stdclass && $value instanceof \stdClass) {
+			return true;
 		}
 
-		switch ($type) {
-			case 'date':
-			case Date::class:
-				return is_object($value) && $value instanceof \DateTimeInterface;
-			case 'DateTime':
-				return is_object($value) && $value instanceof \DateTimeInterface;
-			default:
-				return $this->_getType($value) == $type;
-		}
+		return false;
 	}
 
-	protected function _getType($value)
+	protected function _getValueType($value)
 	{
 		$type = gettype($value);
 
 		// Type names are not consistent in PHP...
 		// see https://mlocati.github.io/articles/php-type-hinting.html
-		$type = strtr($type, ['boolean' => 'bool', 'integer' => 'int', 'double' => 'float']);
-
-		if ($type === 'object') {
-			$type = get_class($value);
-		}
+		$type = $type === 'double' ? 'float': $type;
 
 		return $type;
 	}
