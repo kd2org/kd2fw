@@ -116,18 +116,17 @@ abstract class AbstractEntity
 				$nullable = true;
 			}
 
-			$types = explode('|', $type);
-
-			$prop = (object) compact('name', 'nullable', 'types');
-			$prop->boolean = in_array('bool', $types) || in_array('boolean', $types);
-			$prop->integer = in_array('int', $types) || in_array('integer', $types);
-			$prop->float = in_array('float', $types) || in_array('double', $types);
-			$prop->string = in_array('string', $types);
-			$prop->array = in_array('array', $types);
+			$prop = (object) compact('name', 'nullable', 'type');
+			$prop->boolean = $type === 'bool' || $type === 'boolean';
+			$prop->integer = $type === 'int' || $type === 'integer';
+			$prop->float = $type === 'float' || $type === 'double';
+			$prop->string = $type === 'string';
+			$prop->array = $type === 'array';
 			$prop->object = !$prop->boolean && !$prop->integer && !$prop->float && !$prop->string && !$prop->array;
-			$prop->stdclass = in_array('stdClass', $types);
-			$prop->datetime = in_array('DateTime', $types) || in_array('DateTimeInterface', $types);
-			$prop->date = in_array(Date::class, $types) || in_array('date', $types);
+			$prop->class = $prop->object ? $type : null;
+			$prop->stdclass = $prop->class === 'stdClass';
+			$prop->datetime = $prop->class === 'DateTime' || $prop->class === 'DateTimeInterface';
+			$prop->date = $prop->class === Date::class || $prop->class === 'date';
 
 			self::$_types_cache[static::class][$name] = $prop;
 		}
@@ -199,7 +198,7 @@ abstract class AbstractEntity
 				$value = null;
 			}
 
-			$value = $this->filterUserValue($prop->types[0], $value, $key); // FIXME don't use first type only
+			$value = $this->filterUserValue($prop->type, $value, $key);
 			$this->setFromAnyValue($key, $value);
 		}
 
@@ -473,7 +472,7 @@ abstract class AbstractEntity
 		}
 
 		if (null === $value && !$prop->nullable) {
-			throw new \RuntimeException(sprintf('Unexpected NULL value for "%s"', $key));
+			throw new \UnexpectedValueException(sprintf('Unexpected NULL value for "%s"', $key));
 		}
 
 		if (null !== $value && !$this->_checkValueType($value, $prop)) {
@@ -483,7 +482,7 @@ abstract class AbstractEntity
 				$found_type = get_class($value);
 			}
 
-			throw new \UnexpectedValueException(sprintf('Value of type \'%s\' for property \'%s\' is invalid (expected \'%s\')', $found_type, $key, implode('|', $prop->types)));
+			throw new \UnexpectedValueException(sprintf('Value of type \'%s\' for property \'%s\' is invalid (expected \'%s\')', $found_type, $key, $prop->type));
 		}
 
 		// Normalize line breaks to \n
@@ -542,6 +541,9 @@ abstract class AbstractEntity
 			return true;
 		}
 		elseif ($prop->stdclass && $value instanceof \stdClass) {
+			return true;
+		}
+		elseif ($prop->class && $value instanceof $prop->class) {
 			return true;
 		}
 
