@@ -475,6 +475,10 @@ abstract class AbstractEntity
 			throw new \UnexpectedValueException(sprintf('Unexpected NULL value for "%s"', $key));
 		}
 
+		if ($prop->date && is_object($value) && !($value instanceof Date)) {
+			$value = Date::createFromInterface($value);
+		}
+
 		if (null !== $value && !$this->_checkValueType($value, $prop)) {
 			$found_type = $this->_getValueType($value);
 
