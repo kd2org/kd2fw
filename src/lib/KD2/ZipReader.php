@@ -68,7 +68,7 @@ class ZipReader
 	public function open(string $file)
 	{
 		if (!is_readable($file)) {
-			throw new RuntimeException('Could not open ZIP file for reading: ' . $file);
+			throw new \InvalidArgumentException('Could not open ZIP file for reading: ' . $file);
 		}
 
 		$this->setPointer(fopen($file, 'rb'));
@@ -447,7 +447,7 @@ class ZipReader
 		rewind($this->fp);
 
 		if (fread($this->fp, 4) !== "PK\x03\x04") {
-			throw new \RuntimeException('Invalid archive: is not a zip file');
+			throw new \InvalidArgumentException('Invalid archive: is not a zip file');
 		}
 
 		fseek($this->fp, 0, SEEK_END);
