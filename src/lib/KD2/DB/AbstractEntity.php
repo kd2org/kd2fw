@@ -390,7 +390,7 @@ abstract class AbstractEntity
 			$this->_exists = $exists;
 
 			if ($exists === false) {
-				$this->id = null;
+				unset($this->id);
 			}
 		}
 
@@ -527,7 +527,7 @@ abstract class AbstractEntity
 	 */
 	public function __clone()
 	{
-		$this->id = null;
+		unset($this->id);
 		$this->_exists = false;
 	}
 
