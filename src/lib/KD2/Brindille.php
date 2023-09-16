@@ -850,7 +850,7 @@ class Brindille
 		}
 
 		if (!is_iterable($params['from'])) {
-			throw new Brindille_Exception('"from" parameter is not an iterable value');
+			return null;
 		}
 
 		foreach ($params['from'] as $key => $value) {
