@@ -673,7 +673,7 @@ class Brindille
 		$state = 0;
 		$last_value = '';
 
-		preg_match_all('/(?:"(?:\\.|[^\"])*?"|\'(?:\\.|[^\'])*?\'|(?>[^"\'=\s]+))+|[=]/i', $str, $match);
+		preg_match_all('/(?:"(?:\\\\"|[^\"])*?"|\'(?:\\\\\'|[^\'])*?\'|(?>[^"\'=\s]+))+|[=]/i', $str, $match);
 
 		foreach ($match[0] as $value)
 		{
