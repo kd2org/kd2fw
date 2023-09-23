@@ -567,7 +567,7 @@ class Markdown extends Parsedown
 
 		if (isset($e['element']['attributes']['href']) && strstr($e['element']['attributes']['href'], ':')) {
 			$e['element']['attributes']['target'] = '_blank';
-			$e['element']['attributes']['rel'] = 'nofollow,noreferrer';
+			$e['element']['attributes']['rel'] = 'noreferrer';
 		}
 
 		return $e;
