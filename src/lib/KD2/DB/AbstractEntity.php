@@ -391,7 +391,7 @@ abstract class AbstractEntity
 		if (is_string($value) && trim($value) === '' && $prop->nullable) {
 			$value = null;
 		}
-		elseif (($prop->float || $prop->integer) && is_string($value) && ctype_digit($value)) {
+		elseif (($prop->float || $prop->integer) && is_string($value) && is_numeric($value)) {
 			$value = (int)$value;
 		}
 		elseif ($prop->datetime && is_string($value) && strlen($value) === 19 && ($d = \DateTime::createFromFormat('!Y-m-d H:i:s', $value))) {
