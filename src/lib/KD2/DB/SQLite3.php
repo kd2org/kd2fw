@@ -641,7 +641,7 @@ class SQLite3 extends DB
 		}
 		catch (\Exception $e)
 		{
-			throw new \RuntimeException($e->getMessage() . "\n" . json_encode($args, true), 0, $e);
+			throw new DB_Exception($e->getMessage() . "\n" . json_encode($args, true), 0, $e);
 		}
 	}
 
