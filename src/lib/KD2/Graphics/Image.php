@@ -1027,7 +1027,7 @@ class Image
 	{
 		$this->pointer = call_user_func('imagecreatefrom' . $this->format, $this->path);
 
-		if ($this->format == 'png' || $this->format == 'gif') {
+		if ($this->format === 'webp' || $this->format === 'png' || $this->format === 'gif') {
 			imagealphablending($this->pointer, false);
 			imagesavealpha($this->pointer, true);
 		}
@@ -1074,7 +1074,7 @@ class Image
 	{
 		$this->pointer = imagecreatefromstring($data);
 
-		if ($this->format == 'png' || $this->format == 'gif') {
+		if ($this->format === 'webp' || $this->format === 'png' || $this->format === 'gif') {
 			imagealphablending($this->pointer, false);
 			imagesavealpha($this->pointer, true);
 		}
@@ -1134,8 +1134,7 @@ class Image
 	{
 		$new = imagecreatetruecolor((int)$w, (int)$h);
 
-		if ($this->format == 'png' || $this->format == 'gif')
-		{
+		if ($this->format === 'webp' || $this->format === 'png' || $this->format === 'gif') {
 			imagealphablending($new, false);
 			imagesavealpha($new, true);
 			imagefilledrectangle($new, 0, 0, (int)$w, (int)$h, imagecolorallocatealpha($new, 255, 255, 255, 127));
@@ -1224,8 +1223,18 @@ class Image
 
 		if ($quality < 5 && (($dst_w * $quality) < $src_w || ($dst_h * $quality) < $src_h))
 		{
-			$temp = imagecreatetruecolor(intval($dst_w * $quality + 1), intval($dst_h * $quality + 1));
-			imagecopyresized($temp, $src_image, 0, 0, (int)$src_x, (int)$src_y, intval($dst_w * $quality + 1), intval($dst_h * $quality + 1), (int)$src_w, (int)$src_h);
+			$temp_w = intval($dst_w * $quality + 1);
+			$temp_h = intval($dst_h * $quality + 1);
+
+			$temp = imagecreatetruecolor($temp_w, $temp_h);
+
+			if ($this->format === 'webp' || $this->format === 'png' || $this->format === 'gif') {
+				imagealphablending($temp, false);
+				imagesavealpha($temp, true);
+				imagefilledrectangle($temp, 0, 0, $temp_w, $temp_h, imagecolorallocatealpha($temp, 255, 255, 255, 127));
+			}
+
+			imagecopyresized($temp, $src_image, 0, 0, (int)$src_x, (int)$src_y, $temp_w, $temp_h, (int)$src_w, (int)$src_h);
 			imagecopyresampled($dst_image, $temp, (int)$dst_x, (int)$dst_y, 0, 0, (int)$dst_w, (int)$dst_h, intval($dst_w * $quality), intval($dst_h * $quality));
 			imagedestroy($temp);
 		}
