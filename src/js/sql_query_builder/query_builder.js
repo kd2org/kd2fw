@@ -36,6 +36,7 @@
 			"LIKE %?%": this.__("contains"),
 			"NOT LIKE %?%": this.__("doesn't contain"),
 			"&": this.__("matches one of"),
+			"NOT &": this.__("doesn't match one of"),
 			"= 1": this.__("is true"),
 			"= 0": this.__("is false"),
 		};
@@ -46,7 +47,7 @@
 			"enum": ["= ?", "!= ?", "IN (??)", "NOT IN (??)"],
 			"boolean": ["= 1", "= 0"],
 			"text": ["= ?", "!= ?", "IN (??)", "NOT IN (??)", "LIKE ?%", "NOT LIKE ?%", "LIKE %?", "NOT LIKE %?", "LIKE %?%", "NOT LIKE %?%"],
-			"bitwise": ["&"],
+			"bitwise": ["&", "NOT &"],
 		};
 
 		// Build objects of operators per types
@@ -202,17 +203,34 @@
 
 	qb.prototype.switchColumn = function (columnSelect) {
 		var row = columnSelect.parentNode.parentNode;
+		var current_operator = row.cells[2].firstChild.value;
+		var current_values = this.getValues(row);
 		row.childNodes[2].innerHTML = '';
 
-		if (!columnSelect.value)
-		{
+		if (!columnSelect.value) {
 			return;
 		}
 
-		// Select first operator
-		var o = this.addOperator(row, this.columns[columnSelect.value]);
-		o.value = this.default_operator ?? o.children[1].value;
-		this.switchOperator(o, null);
+		var column = this.columns[columnSelect.value];
+		var o = this.addOperator(row, column);
+		var operators = this.types_operators[column.type];
+
+		// Select same operator if it exists
+		if (current_operator && operators.hasOwnProperty(current_operator)) {
+			o.value = current_operator;
+		}
+		else {
+			if (this.default_operator && operators.hasOwnProperty(this.default_operator)) {
+				o.value = this.default_operator;
+			}
+			else {
+				o.value = o.children[1].value;
+			}
+
+			current_values = null;
+		}
+
+		this.switchOperator(o, current_values);
 	};
 
 	qb.prototype.addOperator = function (targetRow, column) {
@@ -273,7 +291,7 @@
 		{
 			number = params.length;
 		}
-		else if (column.type == 'bitwise' && operator == '&')
+		else if (column.type == 'bitwise' && (operator == '&' || operator == 'NOT &'))
 		{
 			number = 1;
 		}
@@ -406,6 +424,26 @@
 		}
 	};
 
+	// Fetch all values in an array
+	qb.prototype.getValues = function (row) {
+		var values = Array.prototype.slice.call(row.cells[3].querySelectorAll('input, select')).map(function (input) {
+			if (input.type == 'checkbox')
+			{
+				return input.checked ? input.value : null;
+			}
+			else if (input.type != 'button')
+			{
+				return input.value;
+			}
+		});
+
+		values = values.filter(function (v) {
+			return v === null ? false : true;
+		});
+
+		return values;
+	};
+
 	qb.prototype.export = function () {
 		var source_groups = this.parent.querySelectorAll('table');
 		var groups = [];
@@ -427,26 +465,10 @@
 					continue;
 				}
 
-				// Fetch all values in an array
-				var values = Array.prototype.slice.call(r.cells[3].querySelectorAll('input, select')).map(function (input) {
-					if (input.type == 'checkbox')
-					{
-						return input.checked ? input.value : null;
-					}
-					else if (input.type != 'button')
-					{
-						return input.value;
-					}
-				});
-
-				values = values.filter(function (v) {
-					return v === null ? false : true;
-				});
-
 				var row = {
 					"column": r.cells[1].firstChild.value,
 					"operator": r.cells[2].firstChild.value,
-					"values": values,
+					"values": this.getValues(r)
 				};
 
 				if (!row.operator)
