@@ -12,6 +12,7 @@ namespace KD2\HTML;
 class Markdown extends Parsedown
 {
 	protected array $extensions = [];
+	protected $defaultExtensionCallback = null;
 
 	public array $toc = [];
 
@@ -65,6 +66,11 @@ class Markdown extends Parsedown
 		else {
 			$this->extensions[$tag] = $callback;
 		}
+	}
+
+	public function registerDefaultExtensionCallback(?callable $callback): void
+	{
+		$this->defaultExtensionCallback = $callback;
 	}
 
 	function __construct()
@@ -815,7 +821,7 @@ class Markdown extends Parsedown
 	{
 		$name = strtolower($name);
 
-		if (!array_key_exists($name, $this->extensions)) {
+		if (!array_key_exists($name, $this->extensions) && !$this->defaultExtensionCallback) {
 			return self::error('Unknown extension: ' . $name);
 		}
 
@@ -846,7 +852,7 @@ class Markdown extends Parsedown
 			$params = [];
 		}
 
-		return call_user_func($this->extensions[$name], $block, $params, $content, $name, $this);
+		return call_user_func($this->extensions[$name] ?? $this->defaultExtensionCallback, $block, $params, $content, $name, $this);
 	}
 
 	static public function error(string $msg, bool $block = false)
