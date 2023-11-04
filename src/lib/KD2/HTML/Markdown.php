@@ -171,7 +171,7 @@ class Markdown extends Parsedown
 			}
 
 			$attributes['referrerpolicy'] = 'no-referrer';
-			$attributes['sandbox'] = 'allow-same-origin allow-scripts';
+			$attributes['sandbox'] = 'allow-same-origin allow-scripts allow-popups allow-forms allow-modals';
 			$attributes['frameborder'] = 0;
 
 			if ($style && preg_match('/width:\s*(\d+(?:px|%)?)/', $style, $match)) {
