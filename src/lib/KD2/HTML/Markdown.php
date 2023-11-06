@@ -281,7 +281,7 @@ class Markdown extends Parsedown
 	 */
 	protected function inlineExtension(array $str): ?array
 	{
-		if (preg_match('/^<<<?(\/?[a-z_]+)((?:(?!>>>?).)*?)>>>?/i', $str['text'], $match)) {
+		if (preg_match('/^<<<?(\/?[a-z][a-z0-9_]*)((?:(?!>>>?).)*?)>>>?/i', $str['text'], $match)) {
 			$text = $this->callExtension($match[1], false, $match[2]);
 
 			return [
@@ -303,7 +303,7 @@ class Markdown extends Parsedown
 	{
 		$line = $line['text'];
 
-		if (strpos($line, '<<') === 0 && preg_match('/^<<<?(\/?[a-z_]+)((?:(?!>>>?).)*?)(>>>?$|$)/ism', trim($line), $match)) {
+		if (strpos($line, '<<') === 0 && preg_match('/^<<<?(\/?[a-z][a-z0-9_]*)((?:(?!>>>?).)*?)(>>>?$|$)/ism', trim($line), $match)) {
 			$text = $match[3] ? $this->callExtension($match[1], true, $match[2]) : '';
 
 			return [
