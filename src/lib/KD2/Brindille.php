@@ -956,7 +956,7 @@ class Brindille
 			// Same for 'from', but use it as a variable name
 			// {{:assign var="test" from="types.%s"|args:$type}}
 			elseif (array_key_exists('from', $params) && count($params) == 1) {
-				$prev = $tpl->get($params['from']);
+				$prev = is_string($params['from']) ? $tpl->get($params['from']) : null;
 			}
 			// Or else assign all params
 			else {
