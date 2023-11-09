@@ -210,6 +210,8 @@ class Brindille
 			'?>' => '<?=\'?>\'?>'
 		]);
 
+		$keep_whitespaces = false !== strpos($code, '{{**keep_whitespaces**}}');
+
 		// Remove comments, but do not affect the number of lines
 		$code = preg_replace_callback('/\{\{\*(?:(?!\*\}\}).*?)\*\}\}/s', function ($match) {
 			return '<?php /* ' . str_repeat("\n", substr_count($match[0], "\n")) . '*/ ?>';
@@ -240,9 +242,15 @@ class Brindille
 		// Remove comments altogether
 		$return = preg_replace('!<\?php /\*.*?\*/ \?>!s', '', $return);
 
-		// Remove whitespaces between PHP logic blocks (not echo blocks)
-		// this is to avoid sending data to browser in logic code, eg. redirects
-		$return = preg_replace('!\s\?>(\s+)<\?php\s!', ' $1 ', $return);
+		if ($keep_whitespaces) {
+			// Keep whitespaces, but PHP is eating the line break after a closing tag, so double it
+			$return = preg_replace('!\s\?>\n!', "$0\n", $return);
+		}
+		else {
+			// Remove whitespaces between PHP logic blocks (not echo blocks)
+			// this is to avoid sending data to browser in logic code, eg. redirects
+			$return = preg_replace('!\s\?>(\s+)<\?php\s!', ' $1 ', $return);
+		}
 
 		return $return;
 	}
@@ -931,7 +939,7 @@ class Brindille
 			// To assign to arrays, eg. {{:assign var="rows[0][label]"}}
 			// or {{:assign var="rows.0.label"}}
 			foreach ($parts as $sub) {
-				$sub = trim($sub, '\'" ' . ($separator == '[' ? '[]' : '.'));
+				$sub = trim($sub, '\'" ' . ($separator === '[' ? '[]' : '.'));
 
 				// Empty key: just increment
 				if (!strlen($sub)) {
@@ -939,7 +947,7 @@ class Brindille
 				}
 
 				if (null === $prev) {
-					break;
+					$prev = [];
 				}
 
 				if (!array_key_exists($sub, $prev)) {
