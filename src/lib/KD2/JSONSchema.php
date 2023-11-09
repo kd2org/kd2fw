@@ -284,7 +284,7 @@ class JSONSchema
 	protected function isAssociativeArrayOrObject($var): bool
 	{
 		return is_object($var)
-			|| (is_array($var) && !$this->array_is_list($var));
+			|| (is_array($var) && (!count($var) || !$this->array_is_list($var)));
 	}
 
 	/**
