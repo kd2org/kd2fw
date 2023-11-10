@@ -281,8 +281,12 @@ class SQLite3 extends DB
 		return \SQLite3::escapeString($str);
 	}
 
-	public function quote(string $str, int $parameter_type = 0): string
+	public function quote($str, int $parameter_type = 0): string
 	{
+		if (is_int($str)) {
+			return $str;
+		}
+
 		return '\'' . $this->escapeString($str) . '\'';
 	}
 
