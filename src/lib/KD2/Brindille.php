@@ -431,8 +431,9 @@ class Brindille
 		try {
 			return $this->_modifiers[$name](...$params);
 		}
-		catch (\Exception $e) {
-			throw new Brindille_Exception(sprintf("line %d: modifier '%s' has returned an error: %s\nParameters: %s", $line, $name, $e->getMessage(), json_encode($params)), 0, $e);
+		catch (\Exception | \ArgumentCountError $e) {
+			$message = preg_replace('/in\s+.*?\son\sline\s\d+|to\s+function\s+.*?,/', '', $e->getMessage());
+			throw new Brindille_Exception(sprintf("line %d: modifier '%s' has returned an error: %s\nParameters: %s", $line, $name, $message, json_encode($params)), 0, $e);
 		}
 	}
 
