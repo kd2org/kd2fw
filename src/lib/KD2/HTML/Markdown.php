@@ -571,9 +571,8 @@ class Markdown extends Parsedown
 	{
 		$e = parent::inlineLink($e);
 
-		if (isset($e['element']['attributes']['href']) && strstr($e['element']['attributes']['href'], ':')) {
-			$e['element']['attributes']['target'] = '_blank';
-			$e['element']['attributes']['rel'] = 'noreferrer';
+		if (isset($e['element']['attributes']['href']) && strstr($e['element']['attributes']['href'], '://')) {
+			$e['element']['attributes']['rel'] = 'noreferrer noopener external';
 		}
 
 		return $e;
