@@ -773,7 +773,13 @@ class Image
 
 				for ($i = 0; $i < $tags; $i++)
 				{
-					$info = unpack(sprintf('%stag', $sign), fread($file, 2));
+					$data = fread($file, 2);
+
+					if (strlen($data) < 2) {
+						break;
+					}
+
+					$info = unpack(sprintf('%stag', $sign), $data);
 
 					if ($info['tag'] == 0x0112)
 					{
