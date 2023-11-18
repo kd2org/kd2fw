@@ -942,13 +942,13 @@ class Brindille
 			foreach ($parts as $sub) {
 				$sub = trim($sub, '\'" ' . ($separator === '[' ? '[]' : '.'));
 
+				if (null === $prev || !is_array($prev)) {
+					$prev = [];
+				}
+
 				// Empty key: just increment
 				if (!strlen($sub)) {
 					$sub = count($prev);
-				}
-
-				if (null === $prev) {
-					$prev = [];
 				}
 
 				if (!array_key_exists($sub, $prev)) {
