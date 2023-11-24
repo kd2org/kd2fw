@@ -243,8 +243,9 @@ class Brindille
 		$return = preg_replace('!<\?php /\*.*?\*/ \?>!s', '', $return);
 
 		if ($keep_whitespaces) {
+			$return = str_replace(["\r\n", "\r"], "\n", $return);
 			// Keep whitespaces, but PHP is eating the line break after a closing tag, so double it
-			$return = preg_replace('!\s\?>\n!', "$0\n", $return);
+			$return = str_replace("?>\n", "?>\n\n", $return);
 		}
 		else {
 			// Remove whitespaces between PHP logic blocks (not echo blocks)
