@@ -260,13 +260,13 @@ abstract class AbstractEntity
 		return $vars;
 	}
 
-	public function getAsString(string $key)
+	public function getAsString(string $key, $value = null)
 	{
 		if (!isset($this->$key)) {
 			return null;
 		}
 
-		$value = $this->$key;
+		$value ??= $this->$key;
 
 		switch (gettype($value)) {
 			case 'object':
@@ -292,7 +292,7 @@ abstract class AbstractEntity
 			case 'float':
 				return $value;
 			default:
-				return (string) $this->$key;
+				return (string) $value;
 		}
 	}
 
@@ -471,7 +471,7 @@ abstract class AbstractEntity
 
 		$this->$key = $value;
 
-		if ($original_value !== $this->getAsString($key)) {
+		if ($this->getAsString($key, $original_value) !== $this->getAsString($key)) {
 			$this->_modified[$key] = $original_value;
 		}
 	}
