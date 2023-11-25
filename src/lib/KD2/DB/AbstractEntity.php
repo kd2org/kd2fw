@@ -471,7 +471,17 @@ abstract class AbstractEntity
 
 		$this->$key = $value;
 
-		if ($this->getAsString($key, $original_value) !== $this->getAsString($key)) {
+		// For storing a modified object, compare its string value, not the object, as DateTime !== DateTime
+		if (is_object($value) && is_object($original_value)) {
+			$compare_value = $this->getAsString($key, $original_value);
+			$value = $this->getAsString($key, $value);
+		}
+		else {
+			$compare_value = $original_value;
+		}
+
+		// Only modify entity if value has changed
+		if ($value !== $compare_value) {
 			$this->_modified[$key] = $original_value;
 		}
 	}
