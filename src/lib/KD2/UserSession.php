@@ -624,6 +624,7 @@ class UserSession
 				}
 
 				$row = strtok($row, ':');
+				strtok('');
 				$list[] = strtoupper($row);
 			}
 

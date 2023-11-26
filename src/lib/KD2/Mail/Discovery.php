@@ -35,7 +35,7 @@ class Discovery
 	public function discover(string $address): ?stdClass
 	{
 		$user = strtok($address, '@');
-		$domain = strtok(false);
+		$domain = strtok('');
 
 		if (!$user || !$domain) {
 			throw new \InvalidArgumentException('Invalid e-mail address: ' . $address);

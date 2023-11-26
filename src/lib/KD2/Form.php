@@ -228,6 +228,8 @@ class Form
 			}
 		}
 
+		strtok('');
+
 		return $rules;
 	}
 

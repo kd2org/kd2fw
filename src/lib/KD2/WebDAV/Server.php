@@ -276,7 +276,7 @@ class Server
 		elseif (!empty($_SERVER['HTTP_OC_CHECKSUM'])
 			&& preg_match('/MD5:[a-f0-9]{32}|SHA1:[a-f0-9]{40}/', $_SERVER['HTTP_OC_CHECKSUM'], $match)) {
 			$hash_algo = strtok($match[0], ':');
-			$hash = strtok(false);
+			$hash = strtok('');
 		}
 
 		$uri = $this->_prefix($uri);
