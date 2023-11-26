@@ -498,6 +498,8 @@ class Garbage2xhtml
             $tag =& $this->allowed_tags[$match[0]];
         }
 
+        strtok('');
+
         $value = preg_replace('!^.*\s+!U', '', $value);
 
         if (preg_match_all(self::ATTRIBUTE_REGEXP, $value, $match))

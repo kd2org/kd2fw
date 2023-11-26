@@ -80,6 +80,7 @@ class Translate
 	static public function setLocale($locale)
 	{
 		$locale = strtok($locale, '@.-+=%:; ');
+		strtok('');
 
 		self::$locale = $locale;
 
@@ -390,6 +391,7 @@ class Translate
 		}
 
 		$locale_short = strtok(self::$locale, '_');
+		strtok('');
 		$str = null;
 
 		if (isset(self::$translations[$domain][self::$locale][$id]))
