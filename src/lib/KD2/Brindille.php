@@ -77,15 +77,17 @@ class Brindille
 		# regexp modifiers
 		%sx';
 
-	public $_stack = [];
+	public array $_stack = [];
 
-	protected $_sections = [];
+	protected array $_sections = [];
+
 	// Escape is the only mandatory modifier
-	protected $_modifiers = ['escape' => 'htmlspecialchars'];
-	protected $_functions = [];
-	protected $_blocks = [];
+	protected array $_modifiers = ['escape' => 'htmlspecialchars'];
+	protected array $_modifiers_with_instance = [];
+	protected array $_functions = [];
+	protected array $_blocks = [];
 
-	public $_variables = [0 => []];
+	public array $_variables = [0 => []];
 
 	public function registerDefaults()
 	{
@@ -162,9 +164,21 @@ class Brindille
 		}
 	}
 
-	public function registerModifier(string $name, callable $callback): void
+	public function checkModifierExists(string $name)
 	{
-		$this->_modifiers[$name] = $callback;
+		return array_key_exists($name, $this->_modifiers) || array_key_exists($name, $this->_modifiers_with_instance);
+	}
+
+	public function registerModifier(string $name, callable $callback, bool $pass_instance_as_first_argument = false): void
+	{
+		unset($this->_modifiers_with_instance[$name], $this->_modifiers[$name]);
+
+		if ($pass_instance_as_first_argument) {
+			$this->_modifiers_with_instance[$name] = $callback;
+		}
+		else {
+			$this->_modifiers[$name] = $callback;
+		}
 	}
 
 	public function registerSection(string $name, callable $callback): void
@@ -428,9 +442,14 @@ class Brindille
 		throw new Brindille_Exception('Unknown block: ' . $all);
 	}
 
-	public function _callModifier(string $name, int $line, ... $params) {
+	public function callModifier(string $name, int $line, ... $params) {
 		try {
-			return $this->_modifiers[$name](...$params);
+			if (isset($this->_modifiers[$name])) {
+				return $this->_modifiers[$name](...$params);
+			}
+			else {
+				return $this->_modifiers_with_instance[$name]($this, $line, ...$params);
+			}
 		}
 		catch (\Exception | \ArgumentCountError $e) {
 			$message = preg_replace('/in\s+.*?\son\sline\s\d+|to\s+function\s+.*?,/', '', $e->getMessage());
@@ -644,12 +663,12 @@ class Brindille
 				}
 
 				// Modifiers MUST be registered at compile time
-				if (!array_key_exists($mod_name, $this->_modifiers)) {
+				if (!$this->checkModifierExists($mod_name)) {
 					throw new Brindille_Exception('Unknown modifier name: ' . $mod_name);
 				}
 
 				$post = $_post . ')' . $post;
-				$pre .= '$this->_callModifier(' . var_export($mod_name, true) . ', ' . $line . ', ';
+				$pre .= '$this->callModifier(' . var_export($mod_name, true) . ', ' . $line . ', ';
 			}
 		}
 
@@ -664,7 +683,7 @@ class Brindille
 		// auto escape
 		if ($escape)
 		{
-			$var = '$this->_callModifier(\'escape\', ' . $line . ', ' . $var . ')';
+			$var = '$this->callModifier(\'escape\', ' . $line . ', ' . $var . ')';
 		}
 
 		return $var;
