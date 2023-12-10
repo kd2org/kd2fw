@@ -1231,11 +1231,11 @@ class Mail_Message
 	 */
 	public function isPermanentRejection(string $error_message): ?bool
 	{
-		if (preg_match('/(?:user|mailbox)\s+(?:is\s+)?unavailable|doesn\'t\s*have|quota|does\s*not\s*exist|invalid|Unrouteable|unknown|illegal|no\s*such\s*user|disabled|Relay\s*access\s*denied|not\s*found/i', $error_message))
+		if (preg_match('/(?:user|mailbox)\s+(?:is\s+)?unavailable|doesn\'t\s*have|does\s*not\s*exist|invalid|Unrouteable|unknown|illegal|no\s*such\s*user|disabled|Relay\s*access\s*denied|not\s*found|Amazon SES did not send the message/i', $error_message))
 		{
 			return true;
 		}
-		elseif (preg_match('/rejete|rejected|spam\s*detected|Service\s*refus|greylist|expired|service\s*unavailable|retry\s*timeout/i', $error_message))
+		elseif (preg_match('/rejete|rejected|spam\s*detected|Service\s*refus|greylist|expired|service\s*unavailable|retry\s*timeout|quota|too\s*many|spam\s*policy/i', $error_message))
 		{
 			return false;
 		}
