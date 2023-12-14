@@ -884,6 +884,7 @@ class Brindille
 
 		foreach ($params['from'] as $key => $value) {
 			$array = [];
+			$value = (array)$value;
 
 			if (is_array($value) && is_string(key($value))) {
 				$array = $value;
