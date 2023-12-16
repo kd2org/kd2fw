@@ -100,9 +100,9 @@ class EntityManager
 	 * @param  int $id  Entity ID
 	 * @return null|AbstractEntity
 	 */
-	static public function findOneById(string $class, int $id)
+	static public function findOneById(string $class, int $id, ?string $table = null)
 	{
-		$query = sprintf('SELECT * FROM %s WHERE id = ?;', $class::TABLE);
+		$query = sprintf('SELECT * FROM %s WHERE id = ?;', $table ?? $class::TABLE);
 		return self::findOne($class, $query, $id);
 	}
 
