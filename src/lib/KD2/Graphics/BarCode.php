@@ -21,7 +21,7 @@
 
 namespace KD2\Graphics;
 
-class Barcode
+class BarCode
 {
 	const PRITY = [
 		[1,1,1,1,1,1],
