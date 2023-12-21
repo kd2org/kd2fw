@@ -1043,8 +1043,12 @@ class Mail_Message
 		return $value;
 	}
 
-	protected function _decodeMultipart($lines)
+	protected function _decodeMultipart(array $lines, int $iteration = 0)
 	{
+		if (++$iteration > 10) {
+			throw new \OverflowException('Too many iterations of multipart decoding: stopped at 10');
+		}
+
 		$i = 0;
 		$start = null;
 		$end = null;
@@ -1096,7 +1100,7 @@ class Mail_Message
 		// Sub-multipart
 		if (stristr($headers['content-type'], 'multipart/'))
 		{
-			$this->_decodeMultipart(array_slice($lines, $end));
+			$this->_decodeMultipart(array_slice($lines, $end), $iteration);
 			return false;
 		}
 
@@ -1134,7 +1138,7 @@ class Mail_Message
 
 		$this->parts[] = $part;
 
-		return $this->_decodeMultipart(array_slice($lines, $end));
+		return $this->_decodeMultipart(array_slice($lines, $end), $iteration);
 	}
 
 	public function utf8_encode($str)
