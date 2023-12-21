@@ -872,7 +872,7 @@ class Mail_Message
 		list($headers, $body) = $this->_parseHeadersAndBody($raw);
 
 		if (!empty($headers['content-type']) && stristr($headers['content-type'], 'multipart/')
-			&& preg_match('/boundary=(?:"(.*?)"|([^\s]+))/mi', $headers['content-type'], $match))
+			&& preg_match('/boundary=(?:"(.*?)"|([^\s;]+))/mi', $headers['content-type'], $match))
 		{
 			$this->boundaries[] = !empty($match[2]) ? $match[2] : $match[1];
 
