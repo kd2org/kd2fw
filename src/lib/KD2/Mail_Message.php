@@ -1138,7 +1138,7 @@ class Mail_Message
 
 		$this->parts[] = $part;
 
-		return $this->_decodeMultipart(array_slice($lines, $end), $iteration);
+		return $this->_decodeMultipart(array_slice($lines, $end));
 	}
 
 	public function utf8_encode($str)
