@@ -539,14 +539,29 @@ class Markdown extends Parsedown
 		}
 
 		// Don't load youtube player, just display preview
-		if ($name == 'iframe' && preg_match('!https://www.youtube.com/embed/([^"]+)!', $line['text'], $m)) {
+		if ($name === 'iframe' && preg_match('!https://www.youtube.com/embed/([^"?]+)!', $line['text'], $m)) {
 			return [
 				'element' => [
-					'rawHtml' => sprintf('<figure class="video"><a href="https://www.youtube.com/watch?v=%s" target="_blank" title="Ouvrir la vidéo" rel="noreferrer"><img width=320 height=180 src="http://img.youtube.com/vi/%1$s/mqdefault.jpg" alt="Vidéo Youtube" loading="lazy" /></a></figure>', htmlspecialchars($m[1])),
+					'rawHtml' => sprintf('<figure class="video"><a href="https://www.youtube.com/watch?v=%s" target="_blank" title="Ouvrir la vidéo" rel="noreferrer"><img src="http://img.youtube.com/vi/%1$s/maxresdefault.jpg" alt="Vidéo Youtube" loading="lazy" /></a></figure>', htmlspecialchars($m[1])),
 					'allowRawHtmlInSafeMode' => true,
 				],
 			];
 		}
+		/*
+		// Don't load PeerTube player, just display preview
+		elseif ($name === 'iframe' && preg_match('!"((https?://[^/]+/)videos/embed/([0-9a-f-]{36}).*?)"!', $line['text'], $m)) {
+			$html = sprintf('<figure class="video"><a href="%sw/%s" target="_blank" title="Ouvrir la vidéo" rel="noreferrer"><img src="%1$sstatic/previews/%2$s.jpg" alt="Vidéo PeerTube" /></a></figure>', htmlspecialchars($m[2]), htmlspecialchars($m[3]));
+
+			return [
+				'element' => [
+					'rawHtml' => $html,
+					'allowRawHtmlInSafeMode' => true,
+					// onclick="this.parentNode.innerHTML = \'%s\';"
+					// <iframe title="Paheko_Membres" width="560" height="315" src="https://videos.yeswiki.net/videos/embed/906b2038-4ee8-4cd9-abe2-7009f6e4f5e5?autoplay=1" frameborder="0" allowfullscreen="" sandbox="allow-same-origin allow-scripts allow-popups"></iframe>
+				],
+			];
+		}
+		*/
 
 		$attributes = $this->_filterHTMLAttributes($name, $this->allowed_block_tags[$name], $match[3]);
 
