@@ -1043,7 +1043,7 @@ class Mail_Message
 		return $value;
 	}
 
-	protected function _decodeMultipart(array $lines, int $iteration = 0)
+	protected function _decodeMultipart(array $lines, int $iteration = 0): void
 	{
 		if (++$iteration > 10) {
 			throw new \OverflowException('Too many iterations of multipart decoding: stopped at 10');
@@ -1085,9 +1085,8 @@ class Mail_Message
 			$i++;
 		}
 
-		if (is_null($start) && is_null($end))
-		{
-			return false;
+		if (is_null($start) && is_null($end)) {
+			return;
 		}
 
 		list($headers, $body) = $this->_parseHeadersAndBody(array_slice($lines, $start, $end - $start));
@@ -1101,7 +1100,7 @@ class Mail_Message
 		if (stristr($headers['content-type'], 'multipart/'))
 		{
 			$this->_decodeMultipart(array_slice($lines, $end), $iteration);
-			return false;
+			return;
 		}
 
 		$encoding = isset($headers['content-transfer-encoding']) ? $headers['content-transfer-encoding'] : '';
@@ -1138,7 +1137,9 @@ class Mail_Message
 
 		$this->parts[] = $part;
 
-		return $this->_decodeMultipart(array_slice($lines, $end));
+		if ($end !== null) {
+			$this->_decodeMultipart(array_slice($lines, $end));
+		}
 	}
 
 	public function utf8_encode($str)
