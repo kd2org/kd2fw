@@ -498,7 +498,7 @@ class UserSession
 
 		$user = $this->getUserForLogin(trim($login));
 
-		if (!$user)
+		if (!$user || empty($user->password))
 		{
 			return false;
 		}
