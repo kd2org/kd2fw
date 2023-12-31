@@ -785,7 +785,7 @@ class HTTP
 
 		$r->fail = false;
 		$r->size = strlen($r->body);
-		$r->status = \curl_getinfo($c, CURLINFO_HTTP_CODE);
+		$r->status = (int) \curl_getinfo($c, CURLINFO_HTTP_CODE);
 
 		\curl_close($c);
 
@@ -809,7 +809,12 @@ class HTTP_Response
 
 	public $fail = true;
 	public $cookies = [];
-	public $status = null;
+
+	/**
+	 * Status code
+	 * @var null|int
+	 */
+	public ?int $status = null;
 	public $request = null;
 	public $size = 0;
 	public $error = null;
