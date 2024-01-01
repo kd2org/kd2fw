@@ -592,8 +592,13 @@ class FeedParser
 							$item->date = $tag->content;
 						break;
 					case 'link':
-						if (!empty($item->link))
+						if (!empty($item->link)) {
 							break;
+						}
+						// Skip comments/feeds/etc. from Blogger
+						if (!empty($tag->attributes['rel']) && preg_match('!/feeds/\d+|#comment-form!', $tag->attributes['href'])) {
+							break;
+						}
 
 						if (!empty($tag->attributes['href']))
 						{
