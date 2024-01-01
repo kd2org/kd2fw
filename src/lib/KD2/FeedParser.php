@@ -621,10 +621,12 @@ class FeedParser
 			// Convert the date string to a timestamp
 			$item->date = self::parseDate($item->date);
 
-			if (is_null($item->description) && !is_null($item->content))
+			if (is_null($item->description) && !is_null($item->content)) {
 				$item->description = $item->content;
-			elseif (!is_null($item->description) && is_null($item->content))
+			}
+			elseif (!is_null($item->description) && is_null($item->content)) {
 				$item->content = $item->description;
+			}
 
 			$this->items[$key] = $item;
 		}
