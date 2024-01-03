@@ -307,8 +307,14 @@ class TableToXLSX extends TableToODS
 		$i = 1;
 
 		foreach ($this->sheets as $name => $sheet) {
+			// max length of name is 31, let's stop at 30 to be safe, Excel you suck!
+			if (mb_strlen($name) > 31) {
+				$name = mb_substr($name, 0, 30) . '…';
+			}
+
+			$name = htmlspecialchars($name, ENT_XML1);
 			$r .= sprintf('<Relationship Id="rId%d" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet%d.xml"/>', $i + 2, $i);
-			$s .= sprintf('<sheet name="%s" sheetId="%d" state="visible" r:id="rId%d"/>', htmlspecialchars($name, ENT_XML1), $i, $i + 2);
+			$s .= sprintf('<sheet name="%s" sheetId="%d" state="visible" r:id="rId%d"/>', $name, $i, $i + 2);
 			$i++;
 		}
 
