@@ -103,8 +103,12 @@ class UserSession
 	 * @param  string $stored_password
 	 * @return boolean TRUE if password is matching, FALSE if it's not
 	 */
-	public function checkPassword($supplied_password, $stored_password)
+	public function checkPassword($supplied_password, $stored_password): bool
 	{
+		if (empty($supplied_password)) {
+			return false;
+		}
+
 		// Remove NUL bytes
 		// see http://blog.ircmaxell.com/2015/03/security-issue-combining-bcrypt-with.html
 		$supplied_password = str_replace("\0", '', $supplied_password);
