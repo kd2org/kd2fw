@@ -541,6 +541,8 @@ class Server
 			fseek($file['resource'], 0, SEEK_SET);
 		}
 
+		http_response_code(200);
+
 		if (($start || $end) && $seek === 0) {
 			if (null !== $end && $end > $length) {
 				header('Content-Range: bytes */' . $length, true);
