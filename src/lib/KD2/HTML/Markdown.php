@@ -50,7 +50,7 @@ class Markdown extends Parsedown
 	 */
 	const DEFAULT_BLOCK_TAGS = [
 		'object'     => ['type', 'width', 'height', 'data'],
-		'iframe'     => ['src', 'width', 'height', 'frameborder', 'scrolling', 'allowfullscreen'],
+		'iframe'     => ['src', 'width', 'height', 'frameborder', 'scrolling', 'allowfullscreen', 'title'],
 		'audio'      => ['src', 'controls', 'loop'],
 		'video'      => ['src', 'controls', 'width', 'height', 'poster'],
 	];
@@ -562,6 +562,38 @@ class Markdown extends Parsedown
 			];
 		}
 		*/
+		// Force iframes to be responsive
+		elseif ($name === 'iframe') {
+			$attributes = $this->_filterHTMLAttributes($name, $this->allowed_block_tags[$name], $match[3]);
+
+			if (null === $attributes) {
+				return null;
+			}
+
+			$h = intval($attributes['height'] ?? 56.25);
+			$w = intval($attributes['width'] ?? 100);
+
+			if ($h < $w) {
+				$style = sprintf('padding-top: %f%%;', ($h / $w) * 100);
+			}
+			else {
+				$style = sprintf('height: %s', $attributes['height']);
+			}
+
+			unset($attributes['width'], $attributes['height']);
+			$attributes['frameborder'] = 0;
+			$attributes['allowfullscreen'] = '';
+			$attributes['allowtransparency'] = '';
+			$attributes['style'] = 'position: absolute; inset: 0px;';
+
+			array_walk($attributes, fn (&$v, $k) => $v = $k . '="' . htmlspecialchars($v) . '"');
+			$attributes = implode(' ', $attributes);
+
+			return ['element' => [
+				'rawHtml' => sprintf('<figure class="video" style="%s"><iframe width="100%%" height="100%%" %s></iframe></figure>', $style, $attributes),
+				'allowRawHtmlInSafeMode' => true,
+			]];
+		}
 
 		$attributes = $this->_filterHTMLAttributes($name, $this->allowed_block_tags[$name], $match[3]);
 
