@@ -740,10 +740,18 @@ class DB
 		$fields = (array) $fields;
 
 		$fields_names = array_keys($fields);
-		$query = sprintf('INSERT %s INTO %s (%s) VALUES (:%s);', (string) $clause, $this->quoteIdentifier($table),
-			implode(', ', array_map([$this, 'quoteIdentifier'], $fields_names)), implode(', :', $fields_names));
+		$fields_names = implode(', ', array_map([$this, 'quoteIdentifier'], $fields_names));
 
-		return (bool) $this->preparedQuery($query, $fields);
+		$values = [];
+
+		foreach ($fields as $key => $value) {
+			$values[md5($key)] = $value;
+		}
+
+		$query = sprintf('INSERT %s INTO %s (%s) VALUES (:%s);', (string) $clause, $this->quoteIdentifier($table),
+			$fields_names, implode(', :', array_keys($values)));
+
+		return (bool) $this->preparedQuery($query, $values);
 	}
 
 	/**
