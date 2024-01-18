@@ -391,6 +391,9 @@ class ErrorManager
 		$msg.= wordwrap($html, 990) . "\r\n\r\n";
 		$msg.= sprintf("--%s--", $boundary);
 
+		$msg = str_replace("\0", "", $msg);
+		$header = str_replace("\0", "", $header);
+
 		mail(self::$email_errors, sprintf('Error #%s: %s', $report->context->id, $title), $msg, $header);
 	}
 
