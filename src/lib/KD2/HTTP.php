@@ -170,17 +170,41 @@ class HTTP
 	}
 
 	/**
+	 * Make a GET request
+	 * @param  string $url                URL to request
+	 * @param  resource|string $file 			  File to send with POST request
+	 * @param  array  $additional_headers Optional headers to send with request
+	 * @return HTTP_Response
+	 */
+	public function PUT(string $url, $file, ?array $additional_headers = null): HTTP_Response
+	{
+		if (is_string($file)) {
+			$file = fopen($file, 'rb');
+		}
+
+		if (!isset($additional_headers['Content-Type'])) {
+			$additional_headers['Content-Type'] = 'application/custom';
+		}
+
+		return $this->request('PUT', $url, $file, $additional_headers);
+	}
+
+	/**
 	 * Make a custom request
 	 * @param  string $method             HTTP verb (GET, POST, PUT, etc.)
 	 * @param  string $url                URL to request
-	 * @param  string $content            Data to send with request
+	 * @param  string|resource $content            Data to send with request
 	 * @param  array $additional_headers
 	 * @param  resource $write_pointer Pointer to write body to (body will not be returned then)
 	 * @return HTTP_Response
 	 */
-	public function request(string $method, string $url, ?string $data = null, ?array $additional_headers = null, $write_pointer = null)
+	public function request(string $method, string $url, $data = null, ?array $additional_headers = null, $write_pointer = null)
 	{
 		static $redirect_codes = [301, 302, 303, 307, 308];
+
+		if (!is_resource($data) && !is_string($data) && !is_null($data)) {
+			throw new \InvalidArgumentException('$data is not null|string|resource');
+		}
 
 		$url = $this->url_prefix . $url;
 
@@ -504,11 +528,11 @@ class HTTP
 	 * HTTP request using PHP stream and file_get_contents
 	 * @param  string $method
 	 * @param  string $url
-	 * @param  string $data
+	 * @param  string|resource|null $data
 	 * @param  array $headers
 	 * @return HTTP_Response
 	 */
-	protected function defaultClientRequest(string $method, string $url, ?string $data, array $headers, $write_pointer = null): HTTP_Response
+	protected function defaultClientRequest(string $method, string $url, $data, array $headers, $write_pointer = null): HTTP_Response
 	{
 		$request = '';
 
@@ -536,16 +560,26 @@ class HTTP
 		$http_options = [
 			'method'          => $method,
 			'header'          => $request,
-			'content'         => $data,
 			'max_redirects'   => 0,
 			'follow_location' => false,
 		];
 
+		if (is_string($data)) {
+			$http_options['content'] = $data;
+		}
+		elseif (is_resource($data)) {
+			$http_options['content'] = '';
+
+			while (!feof($data)) {
+				$http_options['content'] .= fread($data, 8192);
+			}
+		}
+
 		$http_options = array_merge($this->http_options, $http_options);
 
 		$context = stream_context_create([
-			'http'  =>  $http_options,
-			'ssl'	=>	$this->ssl_options,
+			'http' => $http_options,
+			'ssl'  => $this->ssl_options,
 		]);
 
 		$request = $method . ' ' . $url . "\r\n" . $request . "\r\n" . $data;
@@ -553,20 +587,18 @@ class HTTP
 		$r = new HTTP_Response;
 		$r->url = $url;
 		$r->request = $request;
+		$r->body = null;
 
 		try {
-			if (null === $write_pointer) {
-				$r->body = file_get_contents($url, false, $context);
+			if (null !== $write_pointer) {
+				$r->pointer = fopen($url, 'rb', false, $context);
 			}
 			else {
-				$r->pointer = fopen($url, 'rb', false, $context);
-				$r->body = null;
+				$r->body = file_get_contents($url, false, $context);
 			}
 		}
-		catch (\Exception $e)
-		{
-			if (!empty($this->http_options['ignore_errors']))
-			{
+		catch (\Exception $e) {
+			if (!empty($this->http_options['ignore_errors'])) {
 				$r->error = $e->getMessage();
 				return $r;
 			}
@@ -581,19 +613,16 @@ class HTTP
 		$r->fail = false;
 		$r->size = strlen($r->body);
 
-		foreach ($http_response_header as $line)
-		{
+		foreach ($http_response_header as $line) {
 			$header = strtok($line, ':');
 			$value = strtok('');
 
 			if ($value === false)
 			{
-				if (preg_match('!^HTTP/1\.[01] ([0-9]{3}) !', $line, $match))
-				{
+				if (preg_match('!^HTTP/1\.[01] ([0-9]{3}) !', $line, $match)) {
 					$r->status = (int) $match[1];
 				}
-				else
-				{
+				else {
 					$r->headers[] = $line;
 				}
 			}
@@ -603,8 +632,7 @@ class HTTP
 				$value = trim($value);
 
 				// Add to cookies array
-				if (strtolower($header) == 'set-cookie')
-				{
+				if (strtolower($header) == 'set-cookie') {
 					$cookie_key = strtok($value, '=');
 					$cookie_value = strtok(';');
 					$r->cookies[$cookie_key] = $cookie_value;
@@ -619,8 +647,7 @@ class HTTP
 			$mime = null;
 			$size = 0;
 
-			while (!feof($in))
-			{
+			while (!feof($in)) {
 				$line = fread($in, 8192);
 				$size += fwrite($write_pointer, $line);
 				hash_update($hash, $line);
@@ -650,11 +677,11 @@ class HTTP
 	 * HTTP request using CURL
 	 * @param  string $method
 	 * @param  string $url
-	 * @param  string $data
+	 * @param  string|resource|null $data
 	 * @param  array $headers
 	 * @return HTTP_Response
 	 */
-	protected function curlClientRequest(string $method, string $url, ?string $data, array $headers, $write_pointer = null)
+	protected function curlClientRequest(string $method, string $url, $data, array $headers, $write_pointer = null)
 	{
 		// Sets headers in the right format
 		foreach ($headers as $key=>&$header)
@@ -662,13 +689,15 @@ class HTTP
 			$header = $key . ': ' . $header;
 		}
 
+		$headers[] = 'Expect:';
+
 		unset($header);
 
 		$r = new HTTP_Response;
 
-		$c = \curl_init();
+		$c = curl_init();
 
-		\curl_setopt_array($c, [
+		curl_setopt_array($c, [
 			CURLOPT_URL            => $url,
 			CURLOPT_HTTPHEADER     => $headers,
 			CURLOPT_FOLLOWLOCATION => false,
@@ -690,27 +719,40 @@ class HTTP
 		}
 
 		if (!empty($this->http_options['proxy'])) {
-			\curl_setopt($c, CURLOPT_PROXY, str_replace('tcp://', '', $this->http_options['proxy']));
-			\curl_setopt($c, CURLOPT_PROXY_SSL_VERIFYHOST, !empty($this->ssl_options['verify_peer_name']) ? 2 : 0);
+			curl_setopt($c, CURLOPT_PROXY, str_replace('tcp://', '', $this->http_options['proxy']));
+			curl_setopt($c, CURLOPT_PROXY_SSL_VERIFYHOST, !empty($this->ssl_options['verify_peer_name']) ? 2 : 0);
 
 			if (!empty($this->http_options['proxy_auth'])) {
-				\curl_setopt($c, CURLOPT_PROXYUSERPWD, $this->http_options['proxy_auth']);
+				curl_setopt($c, CURLOPT_PROXYUSERPWD, $this->http_options['proxy_auth']);
 			}
 		}
 
-		if ($data !== null)
-		{
-			\curl_setopt($c, CURLOPT_POSTFIELDS, $data);
+		// Upload file
+		if (is_resource($data)) {
+			fseek($data, 0, SEEK_END);
+			$size = ftell($data);
+			fseek($data, 0);
+
+			curl_setopt($c, CURLOPT_INFILE, $data);
+			curl_setopt($c, CURLOPT_INFILESIZE, $size);
+			curl_setopt($c, CURLOPT_PUT, 1);
+		}
+		elseif ($data !== null) {
+			if (is_array($data)) {
+				$data = self::curlConvertFile($data);
+			}
+
+			curl_setopt($c, CURLOPT_POSTFIELDS, $data);
 		}
 
 		if (!empty($this->ssl_options['cafile']))
 		{
-			\curl_setopt($c, CURLOPT_CAINFO, $this->ssl_options['cafile']);
+			curl_setopt($c, CURLOPT_CAINFO, $this->ssl_options['cafile']);
 		}
 
 		if (!empty($this->ssl_options['capath']))
 		{
-			\curl_setopt($c, CURLOPT_CAPATH, $this->ssl_options['capath']);
+			curl_setopt($c, CURLOPT_CAPATH, $this->ssl_options['capath']);
 		}
 
 		if (count($this->cookies) > 0)
@@ -725,10 +767,10 @@ class HTTP
 
 			$cookies = implode('; ', $cookies);
 
-			\curl_setopt($c, CURLOPT_COOKIE, $cookies);
+			curl_setopt($c, CURLOPT_COOKIE, $cookies);
 		}
 
-		\curl_setopt($c, CURLOPT_HEADERFUNCTION, function ($c, $header) use (&$r) {
+		curl_setopt($c, CURLOPT_HEADERFUNCTION, function ($c, $header) use (&$r) {
 			$name = trim(strtok($header, ':'));
 			$value = strtok('');
 
@@ -760,10 +802,10 @@ class HTTP
 
 		$r->url = $url;
 
-		$r->body = \curl_exec($c);
-		$r->request = \curl_getinfo($c, CURLINFO_HEADER_OUT) . $data;
+		$r->body = curl_exec($c);
+		$r->request = curl_getinfo($c, CURLINFO_HEADER_OUT) . $data;
 
-		if ($error = \curl_error($c))
+		if ($error = curl_error($c))
 		{
 			if (!empty($this->http_options['ignore_errors']))
 			{
@@ -785,9 +827,9 @@ class HTTP
 
 		$r->fail = false;
 		$r->size = strlen($r->body);
-		$r->status = (int) \curl_getinfo($c, CURLINFO_HTTP_CODE);
+		$r->status = (int) curl_getinfo($c, CURLINFO_HTTP_CODE);
 
-		\curl_close($c);
+		curl_close($c);
 
 		return $r;
 	}

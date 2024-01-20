@@ -14,6 +14,9 @@ test_uri_templates();
 test_http();
 test_http(HTTP::CLIENT_CURL);
 
+test_http_put();
+test_http_put(HTTP::CLIENT_CURL);
+
 function test_url_build()
 {
 	$_SERVER['HTTP_HOST'] = '<script>FAIL</script>';
@@ -190,4 +193,37 @@ function test_http($client = HTTP::CLIENT_DEFAULT)
 	Test::equals('https://httpd.apache.org/docs/2.4/fr/', $response->previous->headers['location']);
 	Test::isInstanceOf('KD2\HTTP_Response', $response->previous);
 	Test::equals(301, $response->previous->status);
+}
+
+function test_http_put($client = HTTP::CLIENT_DEFAULT)
+{
+	printf("php -S localhost:8089 %s\n", escapeshellarg(__DIR__ . '/data/http_put_server.php'));
+
+	$http = new HTTP;
+	$http->client = $client;
+
+	$tmpfile = tempnam(sys_get_temp_dir(), 'lllll');
+	file_put_contents($tmpfile, 'OK!');
+
+	$response = $http->PUT('http://localhost:8089/test', $tmpfile);
+
+	Test::isInstanceOf('KD2\HTTP_Response', $response);
+
+	Test::hasProperty('status', $response);
+	Test::hasProperty('body', $response);
+	Test::hasProperty('url', $response);
+	Test::hasProperty('headers', $response);
+	Test::hasProperty('request', $response);
+	Test::hasProperty('fail', $response);
+	Test::hasProperty('cookies', $response);
+	Test::hasProperty('size', $response);
+	Test::hasProperty('error', $response);
+
+	Test::isObject($response->headers);
+	Test::isInstanceOf('\KD2\HTTP_Headers', $response->headers);
+
+	Test::assert($response->fail === false, 'Request failed: ' . $response->body);
+
+	Test::equals(201, $response->status);
+	Test::equals("Received 3 bytes\nOK!", $response->body);
 }
