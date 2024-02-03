@@ -21,6 +21,8 @@ class Brindille
 	//const T_OPEN_PARENTHESIS = 'open';
 	//const T_CLOSE_PARENTHESIS = 'close';
 
+	const RE_VALID_VARIABLE_NAME = '/^[a-zA-Z_][a-zA-Z0-9_]+$/';
+
 	// $var.subvar , "quoted string even with \" escape quotes", 'even single quotes'
 	const RE_LITERAL = '\$[\w.]+|"(?:.*?(?<!\\\\))"|\'(?:.*?(?<!\\\\))\'';
 
@@ -136,7 +138,7 @@ class Brindille
 
 	public function assign(string $key, $value, ?int $level = null, bool $throw_on_invalid_name = true): void
 	{
-		if (!preg_match('/^[\w\d_]*$/', $key)) {
+		if (!preg_match(self::RE_VALID_VARIABLE_NAME, $key)) {
 			if ($throw_on_invalid_name) {
 				throw new \InvalidArgumentException('Invalid variable name: ' . $key);
 			}
