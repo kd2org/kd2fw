@@ -1086,11 +1086,15 @@ class SkrivLite_Helper
 
             $value .= $url['scheme'] . self::$allowed_url_schemes[$url['scheme']];
         }
+        else {
+        	$url['scheme'] = null;
+        }
 
         if (!empty($url['host']))
         {
             $value .= $url['host'];
         }
+
 
         if (!empty($url['port']) && !($url['scheme'] == 'http' && $url['port'] == 80) 
         	&& !($url['scheme'] == 'https' && $url['port'] == 443))
