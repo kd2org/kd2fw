@@ -355,17 +355,29 @@ class ErrorManager
 
 	static public function reportExceptionSilent(\Throwable $e): void
 	{
-		extract(self::buildExceptionReport($e));
-
-		// Log exception to file
-		if (ini_get('log_errors'))
-		{
-			error_log($log);
-		}
+		$report = self::logException($e);
+		extract($report);
 
 		if (self::$email_errors) {
 			self::sendEmail($title, $report, $log, $html_report);
 		}
+	}
+
+	static public function logException(\Throwable $e): array
+	{
+		$report = self::buildExceptionReport($e);
+
+		// Log exception to file
+		if (ini_get('log_errors')) {
+			error_log($report['log']);
+		}
+
+		// Send report to URL
+		if (self::$report_auto && self::$report_url) {
+			self::sendReport($report['report'], self::$report_url);
+		}
+
+		return $report;
 	}
 
 	static protected function sendEmail(string $title, \stdClass $report, string $log, string $html): void
@@ -450,7 +462,7 @@ class ErrorManager
 	/**
 	 * Generates a report from an exception
 	 */
-	static public function makeReport($e)
+	static public function makeReport($e): \stdClass
 	{
 		$report = (object) [
 			'errors' => [],
