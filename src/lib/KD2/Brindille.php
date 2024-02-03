@@ -21,7 +21,7 @@ class Brindille
 	//const T_OPEN_PARENTHESIS = 'open';
 	//const T_CLOSE_PARENTHESIS = 'close';
 
-	const RE_VALID_VARIABLE_NAME = '/^[a-zA-Z_][a-zA-Z0-9_]+$/';
+	const RE_VALID_VARIABLE_NAME = '/^[a-zA-Z_][a-zA-Z0-9_]*$/';
 
 	// $var.subvar , "quoted string even with \" escape quotes", 'even single quotes'
 	const RE_LITERAL = '\$[\w.]+|"(?:.*?(?<!\\\\))"|\'(?:.*?(?<!\\\\))\'';
