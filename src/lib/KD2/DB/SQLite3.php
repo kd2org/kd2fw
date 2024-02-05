@@ -427,6 +427,13 @@ class SQLite3 extends DB
 						return \SQLite3::OK;
 					}
 
+					// SQLite is triggering UPDATEs in Authorizer before version 3.41
+					// when using json_each for example, allow for this case
+					// @see https://sqlite.org/forum/forumpost/e86edcafc4ea6fcf
+					if ($action === \SQLite3::UPDATE && $args[0] === 'sqlite_master') {
+						return \SQLite3::OK;
+					}
+
 					if ($action !== \SQLite3::READ) {
 						return \SQLite3::DENY;
 					}
