@@ -29,6 +29,7 @@
 
 namespace KD2\DB;
 
+use KD2\DB\Date;
 use KD2\DB\DB_Exception;
 
 use PDO;
@@ -375,17 +376,14 @@ class SQLite3 extends DB
 					return $type;
 				}
 			case 'object':
-				if ($arg instanceof \DateTime)
-				{
-					if ($arg->format('His') === '000000') {
-						$arg = $arg->format(self::DATE_FORMAT);
-					}
-					else {
-						$arg = $arg->format(self::DATETIME_FORMAT);
-					}
-
-					return \SQLITE3_TEXT;
+				if ($arg instanceof Date) {
+					$arg = $arg->format(self::DATE_FORMAT);
 				}
+				elseif ($arg instanceof \DateTime) {
+					$arg = $arg->format(self::DATETIME_FORMAT);
+				}
+
+				return \SQLITE3_TEXT;
 			default:
 				throw new \InvalidArgumentException('Argument '.$name.' is of invalid type '.gettype($arg));
 		}
