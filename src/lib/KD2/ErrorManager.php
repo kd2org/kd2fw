@@ -274,7 +274,7 @@ class ErrorManager
 			header('Content-Type: text/plain; charset=utf-8', true);
 		}
 
-		if (($is_cli || $is_curl) && (self::$enabled & self::DEVELOPMENT || self::$enabled & self::CLI_DEVELOPMENT))
+		if ($is_cli && (self::$enabled & self::DEVELOPMENT || self::$enabled & self::CLI_DEVELOPMENT))
 		{
 			foreach ($report->errors as $e)
 			{
