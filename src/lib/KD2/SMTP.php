@@ -240,9 +240,12 @@ class SMTP
 			throw new SMTP_Exception('SMTP MAIL FROM error: '.$this->last_line);
 		}
 
-		if (is_string($to))
-		{
+		if (is_string($to)) {
 			$to = array($to);
+		}
+
+		if (!count($to)) {
+			throw new SMTP_Exception('There are no recipients to the message');
 		}
 
 		foreach ($to as $dest)
