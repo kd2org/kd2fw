@@ -27,7 +27,7 @@ class Security
 	 * Allowed schemes/protocols in URLs
 	 * @var array
 	 */
-	static protected $whitelist_url_schemes = [
+	static protected array $whitelist_url_schemes = [
 		'http'  =>  '://',
 		'https' =>  '://',
 		'ftp'   =>  '://',
@@ -51,7 +51,7 @@ class Security
 	 * @param  string $alphabet Alphabet used for password generation
 	 * @return string
 	 */
-	static public function getRandomPassword($length = 12, $alphabet = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ123456789=/:!?-_')
+	static public function getRandomPassword(int $length = 12, string $alphabet = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ123456789=/:!?-_'): string
 	{
 		$password = '';
 
@@ -76,7 +76,7 @@ class Security
 	 * @param  boolean $add_entropy     If TRUE will replace one character from each word randomly with a number or special character
 	 * @return string Passphrase
 	 */
-	static public function getRandomPassphrase($dictionary = '/usr/share/dict/words', $words = 4, $character_match = false, $add_entropy = false)
+	static public function getRandomPassphrase(string $dictionary = '/usr/share/dict/words', int $words = 4, bool $character_match = false, bool $add_entropy = false): string
 	{
 		if (empty($dictionary) || !is_readable($dictionary))
 		{
@@ -118,9 +118,9 @@ class Security
 	 * @param  string $str
 	 * @return string
 	 */
-	static public function base64_encode_url_safe($str)
+	static public function base64_encode_url_safe(string $str): string
 	{
-		return rtrim(strtr(base64_encode($str), '+/', '-_'), '='); 
+		return rtrim(strtr(base64_encode($str), '+/', '-_'), '=');
 	}
 
 	/**
@@ -128,7 +128,7 @@ class Security
 	 * @param  string $str
 	 * @return string
 	 */
-	static public function base64_decode_url_safe($str)
+	static public function base64_decode_url_safe(string $str): string
 	{
 		return base64_decode(str_pad(strtr($str, '-_', '+/'), strlen($str) % 4, '=', STR_PAD_RIGHT));
 	}
@@ -153,7 +153,7 @@ class Security
 	 * @param  string 	$value 	Original URL
 	 * @return string 	Filtered URL but should still be escaped, like with htmlspecialchars for HTML documents
 	 */
-	static public function protectURL($value)
+	static public function protectURL(string $value): string
 	{
 		// Decode entities and encoded URIs
 		$value = rawurldecode($value);
@@ -161,10 +161,10 @@ class Security
 
 		// Convert unicode entities back to ASCII
 		// unicode entities don't always have a semicolon ending the entity
-		$value = preg_replace_callback('~&#x0*([0-9a-f]+);?~i', 
-			function($match) { return chr(hexdec($match[1])); }, 
+		$value = preg_replace_callback('~&#x0*([0-9a-f]+);?~i',
+			function($match) { return chr(hexdec($match[1])); },
 			$value);
-		$value = preg_replace_callback('~&#0*([0-9]+);?~', 
+		$value = preg_replace_callback('~&#0*([0-9]+);?~',
 			function ($match) { return chr($match[1]); },
 			$value);
 
@@ -263,7 +263,7 @@ class Security
 	 * Check that GnuPG extension is installed and available to encrypt emails
 	 * @return boolean
 	 */
-	static public function canUseEncryption()
+	static public function canUseEncryption(): bool
 	{
 		return (extension_loaded('gnupg') && function_exists('\gnupg_init') && class_exists('\gnupg', false));
 	}
@@ -275,7 +275,7 @@ class Security
 	 * @param  array  &$info   Informations about the imported key
 	 * @return \gnupg
 	 */
-	static protected function _initGnupgEnv($key, &$tmpdir, &$info)
+	static protected function _initGnupgEnv(string $key, string &$tmpdir, array &$info): \gnupg
 	{
 		if (!self::canUseEncryption())
 		{
@@ -307,7 +307,7 @@ class Security
 	 * @param  string $tmpdir Temporary directory used to store gpg keys
 	 * @return void
 	 */
-	static protected function _cleanGnupgEnv($tmpdir)
+	static protected function _cleanGnupgEnv(string $tmpdir): void
 	{
 		// Remove files
 		foreach (glob($tmpdir . DIRECTORY_SEPARATOR . '*') as $file) {
@@ -325,19 +325,19 @@ class Security
 	/**
 	 * Returns pgp key fingerprint
 	 * @param  string $key Public key
-	 * @return string Fingerprint
+	 * @return null|string Fingerprint
 	 */
-	static public function getEncryptionKeyFingerprint($key)
+	static public function getEncryptionKeyFingerprint(string $key): ?string
 	{
 		if (trim($key) === '')
 		{
-			return false;
+			return null;
 		}
 
 		self::_initGnupgEnv($key, $tmpdir, $info);
 		self::_cleanGnupgEnv($tmpdir);
 
-		return isset($info['fingerprint']) ? $info['fingerprint'] : false;
+		return isset($info['fingerprint']) ? $info['fingerprint'] : null;
 	}
 
 	/**
@@ -347,7 +347,7 @@ class Security
 	 * @param  boolean $binary set to false to have the function return armored string instead of binary
 	 * @return string
 	 */
-	static public function encryptWithPublicKey($key, $data, $binary = false)
+	static public function encryptWithPublicKey(string $key, string $data, bool $binary = false): string
 	{
 		$gpg = self::_initGnupgEnv($key, $tmpdir, $info);
 
