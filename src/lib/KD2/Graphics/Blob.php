@@ -140,7 +140,13 @@ class Blob
 			else
 			{
 				$i += 2;
-				$info = unpack('nlength', substr($data, $i, 2));
+				$data = substr($data, $i, 2);
+
+				if (strlen($data) !== 2) {
+					return false;
+				}
+
+				$info = unpack('nlength', $data);
 				$segment_length = $info['length'];
 			}
 		}
