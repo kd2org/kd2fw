@@ -185,6 +185,10 @@ abstract class AbstractEntity
 			return $value;
 		}
 
+		if (is_object($value)) {
+			return $value;
+		}
+
 		switch ($type)
 		{
 			case 'date':
