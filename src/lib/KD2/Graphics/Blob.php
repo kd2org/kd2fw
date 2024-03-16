@@ -118,7 +118,7 @@ class Blob
 			$i += $segment_length;
 
 			// End of file, or invalid JPEG segment
-			if ($i >= $size || $data[$i] != "\xFF" || strlen($data) < $i+2)
+			if ($i >= strlen($data) || $data[$i] != "\xFF" || strlen($data) < $i+2)
 			{
 				return false;
 			}
