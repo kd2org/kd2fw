@@ -701,6 +701,7 @@ class HTTP
 			CURLOPT_URL            => $url,
 			CURLOPT_HTTPHEADER     => $headers,
 			CURLOPT_FOLLOWLOCATION => false,
+			CURLOPT_PROTOCOLS      => CURLPROTO_HTTPS | CURLPROTO_HTTP,
 			CURLOPT_MAXREDIRS      => 1,
 			CURLOPT_SSL_VERIFYPEER => !empty($this->ssl_options['verify_peer']),
 			CURLOPT_SSL_VERIFYHOST => !empty($this->ssl_options['verify_peer_name']) ? 2 : 0,

@@ -74,6 +74,8 @@ class Mailbox
 		$this->curl = curl_init();
 		curl_setopt($this->curl, CURLOPT_RETURNTRANSFER, 1);
 		curl_setopt($this->curl, CURLOPT_HEADER, 1);
+		// Make sure we only allow IMAP/IMAPS protocols
+		curl_setopt($this->curl, CURLOPT_PROTOCOLS, CURLPROTO_IMAP | CURLPROTO_IMAPS);
 	}
 
 	protected function request(?string $uri = null, ?string $request = null): string
