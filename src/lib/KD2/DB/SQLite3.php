@@ -592,7 +592,7 @@ class SQLite3 extends DB
 
 			if (count($args) != $nb)
 			{
-				throw new \LengthException(sprintf('Arguments error: %d supplied, but %d are required by query.', 
+				throw new DB_Exception(sprintf('%d arguments supplied, but %d arguments are required by query.',
 					count($args), $nb));
 			}
 
@@ -604,7 +604,7 @@ class SQLite3 extends DB
 				{
 					if (is_string($i))
 					{
-						throw new \InvalidArgumentException(sprintf('%s requires argument to be a keyed array, but key %s is a string.', __FUNCTION__, $i));
+						throw new DB_Exception(sprintf('%s requires argument to be a keyed array, but key %s is a string.', __FUNCTION__, $i));
 					}
 
 					$type = $this->getArgType($arg, $i+1);
@@ -617,7 +617,7 @@ class SQLite3 extends DB
 				{
 					if (is_int($key))
 					{
-						throw new \InvalidArgumentException(sprintf('%s requires argument to be a named-associative array, but key %s is an integer.', __FUNCTION__, $key));
+						throw new DB_Exception(sprintf('%s requires argument to be a named-associative array, but key %s is an integer.', __FUNCTION__, $key));
 					}
 
 					$type = $this->getArgType($value, $key);
