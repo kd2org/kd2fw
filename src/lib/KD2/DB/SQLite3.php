@@ -1091,7 +1091,7 @@ class SQLite3 extends DB
 		}
 	}
 
-	public function getTableSchema(string $name): array
+	public function getTableForeignKeys(string $name): array
 	{
 		$fk = [];
 
@@ -1107,7 +1107,12 @@ class SQLite3 extends DB
 		}
 
 		$r->finalize();
+		return $fk;
+	}
 
+	public function getTableSchema(string $name): array
+	{
+		$fk = $this->getTableForeignKeys($name);
 		$table = ['name' => $name, 'comment' => null, 'columns' => []];
 
 		$name = $this->quote($name);
