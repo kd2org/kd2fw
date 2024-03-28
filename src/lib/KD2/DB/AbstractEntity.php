@@ -426,6 +426,10 @@ abstract class AbstractEntity
 			if (null === $value) {
 				throw new \RuntimeException(sprintf('Cannot decode JSON string for key "%s"', $key));
 			}
+
+			if (is_array($value)) {
+				$value = (object)$value;
+			}
 		}
 
 		return $value;
