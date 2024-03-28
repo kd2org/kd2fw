@@ -167,7 +167,7 @@ class Point implements ArrayAccess
 	/**
 	 * ArrayAccess getter
 	 */
-	public function offsetSet($key, $value)
+	public function offsetSet($key, $value): void
 	{
 		$this->__set($key, $value);
 	}
@@ -175,20 +175,21 @@ class Point implements ArrayAccess
 	/**
 	 * ArrayAccess exists
 	 */
-	public function offsetExists($offset) {
+	public function offsetExists($offset): bool {
 		return isset($this->$offset);
 	}
 
 	/**
 	 * ArrayAccess unset
 	 */
-	public function offsetUnset($offset) {
+	public function offsetUnset($offset): void {
 		$this->__set($offset, null);
 	}
 
 	/**
 	 * ArrayAccess setter
 	 */
+	#[\ReturnTypeWillChange]
 	public function offsetGet($offset) {
 		return $this->__get($offset);
 	}
