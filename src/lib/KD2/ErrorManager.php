@@ -267,7 +267,7 @@ class ErrorManager
 		$is_cli = PHP_SAPI == 'cli';
 
 		if (!$is_cli) {
-			http_response_code(500);
+			@http_response_code(500);
 		}
 
 		if ($is_curl && !headers_sent()) {
