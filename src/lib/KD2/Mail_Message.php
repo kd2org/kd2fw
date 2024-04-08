@@ -342,6 +342,25 @@ class Mail_Message
 		return $this->addPart('text/plain', $content);
 	}
 
+	public function setHTMLBody(string $content): void
+	{
+		if (count($this->parts) <= 1) {
+			// Remove CTE if present
+			unset($this->headers['content-transfer-encoding']);
+		}
+
+		foreach ($this->parts as &$part)
+		{
+			if ($part['type'] == 'text/html')
+			{
+				$part['content'] = $content;
+				return;
+			}
+		}
+
+		$this->addPart('text/html', $content);
+	}
+
 	/**
 	 * Return body text, using HTML as "best source" if available
 	 * (as some HTML emails contain a shitty plaintext alternative),
