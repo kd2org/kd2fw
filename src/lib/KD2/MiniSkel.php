@@ -612,7 +612,7 @@ class MiniSkel
      */
     protected function parseVariables($content, $context = self::CONTEXT_GLOBAL)
     {
-        $variables_split_text = preg_split('/((?<!\\\\)[\[\]]|\(#[A-Z_]+\*?(?:\|(?:[^\)]+)*)*\)|(?<!\\\\)#(?:[A-Z_]+))/S', $content, null, PREG_SPLIT_DELIM_CAPTURE);
+        $variables_split_text = preg_split('/((?<!\\\\)[\[\]]|\(#[A-Z_]+\*?(?:\|(?:[^\)]+)*)*\)|(?<!\\\\)#(?:[A-Z_]+))/S', $content, -1, PREG_SPLIT_DELIM_CAPTURE);
 
         $nodes = $this->_buildVariablesTree($variables_split_text);
         unset($variables_split_text);
