@@ -25,7 +25,7 @@ class Test
 {
 	static public $assertion_counter = 0;
 
-	static public function assert($test, $message = 'Assertion failed')
+	static public function assert($test, string $message = 'Assertion failed')
 	{
 		if (!$test)
 		{
@@ -35,7 +35,7 @@ class Test
 		self::$assertion_counter++;
 	}
 
-	static public function assertf($format, array $args, $message = 'Assertion failed')
+	static public function assertf($format, array $args, string $message = 'Assertion failed')
 	{
 		array_walk($args, function (&$arg) {
 			$arg = var_export($arg, true);
@@ -46,7 +46,7 @@ class Test
 		return self::assert($expression, $message);
 	}
 
-	static public function equals($expected, $result, $message = '')
+	static public function equals($expected, $result, string $message = '')
 	{
 		self::assert($expected == $result, 
 			sprintf("Equals condition failed: %s\n--- %s\n+++ %s", 
@@ -55,7 +55,7 @@ class Test
 		);
 	}
 
-	static public function strictlyEquals($expected, $result, $message = '')
+	static public function strictlyEquals($expected, $result, string $message = '')
 	{
 		self::assert($expected === $result, 
 			sprintf("Strictly equals condition failed: %s\n--- %s\n+++ %s", 
@@ -64,16 +64,16 @@ class Test
 		);
 	}
 
-	static public function isObject($object, $message = '')
+	static public function isObject($object, string $message = '')
 	{
-		self::assert(is_object($object), 
+		self::assert(is_object($object),
 			sprintf("Not an object: %s\n%s",
 				$message, self::dump($object)
 			)
 		);
 	}
 
-	static public function isArray($array, $message = '')
+	static public function isArray($array, string $message = '')
 	{
 		self::assert(is_array($array),
 			sprintf("Not an array: %s\n%s",
@@ -82,7 +82,7 @@ class Test
 		);
 	}
 
-	static public function isInstanceOf($expected, $result, $message = '')
+	static public function isInstanceOf($expected, $result, string $message = '')
 	{
 		self::isObject($result, $message);
 
@@ -96,7 +96,7 @@ class Test
 		);
 	}
 
-	static public function hasKey($key, Array $array, $message = '')
+	static public function hasKey($key, Array $array, string $message = '')
 	{
 		self::assert(array_key_exists($key, $array),
 			sprintf("Array have no key '%s': %s\n%s",
@@ -105,7 +105,7 @@ class Test
 		);
 	}
 
-	static public function hasProperty($property, $class, $message = '')
+	static public function hasProperty($property, $class, string $message = '')
 	{
 		$name = is_string($class) ? $class : get_class($class);
 
@@ -116,7 +116,7 @@ class Test
 		);
 	}
 
-	static public function exception($name, callable $callback, $message = '')
+	static public function exception($name, callable $callback, string $message = '')
 	{
 		try
 		{
