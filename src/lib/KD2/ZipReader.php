@@ -473,10 +473,14 @@ class ZipReader
 			$pos++;
 		}
 
-		$data = unpack(
+		$data = @unpack(
 			'vdisk/vdisk_start/vdisk_entries/ventries/Vsize/Voffset/vcomment_size',
 			fread($this->fp, 18)
 		);
+
+		if (empty($data)) {
+			throw new \InvalidArgumentException('Invalid archive: corrupt central dir at position ' . ftell($this->fp));
+		}
 
 		if ($data['comment_size'] != 0) {
 			$data['comment'] = fread($this->fp, $data['comment_size']);
