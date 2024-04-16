@@ -27,11 +27,10 @@ function test_php_tags()
 {
 	$b = new Brindille;
 	$b->assign('php', '<?php');
+	$b->registerDefaults();
 
 	Test::equals('&lt;?php', $b->render('{{$php}}'));
 	Test::equals('<?php exit; ?>', $b->render('<?php exit; ?>'));
-
-	/*Test::equals('<?php if ($this->_magic(\'"\\\'"\', $this->get(\'ob"\\\'ject->test()\')) ): ?>--<?php endif; ?>', $b->compile('{{if $ob"\'ject->test()."\'"}}--{{/if}}'));*/
 }
 
 function test_comments()
@@ -59,7 +58,7 @@ function test_variables()
 	Test::equals('', $b->render('{{$.plap}}'));
 
 	$b->assign('html', '<html>');
-	Test::equals('&lt;html&gt;', $b->render('{{$html}}'));
+	Test::equals('<html>', $b->render('{{$html}}'));
 	Test::equals('<html>', $b->render('{{$html|raw}}'));
 
 	$b->registerDefaults();
@@ -68,90 +67,6 @@ function test_variables()
 	Test::equals('-&quot;__&quot;-32', $b->render('{{"-%s-"|args:\'"__"\'|cat:32}}'));
 	Test::equals('-"__"-32', $b->render('{{"-%s-"|raw|args:\'"__"\'|cat:32}}'));
 	Test::equals('<?=\'-"\\\'__"-\'?>', $b->compile('{{"-\\"\'__\\"-"|raw}}'));
-}
-
-function test_variables2(Smartyer $smartyer)
-{
-	// Truncate + auto escape
-	$code = '{$str|truncate:3:"":true}';
-	$string = '<b>Hello ¿é!Æ</b>';
-	$expected = htmlspecialchars(substr($string, 0, 3));
-	$output = Smartyer::fromString($code, $smartyer)->assign('str', $string)->fetch();
-
-	Test::equals($expected, $output, 'HTML auto escaping after truncate');
-
-	class TestClass
-	{
-		const TEST_CONSTANT = 42;
-		static $test_var = 42;
-	}
-
-	// Class constant
-	$code = '{$class::TEST_CONSTANT}';
-	$expected = 42;
-	$output = Smartyer::fromString($code, $smartyer)->assign('class', new TestClass)->fetch();
-
-	Test::equals($expected, $output, 'Class constant as a variable');
-
-	// Static variable
-	$code = '{$class::$test_var}';
-	$expected = 42;
-	$output = Smartyer::fromString($code, $smartyer)->assign('class', new TestClass)->fetch();
-
-	Test::equals($expected, $output, 'Static variable');
-
-	// System constant
-	$code = '{"PHP_VERSION"|const}';
-	$expected = PHP_VERSION;
-	$output = Smartyer::fromString($code, $smartyer)->fetch();
-
-	Test::equals($expected, $output, 'System constant');
-
-	// Custom modifier
-	$code = '{$str|rot13}';
-	$str = 'Hello!';
-	$expected = str_rot13($str);
-	$output = Smartyer::fromString($code, $smartyer)->assign('str', $str)->register_modifier('rot13', 'str_rot13')->fetch();
-
-	Test::equals($expected, $output, 'Custom rot13 modifier');
-
-	// Magic variable
-	$code = '{$object.array.key1}';
-	$expected = 'OK';
-	$obj = (object)['array' => ['key1' => 'OK']];
-	$output = Smartyer::fromString($code, $smartyer)->assign('object', $obj)->fetch();
-
-	Test::equals($expected, $output, 'Magic variable');
-
-	// Magic variable in modifier arguments
-	$code = '{$str|replace:"world":$object.array.key1}';
-	$expected = 'Hello OK!';
-	$str = 'Hello world!';
-	$obj = (object)['array' => ['key1' => 'OK']];
-	$output = Smartyer::fromString($code, $smartyer)->assign('str', $str)->assign('object', $obj)->fetch();
-
-	Test::equals($expected, $output, 'Magic variable in modifier arguments');
-
-	// quotes in quoted arguments
-	$code = '{"Hello world!"|replace:"world":"\"\'world\'\"!"|raw}';
-	$expected = 'Hello "\'world\'"!!';
-	$output = Smartyer::fromString($code, $smartyer)->fetch();
-
-	Test::equals($expected, $output, 'Quotes in quoted arguments');
-
-	// Current object variable
-	$code = '{$this->delimiter_start}';
-	$expected = '{';
-	$output = Smartyer::fromString($code, $smartyer)->fetch();
-
-	Test::equals($expected, $output, 'Current object variable');
-
-	// Current object function call
-	$code = '{$this->dateFormat(time(), "%Y|")|truncate:1:"":true}';
-	$expected = substr(strftime('%Y', time()), 0, 1);
-	$output = Smartyer::fromString($code, $smartyer)->fetch();
-
-	Test::equals($expected, $output, 'Current object function call + modifier');
 }
 
 function test_if()
@@ -170,7 +85,6 @@ function test_if()
 
 	Test::equals('yep', $b->render('{{if $ok > 41 }}yep{{/if}}'));
 	Test::equals('', $b->render('{{if $ok == 41 }}yep{{/if}}'));
-	Test::equals('yep', $b->render('{{if $ok < 43 && (!$nope || $ok > 40) }}yep{{/if}}'));
 	Test::equals('yep', $b->render('{{if $ok < 42}}nope{{elseif $ok < 44}}yep{{/if}}'));
 	Test::equals('yup', $b->render('{{if $ok < 42}}nope{{elseif $ok > 43}}nope2{{else}}yup{{/if}}'));
 	Test::equals('yep', $b->render('{{if $date|date:"Y" == 2021 }}yep{{/if}}'));
@@ -205,7 +119,7 @@ function test_loop()
 	$b->assign('test', ['a', 'b', 'c']);
 
 	// Positive condition with empty loop
-	Test::equals('0a1b2c', $b->render('{{#foreach from=$test}}{{$key}}{{$value}}{{/foreach}}', [], true));
+	Test::equals('0a1b2c', $b->render('{{#foreach from=$test key="key" item="value"}}{{$key}}{{$value}}{{/foreach}}'));
 }
 
 function test_assign()

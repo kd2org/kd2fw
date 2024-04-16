@@ -1,17 +1,103 @@
 <?php
+/*
+    Copyright (c) 2001-2024 BohwaZ <http://bohwaz.net/>
+    All rights reserved.
 
+    This is free software: you can redistribute it and/or modify
+    it under the terms of the GNU Affero General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU Affero General Public License for more details.
+
+    You should have received a copy of the GNU Affero General Public License
+    along with This.  If not, see <https://www.gnu.org/licenses/>.
+*/
 namespace KD2;
 
 use KD2\Translate;
 
+/**
+ * ### Brindille is a simple, lightweight, but powerful template engine
+ *
+ * This is inspired mainly by Smarty, Moustache, Handlebars, Twig, and Blade.
+ *
+ * This is designed to be used mainly a HTML-based programming language.
+ *
+ * This does not allow execution of raw PHP code, but instead you have to
+ * place your code inside double brackets. A piece of code surrounded by
+ * double brackets is called a 'tag'.
+ *
+ * A tag can either be used to:
+ * - display a variable, in that case the tag will begin with a `$` => `{{$form.name}}`
+ * - run a function, the tag will begin with a colon: `:` => `{{:include file="header.html"}}`
+ * - execute a loop (called section), the tag will begin with a hash => `{{#articles}}...{{/articles}}`
+ *   (sections use generators under the hood)
+ * - execute a condition, using the `if`, `elseif` and `else` words: `{{if $form.id == 42}}...{{else}}...{{/if}}`
+ * - any other use you might like, as the language can be extended during compilation
+ *
+ * Brindille relies on those types of callbacks to extend its core features:
+ * - modifiers: they are used to modify a variable or a value => `{{$name|replace:"Mr":"M."}}...{{"me\nyou"|nl2br}}`
+ * - functions: used when a function call (colon) is used
+ * - sections: used when a section call (hash) is used
+ * - blocks: used when none of the other prefixes are present. This is used to extend the language at compile time.
+ *
+ * Brindille features some security features:
+ * - no execution of PHP code is allowed
+ * - compiled files used for cache cannot be executed outside of the Brindille object
+ * - variables are automatically escaped, unless the `|raw` modifier is used
+ * - by default, zero modifiers, functions or sections are available
+ * - you can use ->registerDefaults() to implement a basic set of modifiers,
+ *   the assign function and the foreach section
+ *
+ * Most of Brindille internal methods are public. This is by design, so that any modifier,
+ * function, section or block callback may extend the engine easily.
+ *
+ * #### Other template tags
+ *
+ * Comments begin with `{{*` and end with `*}}`.
+ * Literal blocks, where no tags should be parsed, begin with `{{literal}}` and end with `{{/literal}}`.
+ *
+ * #### Variables levels
+ *
+ * In Brindille, variables are set in a specific level (or context). This is mostly used in sections.
+ * A section may create new variables, that will only exist inside the section.
+ *
+ * This means that if a section creates a `$url` variable, this will not overwrite an existing
+ * `$url` variable. This is the same as using `let` in javascript.
+ *
+ * ```
+ * {{:assign name="Ada"}}
+ * {{:assign var="array" 0="James"}}
+ * {{#foreach from=$array item="name"}}
+ *   {{$name}}
+ * {{/foreach}}
+ * {{$name}}
+ * ```
+ *
+ * This will display: `James Ada`.
+ *
+ * All variables registered with the `assign` function will be registered in root level (zero).
+ *
+ * #### What's missing
+ *
+ * - parenthesis in if/elseif statements: this is not likely to be added
+ *
+ * @author bohwaz <https://bohwaz.net/>
+ */
 class Brindille
 {
+	// Tag types
 	const NONE = 0;
 	const LITERAL = 1;
 	const SECTION = 10;
 	const IF = 11;
 	const ELSE = 12;
 
+	// Tokenizer types
 	const T_VAR = 'var';
 	const T_PARAMS = 'params';
 	const T_SPACE = 'space';
@@ -21,33 +107,59 @@ class Brindille
 	//const T_OPEN_PARENTHESIS = 'open';
 	//const T_CLOSE_PARENTHESIS = 'close';
 
+	/**
+	 * Regexp for allowed variable names (basically the same as PHP, without the unicode)
+	 */
 	const RE_VALID_VARIABLE_NAME = '/^[a-zA-Z_][a-zA-Z0-9_]*$/';
 
-	// $var.subvar , "quoted string even with \" escape quotes", 'even single quotes'
+	/**
+	 * Regexp for literal expressions:
+	 * $var.subvar , "quoted string even with \" escape quotes", 'even single quotes'
+	 */
 	const RE_LITERAL = '\$[\w.]+|"(?:.*?(?<!\\\\))"|\'(?:.*?(?<!\\\\))\'';
 
+	/**
+	 * Scalar expressions: null, true, false, integers, floats
+	 */
 	const RE_SCALAR = 'null|true|false|-?\d+|-?\d+\.\d+';
 
-	// Modifier argument: :"string", :$variable.subvar, :42, :false, :null
+	/**
+	 * Modifier arguments. The separator between modifier arguments is the colon.
+	 * :"string"
+	 * :$variable.subvar
+	 * :42
+	 * :false
+	 * :null
+	 */
 	const RE_MODIFIER_ARGUMENTS = '(?::(?:' . self::RE_LITERAL . '|' . self::RE_SCALAR . '))*';
 
-	// Modifier: |mod_name:arg1:arg2
+	/**
+	 * Modifier syntax
+	 * |mod_name:arg1:arg2
+	 */
 	const RE_MODIFIER = '\|\w+' . self::RE_MODIFIER_ARGUMENTS;
 
-	// Variable: $var_name|modifier, "string literal"|modifier:arg1,arg2
+	/**
+	 * Variable syntax
+	 * $var_name|modifier
+	 * "string literal"|modifier:arg1,arg2
+	 */
 	const RE_VARIABLE = '(?:' . self::RE_LITERAL . ')(?:' . self::RE_MODIFIER . ')*';
 
-	// block parameters
+	/**
+	 * Tag parameters
+	 */
 	const RE_PARAMETERS = '[:\w]+=(?:' . self::RE_VARIABLE . '|' . self::RE_SCALAR . ')';
 
+	/**
+	 * Space
+	 */
 	const RE_SPACE = '\s+';
 
 	// Tokens allowed in an if statement
 	const TOK_IF_BLOCK = [
 		self::T_OPERATOR => '(?:>=|<=|===|!==|==|!=|>|<|!)',
 		self::T_ANDOR => '(?:&&|\|\|)',
-		//self::T_OPEN_PARENTHESIS => '\(',
-		//self::T_CLOSE_PARENTHESIS => '\)',
 		self::T_VAR => self::RE_VARIABLE,
 		self::T_SCALAR => self::RE_SCALAR,
 		self::T_SPACE => self::RE_SPACE,
@@ -79,18 +191,54 @@ class Brindille
 		# regexp modifiers
 		%sx';
 
+	/**
+	 * Current stack of sections/if/elseif sections
+	 */
 	public array $_stack = [];
 
+	/**
+	 * List of registered sections
+	*/
 	protected array $_sections = [];
 
-	// Escape is the only mandatory modifier
-	protected array $_modifiers = ['escape' => 'htmlspecialchars'];
+	/**
+	 * List of registered modifiers
+	 */
+	protected array $_modifiers = ['escape' => null];
+
+	/**
+	 * List of registered modifiers where first parameter is the Brindille object
+	 */
 	protected array $_modifiers_with_instance = [];
+
+	/**
+	 * List of registered functions
+	 */
 	protected array $_functions = [];
+
+	/**
+	 * List of registered compile blocks
+	 */
 	protected array $_blocks = [];
 
+	/**
+	 * Variables stack
+	 * There's always a root level (zero)
+	 */
 	public array $_variables = [0 => []];
 
+	/**
+	 * Register default modifiers:
+	 * - escape
+	 * - args
+	 * - nl2br
+	 * - strip_tags
+	 * - count
+	 * - cat
+	 * - date_format
+	 *
+	 * And the 'foreach' section, as well as the 'assign' function.
+	 */
 	public function registerDefaults()
 	{
 		$this->registerFunction('assign', [self::class, '__assign']);
@@ -136,6 +284,14 @@ class Brindille
 		$this->registerSection('foreach', [self::class, '__foreach']);
 	}
 
+	/**
+	 * Assign a variable to the template
+	 * @param  string $key The name of the variable
+	 * @param  mixed $value The value of the variable
+	 * @param  int|null $level Which level the variable should be assigned to
+	 * @param  bool $throw_on_invalid_name Set to NULL to throw an error if the variable name is invalid
+	 * @return void
+	 */
 	public function assign(string $key, $value, ?int $level = null, bool $throw_on_invalid_name = true): void
 	{
 		if (!preg_match(self::RE_VALID_VARIABLE_NAME, $key)) {
@@ -166,11 +322,31 @@ class Brindille
 		}
 	}
 
-	public function checkModifierExists(string $name)
+	public function checkModifierExists(string $name): bool
 	{
-		return array_key_exists($name, $this->_modifiers) || array_key_exists($name, $this->_modifiers_with_instance);
+		return array_key_exists($name, $this->_modifiers)
+			|| array_key_exists($name, $this->_modifiers_with_instance);
 	}
 
+	/**
+	 * Register a modifier function
+	 *
+	 * By default, callbacks are called with the passed parameters exactly.
+	 * This means you can use PHP functions directly:
+	 * `->registerModifier('nl2br', 'nl2br')` will mean that `{{$text|escape|nl2br}}`
+	 * will call `nl2br($text)`.
+	 * But in some cases you may want to access the template context.
+	 * In that case, set the third argument to TRUE, and your modifier will have the
+	 * current Brindille object as the first parameter, the line number as the second parameter,
+	 * and the passed parameters following:
+	 * `->registerModifier('nl2br', [Utils::class, 'nl2br'])` will mean that `{{$text|escape|nl2br:true}}`
+	 * will call `Utils::nl2br(Brindille $tpl, int $line, $text, true)`.
+	 *
+	 * @param  string $name Name of the modifier
+	 * @param  callable $callback A valid callback
+	 * @param  bool $pass_instance_as_first_argument Set to TRUE if you want to have access
+	 * to the template context from within the modifier
+	 */
 	public function registerModifier(string $name, callable $callback, bool $pass_instance_as_first_argument = false): void
 	{
 		unset($this->_modifiers_with_instance[$name], $this->_modifiers[$name]);
@@ -198,6 +374,9 @@ class Brindille
 		$this->_blocks[$name] = $callback;
 	}
 
+	/**
+	 * Compile, execute, capture and return a string of Brindille code
+	 */
 	public function render(string $tpl_code): string
 	{
 		$code = $this->compile($tpl_code);
@@ -299,6 +478,10 @@ class Brindille
 		return $return;
 	}
 
+	/**
+	 * Compile the source code passed as the string, to a PHP code string.
+	 * The resulting compiled string may generate syntax errors.
+	 */
 	public function compile(string $code): string
 	{
 		$this->_stack = [];
@@ -355,6 +538,9 @@ class Brindille
 		return $return;
 	}
 
+	/**
+	 * Try to find a variable from all levels, beginning with last levels
+	 */
 	public function get(string $name)
 	{
 		$array =& $this->_variables;
@@ -384,6 +570,9 @@ class Brindille
 		return null;
 	}
 
+	/**
+	 * Return all assigned variables, as a flat array
+	 */
 	public function getAllVariables(): array
 	{
 		$out = [];
@@ -395,6 +584,23 @@ class Brindille
 		return $out;
 	}
 
+	/**
+	 * Magical parser of variables names
+	 *
+	 * Variable names can point to an object constant or property, or an array key.
+	 *
+	 * This will return the value of the variable path from the $var value,
+	 * and set $found to TRUE or FALSE, as the found value can be NULL.
+	 *
+	 * This will return NULL if the value is not found. Meaning in Brindille, there is
+	 * no "undefined value", and no distinction between a non-existing variable and
+	 * a NULL variable.
+	 *
+	 * {{$array.1}}
+	 * {{$array.index_name.sub_index_name}}
+	 * {{$object.CONSTANT}}
+	 * {{$object.property}}
+	 */
 	protected function _magic(string $expr, $var, &$found = null)
 	{
 		$i = 0;
@@ -402,34 +608,29 @@ class Brindille
 
 		while (null !== ($key = array_shift($keys)))
 		{
-			if ($i++ > 20)
-			{
+			if ($i++ > 20) {
 				// Limit the amount of recusivity we can go through
 				$found = false;
 				return null;
 			}
 
-			if (is_object($var))
-			{
+			if (is_object($var)) {
 				// Test for constants
-				if (defined(get_class($var) . '::' . $key))
-				{
+				if (defined(get_class($var) . '::' . $key)) {
 					$found = true;
 					return constant(get_class($var) . '::' . $key);
 				}
 
-				if (!property_exists($var, $key))
-				{
+				// Test for properties
+				if (!property_exists($var, $key)) {
 					$found = false;
 					return null;
 				}
 
 				$var = $var->$key;
 			}
-			elseif (is_array($var))
-			{
-				if (!array_key_exists($key, $var))
-				{
+			elseif (is_array($var)) {
+				if (!array_key_exists($key, $var)) {
 					$found = false;
 					return null;
 				}
@@ -442,21 +643,33 @@ class Brindille
 		return $var;
 	}
 
+	/**
+	 * Push a new section/if/elseif/else item in the stack
+	 */
 	public function _push(int $type, ?string $name = null, ?array $params = []): void
 	{
 		$this->_stack[] = func_get_args();
 	}
 
+	/**
+	 * Remove last item from stack
+	 */
 	public function _pop(): ?array
 	{
 		return array_pop($this->_stack);
 	}
 
+	/**
+	 * Return type of last item in stack
+	 */
 	public function _lastType(): int
 	{
 		return count($this->_stack) ? end($this->_stack)[0] : self::NONE;
 	}
 
+	/**
+	 * Return name of last item in stack
+	 */
 	public function _lastName(): ?string
 	{
 		if ($this->_stack) {
@@ -466,6 +679,9 @@ class Brindille
 		return null;
 	}
 
+	/**
+	 * This is the main compile function, that will walk all tags
+	 */
 	protected function _walk(string $all, ?string $start, string $name, ?string $params, int $line): string
 	{
 		if ($name == 'literal') {
@@ -527,12 +743,26 @@ class Brindille
 		throw new Brindille_Exception('Unknown block: ' . $all);
 	}
 
+	/**
+	 * Call a modifier from inside compiled code
+	 */
 	public function callModifier(string $name, int $line, ... $params) {
+		if (!$this->checkModifierExists($name)) {
+			throw new Brindille_Exception('This modifier does not exist: ' . $name);
+		}
+
 		try {
-			if (isset($this->_modifiers[$name])) {
-				return $this->_modifiers[$name](...$params);
+			if (array_key_exists($name, $this->_modifiers)) {
+				$callback = $this->_modifiers[$name];
+
+				// If auto-escaping is disabled, just return the first argument
+				if (null === $callback && $name === 'escape') {
+					return $params[0] ?? null;
+				}
+
+				return $callback(...$params);
 			}
-			else {
+			elseif (isset($this->_modifiers_with_instance[$name])) {
 				return $this->_modifiers_with_instance[$name]($this, $line, ...$params);
 			}
 		}
@@ -542,7 +772,11 @@ class Brindille
 		}
 	}
 
-	public function _function(string $name, string $params, int $line): string {
+	/**
+	 * Return PHP code for a function tag
+	 */
+	public function _function(string $name, string $params, int $line): string
+	{
 		if (!isset($this->_functions[$name])) {
 			throw new Brindille_Exception(sprintf('line %d: unknown function "%s"', $line, $name));
 		}
@@ -557,7 +791,11 @@ class Brindille
 		);
 	}
 
-	public function _callFunction(string $name, array $params, int $line) {
+	/**
+	 * Call a function from inside the generated PHP code of a template
+	 */
+	public function _callFunction(string $name, array $params, int $line)
+	{
 		try {
 			return call_user_func($this->_functions[$name], $params, $this, $line);
 		}
@@ -566,6 +804,9 @@ class Brindille
 		}
 	}
 
+	/**
+	 * Return PHP code for a section tag
+	 */
 	public function _section(string $name, string $params, int $line): string
 	{
 		$this->_push(self::SECTION, $name);
@@ -584,6 +825,9 @@ class Brindille
 		);
 	}
 
+	/**
+	 * Return PHP code for a compile block tag
+	 */
 	public function _block(string $name, string $params, int $line): string
 	{
 		if (!isset($this->_blocks[$name])) {
@@ -593,7 +837,10 @@ class Brindille
 		return call_user_func($this->_blocks[$name], $name, $params, $this, $line);
 	}
 
-	public function _if(string $name, string $params, string $tag_name, int $line)
+	/**
+	 * Return PHP code for 'if' tag
+	 */
+	public function _if(string $name, string $params, string $tag_name, int $line): string
 	{
 		try {
 			$tokens = self::tokenize($params, self::TOK_IF_BLOCK);
@@ -659,6 +906,11 @@ class Brindille
 		return sprintf('<?php %s (%s): ?>', $tag_name, $code);
 	}
 
+	/**
+	 * Return PHP code for a 'else' tag
+	 * Note: 'else' blocks can follow either a 'if', a 'elseif', or a section tag.
+	 * A section generator that didn't create any iteration will trigger the following 'else'.
+	 */
 	public function _else(int $line): string
 	{
 		$type = $this->_lastType();
@@ -682,9 +934,13 @@ class Brindille
 		}
 	}
 
+	/**
+	 * Close the current stack item, return PHP code
+	 */
 	public function _close(string $name, string $block): string
 	{
 		if ($this->_lastName() != $name) {
+			// Logic error
 			throw new Brindille_Exception(sprintf('"%s": block closing does not match last block "%s" opened', $block, $this->_lastName()));
 		}
 
@@ -700,7 +956,7 @@ class Brindille
 	}
 
 	/**
-	 * Parse a variable, either from a {$block} or from an argument: {block arg=$bla|rot13}
+	 * Parse a variable, either from a {{$block}} or from an argument: {{block arg=$bla|rot13}}
 	 */
 	public function _variable(string $raw, bool $escape, int $line): string
 	{
@@ -789,23 +1045,17 @@ class Brindille
 
 		preg_match_all('/(?:"(?:\\\\"|[^\"])*?"|\'(?:\\\\\'|[^\'])*?\'|(?>[^"\'=\s]+))+|[=]/i', $str, $match);
 
-		foreach ($match[0] as $value)
-		{
-			if ($state == 0)
-			{
+		foreach ($match[0] as $value) {
+			if ($state == 0) {
 				$name = $value;
 			}
-			elseif ($state == 1)
-			{
-				if ($value != '=')
-				{
+			elseif ($state == 1) {
+				if ($value != '=') {
 					throw new Brindille_Exception('Expecting \'=\' after \'' . $last_value . '\'');
 				}
 			}
-			elseif ($state == 2)
-			{
-				if ($value == '=')
-				{
+			elseif ($state == 2) {
+				if ($value == '=') {
 					throw new Brindille_Exception('Unexpected \'=\' after \'' . $last_value . '\'');
 				}
 
@@ -823,8 +1073,12 @@ class Brindille
 		return $args;
 	}
 
+	/**
+	 * Export a single argument as PHP code
+	 */
 	public function _exportArgument(string $raw_arg): string
 	{
+		// If it's a variable, call the get method
 		if (substr($raw_arg, 0, 1) == '$') {
 			return sprintf('$this->get(%s)', var_export(substr($raw_arg, 1), true));
 		}
@@ -848,8 +1102,7 @@ class Brindille
 
 		$out = '[';
 
-		foreach ($args as $key=>$value)
-		{
+		foreach ($args as $key=>$value) {
 			$out .= var_export($key, true) . ' => ' . $value . ', ';
 		}
 
@@ -939,7 +1192,31 @@ class Brindille
 		return $match;
 	}
 
-	static public function __foreach(array $params, $tpl, $line): \Generator
+	/**
+	 * Default included foreach section
+	 *
+	 * Allowed parameters:
+	 * - count: will loop for the number of iterations passed in the count parameter
+	 * - from: source array/iterator
+	 * - key: name of the variable to assign the key of each item of the array/iterator
+	 * - item: name of the variable to assign the value of each item of the array/iterator
+	 *
+	 * If each item of the array is itself a list array (keys are strings), or an object,
+	 * each of its keys will be assigned as variables as well.
+	 *
+	 * ```
+	 * {{#foreach count=3 key="i"}}{{$i}}.{{/foreach}}
+	 * {{:assign var="array1" menu="pizza"}}
+	 * {{:assign var="array2" c=$array1}}
+	 * {{#foreach from=$array2}}
+	 *   {{$menu}}
+	 * {{/foreach}}
+	 * {{#foreach from=$array1 key="k" item="value"}}
+	 *   {{$k}} = {{$value}}
+	 * {{/foreach}}
+	 * ```
+	 */
+	static public function __foreach(array $params, Brindille $tpl, int $line): \Generator
 	{
 		if (array_key_exists('count', $params)) {
 			for ($i = 0; $i < (int)$params['count']; $i++) {
