@@ -144,7 +144,12 @@ class SQLite3 extends DB
 		// See https://sqlite.org/forum/forumpost/d28110be11
 		'json_each_readonly' => '3.41.0',
 
+		// Support for JSONB
+		// https://www.sqlite.org/json1.html
+		'jsonb' => '3.45.0-OMIT_JSON',
+
 		'fts3' => '3.5.0+ENABLE_FTS3',
+		// ENABLE_FTS3 is also enabling FTS4, sometimes ENABLE_FTS4 does not exist but FTS4 is still supported
 		'fts4' => '3.7.4+ENABLE_FTS3|3.7.4+ENABLE_FTS4',
 		'fts5' => '3.9.0+ENABLE_FTS5',
 
