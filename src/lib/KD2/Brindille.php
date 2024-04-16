@@ -216,6 +216,89 @@ class Brindille
 		}
 	}
 
+	/**
+	 * Render some Brindille code, using a local compile file cache.
+	 *
+	 * When the code supplied by $source_callback will be compiled the first time,
+	 * it will be stored as PHP code in $compiled_path.
+	 *
+	 * Next calls will avoid re-compiling the template, unless the cache has been
+	 * generated before the timestamp passed in $expiry.
+	 *
+	 * This will display the template contents directly! Use ob_start() / ob_get_clean()
+	 * to retrieve the template contents in a string.
+	 *
+	 * @param  callable $source_callback Callback function that will return
+	 * the Brindille code as a string
+	 * @param  string   $compiled_path   Path to the compiled cache file,
+	 * parent directories will be created
+	 * @param  int|null $expiry          Expiration (UNIX timestamp in seconds)
+	 * of the compiled cache file
+	 * @return mixed Will return whatever the executed template code returned.
+	 * This will be 1 by default, see https://www.php.net/manual/en/function.include.php
+	 */
+	public function displayUsingCache(callable $source_callback, string $compiled_path, ?int $expiry = null)
+	{
+		// Create parent directory if required, with correct permissions
+		$root = dirname($compiled_path);
+		$parent = $root;
+
+		while (!is_dir($parent)) {
+			if (file_exists($parent)) {
+				throw new \LogicException('Parent directory exists and is not a directory: ' . $parent);
+			}
+
+			$parent = dirname($parent);
+		}
+
+		if ($root !== $parent) {
+			@mkdir($root, fileperms($parent), true);
+			$exists = false;
+		}
+		else {
+			$exists = file_exists($compiled_path);
+		}
+
+		if ($exists && $expiry && filemtime($compiled_path) < $expiry) {
+			$exists = false;
+		}
+
+		if ($exists) {
+			return include($compiled_path);
+		}
+
+		// Store compiled file in temporary file, we will rename it when execution is OK
+		$tmp_path = $compiled_path . '.tmp';
+
+		try {
+
+			// Stop execution if not in the context of Brindille
+			// this is to avoid potential execution of template code outside of Brindille
+			$prefix = '<?php if (!isset($this) || !is_object($this) || (!($this instanceof \KD2\Brindille) && !is_subclass_of($this, \'\KD2\Brindille\', true))) { die("Wrong call context."); } ?>';
+
+			// Call source callback to return the Brindille source code
+			$source = call_user_func($source_callback);
+
+			// Compile Brindille into PHP code
+			$code = $this->compile($source);
+			$code = $prefix . $code;
+
+			// Save code to temporary cache
+			file_put_contents($tmp_path, $code);
+
+			// Execute compiled code
+			$return = include($tmp_path);
+
+			// Rename to final compiled cache file
+			@rename($tmp_path, $compiled_path);
+		}
+		finally {
+			@unlink($tmp_path);
+		}
+
+		return $return;
+	}
+
 	public function compile(string $code): string
 	{
 		$this->_stack = [];
