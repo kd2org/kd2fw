@@ -352,8 +352,15 @@ class FossilMonitor
 		if (preg_match('!href="/[^/]+?/(vpatch\?from=.*?)"!', $r, $match)) {
 			$out['text'] = $this->http($this->url . html_entity_decode($match[1], ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML401));
 		}
-		else {
-			var_dump($r); exit;
+		elseif (preg_match('!<script[^>]*timeline-data-0[^>]*>(.*?)</script>!is', $r, $match)
+			&& ($data = json_decode($match[1]))
+			&& ($from = $data->rowinfo[0]->h ?? null)
+			&& ($to = $data->rowinfo[1]->h ?? null))
+		{
+			$out['text'] = $this->http($this->url . sprintf('vpatch?from=%s&to=%s', $from, $to));
+		}
+  		else {
+  			$out['text'] = 'Diff not found';
 		}
 
 		return $out;
