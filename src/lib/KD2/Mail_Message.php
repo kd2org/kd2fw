@@ -160,8 +160,7 @@ class Mail_Message
 	 */
 	public function getSenderAddress(): ?string
 	{
-		$header = $this->getHeader('Sender');
-		$header ??= $this->getHeader('Return-Path');
+		$header = $this->getHeader('Return-Path');
 		$header ??= $this->getHeader('From');
 		return current(SMTP::extractEmailAddresses($header)) ?: null;
 	}
