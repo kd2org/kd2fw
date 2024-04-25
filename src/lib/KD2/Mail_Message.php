@@ -162,7 +162,7 @@ class Mail_Message
 	{
 		$header = $this->getHeader('Return-Path');
 		$header ??= $this->getHeader('From');
-		return current(SMTP::extractEmailAddresses($header)) ?: null;
+		return self::extractAddressFromHeader($header) ?: null;
 	}
 
 	/**
@@ -171,7 +171,7 @@ class Mail_Message
 	public function getRecipientsAddresses(): array
 	{
 		$list = array_merge($this->getTo(), $this->getCc(), $this->getBcc());
-		$list = array_map([self::class, 'extractEmailAddresses'], $list);
+		$list = array_map([self::class, 'extractAddressFromHeader'], $list);
 		return $list;
 	}
 
