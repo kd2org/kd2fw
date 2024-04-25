@@ -33,6 +33,7 @@ class SMTP
 	const SSL = 'ssl';
 
 	const EOL = "\r\n";
+	const MAX_REPLY_LENGTH = 512;
 
 	protected string $server;
 	protected int $port;
@@ -72,7 +73,7 @@ class SMTP
 	{
 		$data = '';
 
-		while ($str = fgets($this->conn, 4096)) {
+		while ($str = fgets($this->conn, self::MAX_REPLY_LENGTH)) {
 			$data .= $str;
 
 			if ($str[3] == ' ') {
