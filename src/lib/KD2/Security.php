@@ -275,7 +275,7 @@ class Security
 	 * @param  array  &$info   Informations about the imported key
 	 * @return \gnupg
 	 */
-	static protected function _initGnupgEnv(string $key, string &$tmpdir, array &$info): \gnupg
+	static protected function _initGnupgEnv(string $key, ?string &$tmpdir, ?array &$info): \gnupg
 	{
 		if (!self::canUseEncryption())
 		{
