@@ -203,6 +203,13 @@ class EntityManager
 		return $db->firstColumn($query, ...$params);
 	}
 
+	public function count(string $where = '1', ...$params)
+	{
+		$where = $this->formatQuery($where);
+		$db = $this->DB();
+		return $db->count($this->class::TABLE, $where, ...$params);
+	}
+
 	public function save(AbstractEntity $entity, bool $selfcheck = true): bool
 	{
 		if ($selfcheck) {
