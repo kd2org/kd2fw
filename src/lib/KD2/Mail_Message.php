@@ -1,10 +1,10 @@
 <?php
 /*
   Part of the KD2 framework collection of tools: http://dev.kd2.org/
-  
+
   Copyright (c) 2001-2016 BohwaZ <http://bohwaz.net/>
   All rights reserved.
-  
+
   Redistribution and use in source and binary forms, with or without
   modification, are permitted provided that the following conditions are met:
   1. Redistributions of source code must retain the above copyright notice,
@@ -12,7 +12,7 @@
   2. Redistributions in binary form must reproduce the above copyright notice,
   this list of conditions and the following disclaimer in the documentation
   and/or other materials provided with the distribution.
-  
+
   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
   AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
   IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -134,7 +134,7 @@ class Mail_Message
 		return null;
 	}
 
-	public function getReferences()
+	public function getReferences(): ?array
 	{
 		$value = $this->getHeader('references');
 
@@ -153,6 +153,27 @@ class Mail_Message
 		}
 
 		return null;
+	}
+
+	/**
+	 * Return address of sender (MAIL FROM / Envelope-from)
+	 */
+	public function getSenderAddress(): ?string
+	{
+		$header = $this->getHeader('Sender');
+		$header ??= $this->getHeader('Return-Path');
+		$header ??= $this->getHeader('From');
+		return current(SMTP::extractEmailAddresses($header)) ?: null;
+	}
+
+	/**
+	 * Return list of recipients addresses (RCPT TO)
+	 */
+	public function getRecipientsAddresses(): array
+	{
+		$list = array_merge($this->getTo(), $this->getCc(), $this->getBcc());
+		$list = array_map([self::class, 'extractEmailAddresses'], $list);
+		return $list;
 	}
 
 	/**
@@ -200,38 +221,38 @@ class Mail_Message
 		return self::extractAddressFromHeader(current($this->getFrom()));
 	}
 
-	static public function extractNameFromHeader(string $from): string
+	static public function extractNameFromHeader(string $value): string
 	{
-		if (preg_match('/["\'](.+?)[\'"]/', $from, $match)) {
+		if (preg_match('/["\'](.+?)[\'"]/', $value, $match)) {
 			return $match[1];
 		}
-		elseif (preg_match('/\\((.+?)\\)/', $from, $match)) {
+		elseif (preg_match('/\\((.+?)\\)/', $value, $match)) {
 			return $match[1];
 		}
-		elseif (($pos = strpos($from, '<')) > 0) {
-			return trim(substr($from, 0, $pos));
+		elseif (($pos = strpos($value, '<')) > 0) {
+			return trim(substr($value, 0, $pos));
 		}
-		elseif (($pos = strpos($from, '@')) > 0) {
-			return trim(substr($from, 0, $pos));
+		elseif (($pos = strpos($value, '@')) > 0) {
+			return trim(substr($value, 0, $pos));
 		}
 		else {
-			return $from;
+			return $value;
 		}
 	}
 
-	static public function extractAddressFromHeader(string $from): string
+	static public function extractAddressFromHeader(string $value): string
 	{
-		if (preg_match('/<(.+@.+)>/', $from, $match)) {
+		if (preg_match('/<(.+@.+)>/', $value, $match)) {
 			return $match[1];
 		}
-		elseif (preg_match('/([^\s]+@[^\s]+)/', $from, $match)) {
+		elseif (preg_match('/([^\s]+@[^\s]+)/', $value, $match)) {
 			return $match[1];
 		}
-		elseif (preg_match('/\\((.+?)\\)/', $from, $match)) {
-			return trim(str_replace($match[0], '', $from));
+		elseif (preg_match('/\\((.+?)\\)/', $value, $match)) {
+			return trim(str_replace($match[0], '', $value));
 		}
 		else {
-			return $from;
+			return $value;
 		}
 	}
 
@@ -245,19 +266,33 @@ class Mail_Message
 		return $this->getMultipleAddressHeader('cc');
 	}
 
-	public function getMultipleAddressHeader(?string $header, ?string $value = null): array
+	public function getBcc()
 	{
-		$header = $value ?? $this->getHeader($header);
+		return $this->getMultipleAddressHeader('bcc');
+	}
 
-		if (!$header) {
+	public function getMultipleAddressHeader(string $header): array
+	{
+		$value = $this->getHeader($header);
+
+		if (!$value) {
+			return [];
+		}
+
+		return self::splitMultipleAddressHeaderValue($value);
+	}
+
+	static public function splitMultipleAddressHeaderValue(string $value): array
+	{
+		if (!trim($value)) {
 			return [];
 		}
 
 		// Remove grouping, see RFC 2822 § section 3.4
-		$header = preg_replace('/(?:[^:"<>,]+)\s*:\s*(.*?);/', '$1', $header);
+		$value = preg_replace('/(?:[^:"<>,]+)\s*:\s*(.*?);/', '$1', $value);
 
 		// Extract addresses
-		preg_match_all('/(?:"(?!\\").*"\s*|[^"<>,]+)?<.*?>|[^<>",\s]+/s', $header, $match, PREG_PATTERN_ORDER);
+		preg_match_all('/(?:"(?!\\").*"\s*|[^"<>,]+)?<.*?>|[^<>",\s]+/s', $value, $match, PREG_PATTERN_ORDER);
 		return array_map('trim', $match[0]);
 	}
 
@@ -805,8 +840,7 @@ class Mail_Message
 			return strtoupper($match[1]);
 		}, $key);
 
-		if (is_array($value))
-		{
+		if (is_array($value)) {
 			$value = array_map('trim', $value);
 			$value = array_map(fn ($a) =>$this->_encodeHeaderValue($a, $key), $value);
 
@@ -814,10 +848,9 @@ class Mail_Message
 			$value = implode($glue, $value);
 		}
 		elseif (in_array($key, ['From', 'Cc', 'To', 'Bcc', 'Reply-To'])) {
-			return $this->_encodeHeader($key, $this->getMultipleAddressHeader($key, $value));
+			return $this->_encodeHeader($key, self::splitMultipleAddressHeaderValue($value));
 		}
-		else
-		{
+		else {
 			$value = $this->_encodeHeaderValue($value, $key);
 		}
 
@@ -1333,7 +1366,7 @@ class Mail_Message
 			$orig = new Mail_Message;
 			$orig->parse(ltrim($this->getPartContent($part_id)));
 			list($recipient) = $orig->getTo();
-			list($recipient) = SMTP::extractEmailAddresses($recipient);
+			$recipient = self::extractAddressFromHeader($recipient);
 
 			return [
 				'type'      => 'complaint',
