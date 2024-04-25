@@ -27,55 +27,73 @@ class SMTP_Exception extends \RuntimeException {}
 
 class SMTP
 {
-	const NONE = 0;
+	const NONE = null;
 	const TLS = 'tls';
-	const STARTTLS = 1;
+	const STARTTLS = 'starttls';
 	const SSL = 'ssl';
 
 	const EOL = "\r\n";
 
-	protected $server;
-	protected $port;
-	protected $username = null;
-	protected $password = null;
-	protected $secure = 0;
+	protected string $server;
+	protected int $port;
+	protected ?string $username = null;
+	protected ?string $password = null;
+	protected ?string $secure = null;
+	protected ?string $servername = 'localhost';
 
 	protected $conn = null;
 	protected $last_line = null;
 
-	protected $servername = 'localhost';
+	protected int $timeout = 15;
+	protected int $count = 0;
+	protected int $max = 50;
 
-	public $timeout = 30;
+	public function setTimeout(int $timeout): void
+	{
+		$this->timeout = $timeout;
+	}
 
-	protected function _read()
+	public function setMax(int $max): void
+	{
+		$this->max = $max;
+	}
+
+	public function count(): int
+	{
+		return $this->count;
+	}
+
+	public function isConnected(): bool
+	{
+		return $this->conn !== null;
+	}
+
+	protected function _read(): string
 	{
 		$data = '';
 
-		while ($str = fgets($this->conn, 4096))
-		{
+		while ($str = fgets($this->conn, 4096)) {
 			$data .= $str;
 
-			if ($str[3] == ' ')
-			{
+			if ($str[3] == ' ') {
 				break;
 			}
 		}
 
-		return $data;
+		return trim($data);
 	}
 
-	protected function _readCode($data = null)
+	protected function _readCode(?string $data = null): int
 	{
-		if (is_null($data))
-		{
+		if (is_null($data)) {
 			$data = $this->_read();
 			$this->last_line = $data;
 		}
 
-		return substr($data, 0, 3);
+		return (int) substr($data, 0, 3);
 	}
 
-	protected function _write($data, $eol = true)
+	protected function _write(string $data, bool $eol = true): void
 	{
 		fputs($this->conn, $data . ($eol ? self::EOL : ''));
 	}
@@ -89,12 +107,11 @@ class SMTP
 	 * @param integer $secure     either SMTP::NONE, SMTP::SSL, SMTP::TLS or SMTP::STARTTLS
 	 * @param string  $servername Internal server name used for Message-ID generation and HELO commands (if null will use SERVER_NAME or hostname)
 	 */
-	public function __construct($server = 'localhost', $port = 25, $username = null, $password = null, $secure = self::NONE, $servername = null)
+	public function __construct(string $server = 'localhost', int $port = 25, ?string $username = null, ?string $password = null, ?string $secure = self::NONE, ?string $servername = null)
 	{
 		$prefix = '';
 
-		if ($secure && $secure != self::STARTTLS)
-		{
+		if ($secure && $secure !== self::STARTTLS) {
 			$prefix = $secure . '://';
 		}
 
@@ -111,11 +128,10 @@ class SMTP
 		$this->disconnect();
 	}
 
-	public function disconnect()
+	public function disconnect(): void
 	{
-		if (is_null($this->conn))
-		{
-			return true;
+		if (is_null($this->conn)) {
+			return;
 		}
 
 		$this->_write('QUIT');
@@ -123,51 +139,42 @@ class SMTP
 		fclose($this->conn);
 		$this->conn = null;
 		$this->last_line = null;
-		return true;
+		$this->count = 0;
 	}
 
-	public function connect()
+	public function connect(): void
 	{
 		$this->conn = stream_socket_client($this->server . ':' . $this->port, $errno, $errstr, $this->timeout);
 
-		if (!$this->conn)
-		{
+		if (!$this->conn) {
 			throw new SMTP_Exception('Unable to connect to server ' . $this->server . ': ' . $errno . ' - ' . $errstr);
 		}
 
-		if ($this->_readCode() != 220)
-		{
+		if ($this->_readCode() != 220) {
 			throw new SMTP_Exception('SMTP error: '.$this->last_line);
 		}
-
-		return true;
 	}
 
-	public function authenticate()
+	public function authenticate(): void
 	{
 		$this->_write(sprintf('EHLO %s', $this->servername));
 
-		if ($this->_readCode() != 250)
-		{
-			if ($this->secure == self::STARTTLS)
-			{
+		if ($this->_readCode() != 250) {
+			if ($this->secure == self::STARTTLS) {
 				throw new SMTP_Exception('Can\'t use STARTTLS on this server: server doesn\'t support ESMTP');
 			}
 
 			$this->_write('HELO');
 
-			if ($this->_readCode() != 250)
-			{
+			if ($this->_readCode() != 250) {
 				throw new SMTP_Exception('SMTP error on HELO: '.$this->last_line);
 			}
 		}
 
-		if ($this->secure == self::STARTTLS)
-		{
+		if ($this->secure == self::STARTTLS) {
 			$this->_write('STARTTLS');
 
-			if ($this->_readCode() != 220)
-			{
+			if ($this->_readCode() != 220) {
 				throw new SMTP_Exception('Can\'t start TLS session: '.$this->last_line);
 			}
 
@@ -175,51 +182,48 @@ class SMTP
 
 			$this->_write(sprintf('EHLO %s', $this->servername));
 
-			if ($this->_readCode() != 250)
-			{
+			if ($this->_readCode() != 250) {
 				throw new SMTP_Exception('SMTP error on EHLO: '.$this->last_line);
 			}
 		}
 
-		if (!is_null($this->username) && !is_null($this->password))
-		{
+		if (!is_null($this->username) && !is_null($this->password)) {
 			$this->_write('AUTH LOGIN');
 
-			if ($this->_readCode() != 334)
-			{
+			if ($this->_readCode() != 334) {
 				throw new SMTP_Exception('SMTP AUTH error: '.$this->last_line);
 			}
 
 			$this->_write(base64_encode($this->username));
 
-			if ($this->_readCode() != 334)
-			{
+			if ($this->_readCode() != 334) {
 				throw new SMTP_Exception('SMTP AUTH error: '.$this->last_line);
 			}
 
 			$this->_write(base64_encode($this->password));
 
-			if ($this->_readCode() != 235)
-			{
+			if ($this->_readCode() != 235) {
 				throw new SMTP_Exception('SMTP AUTH error: '.$this->last_line);
 			}
 		}
-
-		return true;
 	}
 
 	/**
 	 * Send a raw email
 	 * @param  string $from From address (MAIL FROM:)
-	 * @param  mixed  $to   To address (RCPT TO:), can be a string (single recipient) 
+	 * @param  mixed  $to   To address (RCPT TO:), can be a string (single recipient)
 	 *                      or an array (multiple recipients)
 	 * @param  string $data Mail data (DATA)
-	 * @return boolean TRUE if success, exception if it fails
+	 * @return string Message returned by SMTP for last
 	 */
-	public function rawSend($from, $to, $data)
+	public function rawSend(string $from, $to, string $data): string
 	{
-		if (is_null($this->conn))
-		{
+		// Reconnect if max allowed messages per session is reached
+		if ($this->count >= $this->max) {
+			$this->disconnect();
+		}
+
+		if (is_null($this->conn)) {
 			$this->connect();
 			$this->authenticate();
 		}
@@ -228,15 +232,13 @@ class SMTP
 
 		$code = $this->_readCode();
 
-		if ($code != 250 && $code != 200)
-		{
+		if ($code != 250 && $code != 200) {
 			throw new SMTP_Exception('SMTP RSET error: '.$this->last_line);
 		}
 
 		$this->_write('MAIL FROM: <'.$from.'>');
 
-		if ($this->_readCode() != 250)
-		{
+		if ($this->_readCode() != 250) {
 			throw new SMTP_Exception('SMTP MAIL FROM error: '.$this->last_line);
 		}
 
@@ -248,14 +250,12 @@ class SMTP
 			throw new SMTP_Exception('There are no recipients to the message');
 		}
 
-		foreach ($to as $dest)
-		{
+		foreach ($to as $dest) {
 			$this->_write('RCPT TO: <'.$dest.'>');
 
 			$code = $this->_readCode();
 
-			if ($code != 250 && $code != 251)
-			{
+			if ($code != 250 && $code != 251) {
 				throw new SMTP_Exception('SMTP RCPT TO error: '.$this->last_line);
 			}
 		}
@@ -269,19 +269,21 @@ class SMTP
 
 		$this->_write('DATA');
 
-		if ($this->_readCode() != 354)
-		{
+		if ($this->_readCode() != 354) {
 			throw new SMTP_Exception('SMTP DATA error: '.$this->last_line);
 		}
 
 		$this->_write($data . '.');
 
-		if ($this->_readCode() != 250)
-		{
-			throw new SMTP_Exception('Can\'t send message. SMTP said: ' . $this->last_line);
+		$data = $this->_read();
+
+		if ($this->_readCode($data) != 250) {
+			throw new SMTP_Exception('Can\'t send message. SMTP said: ' . $data);
 		}
 
-		return true;
+		$this->count++;
+
+		return $data;
 	}
 
 	/**
@@ -290,18 +292,15 @@ class SMTP
 	 * @param  string $subject Message subject
 	 * @param  string $message Message content
 	 * @param  mixed  $headers Additional headers, either as an array of key=>value pairs or a string
-	 * @return string
 	 */
-	public function buildMessage($to, $subject, $message, $headers = [])
+	public function buildMessage($to, string $subject, string $message, $headers = []): array
 	{
 		// Parse $headers if it's a string
-		if (is_string($headers))
-		{
+		if (is_string($headers)) {
 			preg_match_all('/^(\\S.*?):(.*?)\\s*(?=^\\S|\\Z)/sm', $headers, $match, PREG_SET_ORDER);
 			$headers = [];
 
-			foreach ($match as $header)
-			{
+			foreach ($match as $header) {
 				$headers[$header[1]] = $header[2];
 			}
 		}
@@ -309,8 +308,7 @@ class SMTP
 		// Normalize headers
 		$headers_normalized = [];
 
-		foreach ($headers as $key=>$value)
-		{
+		foreach ($headers as $key => $value) {
 			$key = preg_replace_callback('/^.|(?<=-)./', function ($m) { return ucfirst($m[0]); }, strtolower(trim($key)));
 			$headers_normalized[$key] = $value;
 		}
@@ -326,23 +324,19 @@ class SMTP
 
 		$headers['Subject'] = (trim($subject) == '') ? '' : '=?UTF-8?B?'.base64_encode($subject).'?=';
 
-		if (!isset($headers['Mime-Version']))
-		{
+		if (!isset($headers['Mime-Version'])) {
 			$headers['Mime-Version'] = '1.0';
 		}
 
-		if (!isset($headers['Content-Type']))
-		{
+		if (!isset($headers['Content-Type'])) {
 			$headers['Content-Type'] = 'text/plain; charset=UTF-8';
 		}
 
-		if (!isset($headers['From']))
-		{
-			$headers['From'] = 'mail@'.$this->servername;
+		if (!isset($headers['From'])) {
+			$headers['From'] = 'mail@' . $this->servername;
 		}
 
-		if (!isset($headers['Message-Id']))
-		{
+		if (!isset($headers['Message-Id'])) {
 			// With headers + uniqid, it is presumed to be sufficiently unique
 			// so that two messages won't have the same ID
 			$headers['Message-Id'] = sprintf('<%s.%s@%s>', uniqid(), substr(sha1(var_export($headers, true)), 0, 10), $this->servername);
@@ -352,16 +346,14 @@ class SMTP
 		$to = self::extractEmailAddresses($to);
 		$headers['To'] = '<' . implode('>, <', $to) . '>';
 
-		if (isset($headers['Cc']))
-		{
+		if (isset($headers['Cc'])) {
 			$headers['Cc'] = self::extractEmailAddresses($headers['Cc']);
 			$to = array_merge($to, $headers['Cc']);
 
 			$headers['Cc'] = implode(', ', $headers['Cc']);
 		}
 
-		if (isset($headers['Bcc']))
-		{
+		if (isset($headers['Bcc'])) {
 			$headers['Bcc'] = self::extractEmailAddresses($headers['Bcc']);
 			$to = array_merge($to, $headers['Bcc']);
 
@@ -370,8 +362,7 @@ class SMTP
 
 		$content = '';
 
-		foreach ($headers as $name=>$value)
-		{
+		foreach ($headers as $name => $value) {
 			$content .= $name . ': ' . $value . self::EOL;
 		}
 
@@ -393,14 +384,14 @@ class SMTP
 	 * @param  string $subject Message subject
 	 * @param  string $message Message content
 	 * @param  mixed  $headers Additional headers, either as an array of key=>value pairs or a string
-	 * @return boolean		   TRUE if success, exception if it fails
+	 * @return string Message returned by SMTP server for queueing message
 	 */
-	public function send($r, $subject = null, $message = null, $headers = [])
+	public function send($r, ?string $subject = null, ?string $message = null, $headers = []): string
 	{
 		if (is_object($r) && $r instanceof Mail_Message) {
 			$message = $r->output(true);
-			$to = $r->getTo() + $r->getCc();
-			$from = current(self::extractEmailAddresses($r->getHeader('Return-Path') ?: $r->getHeader('From')));
+			$to = $r->getRecipientsAddresses();
+			$from = $r->getSenderAddress();
 		}
 		else {
 			$msg = $this->buildMessage($r, $subject, $message, $headers);
@@ -418,17 +409,14 @@ class SMTP
 	 * because of the comma, but FILTER_VALIDATE_EMAIL doesn't accept it as an email address either
 	 * (though it's perfectly valid if you follow the RFC).
 	 */
-	public static function extractEmailAddresses($str)
+	public static function extractEmailAddresses(string $str): array
 	{
-		if (is_array($str))
-		{
+		if (is_array($str)) {
 			$out = [];
 
 			// Filter invalid email addresses
-			foreach ($str as $email)
-			{
-				if ($list = self::extractEmailAddresses($email))
-				{
+			foreach ($str as $email) {
+				if ($list = self::extractEmailAddresses($email)) {
 					$out = array_merge($out, $list);
 				}
 			}
@@ -442,16 +430,13 @@ class SMTP
 		foreach ($str as $s)
 		{
 			$s = trim($s);
-			if (preg_match('/(?:([\'"])(?!\\").*?\1\s*)?<([^>]*)>/', $s, $match) && self::checkEmailIsValid(trim($match[2]), false))
-			{
+			if (preg_match('/(?:([\'"])(?!\\").*?\1\s*)?<([^>]*)>/', $s, $match) && self::checkEmailIsValid(trim($match[2]), false)) {
 				$out[] = trim($match[2]);
 			}
-			elseif (self::checkEmailIsValid($s, false))
-			{
+			elseif (self::checkEmailIsValid($s, false)) {
 				$out[] = $s;
 			}
-			else
-			{
+			else {
 				// unrecognized, skip
 			}
 		}
@@ -459,24 +444,21 @@ class SMTP
 		return $out;
 	}
 
-	public static function checkEmailIsValid($email, $validate_mx = true)
+	public static function checkEmailIsValid(string $email, bool $validate_mx = true): bool
 	{
 		$host = substr($email, strpos($email, '@') + 1);
 
 		// Compatibility with IDN domains
-		if (function_exists('idn_to_ascii'))
-		{
+		if (function_exists('idn_to_ascii')) {
 			$host = @idn_to_ascii($host); // Silence errors because of PHP 7.2 http://php.net/manual/en/function.idn-to-ascii.php
 			$email = substr($email, 0, strpos($email, '@')+1) . $host;
 		}
 
-		if (!filter_var($email, FILTER_VALIDATE_EMAIL))
-		{
+		if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
 			return false;
 		}
 
-		if (!$validate_mx)
-		{
+		if (!$validate_mx) {
 			return true;
 		}
 
