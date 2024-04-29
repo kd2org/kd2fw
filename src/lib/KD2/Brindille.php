@@ -450,7 +450,6 @@ class Brindille
 		$tmp_path = $compiled_path . '.tmp';
 
 		try {
-
 			// Stop execution if not in the context of Brindille
 			// this is to avoid potential execution of template code outside of Brindille
 			$prefix = '<?php if (!isset($this) || !is_object($this) || (!($this instanceof \KD2\Brindille) && !is_subclass_of($this, \'\KD2\Brindille\', true))) { die("Wrong call context."); } ?>';
@@ -646,7 +645,7 @@ class Brindille
 	/**
 	 * Push a new section/if/elseif/else item in the stack
 	 */
-	public function _push(int $type, ?string $name = null, ?array $params = []): void
+	public function _push(int $type, ?string $name = null, ?array $params = null): void
 	{
 		$this->_stack[] = func_get_args();
 	}
@@ -674,6 +673,24 @@ class Brindille
 	{
 		if ($this->_stack) {
 			return end($this->_stack)[1];
+		}
+
+		return null;
+	}
+
+	/**
+	 * Return block type/name/extra params, if block type/name is found in parent stack
+	 */
+	public function _getStack(int $type, ?string $name = null): ?array
+	{
+		foreach ($this->_stack as $item) {
+			if ($item[0] !== $type) {
+				continue;
+			}
+
+			if ($name === null || $name === $item[1]) {
+				return $item;
+			}
 		}
 
 		return null;
