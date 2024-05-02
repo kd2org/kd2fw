@@ -202,6 +202,10 @@ class HTTP
 	{
 		static $redirect_codes = [301, 302, 303, 307, 308];
 
+		if (0 !== strpos($url, 'http://') && 0 !== strpos($url, 'https://')) {
+			throw new \InvalidArgumentException('Invalid URL: ' . $url);
+		}
+
 		if (!is_resource($data) && !is_string($data) && !is_null($data)) {
 			throw new \InvalidArgumentException('$data is not null|string|resource');
 		}
