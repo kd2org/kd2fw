@@ -822,6 +822,20 @@ class SQLite3 extends DB
 		return (is_array($row) && count($row) > 0) ? $row[0] : false;
 	}
 
+	public function upsert(string $table, array $params, array $conflict_columns)
+	{
+		$sql = sprintf(
+			'INSERT INTO %s (%s) VALUES (%s) ON CONFLICT (%s) DO UPDATE SET %s;',
+			$table,
+			implode(', ', array_keys($params)),
+			':' . implode(', :', array_keys($params)),
+			implode(', ', $conflict_columns),
+			implode(', ', array_map(fn($a) => $a . ' = :' . $a, array_keys($params)))
+		);
+
+		return $this->preparedQuery($sql, $params);
+	}
+
 	public function countRows(\SQLite3Result $result): int
 	{
 		$i = 0;
