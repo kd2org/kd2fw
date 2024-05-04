@@ -3,6 +3,7 @@
 require __DIR__ . '/_assert.php';
 
 use KD2\SMTP;
+use KD2\SMTP_Exception;
 use KD2\Test;
 
 const SMTP_SERVER = 'smtp.mailtrap.io';
@@ -12,6 +13,8 @@ const SMTP_PASSWORD = 'f103803c179a2e';
 test_connect_disconnect('smtp.gmail.com', 465, SMTP::TLS);
 test_connect_disconnect('smtp.gmail.com', 465, SMTP::SSL);
 test_connect_disconnect('smtp.gmail.com', 465, 'tlsv1.2'); // Manual protocol
+
+test_invalid_rcpt('gmail-smtp-in.l.google.com', 25, 'bohwazinvalid@gmail.com');
 
 test_smtp(SMTP_SERVER, 2525, SMTP_USERNAME, SMTP_PASSWORD);
 test_smtp(SMTP_SERVER, 465, SMTP_USERNAME, SMTP_PASSWORD, SMTP::STARTTLS);
@@ -44,6 +47,20 @@ function test_smtp($server, $port, $username = null, $password = null, $secure =
 
 	$smtp->disconnect();
 	Test::assert($smtp->isConnected() === false);
+}
+
+function test_invalid_rcpt($server, $port, $rcpt)
+{
+	$smtp = new SMTP($server, $port);
+
+	try {
+		$smtp->send('"Coucou" <' . $rcpt . '>', 'Test coucou !', 'Salut ça va ?', ['From' => 'bohwaz@kd2.org']);
+		Test::assert(false, 'Missing exception');
+	}
+	catch (SMTP_Exception $e) {
+		Test::strictlyEquals($rcpt, $e->getRecipient());
+		Test::strictlyEquals(550, $e->getCode());
+	}
 }
 
 function test_connect($server, $port, $secure)

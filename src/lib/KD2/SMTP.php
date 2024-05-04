@@ -1,4 +1,4 @@
-<?php
+<?php declare(strict_types=1);
 /*
 	This file is part of KD2FW -- <http://dev.kd2.org/>
 
@@ -23,7 +23,20 @@ namespace KD2;
 
 use KD2\Mail_Message;
 
-class SMTP_Exception extends \RuntimeException {}
+class SMTP_Exception extends \RuntimeException
+{
+	protected ?string $recipient = null;
+
+	public function getRecipient(): ?string
+	{
+		return $this->recipient;
+	}
+
+	public function setRecipient(?string $recipient): void
+	{
+		$this->recipient = $recipient;
+	}
+}
 
 class SMTP
 {
@@ -34,6 +47,9 @@ class SMTP
 
 	const EOL = "\r\n";
 	const MAX_REPLY_LENGTH = 512;
+
+	const SUCCESS_CODE = 250;
+	const GRELISTING_CODE = 451;
 
 	protected string $server;
 	protected int $port;
@@ -81,22 +97,29 @@ class SMTP
 			}
 		}
 
-		return trim($data);
+		$this->last_line = trim($data);
+		return $this->last_line;
 	}
 
 	protected function _readCode(?string $data = null): int
 	{
 		if (is_null($data)) {
 			$data = $this->_read();
-			$this->last_line = $data;
 		}
 
 		return (int) substr($data, 0, 3);
 	}
 
-	protected function _write(string $data, bool $eol = true): void
+	protected function _write(string $data): void
 	{
-		fputs($this->conn, $data . ($eol ? self::EOL : ''));
+		fputs($this->conn, $data . self::EOL);
+	}
+
+	protected function _writeAndGetCode(string $data): int
+	{
+		$this->_write($data);
+		$return = $this->_read();
+		return $this->_readCode($return);
 	}
 
 	/**
@@ -120,7 +143,7 @@ class SMTP
 		$this->port = $port;
 		$this->username = $username;
 		$this->password = $password;
-		$this->secure = (int)$secure;
+		$this->secure = $secure;
 		$this->servername = $servername ?: (isset($_SERVER['SERVER_NAME']) ? $_SERVER['SERVER_NAME'] : gethostname());
 	}
 
@@ -152,59 +175,59 @@ class SMTP
 		}
 
 		if ($this->_readCode() != 220) {
-			throw new SMTP_Exception('SMTP error: '.$this->last_line);
+			throw new SMTP_Exception($this->last_line);
 		}
 	}
 
 	public function authenticate(): void
 	{
-		$this->_write(sprintf('EHLO %s', $this->servername));
+		$code = $this->_writeAndGetCode(sprintf('EHLO %s', $this->servername));
 
-		if ($this->_readCode() != 250) {
-			if ($this->secure == self::STARTTLS) {
+		if ($code !== self::SUCCESS_CODE) {
+			if ($this->secure === self::STARTTLS) {
 				throw new SMTP_Exception('Can\'t use STARTTLS on this server: server doesn\'t support ESMTP');
 			}
 
-			$this->_write('HELO');
+			$code = $this->_writeAndGetCode('HELO');
 
-			if ($this->_readCode() != 250) {
-				throw new SMTP_Exception('SMTP error on HELO: '.$this->last_line);
+			if ($code !== self::SUCCESS_CODE) {
+				throw new SMTP_Exception('SMTP error on HELO: ' . $this->last_line, $code);
 			}
 		}
 
-		if ($this->secure == self::STARTTLS) {
-			$this->_write('STARTTLS');
+		if ($this->secure === self::STARTTLS) {
+			$code = $this->_writeAndGetCode('STARTTLS');
 
-			if ($this->_readCode() != 220) {
-				throw new SMTP_Exception('Can\'t start TLS session: '.$this->last_line);
+			if ($code !== 220) {
+				throw new SMTP_Exception('Can\'t start TLS session: ' . $this->last_line, $code);
 			}
 
 			stream_socket_enable_crypto($this->conn, true, STREAM_CRYPTO_METHOD_TLS_CLIENT);
 
-			$this->_write(sprintf('EHLO %s', $this->servername));
+			$code = $this->_writeAndGetCode(sprintf('EHLO %s', $this->servername));
 
-			if ($this->_readCode() != 250) {
-				throw new SMTP_Exception('SMTP error on EHLO: '.$this->last_line);
+			if ($code !== self::SUCCESS_CODE) {
+				throw new SMTP_Exception('SMTP error on EHLO: ' . $this->last_line, $code);
 			}
 		}
 
 		if (!is_null($this->username) && !is_null($this->password)) {
-			$this->_write('AUTH LOGIN');
+			$code = $this->_writeAndGetCode('AUTH LOGIN');
 
-			if ($this->_readCode() != 334) {
-				throw new SMTP_Exception('SMTP AUTH error: '.$this->last_line);
+			if ($code !== 334) {
+				throw new SMTP_Exception('SMTP AUTH error: ' . $this->last_line, $code);
 			}
 
-			$this->_write(base64_encode($this->username));
+			$code = $this->_writeAndGetCode(base64_encode($this->username));
 
-			if ($this->_readCode() != 334) {
-				throw new SMTP_Exception('SMTP AUTH error: '.$this->last_line);
+			if ($code !== 334) {
+				throw new SMTP_Exception('SMTP AUTH error: ' . $this->last_line, $code);
 			}
 
-			$this->_write(base64_encode($this->password));
+			$code = $this->_writeAndGetCode(base64_encode($this->password));
 
-			if ($this->_readCode() != 235) {
-				throw new SMTP_Exception('SMTP AUTH error: '.$this->last_line);
+			if ($code !== 235) {
+				throw new SMTP_Exception('SMTP AUTH error: ' . $this->last_line, $code);
 			}
 		}
 	}
@@ -215,7 +238,7 @@ class SMTP
 	 * @param  mixed  $to   To address (RCPT TO:), can be a string (single recipient)
 	 *                      or an array (multiple recipients)
 	 * @param  string $data Mail data (DATA)
-	 * @return string Message returned by SMTP for last
+	 * @return string Message returned by SMTP
 	 */
 	public function rawSend(string $from, $to, string $data): string
 	{
@@ -229,18 +252,16 @@ class SMTP
 			$this->authenticate();
 		}
 
-		$this->_write('RSET');
+		$code = $this->_writeAndGetCode('RSET');
 
-		$code = $this->_readCode();
-
-		if ($code != 250 && $code != 200) {
-			throw new SMTP_Exception('SMTP RSET error: '.$this->last_line);
+		if ($code !== self::SUCCESS_CODE && $code !== 200) {
+			throw new SMTP_Exception('SMTP RSET error: ' . $this->last_line, $code);
 		}
 
-		$this->_write('MAIL FROM: <'.$from.'>');
+		$code = $this->_writeAndGetCode('MAIL FROM: <'.$from.'>');
 
-		if ($this->_readCode() != 250) {
-			throw new SMTP_Exception('SMTP MAIL FROM error: '.$this->last_line);
+		if ($code !== self::SUCCESS_CODE) {
+			throw new SMTP_Exception('SMTP MAIL FROM error: ' . $this->last_line, $code);
 		}
 
 		if (is_string($to)) {
@@ -252,12 +273,12 @@ class SMTP
 		}
 
 		foreach ($to as $dest) {
-			$this->_write('RCPT TO: <'.$dest.'>');
+			$code = $this->_writeAndGetCode('RCPT TO: <'.$dest.'>');
 
-			$code = $this->_readCode();
-
-			if ($code != 250 && $code != 251) {
-				throw new SMTP_Exception('SMTP RCPT TO error: '.$this->last_line);
+			if ($code !== self::SUCCESS_CODE && $code !== 251) {
+				$e = new SMTP_Exception($this->last_line, $code);
+				$e->setRecipient($dest);
+				throw $e;
 			}
 		}
 
@@ -268,23 +289,22 @@ class SMTP
 		// see https://tools.ietf.org/html/rfc5321#section-4.5.2
 		$data = preg_replace('/^\./m', '..', $data);
 
-		$this->_write('DATA');
+		$code = $this->_writeAndGetCode('DATA');
 
-		if ($this->_readCode() != 354) {
-			throw new SMTP_Exception('SMTP DATA error: '.$this->last_line);
+		if ($code !== 354) {
+			throw new SMTP_Exception('SMTP DATA error: '  . $this->last_line, $code);
 		}
 
-		$this->_write($data . '.');
+		$code = $this->_writeAndGetCode($data . '.');
+		$message = $this->last_line;
 
-		$data = $this->_read();
-
-		if ($this->_readCode($data) != 250) {
-			throw new SMTP_Exception('Can\'t send message. SMTP said: ' . $data);
+		if ($code !== 250) {
+			throw new SMTP_Exception($message, $code);
 		}
 
 		$this->count++;
 
-		return $data;
+		return $message;
 	}
 
 	/**
