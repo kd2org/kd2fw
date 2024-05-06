@@ -81,14 +81,15 @@ class JSONSchema
 
 		$type = $this->findType($name, $types, $object);
 
+		if ('null' === $type && is_null($object)) {
+			return;
+		}
+
 		if (isset($rules->enum) && !in_array($object, $rules->enum, true)) {
 			throw new \RuntimeException(sprintf('%s: did not match any of the accepted values (%s)', $name, implode(', ', $rules->enum)));
 		}
 
-		if ('null' === $type && is_null($object)) {
-			return;
-		}
-		elseif ('boolean' === $type && is_bool($object)) {
+		if ('boolean' === $type && is_bool($object)) {
 			return;
 		}
 		elseif (('integer' === $type || 'number' === $type) && (is_int($object) || is_float($object))) {
