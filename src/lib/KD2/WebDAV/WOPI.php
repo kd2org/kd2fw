@@ -137,16 +137,16 @@ class WOPI
 			return false;
 		}
 
-		$uri = substr($uri, strlen('wopi/files/'));
+		$method = $_SERVER['REQUEST_METHOD'];
+		$this->server->log('WOPI: <= %s %s', $method, $uri);
 
-		$this->server->log('WOPI: => %s', $uri);
+		$uri = substr($uri, strlen('wopi/files/'));
 
 		$return = null;
 
 		try {
 			$auth_token = $this->getAuthToken();
 
-			$method = $_SERVER['REQUEST_METHOD'];
 			$id = rawurldecode(strtok($uri, '/') ?: '');
 			$action = trim(strtok('') ?: '', '/');
 
@@ -163,11 +163,11 @@ class WOPI
 			$uri = $props[self::PROP_FILE_URI];
 			$uri = rawurldecode($uri);
 
-			$this->server->log('WOPI: => Found doc_uri: %s', $uri);
+			$this->server->log('WOPI: Found doc_uri: %s', $uri);
 
 			// GetFile
 			if ($action == 'contents' && $method == 'GET') {
-				$this->server->log('WOPI: => GetFile');
+				$this->server->log('WOPI: <= GetFile');
 				$this->server->http_get($uri);
 			}
 			// PutFile
@@ -177,7 +177,7 @@ class WOPI
 					throw new Exception('This file is read-only', 403);
 				}
 
-				$this->server->log('WOPI: => PutFile');
+				$this->server->log('WOPI: <= PutFile (Content-Length: %d)', $_SERVER['CONTENT_LENGTH'] ?? null);
 
 				$lastmodified = $props[self::PROP_LAST_MODIFIED];
 				$collabora_timestamp = $this->server->getHeader('X-COOL-WOPI-Timestamp');
@@ -190,7 +190,7 @@ class WOPI
 					&& $lastmodified instanceof \DateTime
 					&& $date->format('YmdHis') != $lastmodified->format('YmdHis'))
 				{
-					$this->server->log('WOPI: <= 409 (File was modified: client = %s, server = %s)',
+					$this->server->log('WOPI: => 409 (Conflict, file was modified: client = %s, server = %s)',
 						$date->format('Y-m-d H:i:s'),
 						$lastmodified->format('Y-m-d H:i:s'));
 					http_response_code(409);
@@ -217,7 +217,7 @@ class WOPI
 			}
 			// CheckFileInfo
 			elseif (!$action && $method == 'GET') {
-				$this->server->log('WOPI: => CheckFileInfo');
+				$this->server->log('WOPI: <= CheckFileInfo');
 				$return = $this->getInfo($uri, $props);
 			}
 			else {
@@ -225,7 +225,7 @@ class WOPI
 			}
 		}
 		catch (Exception $e) {
-			$this->server->log('WOPI: <= %d: %s', $e->getCode(), $e->getMessage());
+			$this->server->log('WOPI: => Error %d: %s', $e->getCode(), $e->getMessage());
 			http_response_code($e->getCode());
 			$return = ['error' => $e->getMessage()];
 		}
@@ -234,7 +234,11 @@ class WOPI
 			header('Content-Type: application/json', true);
 			$return = json_encode($return, JSON_PRETTY_PRINT);
 			echo $return;
-			$this->server->log('WOPI: <= %s', $return);
+
+			$this->server->log("WOPI: => %d\n%s",
+				http_response_code(),
+				$return
+			);
 		}
 
 		return true;
