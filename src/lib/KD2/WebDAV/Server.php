@@ -621,7 +621,7 @@ class Server
 		}
 
 		if (null !== $length) {
-			$this->log('Length: %s', $length);
+			$this->log('Content-Length: %s', $length);
 			header('Content-Length: ' . $length, true);
 		}
 
@@ -798,7 +798,7 @@ class Server
 			throw new Exception('Invalid XML', 400);
 		}
 
-		$this->log('Requested depth: %s', $depth);
+		$this->log('<= Requested depth: %s', $depth);
 
 		// We don't really care about having a correct XML string,
 		// but we can get better WebDAV compliance if we do
@@ -838,7 +838,7 @@ class Server
 				$properties = $properties ?? $this->storage->propfind($path, $requested_keys, 0);
 
 				if (!$properties) {
-					$this->log('!!! Cannot find "%s"', $path);
+					$this->log('!! Cannot find "%s"', $path);
 					continue;
 				}
 
@@ -1424,7 +1424,7 @@ class Server
 			$uri = substr($uri, strlen($this->base_uri));
 		}
 		else {
-			$this->log('<= %s is not a managed URL (%s)', $uri, $this->base_uri);
+			$this->log('=> %s is not a managed URL (%s)', $uri, $this->base_uri);
 			return false;
 		}
 
