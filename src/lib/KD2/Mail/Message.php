@@ -9,6 +9,7 @@
 namespace KD2\Mail;
 
 use stdClass;
+use KD2\SMTP;
 
 /*
 	Mail_Message: a simple e-mail message reader/writer (supports MIME)
@@ -62,23 +63,24 @@ class Message
 	{
 		$value = $this->getHeader('message-id');
 
-		if (preg_match('!<(.*?)>!', $value, $match))
-		{
+		if (preg_match('!<(.*?)>!', $value, $match)) {
 			return $match[1];
 		}
 
-		if (filter_var(trim($value), FILTER_VALIDATE_EMAIL))
-		{
+		if (filter_var(trim($value), FILTER_VALIDATE_EMAIL)) {
 			return $value;
 		}
 
 		return false;
 	}
 
-	public function setMessageId($id = null)
+	public function setMessageId(string $id = null)
 	{
 		if (is_null($id)) {
 			$id = $this->generateMessageId();
+		}
+		elseif (!filter_var($value, FILTER_VALIDATE_EMAIL)) {
+			throw new \InvalidArgumentException('Invalid Message-Id: ' . $id);
 		}
 
 		$this->headers['message-id'] = '<' . $id . '>';
@@ -90,12 +92,10 @@ class Message
 		$id = uniqid();
 		$hash = sha1($id . print_r($this->headers, true));
 
-		if (!empty($_SERVER['SERVER_NAME']))
-		{
+		if (!empty($_SERVER['SERVER_NAME'])) {
 			$host = $_SERVER['SERVER_NAME'];
 		}
-		else
-		{
+		else {
 			$host = preg_replace('/[^a-z]/', '', base_convert($hash, 16, 36));
 			$host = substr($host, 10, -3) . '.' . substr($host, -3);
 		}
@@ -112,13 +112,11 @@ class Message
 			return null;
 		}
 
-		if (preg_match('!<(.*?)>!', $value, $match))
-		{
+		if (preg_match('!<(.*?)>!', $value, $match)) {
 			return $match[1];
 		}
 
-		if (filter_var(trim($value), FILTER_VALIDATE_EMAIL))
-		{
+		if (filter_var(trim($value), FILTER_VALIDATE_EMAIL)) {
 			return $value;
 		}
 
@@ -133,13 +131,11 @@ class Message
 			return null;
 		}
 
-		if (preg_match_all('!<(.*?)>!', $value, $match, PREG_PATTERN_ORDER))
-		{
+		if (preg_match_all('!<(.*?)>!', $value, $match, PREG_PATTERN_ORDER)) {
 			return $match[1];
 		}
 
-		if (filter_var(trim($value), FILTER_VALIDATE_EMAIL))
-		{
+		if (filter_var(trim($value), FILTER_VALIDATE_EMAIL)) {
 			return [$value];
 		}
 
@@ -286,21 +282,27 @@ class Message
 		return array_map('trim', $match[0]);
 	}
 
-	public function setHeader($key, $value)
+	public function setHeader(string $key, string $value)
 	{
 		$key = strtolower($key);
 		$this->headers[$key] = $value;
-		return true;
 	}
 
-	public function setHeaders($headers)
+	public function setHeaders(array $headers)
 	{
 		foreach ($headers as $key => $value) {
 			$this->setHeader($key, $value);
 		}
 	}
 
-	public function removeHeader($key)
+	public function appendToHeaders(array $headers): void
+	{
+		foreach ($headers as $key => $value) {
+			$this->setHeader($key, $value);
+		}
+	}
+
+	public function removeHeader(string $key)
 	{
 		unset($this->headers[strtolower($key)]);
 	}
@@ -313,37 +315,23 @@ class Message
 
 	public function setDate($date = null)
 	{
-		if (is_null($date))
-		{
+		if (is_null($date)) {
 			$date = date(\DATE_RFC2822);
 		}
-		elseif (is_object($date) && $date instanceof \DateTime)
-		{
+		elseif (is_object($date) && $date instanceof \DateTime) {
 			$date = $date->format(\DATE_RFC2822);
 		}
-		elseif (is_numeric($date))
-		{
+		elseif (is_numeric($date)) {
 			$date = date(\DATE_RFC2822, $date);
 		}
-		else
-		{
+		else {
 			throw new \InvalidArgumentException('Argument is not a valid date: ' . (string)$date);
 		}
 
 		return $this->setHeader('date', $date);
 	}
 
-	public function appendHeaders($headers)
-	{
-		foreach ($headers as $key=>$value)
-		{
-			$key = strtolower($key);
-			$this->headers[$key] = $value;
-		}
-		return true;
-	}
-
-	public function setBody(string $content): stdClass
+	public function setTextBody(string $content): stdClass
 	{
 		if ($this->text_part_id) {
 			$part = $this->getPart($this->text_part_id);
@@ -614,8 +602,7 @@ class Message
 	public function getSignature(string $str): ?string
 	{
 		// From http://www.cs.cmu.edu/~vitor/papers/sigFilePaper_finalversion.pdf
-		if (preg_match('/^(?:--[ ]?\n|\s*[*#+^$\/=%:&~!_-]{10,}).*?\n/m', $str, $match, PREG_OFFSET_CAPTURE))
-		{
+		if (preg_match('/^(?:--[ ]?\n|\s*[*#+^$\/=%:&~!_-]{10,}).*?\n/m', $str, $match, PREG_OFFSET_CAPTURE)) {
 			$str = substr($str, $match[0][1] + strlen($match[0][0]));
 			return trim($str);
 		}
@@ -707,25 +694,20 @@ class Message
 				$headers['content-type'] .= '; charset=utf-8';
 			}
 		}
-		else
-		{
+		else {
 			$parent = $this->getRootPart();
 			$headers['content-type'] = $parent->type . ";\r\n boundary=\"" . $parent->id . '"';
 			$headers['content-transfer-encoding'] = '8bit';
 			$headers['mime-version'] = '1.0';
 		}
 
-		foreach ($headers as $key=>$value)
-		{
-			if (is_array($value))
-			{
-				foreach ($value as $line)
-				{
+		foreach ($headers as $key => $value) {
+			if (is_array($value)) {
+				foreach ($value as $line) {
 					$out .= $this->_encodeHeader($key, $line) . "\n";
 				}
 			}
-			else
-			{
+			else {
 				$out .= $this->_encodeHeader($key, $value) . "\n";
 			}
 		}
@@ -941,10 +923,7 @@ class Message
 			return iconv_mime_encode('', $value);
 		}
 
-		if ($this->is_utf8($value)) {
-			$value = '=?UTF-8?B?'.base64_encode($value).'?=';
-		}
-
+		$value = '=?UTF-8?B?'.base64_encode($value).'?=';
 		return $value;
 	}
 
@@ -1258,26 +1237,21 @@ class Message
 	{
 		$value = rtrim($value);
 
-		if (strpos($value, '=?') === false)
-		{
+		if (strpos($value, '=?') === false) {
 			return $this->utf8_encode($value);
 		}
 
-		if (function_exists('iconv_mime_decode'))
-		{
+		if (function_exists('iconv_mime_decode')) {
 			$value = $this->utf8_encode(iconv_mime_decode($value, ICONV_MIME_DECODE_CONTINUE_ON_ERROR));
 		}
-		elseif (function_exists('mb_decode_mimeheader'))
-		{
+		elseif (function_exists('mb_decode_mimeheader')) {
 			$value = $this->utf8_encode(mb_decode_mimeheader($value));
 		}
-		elseif (function_exists('imap_mime_header_decode'))
-		{
+		elseif (function_exists('imap_mime_header_decode')) {
 			$_value = '';
 
 			// subject can span into several lines
-			foreach (imap_mime_header_decode($value) as $h)
-			{
+			foreach (imap_mime_header_decode($value) as $h) {
 				$charset = ($h->charset == 'default') ? 'US-ASCII' : $h->charset;
 				$_value .= iconv($charset, "UTF-8//TRANSLIT", $h->text);
 			}
@@ -1291,8 +1265,7 @@ class Message
 	public function utf8_encode($str)
 	{
 		// Check if string is already UTF-8 encoded or not
-		if (!preg_match('//u', $str))
-		{
+		if (!preg_match('//u', $str)) {
 			return self::iso8859_1_to_utf8($str);
 		}
 
@@ -1348,10 +1321,15 @@ class Message
 	}
 
 	/**
-	 * Send email using native PHP function mail()
+	 * Send email using either SMTP class, or native PHP function mail()
 	 */
-	public function send(array $additional_parameters = []): bool
+	public function send(?SMTP $smtp = null): bool
 	{
+		if ($smtp) {
+			$smtp->send($this);
+			return true;
+		}
+
 		$to = $this->getTo() + $this->getCc();
 
 		$success = 0;
