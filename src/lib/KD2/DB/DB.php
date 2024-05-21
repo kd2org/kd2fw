@@ -879,6 +879,8 @@ class DB
 	 * where('id', '>', '42')
 	 * It accepts arrays or objects as the value. If no operator is specified, 'IN' is used.
 	 * @param  string $name Column name
+	 * @param  string $operator Operator
+	 * @param  mixed $value
 	 * @return string
 	 */
 	public function where(string $name): string
@@ -963,6 +965,9 @@ class DB
 		elseif (is_bool($value))
 		{
 			$value = $value ? 'TRUE' : 'FALSE';
+		}
+		elseif ($operator === 'LIKE') {
+			$value = $this->quote($this->escapeLike($value, '\\')) . ' ESCAPE \'\\\'';
 		}
 		elseif (is_string($value))
 		{
