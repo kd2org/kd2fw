@@ -462,7 +462,7 @@ class WOPI
 			<input name="access_token_ttl" value="{$token_ttl}" type="hidden" />
 		</form>
 
-		<iframe id="frame" name="frame" allow="autoplay camera microphone display-capture" allowfullscreen="true"></iframe>
+		<iframe id="frame" name="frame" allow="clipboard-read *; clipboard-write *;" allowfullscreen="true"></iframe>
 
 		<script type="text/javascript">
 		document.forms[0].submit();
