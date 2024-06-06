@@ -1021,7 +1021,7 @@ class ErrorManager
 
 				$level++;
 
-				if ($var instanceof \Traversable) {
+				if ($var instanceof \Traversable && method_exists($var, 'valid')) {
 					$var2 = [];
 
 					try {
