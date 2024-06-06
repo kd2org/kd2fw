@@ -172,7 +172,7 @@ class Markdown extends Parsedown
 		}
 
 		if ($name == 'iframe') {
-			if (!isset($attributes['src']) || !preg_match('!^https?://!', $attributes['src'])) {
+			if (!isset($attributes['src']) || !preg_match('!^https?://|//!', $attributes['src'])) {
 				return null;
 			}
 
