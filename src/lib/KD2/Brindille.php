@@ -1361,13 +1361,22 @@ class Brindille
 				$prev =& $prev[$sub];
 			}
 
+			if (isset($params['append'])) {
+				foreach ((array) $params['append'] as $key) {
+					$prev[$key] = null;
+					$prev =& $prev[$key];
+				}
+
+				unset($params['append']);
+			}
+
 			// If value is supplied, and nothing else is supplied, then use this value
-			if (array_key_exists('value', $params) && count($params) == 1) {
+			if (array_key_exists('value', $params) && count($params) === 1) {
 				$prev = $params['value'];
 			}
 			// Same for 'from', but use it as a variable name
 			// {{:assign var="test" from="types.%s"|args:$type}}
-			elseif (array_key_exists('from', $params) && count($params) == 1) {
+			elseif (array_key_exists('from', $params) && count($params) === 1) {
 				$prev = is_string($params['from']) ? $tpl->get($params['from']) : null;
 			}
 			// Or else assign all params
