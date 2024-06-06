@@ -645,7 +645,7 @@ class SQLite3 extends DB
 			if (!$is_readonly
 				&& ($sql = trim($statement->getSQL()))
 				&& stristr(substr($sql, 0, 7), 'EXPLAIN')
-				&& preg_match('/^EXPLAIN\s+QUERY\s+PLAN\s+[^;]+;?$/', $sql)) {
+				&& preg_match('/^EXPLAIN\s+QUERY\s+PLAN\s+/', $sql)) {
 				$is_readonly = true;
 			}
 
