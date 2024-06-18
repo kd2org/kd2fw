@@ -5,6 +5,7 @@ namespace KD2\HTML;
 class Markdown_Extensions
 {
 	const LIST = [
+		'button'   => [self::class, 'button'],
 		'color'    => [self::class, 'color'],
 		'bgcolor'  => [self::class, 'color'],
 		'/color'   => [self::class, 'colorClose'],
@@ -28,6 +29,41 @@ class Markdown_Extensions
 		}
 	}
 
+	static public function _checkColorValue(string $color): bool
+	{
+		return ctype_alnum(str_replace('#', '', strtolower($color)));
+	}
+
+	static public function button(bool $block, array $args, ?string $content, string $name): string
+	{
+		$fg = $args['color'] ?? '';
+		$bg = $args['bgcolor'] ?? '';
+		$size = intval($args['size'] ?? 18);
+		$padding = round($size * 0.3);
+		$href = $args['href'] ?? '';
+
+		if (!$bg || !self::_checkColorValue($bg)) {
+			$bg = 'lightblue';
+		}
+
+		if (!$fg || !self::_checkColorValue($fg)) {
+			$fg = 'black';
+		}
+
+		return sprintf('<a href="%s" target="%s" style="padding: %dpt %dpt; display: %s; color: %s; background-color: %s; box-shadow: 0px 0px 5px #000; margin: %3$dpt; border-radius: %3$dpt; text-decoration: %s; font-size: %dpt; text-align: center;">%s</a>',
+			htmlspecialchars($href),
+			substr($href, 0, 4) === 'http' ? '_blank' : '_self',
+			$padding,
+			$padding*2,
+			!empty($args['block']) ? 'block' : 'inline-block',
+			htmlspecialchars($fg),
+			htmlspecialchars($bg),
+			!empty($args['underline']) ? 'underline' : 'none',
+			$size,
+			nl2br(htmlspecialchars($args['label'] ?? $content ?? ''))
+		);
+	}
+
 	/**
 	 * <<color|red>>text...<</color>>
 	 * <<color|red|blue>>text...<</color>>
@@ -36,7 +72,7 @@ class Markdown_Extensions
 	{
 		// Only allow color names / hex codes
 		foreach ($args as $k => $v) {
-			if (!ctype_alnum(str_replace('#', '', strtolower($v)))) {
+			if (!self::_checkColorValue($v)) {
 				unset($args[$k]);
 			}
 		}
