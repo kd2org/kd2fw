@@ -703,7 +703,7 @@ class UserSession
 	 * @link   http://jaspan.com/improved_persistent_login_cookie_best_practice
 	 * @return boolean
 	 */
-	protected function rememberMeAutoLogin()
+	protected function rememberMeAutoLogin(): bool
 	{
 		$cookie = $this->getRememberMeCookie();
 
@@ -721,7 +721,8 @@ class UserSession
 		// Invalid selector: delete any cookie (clean up)
 		if (!$selector)
 		{
-			return $this->logout();
+			$this->logout();
+			return false;
 		}
 
 		// The selector is useless now, delete it so that it can't be reused
@@ -737,7 +738,8 @@ class UserSession
 			// the user to re-login
 
 			$this->deleteAllRememberMeSelectors($selector->user_id);
-			return $this->logout();
+			$this->logout();
+			return false;
 		}
 
 		// Create short lived session
