@@ -967,7 +967,7 @@ class DB
 			$value = $value ? 'TRUE' : 'FALSE';
 		}
 		elseif ($operator === 'LIKE') {
-			$value = $this->quote($this->escapeLike($value, '\\')) . ' ESCAPE \'\\\'';
+			$value = $this->quote($value) . ' ESCAPE \'\\\'';
 		}
 		elseif (is_string($value))
 		{
