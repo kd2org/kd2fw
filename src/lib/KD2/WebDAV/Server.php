@@ -480,165 +480,28 @@ class Server
 			return null;
 		}
 
-		if (!isset($file['content']) && !isset($file['resource']) && !isset($file['path'])) {
-			throw new \RuntimeException('Invalid file array returned by ::get(): ' . print_r($file, true));
+		try {
+			HTTP_Server::serveFile(
+				$file['content'] ?? null,
+				$file['path'] ?? null,
+				$file['resource'] ?? null,
+				[
+					'gzip'      => $this->enable_gzip,
+					'ranges'    => true,
+					'xsendfile' => false,
+					'name'      => $uri,
+					'size'      => $props['DAV::getcontentlength'],
+				]
+			);
 		}
-
-		$this->extendExecutionTime();
-
-		$length = $start = $end = null;
-		$gzip = false;
-
-		if (isset($_SERVER['HTTP_RANGE'])
-			&& preg_match('/^bytes=(\d*)-(\d*)$/i', $_SERVER['HTTP_RANGE'], $match)
-			&& $match[1] . $match[2] !== '') {
-			$start = $match[1] === '' ? null : (int) $match[1];
-			$end   = $match[2] === '' ? null : (int) $match[2];
-
-			if (null !== $start && $start < 0) {
-				throw new Exception('Start range cannot be satisfied', 416);
-			}
-
-			if (isset($props['DAV::getcontentlength']) && $start > $props['DAV::getcontentlength']) {
-				throw new Exception('End range cannot be satisfied', 416);
-			}
-
-			$this->log('HTTP Range requested: %s-%s', $start, $end);
+		catch (\LogicException $e) {
+			throw new Exception($e->getMessage(), $e->getCode());
 		}
-		elseif ($this->enable_gzip
-			&& isset($_SERVER['HTTP_ACCEPT_ENCODING'])
-			&& false !== strpos($_SERVER['HTTP_ACCEPT_ENCODING'], 'gzip')
-			&& isset($props['DAV::getcontentlength'])
-			// Don't compress if size is larger than 8 MiB
-			&& $props['DAV::getcontentlength'] < 8*1024*1024
-			// Don't compress already compressed content
-			&& !preg_match('/\.(?:cbz|cbr|cb7|mp4|m4a|zip|docx|xlsx|pptx|ods|odt|odp|7z|gz|bz2|lzma|lz|xz|apk|dmg|jar|rar|webm|ogg|mp3|ogm|flac|ogv|mkv|avi)$/i', $uri)) {
-			$gzip = true;
-			header('Content-Encoding: gzip', true);
-		}
-
-		// Try to avoid common issues with output buffering and stuff
-		if (function_exists('apache_setenv')) {
-			@apache_setenv('no-gzip', 1);
-		}
-
-		@ini_set('zlib.output_compression', 'Off');
-
-		if (@ob_get_length()) {
-			@ob_clean();
-		}
-
-		if (isset($file['content'])) {
-			$length = strlen($file['content']);
-
-			if ($start || $end) {
-				if (null !== $end && $end > $length) {
-					header('Content-Range: bytes */' . $length, true);
-					throw new Exception('End range cannot be satisfied', 416);
-				}
-
-				if ($start === null) {
-					$start = $length - $end;
-					$end = $start + $end;
-				}
-				elseif ($end === null) {
-					$end = $length;
-				}
-
-
-				http_response_code(206);
-				header(sprintf('Content-Range: bytes %s-%s/%s', $start, $end - 1, $length));
-				$file['content'] = substr($file['content'], $start, $end - $start);
-				$length = $end - $start;
-			}
-
-			if ($gzip) {
-				$file['content'] = gzencode($file['content'], 9);
-				$length = strlen($file['content']);
-			}
-
-			header('Content-Length: ' . $length, true);
-			echo $file['content'];
-			return null;
-		}
-
-		if (isset($file['path'])) {
-			$file['resource'] = fopen($file['path'], 'rb');
-		}
-
-		$seek = fseek($file['resource'], 0, SEEK_END);
-
-		if ($seek === 0) {
-			$length = ftell($file['resource']);
-			fseek($file['resource'], 0, SEEK_SET);
-		}
-
-		http_response_code(200);
-
-		if (($start || $end) && $seek === 0) {
-			if (null !== $end && $end > $length) {
-				header('Content-Range: bytes */' . $length, true);
-				throw new Exception('End range cannot be satisfied', 416);
-			}
-
-			if ($start === null) {
-				$start = $length - $end;
-				$end = $start + $end;
-			}
-			elseif ($end === null) {
-				$end = $length;
-			}
-
-			fseek($file['resource'], $start, SEEK_SET);
-
-			http_response_code(206);
-			header(sprintf('Content-Range: bytes %s-%s/%s', $start, $end - 1, $length), true);
-
-			$length = $end - $start;
-			$end -= $start;
-		}
-		elseif (null === $length && isset($file['path'])) {
-			$end = $length = filesize($file['path']);
-		}
-
-		if ($gzip) {
-			$this->log('Using gzip output compression');
-			$gzip = deflate_init(ZLIB_ENCODING_GZIP);
-
-			$fp = fopen('php://temp', 'wb');
-
-			while (!feof($file['resource'])) {
-				fwrite($fp, deflate_add($gzip, fread($file['resource'], 8192), ZLIB_NO_FLUSH));
-			}
-
-			fwrite($fp, deflate_add($gzip, '', ZLIB_FINISH));
-			$length = ftell($fp);
-			rewind($fp);
-			fclose($file['resource']);
-
-			$file['resource'] = $fp;
-			unset($fp);
-		}
-
-		if (null !== $length) {
-			$this->log('Content-Length: %s', $length);
-			header('Content-Length: ' . $length, true);
-		}
-
-		$block_size = 8192*4;
-
-		while (!feof($file['resource']) && ($end === null || $end > 0)) {
-			$l = $end !== null ? min($block_size, $end) : $block_size;
-
-			echo fread($file['resource'], $l);
-			flush();
-
-			if (null !== $end) {
-				$end -= $block_size;
+		finally {
+			if (isset($file['resource'])) {
+				fclose($file['resource']);
 			}
 		}
-
-		fclose($file['resource']);
 
 		return null;
 	}
