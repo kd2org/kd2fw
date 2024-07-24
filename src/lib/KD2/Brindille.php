@@ -835,7 +835,7 @@ class Brindille
 		$params = $this->_parseArguments($params, $line);
 		$params = $this->_exportArguments($params);
 
-		return sprintf('<?php unset($last); foreach (call_user_func($this->_sections[%s], %s, $this, %d) as $key => $value): $this->_variables[] = []; $this->assignArray(array_merge($value, [\'__\' => $value, \'_\' => $key]), null, false); ?>',
+		return sprintf('<?php unset($last); $i = call_user_func($this->_sections[%s], %s, $this, %d); $i ??= []; foreach ($i as $key => $value): $this->_variables[] = []; $this->assignArray(array_merge($value, [\'__\' => $value, \'_\' => $key]), null, false); ?>',
 			var_export($name, true),
 			$params,
 			$line
