@@ -11,7 +11,7 @@ use DateTimeZone;
  */
 class Date extends DateTime {
 	// For PHP 7.4
-	static public function createFromInterface(DateTimeInterface $object): DateTime
+	static public function createFromInterface(DateTimeInterface $object): Date
 	{
 		$n = new self;
 		$n->setTimestamp($object->getTimestamp());
