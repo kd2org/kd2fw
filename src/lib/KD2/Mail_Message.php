@@ -1257,6 +1257,10 @@ class Mail_Message
 	 */
 	public function send(array $additional_parameters = []): bool
 	{
+		if (!function_exists('mail')) {
+			throw new \LogicException('mail() function is disabled on your server. Please contact your system administrator.');
+		}
+
 		$to = $this->getTo() + $this->getCc();
 
 		$success = 0;
