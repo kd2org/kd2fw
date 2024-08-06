@@ -215,9 +215,8 @@ class Markdown_Extensions
 
 	static public function gridClose(bool $block): string
 	{
-		$out = '';
 
-		$out .= '</article>';
+		$out = '</article>';
 		$out .= '</section>';
 
 		self::$in_grid = false;
