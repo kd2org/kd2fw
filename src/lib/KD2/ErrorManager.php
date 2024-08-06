@@ -204,12 +204,7 @@ class ErrorManager
 		try {
 			self::reportException($e, $exit);
 		}
-		catch (\Throwable $e2) {
-			echo $e2;
-			echo PHP_EOL . PHP_EOL . $e;
-			exit(1);
-		}
-		catch (\Exception $e2) {
+		catch (\Throwable|\Exception $e2) {
 			echo $e2;
 			echo PHP_EOL . PHP_EOL . $e;
 			exit(1);
