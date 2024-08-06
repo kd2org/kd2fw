@@ -532,7 +532,7 @@ class Form
 					return false;
 				}
 			case 'url':
-				return filter_var($value, FILTER_VALIDATE_URL, FILTER_FLAG_SCHEME_REQUIRED | FILTER_FLAG_HOST_REQUIRED) !== false;
+				return filter_var($value, FILTER_VALIDATE_URL) !== false;
 			// Dates
 			case 'after':
 				return isset($params[0]) && ($date1 = strtotime($value)) && ($date2 = strtotime($params[0])) && $date1 > $date2;
