@@ -79,5 +79,5 @@ Paragraphe
 * Numéro 2
 EOF;
 
-	Test::equals($expected, ToText::fromString($test));
+	Test::equals($expected, ToText::fromString(ltrim($test)));
 }

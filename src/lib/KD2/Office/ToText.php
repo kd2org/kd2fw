@@ -49,7 +49,6 @@ class ToText
 	static public function fromPath(string $file): ?string
 	{
 		$fp = fopen($file, 'rb');
-		$header = fread($fp, 4);
 
 		try {
 			$out = self::fromPointer($fp);
