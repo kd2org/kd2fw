@@ -21,6 +21,9 @@
 
 namespace KD2\Graphics;
 
+/**
+ * Generates an EAN-13 barcode
+ */
 class BarCode
 {
 	const PRITY = [
@@ -67,7 +70,6 @@ class BarCode
 			return false;
 		}
 
-		$sum = 0;
 		$code = str_split($this->code);
 		$sum = ($code[1] + $code[3] + $code[5] + $code[7] + $code[9] + $code[11]) * 3;
 		$sum += $code[0] + $code[2] + $code[4] + $code[6] + $code[8] + $code[10];
@@ -78,6 +80,10 @@ class BarCode
 
 	public function toSVG(string $width = '200px'): string
 	{
+		if (!$this->verify()) {
+			throw new \LogicException('Invalid barcode: ' . $this->code);
+		}
+
 		static $guard = [1, 0, 1];
 		static $center = [0, 1, 0, 1, 0];
 
@@ -181,5 +187,4 @@ class BarCode
 
 		return $out;
 	}
-
 }

@@ -653,9 +653,9 @@ class Image
 	/**
 	 * Returns the format name from the MIME type
 	 * @param  string $type MIME type
-	 * @return Format: jpeg, gif, svg, etc.
+	 * @return string|null Format: jpeg, gif, svg, etc.
 	 */
-	public function getFormatFromType($type)
+	public function getFormatFromType(string $type): ?string
 	{
 		switch ($type)
 		{
@@ -671,7 +671,7 @@ class Image
 					return $match[1];
 				}
 
-				return false;
+				return null;
 		}
 	}
 

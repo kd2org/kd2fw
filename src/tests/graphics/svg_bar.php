@@ -6,9 +6,9 @@ use KD2\Graphics\SVG\Bar_Data_Set;
 
 require __DIR__ . '/../_assert.php';
 
-test_avatar();
+test_graph();
 
-function test_avatar()
+function test_graph()
 {
 	$expected = <<<EOF
 <?xml version="1.0" encoding="utf-8" standalone="no"?>

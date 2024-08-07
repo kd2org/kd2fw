@@ -93,7 +93,6 @@ class Pie
 		else
 		{
 			$sum = 0;
-			$start_angle = 0;
 			$end_angle = 0;
 
 			foreach ($this->data as $row)
@@ -119,8 +118,8 @@ class Pie
 
 				$arc = $row->angle > 180 ? 1 : 0;
 
-				$out .= "<path d=\"M{$cx},{$cy} L{$x1},{$y1} A{$radius},{$radius} 0 {$arc},1 {$x2},{$y2} Z\" 
-					fill=\"{$row->fill}\" stroke=\"white\" stroke-width=\"".($circle_size * 0.005)."\" stroke-linecap=\"round\" 
+				$out .= "<path d=\"M{$cx},{$cy} L{$x1},{$y1} A{$radius},{$radius} 0 {$arc},1 {$x2},{$y2} Z\"
+					fill=\"{$row->fill}\" stroke=\"white\" stroke-width=\"".($circle_size * 0.005)."\" stroke-linecap=\"round\"
 					stroke-linejoin=\"round\" />";
 
 				if ($this->percentage) {

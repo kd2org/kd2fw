@@ -7,6 +7,8 @@ all:
 	php graphics/blob.php
 	php graphics/svg_avatar.php
 	php graphics/svg_bar.php
+	php graphics/svg_pie.php
+	php graphics/svg_plot.php
 	php brindille.php
 	php cssparser.php
 	php delta.php

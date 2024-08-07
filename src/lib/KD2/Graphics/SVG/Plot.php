@@ -176,7 +176,7 @@ class Plot
 		}
 
 		// Horizontal lines and Y axis legends
-		foreach ($lines as $k => $v) {
+		foreach ($lines as $v) {
 			$y = $this->y($v);
 			$out .= sprintf('<line x1="%f" y1="%f" x2="%f" y2="%f" stroke-width="1" stroke="rgba(127, 127, 127, 0.5)" />' . PHP_EOL, $this->margin_left, $y, $this->width, $y);
 
@@ -195,7 +195,7 @@ class Plot
 
 		$i = 0;
 
-		foreach ($this->data[0]->get() as $k=>$v)
+		foreach ($this->data[0]->get() as $v)
 		{
 			if ($x >= $this->width)
 				break;
@@ -213,8 +213,6 @@ class Plot
 
 			$x += $item_width;
 		}
-
-		$h = $this->height - ($this->height * 0.17);
 
 		foreach ($this->data as $row)
 		{
