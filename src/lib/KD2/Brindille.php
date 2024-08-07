@@ -268,16 +268,6 @@ class Brindille
 		$this->registerModifier('cat', function() { return implode('', func_get_args()); });
 
 		$this->registerModifier('date_format', function ($date, $format = '%d/%m/%Y %H:%M') {
-			$tz = null;
-
-			if (is_object($date)) {
-				$tz = $date->getTimezone();
-				$date = $date->getTimestamp();
-			}
-			elseif (!is_int($date) && !(is_string($date) && ctype_digit($date))) {
-				$date = strtotime($date);
-			}
-
 			return Translate::strftime($format, $date);
 		});
 
@@ -787,6 +777,8 @@ class Brindille
 			$message = preg_replace('/in\s+.*?\son\sline\s\d+|to\s+function\s+.*?,/', '', $e->getMessage());
 			throw new Brindille_Exception(sprintf("line %d: modifier '%s' has returned an error: %s\nParameters: %s", $line, $name, $message, json_encode($params)), 0, $e);
 		}
+
+		return null;
 	}
 
 	/**
@@ -998,7 +990,6 @@ class Brindille
 				{
 					$mod_name = trim(substr($modifier, 0, $pos));
 					$raw_args = substr($modifier, $pos+1);
-					$arguments = [];
 
 					// Split by two points (:) except if enclosed in quotes
 					$arguments = preg_split('/\s*:\s*|("(?:\\\\.|[^"])*?"|\'(?:\\\\.|[^\'])*?\'|[^:\'"\s]+)/', trim($raw_args), 0, PREG_SPLIT_NO_EMPTY | PREG_SPLIT_DELIM_CAPTURE);
@@ -1029,8 +1020,6 @@ class Brindille
 				$pre .= '$this->callModifier(' . var_export($mod_name, true) . ', ' . $line . ', ';
 			}
 		}
-
-		$search = false;
 
 		$var = $this->_exportArgument($var);
 
@@ -1320,7 +1309,7 @@ class Brindille
 
 			if ($has_bracket && $has_dot) {
 				// You can't have both
-				throw new Brindille_Exception(sprintf('Invalid variable name: ' . $var));
+				throw new Brindille_Exception(sprintf('Invalid variable name: %s', $var));
 			}
 			elseif ($has_bracket) {
 				$separator = '[';
