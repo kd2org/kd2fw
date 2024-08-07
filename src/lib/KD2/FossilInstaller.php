@@ -358,7 +358,7 @@ class FossilInstaller
 	{
 		$diff = $this->diff($version);
 
-		foreach ($diff->delete as $file => $path) {
+		foreach ($diff->delete as $path) {
 			@unlink($path);
 		}
 
@@ -429,7 +429,6 @@ class FossilInstaller
 	static protected function recursiveList(string $path, string $pattern = '*')
 	{
 		$out = [];
-		$length = strlen($path);
 
 		foreach (glob($path . DIRECTORY_SEPARATOR . $pattern, \GLOB_NOSORT) as $subpath) {
 			$out[] = $subpath;
