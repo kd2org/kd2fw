@@ -132,7 +132,7 @@ abstract class AbstractStorage
 	 * @param  \DateTimeInterface $datetime
 	 * @return bool TRUE if the file modification time has been set correctly
 	 */
-	abstract public function touch(string $uri, \DateTimeInterface $timestamp): bool;
+	abstract public function touch(string $uri, \DateTimeInterface $datetime): bool;
 
 	/**
 	 * Lock the requested resource
