@@ -21,6 +21,8 @@
 
 namespace KD2\WebDAV;
 
+use KD2\HTTP\Server as HTTP_Server;
+
 class Exception extends \RuntimeException {}
 
 /**
@@ -449,7 +451,6 @@ class Server
 		$uri = $this->_prefix($uri);
 
 		$is_collection = !empty($props['DAV::resourcetype']) && $props['DAV::resourcetype'] == 'collection';
-		$out = '';
 
 		if ($is_collection) {
 			$list = $this->storage->list($uri, self::BASIC_PROPERTIES);
@@ -781,8 +782,8 @@ class Server
 				}
 
 				$pos = strrpos($name, ':');
-				$ns = substr($name, 0, strrpos($name, ':'));
-				$tag_name = substr($name, strrpos($name, ':') + 1);
+				$ns = substr($name, 0, $pos);
+				$tag_name = substr($name, $pos + 1);
 
 				$alias = $root_namespaces[$ns] ?? null;
 				$attributes = '';
@@ -848,8 +849,8 @@ class Server
 
 					foreach ($missing_properties as $name) {
 						$pos = strrpos($name, ':');
-						$ns = substr($name, 0, strrpos($name, ':'));
-						$name = substr($name, strrpos($name, ':') + 1);
+						$ns = substr($name, 0, $pos);
+						$name = substr($name, $pos + 1);
 						$alias = $root_namespaces[$ns] ?? null;
 
 						// NULL namespace, see Litmus FAQ for propnullns
@@ -883,7 +884,7 @@ class Server
 		$xml = @simplexml_load_string($body);
 
 		if (false === $xml) {
-			throw new WebDAV_Exception('Invalid XML', 400);
+			throw new Exception('Invalid XML', 400);
 		}
 
 		$_ns = null;
@@ -977,7 +978,7 @@ class Server
 				$ts = '@' . $ts;
 			}
 
-			$set_time = new \DateTime($value['content']);
+			$set_time = new \DateTime($ts);
 			$set_time_name = $name;
 		}
 
@@ -1046,7 +1047,6 @@ class Server
 				throw new Exception('Invalid If header', 400);
 			}
 
-			$info = null;
 			$ns = 'D';
 			$scope = self::EXCLUSIVE_LOCK;
 
@@ -1060,7 +1060,7 @@ class Server
 				throw new Exception('Cannot acquire another lock, resource is locked for exclusive use', 423);
 			}
 
-			if ($locked_scope && $token = $this->getLockToken()) {
+			if ($locked_scope) {
 				$token = $this->getLockToken();
 
 				if (!$token) {
