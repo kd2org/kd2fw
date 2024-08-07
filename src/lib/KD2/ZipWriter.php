@@ -153,7 +153,6 @@ class ZipWriter
 			if (null !== $pointer) {
 				$tmp = fopen('php://temp', 'wb');
 				$size = 0;
-				$csize = 0;
 				$crc = hash_init('crc32b');
 				$filter = null;
 
