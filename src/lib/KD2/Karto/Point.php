@@ -167,9 +167,9 @@ class Point implements ArrayAccess
 	/**
 	 * ArrayAccess getter
 	 */
-	public function offsetSet($key, $value): void
+	public function offsetSet($offset, $value): void
 	{
-		$this->__set($key, $value);
+		$this->__set($offset, $value);
 	}
 
 	/**
@@ -246,8 +246,8 @@ class Point implements ArrayAccess
 	public function XY(): array
 	{
 		$x = round(self::PIXELS_OFFSET + self::PIXELS_RADIUS * $this->lon * pi() / 180);
-		$y = round(self::PIXELS_OFFSET - self::PIXELS_RADIUS * 
-					log((1 + sin($this->lat * pi() / 180)) / 
+		$y = round(self::PIXELS_OFFSET - self::PIXELS_RADIUS *
+					log((1 + sin($this->lat * pi() / 180)) /
 					(1 - sin($this->lat * pi() / 180))) / 2);
 		return [$x, $y];
 	}
