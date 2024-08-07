@@ -3,7 +3,9 @@
 use KD2\Graphics\Image;
 use KD2\Test;
 
-require __DIR__ . '/_assert.php';
+require __DIR__ . '/../_assert.php';
+
+const ROOT = __DIR__ . '/../data/images/';
 
 $images = [
 	'animated.gif' => [64, 64, false],
@@ -32,11 +34,11 @@ foreach ($images as $name => $size)
 
 	foreach ($libs as $lib)
 	{
-		@mkdir('data/images/result/' . $lib);
-		test_resize('data/images/' . $name, $lib, $size[0], $size[1]);
-		test_thumb('data/images/' . $name, $lib);
-		test_rotate('data/images/' . $name, $lib, $size[2]);
-		test_crop('data/images/' . $name, $lib, $size[1], $size[2]);
+		@mkdir(ROOT . 'result/' . $lib);
+		test_resize(ROOT . $name, $lib, $size[0], $size[1]);
+		test_thumb(ROOT . $name, $lib);
+		test_rotate(ROOT . $name, $lib, $size[2]);
+		test_crop(ROOT . $name, $lib, $size[1], $size[2]);
 	}
 }
 
@@ -56,7 +58,7 @@ function test_rotate($src, $lib, $o) {
 			Test::assert($im->flip() instanceof Image);
 		}
 
-		$dest = sprintf('data/images/result/%s/rotate_%s', $lib, basename($src));
+		$dest = sprintf(ROOT . 'result/%s/rotate_%s', $lib, basename($src));
 		Test::equals(true, $im->save($dest));
 	}
 }
@@ -73,7 +75,7 @@ function test_resize($src, $lib, $w, $h)
 	Test::equals(32, $im->width);
 	Test::equals(32, $im->height);
 
-	$dest = sprintf('data/images/result/%s/resize_%s', $lib, basename($src));
+	$dest = sprintf(ROOT . 'result/%s/resize_%s', $lib, basename($src));
 	Test::equals(true, $im->save($dest));
 
 	//unlink($dest);
@@ -90,7 +92,7 @@ function test_thumb($src, $lib)
 	Test::assert($im->width <= 32);
 	Test::assert($im->height <= 32);
 
-	$dest = sprintf('data/images/result/%s/thumb_%s', $lib, basename($src));
+	$dest = sprintf(ROOT . 'result/%s/thumb_%s', $lib, basename($src));
 	Test::equals(true, $im->save($dest));
 
 	unset($im);
@@ -108,6 +110,6 @@ function test_crop($src, $lib)
 	Test::equals(32, $im->width);
 	Test::equals(32, $im->height);
 
-	$dest = sprintf('data/images/result/%s/crop_%s', $lib, basename($src));
+	$dest = sprintf(ROOT . 'result/%s/crop_%s', $lib, basename($src));
 	Test::equals(true, $im->save($dest));
 }

@@ -3,7 +3,9 @@
 use KD2\Graphics\Blob as IB;
 use KD2\Test;
 
-require __DIR__ . '/_assert.php';
+require __DIR__ . '/../_assert.php';
+
+const ROOT = __DIR__ . '/../data/images/';
 
 $images = [
 	'Portrait_5.jpg' => [600, 450, 5],
@@ -19,7 +21,7 @@ foreach ($images as $name => $expected)
 
 function test_image($src, $w, $h, $o)
 {
-	$path = __DIR__ . '/data/images/' . $src;
+	$path = ROOT . $src;
 	$header = IB::getFileHeader($path);
 
 	Test::assert(strlen($header) > 1);
