@@ -31,15 +31,15 @@ trait HTML_Query_Selector
 	 * Returns the first element matching a given CSS selector
 	 * @param  string $selector  CSS selector
 	 * @param  null $xpath_query Will be populated by XPath query translated from CSS selector
-	 * @return DOMNode
+	 * @return null|\DOMNode
 	 */
-	public function querySelector(string $selector, &$xpath_query = '')
+	public function querySelector(string $selector, &$xpath_query = ''): ?\DOMNode
 	{
 		$result = $this->querySelectorAll($selector, $xpath_query);
 
 		if ($result->length == 0)
 		{
-			return false;
+			return null;
 		}
 
 		return $result->item(0);
@@ -49,9 +49,9 @@ trait HTML_Query_Selector
 	 * Returns a list of elements matching a given CSS selector
 	 * @param  string $selector  CSS selector
 	 * @param  null $xpath_query Will be populated by XPath query translated from CSS selector
-	 * @return DOMNodeList
+	 * @return \DOMNodeList
 	 */
-	public function querySelectorAll(string $selector, &$xpath_query = '')
+	public function querySelectorAll(string $selector, &$xpath_query = ''): \DOMNodeList
 	{
 		$xpath_query = self::cssSelectorToXPath($selector);
 
@@ -79,12 +79,12 @@ trait HTML_Query_Selector
 	 * @link https://github.com/zendframework/zend-dom
 	 * @link https://github.com/symfony/css-selector
 	 * @link https://github.com/siuying/CSSSelectorConverter
-	 * 
+	 *
 	 * @param  string $selector CSS selector
 	 * @param  boolean $raw		TRUE if the XPath query should be returned without leading // (internal use)
 	 * @return string           XPath query
 	 */
-	static public function cssSelectorToXPath($selector, $raw = false)
+	static public function cssSelectorToXPath(string $selector, bool $raw = false): string
 	{
 		$selector = trim($selector);
 
@@ -168,7 +168,7 @@ trait HTML_Query_Selector
 			elseif (substr($t, 0, 10) == ':nth-child')
 			{
 				$operation = $token[4];
-				
+
 				if ($operation == 'odd')
 				{
 					$xpath[] = '[(position() >= 1) and (((position()-1) mod 2) = 0)]';
@@ -192,6 +192,7 @@ trait HTML_Query_Selector
 			elseif (substr($t, 0, 4) == ':not')
 			{
 				$expr = self::cssSelectorToXPath($token[4], true);
+				$expr = preg_replace('/^\./', 'self::node()', $expr);
 
 				if ($expr[0] == '[')
 				{
@@ -323,7 +324,7 @@ class HTMLDocument extends \DOMDocument
 	 * @param  integer $options use the options parameter to specify additional Libxml parameters
 	 * @return bool Returns TRUE on success or FALSE on failure.
 	 */
-	public function loadHTML($source, $options = null)
+	public function loadHTML(string $source, int $options = null): bool
 	{
 		if (is_null($options))
 		{
@@ -352,7 +353,7 @@ class HTMLDocument extends \DOMDocument
 	 * @param  integer $options  use the options parameter to specify additional Libxml parameters
 	 * @return boolean Returns TRUE on success or FALSE on failure.
 	 */
-	public function loadHTMLFile($filename, $options = null)
+	public function loadHTMLFile(string $filename, int $options = null): bool
 	{
 		if (is_null($options))
 		{
