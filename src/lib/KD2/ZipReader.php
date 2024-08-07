@@ -35,6 +35,7 @@ class ZipReader
 	protected $fp = null;
 	protected ?array $entries;
 	protected bool $close = false;
+	protected ?int $file_size = null;
 
 	/**
 	 * Max. allowed uncompressed size: 5 GB
@@ -59,6 +60,15 @@ class ZipReader
 	{
 		$this->fp = $fp;
 		$this->entries = null;
+		$this->file_size = null;
+
+		if (!isset($this->file_size)
+			&& ($meta = stream_get_meta_data($fp))
+			&& !empty($meta['seekable'])) {
+			fseek($fp, 0, SEEK_END);
+			$this->file_size = ftell($fp);
+			fseek($fp, 0);
+		}
 
 		if ($this->security_check) {
 			$this->securityCheck();
@@ -121,6 +131,11 @@ class ZipReader
 			if (false !== strpos($file['filename'], '..')) {
 				throw new \OutOfBoundsException('Invalid filename in archive: ' . $file['filename']);
 			}
+		}
+
+		// Suspicious uncompressed size
+		if (isset($this->file_size) && $size >= $this->file_size * 50) {
+			throw new \OutOfBoundsException('The archive uncompressed size is more than 50 times the compressed size.');
 		}
 	}
 
@@ -224,8 +239,8 @@ class ZipReader
 	{
 		$size = 0;
 
-		foreach ($this->iterate() as $file) {
-			$size += $file->size;
+		foreach ($this->iterate() as $name => $file) {
+			$size += $file['size'];
 		}
 
 		return $size;
@@ -323,6 +338,10 @@ class ZipReader
 			$binary_data
 		);
 
+		if ($header['size'] == 0xffffffff) {
+			throw new \OutOfBoundsException('ZIP64 files are not supported');
+		}
+
 		if ($header['filename_len'] != 0) {
 			$header['filename'] = fread($this->fp, $header['filename_len']);
 		} else {
@@ -361,6 +380,10 @@ class ZipReader
 			$binary_data
 		);
 
+		if ($header['size'] == 0xffffffff) {
+			throw new \OutOfBoundsException('ZIP64 files are not supported');
+		}
+
 		$header['filename'] = fread($this->fp, $data['filename_len']);
 
 		if ($data['extra_len'] != 0) {
@@ -375,7 +398,7 @@ class ZipReader
 
 		// On ODT files, these headers are 0. Keep the previous value.
 		foreach (['size', 'compressed_size', 'crc'] as $hd) {
-			if ($data[$hd] != 0) {
+			if ($data[$hd] == 0) {
 				$header[$hd] = $data[$hd];
 			}
 		}

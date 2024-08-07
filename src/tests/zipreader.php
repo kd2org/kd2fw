@@ -12,13 +12,17 @@ test_zip_bomb2();
 
 function test_zip_simple()
 {
-	$zip = new ZipReader('data/zip/test.zip');
+	$zip = new ZipReader;
+	$zip->open(__DIR__ . '/data/zip/test.zip');
 	Test::equals(20, $zip->uncompressedSize());
 	Test::equals('test', trim($zip->fetch('a/test.txt')));
 
 	$files = [];
 	foreach ($zip->iterate() as $path => $file) {
-		$files[$path] = $file->getSize();
+		if ($file['folder']) {
+			continue;
+		}
+		$files[$path] = $file['size'];
 	}
 
 	Test::equals('{"a\/test.txt":5,"b\/test.txt":5,"c\/test.txt":5,"d\/test.txt":5}', json_encode($files));
@@ -28,10 +32,14 @@ function test_zip_simple()
 
 function test_zip_bomb()
 {
-	$zip = new ZipReader('data/zip/zipbomb_1G.zip');
+	$zip = new ZipReader;
+	Test::exception(\OutOfBoundsException::class, function() use ($zip) {
+		$zip->open(__DIR__ . '/data/zip/zipbomb_1G.zip');
+	});
+
 	Test::equals(1048576000, $zip->uncompressedSize());
 	$zip->setMaxUncompressedSize(1024*1024*500);
-	Test::exception('OutOfBoundsException', function() use ($zip) {
+	Test::exception(\OutOfBoundsException::class, function() use ($zip) {
 		$zip->securityCheck();
 	});
 	unset($zip);
@@ -39,8 +47,9 @@ function test_zip_bomb()
 
 function test_zip_bomb2()
 {
-	$zip = new ZipReader('data/zip/zbsm.zip');
-	Test::exception('OutOfBoundsException', function() use ($zip) {
+	$zip = new ZipReader;
+	Test::exception(\OutOfBoundsException::class, function() use ($zip) {
+		$zip->open(__DIR__ . '/data/zip/zbsm.zip');
 		$zip->iterate();
 	});
 	unset($zip);
