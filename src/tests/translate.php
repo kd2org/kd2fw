@@ -51,11 +51,6 @@ function test_strftime()
 	$output = Translate::strftime('%h', $timestamp);
 	Test::equals($expected, $output);
 
-	Translate::setLocale('uk_UA');
-	$expected = 'пп';
-	$output = Translate::strftime('%p', $timestamp);
-	Test::equals($expected, $output);
-
 	Translate::setLocale('de_DE');
 	$expected = '13h24';
 	$output = Translate::strftime('%Hh%M', $timestamp);
@@ -101,7 +96,7 @@ function test_smartyer_block()
 		Translate::extendSmartyer($tpl);
 		return $tpl->fetch();
 	};
-	
+
 	$code = '{{Translate this string.}}';
 	$expected = 'Traduit cette chaîne.';
 

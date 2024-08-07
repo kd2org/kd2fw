@@ -131,7 +131,7 @@ class Translate
 	 * @param  string $domain Domain
 	 * @return void
 	 */
-	static public function setDefaultDomain($domain)
+	static public function setDefaultDomain($domain): void
 	{
 		if (!array_key_exists($domain, self::$domains))
 		{
@@ -139,8 +139,6 @@ class Translate
 		}
 
 		self::$default_domain = $domain;
-
-		return true;
 	}
 
 	/**
@@ -173,12 +171,12 @@ class Translate
 		}
 
 		// If this domain exists
-		if (isset(self::$domains[$domain]))
+		if (array_key_exists($domain, self::$domains))
 		{
 			$dir = self::$domains[$domain];
 		}
 		// Or if we have a "catch-all" domain
-		elseif (isset(self::$domains['*']))
+		elseif (array_key_exists('*', self::$domains))
 		{
 			$dir = self::$domains['*'];
 		}
@@ -235,7 +233,7 @@ class Translate
 	 * Stores translations internally from an external source (eg. could be a PHP file, a INI file, YAML, JSON, etc.)
 	 * @param  string $domain       Domain
 	 * @param  string $locale       Locale
-	 * @param  Array  $translations List of translations, in format array(msgid => array(0 => msgstr, 1 => plural form, 10 => plural form 10...))
+	 * @param  array  $translations List of translations, in format array(msgid => array(0 => msgstr, 1 => plural form, 10 => plural form 10...))
 	 * @return void
 	 */
 	static public function importTranslations($domain, $locale, Array $translations)
@@ -435,7 +433,7 @@ class Translate
 	/**
 	 * Simple translation of a string
 	 * @param  string      $msgid        Message ID to translate (will be used as fallback if no translation is found)
-	 * @param  Array       $args         Optional arguments to replace in translated string
+	 * @param  array       $args         Optional arguments to replace in translated string
 	 * @param  string      $domain       Optional domain
 	 * @param  string      $context      Optional translation context (msgctxt in gettext)
 	 * @return string
@@ -465,7 +463,7 @@ class Translate
 	 * @param  string      $msgid        Message ID to translate (will be used as fallback)
 	 * @param  string      $msgid_plural Optional plural ID
 	 * @param  integer     $count        Number used to determine which plural form should be returned
-	 * @param  Array       $args         Optional arguments to replace in translated string
+	 * @param  array       $args         Optional arguments to replace in translated string
 	 * @param  string      $domain       Optional domain
 	 * @param  string      $context      Optional translation context (msgctxt in gettext)
 	 * @return string
@@ -503,9 +501,9 @@ class Translate
 	 * @param  string $path .mo file path
 	 * @param  boolean $one_msgid_only If set to true won't return an entry for msgid_plural
 	 * (used internally to reduce cache size)
-	 * @return array        array of translations
+	 * @return null|array        array of translations
 	 */
-	static public function parseGettextMOFile($path, $one_msgid_only = false)
+	static public function parseGettextMOFile($path, $one_msgid_only = false): ?array
 	{
 		$fp = fopen($path, 'rb');
 
@@ -516,7 +514,7 @@ class Translate
 
 		if ((dechex($magic) != '950412de') || ($version != 0))
 		{
-			return false;
+			return null;
 		}
 
 		// Read the rest of the file
@@ -524,7 +522,7 @@ class Translate
 
 		if (!$data)
 		{
-			return false;
+			return null;
 		}
 
 		$translations = [];
@@ -733,7 +731,7 @@ class Translate
 	/**
 	 * Locale-formatted strftime using \IntlDateFormatter (PHP 8.1 compatible)
 	 * @param  string $format Date format
-	 * @param  integer|string|DateTime $timestamp Timestamp
+	 * @param  integer|string|\DateTime $timestamp Timestamp
 	 * @return string
 	 * @see https://github.com/alphp/strftime
 	 * @see https://gist.github.com/bohwaz/42fc223031e2b2dd2585aab159a20f30
