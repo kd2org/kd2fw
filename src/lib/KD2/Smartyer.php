@@ -34,7 +34,7 @@
  * {$name|rot13} too.
  * Use {$name|raw} to disable auto-escaping, or {$name|escape:...} to specify
  * a custom escape method.
- * - Embedding variables in strings is not supported: "Hello $world" will 
+ * - Embedding variables in strings is not supported: "Hello $world" will
  * display as is, same for "Hello `$world`"", use |args (= sprintf)
  * - Unsupported features: config files, $smarty. variables, cache, switch/case,
  * section, insert, {php}
@@ -1165,7 +1165,6 @@ class Smartyer
 			{
 				$mod_name = trim(substr($modifier, 0, $pos));
 				$raw_args = substr($modifier, $pos+1);
-				$arguments = [];
 
 				// Split by two points (:), or comma (,) except if enclosed in quotes
 				$arguments = preg_split('/\s*[:,]\s*|("(?:\\\\.|[^"])*?"|\'(?:\\\\.|[^\'])*?\'|[^:,\'"\s]+)/', trim($raw_args), 0, PREG_SPLIT_NO_EMPTY | PREG_SPLIT_DELIM_CAPTURE);
@@ -1356,8 +1355,8 @@ class Smartyer
 			case 'js':
 			case 'javascript':
 				return strtr($str, [
-					"\x08" => '\\b', "\x09" => '\\t', "\x0a" => '\\n', 
-					"\x0b" => '\\v', "\x0c" => '\\f', "\x0d" => '\\r', 
+					"\x08" => '\\b', "\x09" => '\\t', "\x0a" => '\\n',
+					"\x0b" => '\\v', "\x0c" => '\\f', "\x0d" => '\\r',
 					"\x22" => '\\"', "\x27" => '\\\'', "\x5c" => '\\'
 				]);
 			default:

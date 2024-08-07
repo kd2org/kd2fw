@@ -2,6 +2,7 @@
 
 use KD2\Test;
 use KD2\Smartyer;
+use KD2\Translate;
 
 require __DIR__ . '/_assert.php';
 
@@ -142,7 +143,7 @@ function test_variables(Smartyer $smartyer)
 
 	// Current object function call
 	$code = '{$this->dateFormat(time(), "%Y|")|truncate:1:"":true}';
-	$expected = substr(strftime('%Y', time()), 0, 1);
+	$expected = substr(Translate::strftime('%Y', time()), 0, 1);
 	$output = Smartyer::fromString($code, $smartyer)->fetch();
 
 	Test::equals($expected, $output, 'Current object function call + modifier');
@@ -256,7 +257,7 @@ function test_functions(Smartyer $smartyer)
 	$tpl = Smartyer::fromString($code, $smartyer);
 	$tpl->assign('object', (object)['array' => ['key1' => 'OK']]);
 	$tpl->register_modifier('rot13', 'str_rot13');
-	
+
 	$tpl->register_function('repeat', function ($args) {
 		return str_repeat($args['source'], $args['length']);
 	});
@@ -269,8 +270,8 @@ function test_blocks(Smartyer $smartyer)
 {
 	$code = '{rot13}Hello world!{/rot13}';
 	$expected = 'Uryyb jbeyq!';
-	$output = Smartyer::fromString($code, $smartyer)->register_block('rot13', function ($content, $params) {
-		return str_rot13($content);
+	$output = Smartyer::fromString($code, $smartyer)->register_block('rot13', function ($params, $content) {
+		return str_rot13($content ?? '');
 	})->fetch();
 
 	Test::equals($expected, $output, 'block');
@@ -284,10 +285,10 @@ function test_compile_blocks(Smartyer $smartyer)
 	$expected = PHP_VERSION;
 
 	$tpl = Smartyer::fromString($code, $smartyer);
-	$tpl->register_compile_function('constants', function($pos, $block, $name, $raw_args) {
+	$tpl->register_compile_function('constants', function($obj, $line, $block, $name, $raw_args) {
 		if (substr(trim($block), 0, 1) == '#')
 		{
-			return 'echo constant(' . $this->exportArgument(substr(trim($block), 1)) . ');';
+			return 'echo constant(' . $obj->exportArgument(substr(trim($block), 1)) . ');';
 		}
 
 		return false;
