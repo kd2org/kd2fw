@@ -131,7 +131,7 @@ class Server
 			if ($start || $end) {
 				if (null !== $end && $end > $length) {
 					header('Content-Range: bytes */' . $length, true);
-					throw new Exception('End range cannot be satisfied', 416);
+					throw new \LogicException('End range cannot be satisfied', 416);
 				}
 
 				if ($start === null) {
