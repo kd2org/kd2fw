@@ -29,6 +29,8 @@ use RuntimeException;
  *
  * for specs see http://www.pkware.com/appnote
  * @see https://github.com/splitbrain/php-archive/blob/460c20518033e8478d425c48e7bb0bd348b10486/src/Zip.php
+ * @see https://github.com/ronomon/zip
+ * @see https://www.bamsoftware.com/hacks/zipbomb/
  */
 class ZipReader
 {
