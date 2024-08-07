@@ -96,7 +96,7 @@ class Discovery
 		return null;
 	}
 
-	protected function fromISPDB(SimpleXMLElement $xml): stdClass
+	protected function fromISPDB(\SimpleXMLElement $xml): stdClass
 	{
 		$get = function ($a, $xpath) {
 			$b = (array) $a->xpath($xpath)[0] ?? null;
@@ -104,7 +104,7 @@ class Discovery
 			return $b;
 		};
 
-		return [
+		return (object) [
 			'imap' => $get($xml, './/incomingServer[@type="imap"]'),
 			'pop3' => $get($xml, './/incomingServer[@type="pop3"]'),
 			'smtp' => $get($xml, './/outgoingServer[@type="smtp"]'),
