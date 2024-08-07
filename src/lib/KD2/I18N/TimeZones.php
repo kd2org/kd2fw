@@ -25,7 +25,7 @@ class TimeZones
 	static public function check(string $name): bool
 	{
 		try {
-			$tz = new \DateTimeZone($name);
+			new \DateTimeZone($name);
 			return true;
 		}
 		catch (\Exception $e) {
