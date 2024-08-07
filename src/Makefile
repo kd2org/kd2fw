@@ -1,6 +1,11 @@
-.PHONY: all release phpstan
+.PHONY: all release phpstan tests test
 
 test: phpstan
+
+tests:
+	php tests/db.php
+	php tests/DB/Entity.php
+	php tests/DB/SQLite3.php
 
 phpstan:
 	phpstan.phar analyze -c phpstan.neon lib/KD2

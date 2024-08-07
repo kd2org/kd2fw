@@ -11,17 +11,12 @@ class TestEntity extends AbstractEntity
 {
 	const TABLE = 'test';
 
-	protected $name;
-	protected $age;
-	protected $birth;
-	protected $updated;
+	protected ?int $id;
 
-	protected $_types = [
-		'name'    => 'string',
-		'age'     => '?integer',
-		'birth'   => 'DateTime',
-		'updated' => '?DateTime',
-	];
+	protected string $name;
+	protected ?int $age;
+	protected DateTime $birth;
+	protected ?DateTime $updated = null;
 }
 
 
@@ -42,6 +37,7 @@ function test_entity()
 	Test::assert($a instanceof AbstractEntity);
 
 	$data = [
+		'id'      => 1,
 		'name'    => 'Test Mike',
 		'age'     => null,
 		'birth'   => new \DateTime('1990-01-02'),
