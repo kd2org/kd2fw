@@ -748,7 +748,7 @@ class DB
 			$values[md5($key)] = $value;
 		}
 
-		$query = sprintf('INSERT %s INTO %s (%s) VALUES (:%s);', (string) $clause, $this->quoteIdentifier($table),
+		$query = sprintf('INSERT %s INTO %s (%s) VALUES (:%s);', $clause, $this->quoteIdentifier($table),
 			$fields_names, implode(', :', array_keys($values)));
 
 		return (bool) $this->preparedQuery($query, $values);
