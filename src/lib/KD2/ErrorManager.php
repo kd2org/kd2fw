@@ -132,7 +132,7 @@ class ErrorManager
 	{
 		// Stop here if disabled or if the script ended with an exception
 		if (!self::$enabled || self::$catching) {
-			return false;
+			return;
 		}
 
 		$error = error_get_last();
@@ -184,11 +184,11 @@ class ErrorManager
 		{
 			$message .= ' (ASSERT_BAIL detected)';
 			self::exceptionHandler(new \ErrorException($message, 0, $severity, $file, $line));
-			return true;
+			return;
 		}
 
 		throw new \ErrorException($message, 0, $severity, $file, $line);
-		return true;
+		return;
 	}
 
 	/**
@@ -431,7 +431,7 @@ class ErrorManager
 	 */
 	static protected function getFileLocation($file)
 	{
-		if (!empty(self::$context['root_directory']) && ($pos = strpos($file, self::$context['root_directory'])) === 0)
+		if (!empty(self::$context['root_directory']) && strpos($file, self::$context['root_directory']) === 0)
 		{
 			return '...' . substr($file, strlen(self::$context['root_directory']));
 		}
@@ -484,7 +484,7 @@ class ErrorManager
 				],
 			];
 
-			foreach ($e->getTrace() as $i=>$t)
+			foreach ($e->getTrace() as $t)
 			{
 				// Ignore the error stack from ErrorManager
 				if (isset($t['class']) && $t['class'] === __CLASS__
@@ -609,7 +609,7 @@ class ErrorManager
 		$out = sprintf('<section><header><h1>%s</h1><h2>%s</h2></header>',
 			$e->type, nl2br(htmlspecialchars($e->message)));
 
-		foreach ($e->backtrace as $i=>$t)
+		foreach ($e->backtrace as $t)
 		{
 			$out .= '<article>';
 
