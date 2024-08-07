@@ -14,24 +14,25 @@ $images = [
 
 foreach ($images as $name => $expected)
 {
-	test_image('data/images/' . $name, $expected[0], $expected[1], $expected[2]);
+	test_image($name, $expected[0], $expected[1], $expected[2]);
 }
 
 function test_image($src, $w, $h, $o)
 {
-	$header = IB::getFileHeader($src);
+	$path = __DIR__ . '/data/images/' . $src;
+	$header = IB::getFileHeader($path);
 
 	Test::assert(strlen($header) > 1);
 
 	$size = IB::getSize($header);
 
-	Test::assert($size !== false);
+	Test::assert($size !== null, 'getSize failed for: ' . $src);
 
 	Test::equals($w, $size[0]);
 	Test::equals($h, $size[1]);
 
 	if ($o !== false)
 	{
-		Test::equals($o, IB::getOrientationJPEG(file_get_contents($src)));
+		Test::equals($o, IB::getOrientationJPEG(file_get_contents($path)));
 	}
 }
