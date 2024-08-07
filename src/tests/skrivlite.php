@@ -12,7 +12,7 @@ $skriv->footnotes_prefix = 'test';
 Test::isInstanceOf(SkrivLite::class, $skriv, '$skriv must be an instance of SkrivLite');
 
 $orig = '**strong word** --strike-through-- not-__underlined__';
-$target = '<p><strong>strong word</strong> <s>strike-through</s> not-<u>underlined</u></p>';
+$target = '<p><strong>strong word</strong> <s>strike-through</s> not-__underlined__</p>';
 
 Test::equals($target, $skriv->render($orig), 'inline rendering error');
 
@@ -271,11 +271,11 @@ Test::equals($target, $skriv->render($orig), 'list rendering error');
 
 // https://github.com/Amaury/SkrivMarkup/issues/15
 $orig = '[[##__invoke## | http://www.php.net/manual/fr/language.oop5.magic.php#object.invoke]]';
-$target = '<p><a href="http://www.php.net/manual/fr/language.oop5.magic.php#object.invoke"><tt>__invoke</tt></a></p>';
+$target = '<p><a href="http://www.php.net/manual/fr/language.oop5.magic.php#object.invoke" target="_blank" rel="noreferrer noopener"><tt>__invoke</tt></a></p>';
 
 Test::equals($target, $skriv->render($orig), 'issue 15 rendering error');
 
-$skriv->registerExtension('lipsum', function($args, $content = null) 
+$skriv->registerExtension('lipsum', function($block, $args, $content = null)
 {
 	if (isset($args['length']))
 		$length = (int) $args['length'];
@@ -283,12 +283,12 @@ $skriv->registerExtension('lipsum', function($args, $content = null)
 		$length = (int)$args[0];
 	else
 		$length = null;
-	
+
 	$text = 'Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.';
 
 	if ($length)
 		$text = substr($text, 0, $length);
-	
+
 	if (!is_null($content))
 	{
 		$text = '<p>' . $text . '</p>';
@@ -314,7 +314,7 @@ $target = '
 
 Test::equals($target, $skriv->render($orig), 'block extension with named argument rendering error');
 
-$skriv->registerExtension('html', function($args, $content = null)  { return $content; });
+$skriv->registerExtension('html', function($block, $args, $content = null)  { return $content; });
 
 $orig = '
 <b>Escaped html</b>
