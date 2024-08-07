@@ -28,7 +28,6 @@
 namespace KD2;
 
 use KD2\DB\DB;
-use KD2\QRCode;
 use KD2\Security_OTP;
 
 class UserSession
@@ -591,7 +590,7 @@ class UserSession
 	 * @param  string  $password Password
 	 * @return boolean
 	 */
-	public function isPasswordCompromised($password)
+	public function isPasswordCompromised(string $password): bool
 	{
 		if (null === $this->http) {
 			throw new \LogicException(self::class . '->http property is not set, must be an instance of \KD2\HTTP class');
