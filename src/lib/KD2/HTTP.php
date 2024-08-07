@@ -282,7 +282,7 @@ class HTTP
 
 	/**
 	 * Transforms a parse_url array back into a string
-	 * @param  Array  $url
+	 * @param  array  $url
 	 * @return string
 	 */
 	static public function glueURL(array $url): string
@@ -478,7 +478,7 @@ class HTTP
 	/**
 	 * RFC 6570 URI template replacement, supports level 1 and level 2
 	 * @param string $uri    URI with placeholders
-	 * @param Array  $params Parameters (placeholders)
+	 * @param array  $params Parameters (placeholders)
 	 * @link  https://www.rfc-editor.org/rfc/rfc6570.txt
 	 * @return string
 	 */
@@ -908,26 +908,24 @@ class HTTP_Headers implements \ArrayAccess
 	}
 
 	#[\ReturnTypeWillChange]
-	public function offsetGet($key)
+	public function offsetGet($offset)
 	{
-		return $this->__get($key);
+		return $this->__get($offset);
 	}
 
-	public function offsetExists($key): bool
+	public function offsetExists($offset): bool
 	{
-		$key = strtolower($key);
-
-		return array_key_exists($key, $this->headers);
+		return array_key_exists(strtolower($offset), $this->headers);
 	}
 
-	public function offsetSet($key, $value): void
+	public function offsetSet($offset, $value): void
 	{
-		$this->__set($key, $value);
+		$this->__set($offset, $value);
 	}
 
-	public function offsetUnset($key): void
+	public function offsetUnset($offset): void
 	{
-		unset($this->headers[strtolower($key)]);
+		unset($this->headers[strtolower($offset)]);
 	}
 
 	public function toArray()
