@@ -13,7 +13,7 @@ Test::assert($db instanceof DB);
 test_methods($db, PDOException::class);
 
 $db = new SQLite3('sqlite', ['file' => ':memory:']);
-test_methods($db, Exception::class);
+test_methods($db, PHP_VERSION_ID >= 80300 ? 'SQLite3Exception' : Exception::class);
 
 function test_methods($db, $exception_name)
 {
