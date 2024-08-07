@@ -3,9 +3,7 @@
 test: phpstan
 
 tests:
-	php tests/db.php
-	php tests/DB/Entity.php
-	php tests/DB/SQLite3.php
+	cd tests && make
 
 phpstan:
 	phpstan.phar analyze -c phpstan.neon lib/KD2
