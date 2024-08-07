@@ -24,6 +24,7 @@ namespace KD2;
 /**
  * Cache user data with files, since PHP 5.5 will use OpCache and will be faster than MemCache!
  * (and so it is still a memory cache)
+ * @deprecated
  *
  */
 class MemCache_File extends MemCache

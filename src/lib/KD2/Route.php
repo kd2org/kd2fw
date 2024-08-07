@@ -29,6 +29,9 @@ namespace KD2;
 
 class RouteException extends \RuntimeException {}
 
+/**
+ * @deprecated
+ */
 class Route
 {
 	/**

@@ -21,6 +21,9 @@
 
 namespace KD2;
 
+/**
+ * @deprecated
+ */
 class Helpers
 {
 	static public function obj_has($src, $pattern)

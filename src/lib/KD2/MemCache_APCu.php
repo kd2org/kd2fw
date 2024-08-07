@@ -27,6 +27,7 @@ namespace KD2;
  * Note that the cache is shared by the same process 
  * and can result in being shared by multiple vhosts
  * or users.
+ * @deprecated
  */
 class MemCache_APCu extends MemCache
 {

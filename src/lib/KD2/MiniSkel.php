@@ -51,6 +51,9 @@ class MiniSkelMarkupException extends MiniSkelException
 {
 }
 
+/**
+ * @deprecated
+ */
 class MiniSkel
 {
     /**

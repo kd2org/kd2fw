@@ -26,6 +26,7 @@ namespace KD2;
  * (C) 2011-2014 BohwaZ
  * Inspired by Frank Denis (C) 2011 Public domain
  * https://00f.net/2011/01/19/thoughts-on-php-sessions/
+ * @deprecated
  */
 
 class CacheCookie

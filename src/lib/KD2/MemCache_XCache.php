@@ -29,6 +29,7 @@ namespace KD2;
  * xcache.var_namespace = "DOCUMENT_ROOT"
  *
  * See https://xcache.lighttpd.net/ticket/287#comment:13 for details
+ * @deprecated
  */
 
 class MemCache_XCache extends MemCache

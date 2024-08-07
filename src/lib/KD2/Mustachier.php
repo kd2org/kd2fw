@@ -25,6 +25,7 @@ namespace KD2;
  * Mustachier, a lightweight implementation of Mustache templates
  *
  * @author  bohwaz  http://bohwaz.net/
+ * @deprecated
  */
 class Mustachier
 {

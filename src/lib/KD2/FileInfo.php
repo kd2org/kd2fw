@@ -23,6 +23,7 @@ namespace KD2;
 
 /**
  * Various tools to get informations on files
+ * @deprecated
  */
 
 class FileInfo

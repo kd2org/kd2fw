@@ -29,6 +29,9 @@ namespace KD2;
 
 use KD2\DB;
 
+/**
+ * @deprecated
+ */
 class UserActions
 {
 	const ACTION_LOGIN = 1;

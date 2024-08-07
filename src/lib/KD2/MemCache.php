@@ -21,6 +21,9 @@
 
 namespace KD2;
 
+/**
+ * @deprecated
+ */
 abstract class MemCache
 {
 	protected $prefix = null;
