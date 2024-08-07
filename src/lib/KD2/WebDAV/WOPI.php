@@ -289,7 +289,7 @@ class WOPI
 	/**
 	 * Return list of available editors
 	 * @param  string $url WOPI client discovery URL (eg. http://localhost:8080/hosting/discovery for OnlyOffice)
-	 * @return an array containing a list of extensions and (eventually) a list of mimetypes
+	 * @return array containing a list of extensions and (eventually) a list of mimetypes
 	 * that can be handled by the editor server:
 	 * ['extensions' => [
 	 *   'odt' => ['edit' => 'http://...', 'embedview' => 'http://'],
@@ -445,10 +445,10 @@ class WOPI
 			throw new Exception('Access forbidden: no token was created', 403);
 		}
 
-		return $this->rawEditorHTML($url, $token, $token_ttl, $title);
+		return $this->rawEditorHTML($editor_url, $src, $token, $token_ttl, $title);
 	}
 
-	public function getEditorFrameHTML(string $editor_url, string $src, string $token, int $token_ttl)
+	public function getEditorFrameHTML(string $editor_url, string $src, string $token, int $token_ttl): string
 	{
 		// access_token_TTL: A 64-bit integer containing the number of milliseconds since January 1, 1970 UTC and representing the expiration date and time stamp of the access_token.
 		$token_ttl *= 1000;
