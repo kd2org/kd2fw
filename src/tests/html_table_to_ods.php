@@ -11,4 +11,4 @@ $ods->import(file_get_contents(__DIR__ . '/data/html/table1.html'));
 
 $ods->save('/tmp/test.ods');
 
-echo $ods->XML();
+$ods->XML();

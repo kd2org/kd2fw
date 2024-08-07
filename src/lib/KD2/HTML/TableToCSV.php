@@ -73,8 +73,6 @@ class TableToCSV
 			$col_index = 0;
 			$cells = $this->xpath($row, './/td|.//th');
 
-			$row = '';
-
 			foreach ($cells as $cell) {
 				// Skip rowspan
 				while (isset($this->rows[$row_index][$col_index])) {

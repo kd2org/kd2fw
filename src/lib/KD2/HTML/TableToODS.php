@@ -256,7 +256,7 @@ class TableToODS
 			$this->xml .= "\n";
 		}
 
-		foreach ($this->rows as $i => $row) {
+		foreach ($this->rows as $row) {
 			$this->xml .= sprintf('<table:table-row table:style-name="%s">', $this->newStyle('row', $row['styles'] ?? []) ?? 'ro-default');
 			$this->xml .= "\n";
 
