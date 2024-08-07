@@ -197,7 +197,9 @@ function test_http($client = HTTP::CLIENT_DEFAULT)
 
 function test_http_put($client = HTTP::CLIENT_DEFAULT)
 {
-	printf("php -S localhost:8089 %s\n", escapeshellarg(__DIR__ . '/data/http_put_server.php'));
+	exec(sprintf('php -S localhost:8089 %s > /dev/null 2>&1 & echo $!', escapeshellarg(__DIR__ . '/data/http_put_server.php')), $out);
+	$pid = $out[0];
+	sleep(1);
 
 	$http = new HTTP;
 	$http->client = $client;
@@ -226,4 +228,6 @@ function test_http_put($client = HTTP::CLIENT_DEFAULT)
 
 	Test::equals(201, $response->status);
 	Test::equals("Received 3 bytes\nOK!", $response->body);
+
+	passthru('kill ' . $pid);
 }
