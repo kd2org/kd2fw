@@ -71,15 +71,14 @@ class Security
 	 *
 	 * @param  string  $dictionary      Path to dictionary file
 	 * @param  integer $words           Number of words to include
-	 * @param  boolean $character_match Regexp (unicode) character class to match, eg.
+	 * @param  ?string $character_match Regexp (unicode) character class to match, eg.
 	 * if you want only words in lowercase: \pL
 	 * @param  boolean $add_entropy     If TRUE will replace one character from each word randomly with a number or special character
 	 * @return string Passphrase
 	 */
-	static public function getRandomPassphrase(string $dictionary = '/usr/share/dict/words', int $words = 4, bool $character_match = false, bool $add_entropy = false): string
+	static public function getRandomPassphrase(string $dictionary = '/usr/share/dict/words', int $words = 4, ?string $character_match = null, bool $add_entropy = false): string
 	{
-		if (empty($dictionary) || !is_readable($dictionary))
-		{
+		if (empty($dictionary) || !is_readable($dictionary)) {
 			throw new \InvalidArgumentException('Invalid dictionary file: cannot open or read from file \'' . $dictionary . '\'');
 		}
 
@@ -89,20 +88,16 @@ class Security
 		$max = 1000;
 		$i = 0;
 
-		while (count($selection) < (int) $words)
-		{
-			if ($i++ > $max)
-			{
+		while (count($selection) < (int) $words) {
+			if ($i++ > $max) {
 				throw new \Exception('Could not find a suitable combination of words.');
 			}
 
 			$rand = random_int(0, count($file) - 1);
 			$w = trim($file[$rand]);
 
-			if (!$character_match || preg_match('/^[' . $character_match . ']+$/U', $w))
-			{
-				if ($add_entropy)
-				{
+			if (!$character_match || preg_match('/^[' . $character_match . ']+$/Ui', $w)) {
+				if ($add_entropy) {
 					$w[random_int(0, strlen($w) - 1)] = self::getRandomPassword(1, '23456789=/:!?-._');
 				}
 

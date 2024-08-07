@@ -5,15 +5,8 @@ require __DIR__ . '/_assert.php';
 use KD2\Security;
 use KD2\Test;
 
-$a = Security::random_int(0, 10);
-
 assert(
-	is_integer($a) && $a >= 0 && $a <= 10,
-	'random_int() failed'
-);
-
-assert(
-	count(explode(' ', Security::getRandomPassphrase('/usr/share/dict/american-english', 10, '\w\'', true))) == 10
+	count(explode(' ', Security::getRandomPassphrase('/usr/share/dict/words', 10, '\w\'', true))) == 10
 );
 
 if (Security::canUseEncryption())
