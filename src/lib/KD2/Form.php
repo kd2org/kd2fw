@@ -93,7 +93,7 @@ class Form
 		$value = $expire . $random . $action;
 
 
-		$hash = hash_hmac('sha256', $expire . $random . $action, self::$token_secret . sha1($user_secret));
+		$hash = hash_hmac('sha256', $value, self::$token_secret . sha1($user_secret));
 
 		return $hash . '/' . dechex($expire) . '/' . dechex($random);
 	}
