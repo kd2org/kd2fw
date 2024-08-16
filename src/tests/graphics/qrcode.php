@@ -3,7 +3,7 @@
 use KD2\Test;
 use KD2\Graphics\QRCode;
 
-require __DIR__ . '/_assert.php';
+require __DIR__ . '/../_assert.php';
 
 test_basic();
 

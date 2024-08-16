@@ -24,7 +24,6 @@ all:
 	#php mustachier.php # Deprecated
 	php oauth2_server.php
 	php office_totext.php
-	php qrcode.php
 	php security.php
 	php security_otp.php
 	php skrivlite.php
