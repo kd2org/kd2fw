@@ -287,13 +287,13 @@ class SQLite3 extends DB
 		return \SQLite3::escapeString($str);
 	}
 
-	public function quote($str, int $parameter_type = 0): string
+	public function quote($value, int $parameter_type = 0): string
 	{
-		if (is_int($str)) {
-			return $str;
+		if (is_int($value)) {
+			return $value;
 		}
 
-		return '\'' . $this->escapeString($str) . '\'';
+		return '\'' . $this->escapeString($value) . '\'';
 	}
 
 	public function begin()
@@ -677,9 +677,9 @@ class SQLite3 extends DB
 		return $return;
 	}
 
-	public function iterate(string $statement, ...$args): iterable
+	public function iterate(string $query, ...$args): iterable
 	{
-		$res = $this->preparedQuery($statement, ...$args);
+		$res = $this->preparedQuery($query, ...$args);
 
 		while ($row = $res->fetchArray(\SQLITE3_ASSOC))
 		{
@@ -691,9 +691,9 @@ class SQLite3 extends DB
 		return;
 	}
 
-	public function get(string $statement, ...$args): array
+	public function get(string $query, ...$args): array
 	{
-		$res = $this->preparedQuery($statement, ...$args);
+		$res = $this->preparedQuery($query, ...$args);
 		$out = [];
 
 		while ($row = $res->fetchArray(\SQLITE3_ASSOC))
@@ -706,9 +706,9 @@ class SQLite3 extends DB
 		return $out;
 	}
 
-	public function getAssoc(string $statement, ...$args): array
+	public function getAssoc(string $query, ...$args): array
 	{
-		$res = $this->preparedQuery($statement, ...$args);
+		$res = $this->preparedQuery($query, ...$args);
 		$out = [];
 
 		while ($row = $res->fetchArray(\SQLITE3_NUM))
@@ -721,9 +721,9 @@ class SQLite3 extends DB
 		return $out;
 	}
 
-	public function getGrouped(string $statement, ...$args): array
+	public function getGrouped(string $query, ...$args): array
 	{
-		$res = $this->preparedQuery($statement, ...$args);
+		$res = $this->preparedQuery($query, ...$args);
 		$out = [];
 
 		while ($row = $res->fetchArray(\SQLITE3_ASSOC))
@@ -764,7 +764,7 @@ class SQLite3 extends DB
 	public function exec(string $statement)
 	{
 		$this->connect();
-		$query = $this->applyTablePrefix($statement);
+		$statement = $this->applyTablePrefix($statement);
 
 		if ($this->callback) {
 			call_user_func($this->callback, __FUNCTION__, 'before', $this, ... func_get_args());
@@ -863,7 +863,7 @@ class SQLite3 extends DB
 	public function prepare(string $statement, array $driver_options = [])
 	{
 		$this->connect();
-		$query = $this->applyTablePrefix($statement);
+		$statement = $this->applyTablePrefix($statement);
 
 		if ($this->callback) {
 			call_user_func($this->callback, __FUNCTION__, 'before', $this, ... func_get_args());
@@ -918,7 +918,6 @@ class SQLite3 extends DB
 		$sql = preg_split("/\n{2,}/", $sql, -1, PREG_SPLIT_NO_EMPTY);
 
 		$statement = '';
-		$i = 0;
 
 		$dir = realpath(dirname($file));
 
