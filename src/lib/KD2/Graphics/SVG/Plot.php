@@ -197,14 +197,15 @@ class Plot
 
 		foreach ($this->data[0]->get() as $v)
 		{
-			if ($x >= $this->width)
+			if ($x >= $this->width) {
 				break;
+			}
 
 			$out .= sprintf('<line x1="%d" y1="%d" x2="%d" y2="%d" stroke-width="1" stroke="%s" />', $x, $y, $x, 2, !($i % $step) ? 'rgba(127, 127, 127, 0.5)' : 'rgba(127, 127, 127, 0.2)');
 
-			if (!($i % $step) && isset($this->labels[$i+1]))
+			if (!($i % $step) && isset($this->labels[$i]))
 			{
-				$label = $this->encodeText($this->labels[$i+1]);
+				$label = $this->encodeText($this->labels[$i]);
 				$anchor = $x >= ($this->width - ($column_width / 3)) ? 'end': 'middle';
 				$out .= sprintf('<g><text x="%f" y="%f" font-size="%s" fill="gray" text-anchor="%s" style="font-family: Verdana, Arial, sans-serif;">%s</text></g>' . PHP_EOL, $x, $y+($this->height * 0.05), $this->height * 0.04, $anchor, $label);
 			}
