@@ -30,8 +30,6 @@ use KD2\Graphics\Blob;
 
 class Image
 {
-	static private $init = false;
-
 	protected $libraries = [];
 
 	protected $path = null;
@@ -47,91 +45,83 @@ class Image
 	public $pointer = null;
 	protected $library = null;
 
-	public $use_gd_fast_resize_trick = true;
-	protected $close_pointer_quickly = false;
+	protected $options = [
+		'use_gd_fast_resize_trick' => true,
+		'close_pointer_quickly'    => false,
 
-	/**
-	 * WebP quality, from 0 to 100
-	 * @var integer
-	 */
-	public int $webp_quality = 80;
+		// WebP quality, from 0 to 100
+		'webp_quality'             => 80,
 
-	/**
-	 * JPEG quality, from 1 to 100
-	 * @var integer
-	 */
-	public $jpeg_quality = 90;
+		// JPEG quality, from 1 to 100
+		'jpeg_quality'             => 90,
 
-	/**
-	 * Progressive JPEG output?
-	 * Only supported by GD and Imagick!
-	 * You can also use the command line tool jpegtran (package libjpeg-progs)
-	 * to losslessly convert to and from progressive.
-	 * @var boolean
-	 */
-	public $progressive_jpeg = true;
+		// Progressive JPEG output?
+		// Only supported by GD and Imagick!
+		// You can also use the command line tool jpegtran (package libjpeg-progs)
+		// to losslessly convert to and from progressive.
+		'progressive_jpeg'         => true,
 
-	/**
-	 * LZW compression index, used by TIFF and PNG, from 0 to 9
-	 * @var integer
-	 */
-	public $compression = 9;
+		//LZW compression index, used by TIFF and PNG, from 0 to 9
+		'compression'              => 9,
+	];
 
-	public function __construct($path = null, $library = null)
+	public function __construct($image = null, $library_or_options = null)
 	{
 		$this->libraries = [
 			'imagick' => class_exists('\Imagick', false),
 			'gd'      => function_exists('\imagecreatefromjpeg'),
 		];
 
-		if (!self::$init)
-		{
-			if (empty($path))
-			{
-				throw new \InvalidArgumentException('Empty source file argument passed');
+		if (is_array($library_or_options)) {
+			foreach ($library_or_options as $key => $value) {
+				$this->__set($key, $value);
+			}
+		}
+		elseif (is_string($library_or_options)) {
+			$this->library = $library_or_options;
+		}
+
+		if ($this->library) {
+			if (!isset($this->libraries[$this->library])) {
+				throw new \InvalidArgumentException(sprintf('Library \'%s\' is not supported.', $this->library));
 			}
 
-			if (!is_readable($path))
-			{
-				throw new \InvalidArgumentException(sprintf('Can\'t read source file: %s', $path));
+			if (!$this->libraries[$this->library]) {
+				throw new \RuntimeException(sprintf('Library \'%s\' is not installed and can not be used.', $lthis->ibrary));
 			}
 		}
 
-		if ($library && !self::$init)
-		{
-			if (!isset($this->libraries[$library]))
-			{
-				throw new \InvalidArgumentException(sprintf('Library \'%s\' is not supported.', $library));
-			}
+		if (is_string($image)) {
+			$this->openFromPath($image);
+		}
+		elseif (is_resource($image)) {
+			$this->openFromPointer($image);
+		}
+	}
 
-			if (!$this->libraries[$library])
-			{
-				throw new \RuntimeException(sprintf('Library \'%s\' is not installed and can not be used.', $library));
-			}
+	public function __set($key, $value)
+	{
+		if (!array_key_exists($key, $this->options)) {
+			throw new \InvalidArgumentException('Unknown option: ' . $key);
 		}
 
-		if (!self::$init)
-		{
-			$this->path = $path;
+		if (gettype($value) !== gettype($this->$key)) {
+			throw new \InvalidArgumentException('Unknown option type: ' . gettype($value));
+		}
 
-			try {
-				$info = getimagesize($path);
-			}
-			catch (\Throwable $e) {
-				throw new \RuntimeException(sprintf('Invalid image format: %s (%s)', $path, $e->getMessage()), 0, $e);
-			}
+		$this->$key = $value;
+	}
 
-			if (!$info && function_exists('mime_content_type'))
-			{
-				$info = ['mime' => mime_content_type($path)];
-			}
-
-			if (!$info)
-			{
-				throw new \RuntimeException(sprintf('Invalid image format: %s', $path));
-			}
-
-			$this->init($info, $library);
+	public function __get($key)
+	{
+		if (property_exists($this, $key)) {
+			return $this->$key;
+		}
+		elseif (array_key_exists($key, $this->options)) {
+			return $this->options[$key];
+		}
+		else {
+			throw new \InvalidArgumentException('Unknown property/option: ' . $key);
 		}
 	}
 
@@ -174,7 +164,7 @@ class Image
 		return min($sizes);
 	}
 
-	protected function init(array $info, $library = null)
+	protected function init(array $info)
 	{
 		if (isset($info[0]))
 		{
@@ -190,68 +180,59 @@ class Image
 			throw new \RuntimeException('Not an image format: ' . $this->type);
 		}
 
-		if ($library)
-		{
-			$supported_formats = call_user_func([$this, $library . '_formats']);
+		if ($this->library) {
+			$supported_formats = call_user_func([$this, $this->library . '_formats']);
 
-			if (!in_array($this->format, $supported_formats))
-			{
-				throw new \RuntimeException(sprintf('Library \'%s\' doesn\'t support files of type \'%s\'.', $library, $this->type));
+			if (!in_array($this->format, $supported_formats)) {
+				throw new \RuntimeException(sprintf('Library \'%s\' doesn\'t support files of type \'%s\'.', $this->library, $this->type));
 			}
 		}
-		else
-		{
-			foreach ($this->libraries as $name => $enabled)
-			{
-				if (!$enabled)
-				{
-					continue;
-				}
+		else {
+			$this->library = $this->getLibraryForFormat($this->format);
 
-				$supported_formats = call_user_func([$this, $name . '_formats']);
-
-				if (in_array($this->format, $supported_formats))
-				{
-					$library = $name;
-					break;
-				}
-			}
-
-			if (!$library)
-			{
+			if (!$this->library) {
 				throw new \RuntimeException('No suitable image library found for type: ' . $this->type);
 			}
 		}
 
-		$this->library = $library;
-
-		if (!$this->width && !$this->height)
-		{
+		if (!$this->width && !$this->height) {
 			$this->open();
 		}
 	}
 
-	public function __get($key)
+	static public function createFromBlob($blob, $library = null): self
 	{
-		if (!property_exists($this, $key))
-		{
-			throw new \RuntimeException('Unknown property: ' . $key);
+		return new Image($blob, $library);
+	}
+
+	public function openFromPath(string $path): void
+	{
+		$this->path = $path;
+
+		if (!is_readable($this->path)) {
+			throw new \InvalidArgumentException(sprintf('Can\'t read source file: %s', $path));
 		}
 
-		return $this->$key;
+		try {
+			$info = getimagesize($this->path);
+		}
+		catch (\Throwable $e) {
+			throw new \RuntimeException(sprintf('Invalid image format: %s (%s)', $path, $e->getMessage()), 0, $e);
+		}
+
+		if (!$info && function_exists('mime_content_type')) {
+			$info = ['mime' => mime_content_type($path)];
+		}
+
+		if (!$info) {
+			throw new \RuntimeException(sprintf('Invalid image format: %s', $path));
+		}
+
+		$this->init($info);
 	}
 
-	public function __set($key, $value)
+	public function openFromBlob(string $data): void
 	{
-		$this->key = $value;
-	}
-
-	static public function createFromBlob($blob, $library = null)
-	{
-		// Trick to allow empty source in constructor
-		self::$init = true;
-		$obj = new Image(null, $library);
-
 		$info = getimagesizefromstring($blob);
 
 		// Find MIME type
@@ -263,21 +244,12 @@ class Image
 			throw new \RuntimeException('Invalid image format, couldn\'t be read: from string');
 		}
 
-		$obj->blob = $blob;
-		$obj->init($info, $library);
-
-		self::$init = false;
-
-		return $obj;
+		$this->blob = $blob;
+		$this->init($info);
 	}
 
-	static public function createFromPointer($pointer, $library = null, bool $close_pointer_quickly = false)
+	public function openFromPointer($pointer): void
 	{
-		// Trick to allow empty source in constructor
-		self::$init = true;
-		$obj = new Image(null, $library);
-		$obj->close_pointer_quickly = $close_pointer_quickly;
-
 		$blob = fread($pointer, 1024);
 		rewind($pointer);
 
@@ -291,12 +263,14 @@ class Image
 			throw new \RuntimeException('Invalid image format, couldn\'t be read: from string');
 		}
 
-		$obj->srcpointer = $pointer;
-		$obj->init($info, $library);
+		reset($pointer);
+		$this->srcpointer = $pointer;
+		$this->init($info);
+	}
 
-		self::$init = false;
-
-		return $obj;
+	static public function createFromPointer($pointer, ?string $library = null, bool $close_pointer_quickly = false): self
+	{
+		return new Image($pointer, $library, compact('close_pointer_quickly'));
 	}
 
 	static public function getTypeFromBlob(string $data): ?string
@@ -322,21 +296,33 @@ class Image
 	/**
 	 * Open an image file
 	 */
-	public function open()
+	public function open($image = null)
 	{
-		if ($this->pointer !== null)
-		{
+		if ($this->pointer !== null && null === $image) {
 			return true;
 		}
 
-		if ($this->path)
-		{
+		if (null !== $image) {
+			$this->close();
+
+			if (is_resource($image)) {
+				$this->openFromPointer($image);
+			}
+			elseif (is_string($image)) {
+				$this->path = $image;
+			}
+			else {
+				throw new \InvalidArgumentException('Invalid image source type');
+			}
+		}
+
+		if ($this->path) {
 			call_user_func([$this, $this->library . '_open']);
 		}
 		elseif ($this->srcpointer) {
 			call_user_func([$this, $this->library . '_open_pointer']);
 
-			if ($this->close_pointer_quickly) {
+			if ($this->options['close_pointer_quickly']) {
 				if ($this->format() == 'jpeg') {
 					$this->getOrientation();
 				}
@@ -345,8 +331,7 @@ class Image
 				//$this->srcpointer = null;
 			}
 		}
-		else
-		{
+		else {
 			call_user_func([$this, $this->library . '_blob'], $this->blob);
 			$this->blob = null;
 		}
@@ -361,7 +346,7 @@ class Image
 		return $this;
 	}
 
-	public function __destruct()
+	public function close(): void
 	{
 		$this->blob = null;
 		$this->path = null;
@@ -371,6 +356,11 @@ class Image
 		{
 			call_user_func([$this, $this->library . '_close']);
 		}
+	}
+
+	public function __destruct()
+	{
+		$this->close();
 	}
 
 	/**
@@ -568,10 +558,29 @@ class Image
 
 	public function getSupportedFormats(): array
 	{
+		if (!$this->library) {
+			$out = [];
+
+			foreach ($this->libraries as $name => $enabled) {
+				if (!$enabled) {
+					continue;
+				}
+
+				$out = array_merge($out, call_user_func([$this, $name . '_formats']));
+			}
+
+			return $out;
+		}
+
 		return call_user_func([$this, $this->library . '_formats']);
 	}
 
-	public function save($destination, $format = null)
+	public function canOpenFormat(string $format): bool
+	{
+		return in_array($format, $this->getSupportedFormats());
+	}
+
+	public function save(string $destination, $format = null)
 	{
 		$this->open();
 
@@ -677,9 +686,7 @@ class Image
 
 	static public function getLibrariesForFormat($format)
 	{
-		self::$init = true;
 		$im = new Image;
-		self::$init = false;
 
 		$libraries = [];
 
@@ -697,6 +704,22 @@ class Image
 		}
 
 		return $libraries;
+	}
+
+	public function getLibraryForFormat(string $format)
+	{
+		foreach ($this->libraries as $name => $enabled)
+		{
+			if (!$enabled) {
+				continue;
+			}
+
+			$supported_formats = call_user_func([$this, $name . '_formats']);
+
+			if (in_array($format, $supported_formats)) {
+				return $name;
+			}
+		}
 	}
 
 	/**
@@ -878,16 +901,16 @@ class Image
 		{
 			$this->pointer->setOption('png:compression-level', 9);
 			$this->pointer->setImageCompression(\Imagick::COMPRESSION_LZW);
-			$this->pointer->setImageCompressionQuality($this->compression * 10);
+			$this->pointer->setImageCompressionQuality($this->options['compression'] * 10);
 		}
 		elseif ($format == 'jpeg')
 		{
 			$this->pointer->setImageCompression(\Imagick::COMPRESSION_JPEG);
-			$this->pointer->setImageCompressionQuality($this->jpeg_quality);
-			$this->pointer->setInterlaceScheme($this->progressive_jpeg ? \Imagick::INTERLACE_PLANE : \Imagick::INTERLACE_NO);
+			$this->pointer->setImageCompressionQuality($this->options['jpeg_quality']);
+			$this->pointer->setInterlaceScheme($this->options['progressive_jpeg'] ? \Imagick::INTERLACE_PLANE : \Imagick::INTERLACE_NO);
 		}
 		elseif ($format == 'webp') {
-			$this->pointer->setImageCompressionQuality($this->webp_quality);
+			$this->pointer->setImageCompressionQuality($this->options['webp_quality']);
 		}
 
 		$this->pointer->stripImage();
@@ -909,17 +932,17 @@ class Image
 		{
 			$this->pointer->setOption('png:compression-level', 9);
 			$this->pointer->setImageCompression(\Imagick::COMPRESSION_LZW);
-			$this->pointer->setImageCompressionQuality($this->compression * 10);
+			$this->pointer->setImageCompressionQuality($this->options['compression'] * 10);
 			$this->pointer->stripImage();
 		}
 		else if ($format == 'jpeg')
 		{
 			$this->pointer->setImageCompression(\Imagick::COMPRESSION_JPEG);
-			$this->pointer->setImageCompressionQuality($this->jpeg_quality);
-			$this->pointer->setInterlaceScheme($this->progressive_jpeg ? \Imagick::INTERLACE_PLANE : \Imagick::INTERLACE_NO);
+			$this->pointer->setImageCompressionQuality($this->options['jpeg_quality']);
+			$this->pointer->setInterlaceScheme($this->options['progressive_jpeg'] ? \Imagick::INTERLACE_PLANE : \Imagick::INTERLACE_NO);
 		}
 		elseif ($format == 'webp') {
-			$this->pointer->setImageCompressionQuality($this->webp_quality);
+			$this->pointer->setImageCompressionQuality($this->options['webp_quality']);
 		}
 
 		if ($format == 'gif' && $this->pointer->getNumberImages() > 1) {
@@ -1101,19 +1124,19 @@ class Image
 	{
 		if ($format == 'jpeg')
 		{
-			imageinterlace($this->pointer, (int)$this->progressive_jpeg);
+			imageinterlace($this->pointer, (int)$this->options['progressive_jpeg']);
 		}
 
 		switch ($format)
 		{
 			case 'png':
-				return imagepng($this->pointer, $destination, $this->compression, PNG_NO_FILTER);
+				return imagepng($this->pointer, $destination, $this->options['compression'], PNG_NO_FILTER);
 			case 'gif':
 				return imagegif($this->pointer, $destination);
 			case 'jpeg':
-				return imagejpeg($this->pointer, $destination, $this->jpeg_quality);
+				return imagejpeg($this->pointer, $destination, $this->options['jpeg_quality']);
 			case 'webp':
-				return imagewebp($this->pointer, $destination, $this->webp_quality);
+				return imagewebp($this->pointer, $destination, $this->options['webp_quality']);
 			default:
 				throw new \InvalidArgumentException('Image format ' . $format . ' is unknown.');
 		}
@@ -1181,8 +1204,7 @@ class Image
 
 		$new = $this->gd_create((int)$new_width, (int)$new_height);
 
-		if ($this->use_gd_fast_resize_trick)
-		{
+		if ($this->options['use_gd_fast_resize_trick']) {
 			$this->gd_fastimagecopyresampled($new, $this->pointer, 0, 0, 0, 0, (int)$new_width, (int)$new_height, $this->width, $this->height, 2);
 		}
 		else
