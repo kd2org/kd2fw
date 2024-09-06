@@ -335,6 +335,12 @@ class Markdown extends Parsedown
 			$block['element']['rawHtml'] = $this->callExtension($block['ext_name'], true, $block['ext_params'], rtrim($block['ext_content']));
 		}
 		else {
+			// Restore empty lines
+			if (isset($block['interrupted'])) {
+				$block['ext_content'] .= str_repeat("\n", $block['interrupted']);
+				unset($block['interrupted']);
+			}
+
 			$block['ext_content'] .= $line['body'] . "\n";
 		}
 
