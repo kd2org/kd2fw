@@ -58,6 +58,8 @@ class Markdown extends Parsedown
 	public $allowed_inline_tags = self::DEFAULT_INLINE_TAGS;
 	public $allowed_block_tags = self::DEFAULT_BLOCK_TAGS;
 
+	protected $ext_level = 0;
+
 	public function registerExtension(string $tag, ?callable $callback): void
 	{
 		if (null === $callback) {
@@ -304,16 +306,21 @@ class Markdown extends Parsedown
 	{
 		$line = $line['text'];
 
-		if (strpos($line, '<<') === 0 && preg_match('/^<<<?(\/?[a-z][a-z0-9_]*)((?:(?!>>>?).)*?)(>>>?$|$)/ism', trim($line), $match)) {
-			$text = $match[3] ? $this->callExtension($match[1], true, $match[2]) : '';
+		if (strpos($line, '<<') === 0
+			&& preg_match('/^<<<?(\/?[a-z][a-z0-9_]*)((?:(?!>>>?).)*?)(>>>?$|$)/ism', trim($line), $match)) {
+			$closed = !empty($match[3]);
+
+			// Count levels of extensions inside extensions
+			$this->ext_level += intval(!$closed);
+
+			$text = $closed ? $this->callExtension($match[1], true, $match[2]) : '';
 
 			return [
 				'char'       => $line[0],
 				'ext_name'   => $match[1],
 				'ext_params' => $match[2],
 				'ext_content' => '',
-				'complete'   => $match[3] ? false : true,
-				'closed'     => $match[3] ? true : false,
+				'closed'     => $closed,
 				'element'    => [
 					'rawHtml'                => $text,
 					'allowRawHtmlInSafeMode' => true,
@@ -330,11 +337,18 @@ class Markdown extends Parsedown
 			return null;
 		}
 
-		if (strpos($line['text'], '>>') !== false) {
+		// Only close an extension if the closing >> is the last one encountered
+		if (strpos($line['text'], '>>') === 0
+			&& --$this->ext_level === 0) {
 			$block['closed'] = true;
 			$block['element']['rawHtml'] = $this->callExtension($block['ext_name'], true, $block['ext_params'], rtrim($block['ext_content']));
 		}
 		else {
+			// Count levels of extensions inside extensions
+			if (strpos($line['text'], '<<') === 0) {
+				$this->ext_level++;
+			}
+
 			// Restore empty lines
 			if (isset($block['interrupted'])) {
 				$block['ext_content'] .= str_repeat("\n", $block['interrupted']);
