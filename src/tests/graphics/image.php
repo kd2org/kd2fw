@@ -39,6 +39,7 @@ foreach ($images as $name => $size)
 		test_thumb(ROOT . $name, $lib);
 		test_rotate(ROOT . $name, $lib, $size[2]);
 		test_crop(ROOT . $name, $lib, $size[1], $size[2]);
+		test_crop_blob(ROOT . $name, $lib, $size[1], $size[2]);
 	}
 }
 
@@ -47,20 +48,17 @@ function test_rotate($src, $lib, $o) {
 
 	Test::equals($o, $im->getOrientation());
 
-	if ($lib != 'epeg')
+	if ($o)
 	{
-		if ($o)
-		{
-			Test::assert($im->autoRotate() instanceof Image);
-		}
-		else {
-			Test::assert($im->rotate(90) instanceof Image);
-			Test::assert($im->flip() instanceof Image);
-		}
-
-		$dest = sprintf(ROOT . 'result/%s/rotate_%s', $lib, basename($src));
-		Test::equals(true, $im->save($dest));
+		Test::assert($im->autoRotate() instanceof Image);
 	}
+	else {
+		Test::assert($im->rotate(90) instanceof Image);
+		Test::assert($im->flip() instanceof Image);
+	}
+
+	$dest = sprintf(ROOT . 'result/%s/rotate_%s', $lib, basename($src));
+	Test::equals(true, $im->save($dest));
 }
 
 function test_resize($src, $lib, $w, $h)
@@ -100,12 +98,18 @@ function test_thumb($src, $lib)
 
 function test_crop($src, $lib)
 {
-	if ($lib == 'epeg')
-	{
-		return;
-	}
-
 	$im = new Image($src, $lib);
+	Test::assert($im->crop(32, 32) instanceof Image);
+	Test::equals(32, $im->width);
+	Test::equals(32, $im->height);
+
+	$dest = sprintf(ROOT . 'result/%s/crop_%s', $lib, basename($src));
+	Test::equals(true, $im->save($dest));
+}
+
+function test_crop_blob($src, $lib)
+{
+	$im = Image::createFromBlob(file_get_contents($src), $lib);
 	Test::assert($im->crop(32, 32) instanceof Image);
 	Test::equals(32, $im->width);
 	Test::equals(32, $im->height);
