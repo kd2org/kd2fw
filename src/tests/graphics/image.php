@@ -40,6 +40,7 @@ foreach ($images as $name => $size)
 		test_rotate(ROOT . $name, $lib, $size[2]);
 		test_crop(ROOT . $name, $lib, $size[1], $size[2]);
 		test_crop_blob(ROOT . $name, $lib, $size[1], $size[2]);
+		test_crop_pointer(ROOT . $name, $lib, $size[1], $size[2]);
 	}
 }
 
@@ -110,6 +111,17 @@ function test_crop($src, $lib)
 function test_crop_blob($src, $lib)
 {
 	$im = Image::createFromBlob(file_get_contents($src), $lib);
+	Test::assert($im->crop(32, 32) instanceof Image);
+	Test::equals(32, $im->width);
+	Test::equals(32, $im->height);
+
+	$dest = sprintf(ROOT . 'result/%s/crop_%s', $lib, basename($src));
+	Test::equals(true, $im->save($dest));
+}
+
+function test_crop_pointer($src, $lib)
+{
+	$im = Image::createFromPointer(fopen($src, 'rb'), $lib);
 	Test::assert($im->crop(32, 32) instanceof Image);
 	Test::equals(32, $im->width);
 	Test::equals(32, $im->height);
