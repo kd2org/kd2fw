@@ -265,7 +265,6 @@ class Image
 			throw new \UnexpectedValueException('Invalid image format, couldn\'t be read: from string');
 		}
 
-		reset($pointer);
 		$this->srcpointer = $pointer;
 		$this->init($info);
 	}
