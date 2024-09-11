@@ -184,14 +184,14 @@ class Image
 			$supported_formats = call_user_func([$this, $this->library . '_formats']);
 
 			if (!in_array($this->format, $supported_formats)) {
-				throw new \RuntimeException(sprintf('Library \'%s\' doesn\'t support files of type \'%s\'.', $this->library, $this->type));
+				throw new \UnexpectedValueException(sprintf('Library \'%s\' doesn\'t support files of type \'%s\'.', $this->library, $this->type));
 			}
 		}
 		else {
 			$this->library = $this->getLibraryForFormat($this->format);
 
 			if (!$this->library) {
-				throw new \RuntimeException('No suitable image library found for type: ' . $this->type);
+				throw new \UnexpectedValueException('No suitable image library found for type: ' . $this->type);
 			}
 		}
 
@@ -202,7 +202,9 @@ class Image
 
 	static public function createFromBlob($blob, $library = null): self
 	{
-		return new Image($blob, $library);
+		$i = new Image(null, $library);
+		$i->openFromBlob($blob);
+		return $i;
 	}
 
 	public function openFromPath(string $path): void
@@ -210,14 +212,14 @@ class Image
 		$this->path = $path;
 
 		if (!is_readable($this->path)) {
-			throw new \InvalidArgumentException(sprintf('Can\'t read source file: %s', $path));
+			throw new \InvalidArgumentException(sprintf('Can\'t read source file: %s', substr($path, 0, 256)));
 		}
 
 		try {
 			$info = getimagesize($this->path);
 		}
 		catch (\Throwable $e) {
-			throw new \RuntimeException(sprintf('Invalid image format: %s (%s)', $path, $e->getMessage()), 0, $e);
+			throw new \UnexpectedValueException(sprintf('Invalid image format: %s (%s)', $path, $e->getMessage()), 0, $e);
 		}
 
 		if (!$info && function_exists('mime_content_type')) {
@@ -225,7 +227,7 @@ class Image
 		}
 
 		if (!$info) {
-			throw new \RuntimeException(sprintf('Invalid image format: %s', $path));
+			throw new \UnexpectedValueException(sprintf('Invalid image format: %s', $path));
 		}
 
 		$this->init($info);
@@ -233,18 +235,18 @@ class Image
 
 	public function openFromBlob(string $data): void
 	{
-		$info = getimagesizefromstring($blob);
+		$info = getimagesizefromstring($data);
 
 		// Find MIME type
 		if (!$info) {
-			$info = ['mime' => self::getTypeFromBlob($blob)];
+			$info = ['mime' => self::getTypeFromBlob($data)];
 		}
 
 		if (!$info) {
-			throw new \RuntimeException('Invalid image format, couldn\'t be read: from string');
+			throw new \UnexpectedValueException('Invalid image format, couldn\'t be read: from string');
 		}
 
-		$this->blob = $blob;
+		$this->blob = $data;
 		$this->init($info);
 	}
 
@@ -260,7 +262,7 @@ class Image
 		}
 
 		if (!$info) {
-			throw new \RuntimeException('Invalid image format, couldn\'t be read: from string');
+			throw new \UnexpectedValueException('Invalid image format, couldn\'t be read: from string');
 		}
 
 		reset($pointer);
@@ -338,7 +340,7 @@ class Image
 
 		if (!$this->pointer)
 		{
-			throw new \RuntimeException('Invalid image format, couldn\'t be read: ' . $this->path);
+			throw new \UnexpectedValueException('Invalid image format, couldn\'t be read: ' . $this->path);
 		}
 
 		call_user_func([$this, $this->library . '_size']);
