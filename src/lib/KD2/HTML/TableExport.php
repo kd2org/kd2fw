@@ -10,29 +10,21 @@ class TableExport
 {
 	static public function download(string $format, string $name, string $html, string $css): void
 	{
-		if ('ods' == $format) {
-			header('Content-type: application/vnd.oasis.opendocument.spreadsheet');
-			header(sprintf('Content-Disposition: attachment; filename="%s.ods"', $name));
-
-			self::toODS('php://output', $html, $css, $name);
+		if ('ods' === $format) {
+			self::ODS($html, $css, $name)->download($name);
 		}
-		elseif ('xlsx' == $format) {
-			header('Content-type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-			header(sprintf('Content-Disposition: attachment; filename="%s.xlsx"', $name));
-
-			self::toXLSX('php://output', $html, $css, $name);
+		elseif ('xlsx' === $format) {
+			self::XLSX($html, $css, $name)->download($name);
 		}
-		elseif ('csv' == $format) {
-			header('Content-type: application/csv');
-			header(sprintf('Content-Disposition: attachment; filename="%s.csv"', $name));
-			self::toCSV('php://output', $html);
+		elseif ('csv' === $format) {
+			self::CSV($html)->download($name);
 		}
 		else {
 			throw new \InvalidArgumentException('Invalid format: ' . $format);
 		}
 	}
 
-	static public function toODS(string $output, string $html, string $css, ?string $title = null): void
+	static public function ODS(string $html, string $css, ?string $title = null): TableToODS
 	{
 		$ods = new TableToODS;
 
@@ -41,10 +33,15 @@ class TableExport
 		}
 
 		$ods->import($html, $css);
-		$ods->save($output);
+		return $ods;
 	}
 
-	static public function toXLSX(string $output, string $html, string $css, ?string $title = null): void
+	static public function toODS(string $output, string $html, string $css, ?string $title = null): void
+	{
+		self::ods($html, $css, $title)->save($output);
+	}
+
+	static public function XLSX(string $html, string $css, ?string $title = null): TableToXLSX
 	{
 		$x = new TableToXLSX;
 
@@ -53,13 +50,23 @@ class TableExport
 		}
 
 		$x->import($html, $css);
-		$x->save($output);
+		return $x;
+	}
+
+	static public function toXLSX(string $output, string $html, string $css, ?string $title = null): void
+	{
+		self::XLSX($html, $css, $title)->save($output);
+	}
+
+	static public function CSV(string $html): TableToCSV
+	{
+		$csv = new TableToCSV;
+		$csv->import($html);
+		return $csv;
 	}
 
 	static public function toCSV(string $output, string $html): void
 	{
-		$csv = new TableToCSV;
-		$csv->import($html);
-		$csv->save($output);
+		self::CSV($html)->save($output);
 	}
 }

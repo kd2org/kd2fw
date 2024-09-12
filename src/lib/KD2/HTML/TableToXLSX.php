@@ -61,6 +61,9 @@ class TableToXLSX extends TableToODS
 
 	const XML_HEADER = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
 
+	const MIME_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+	const EXTENSION = 'xlsx';
+
 	public function openTable(string $sheet_name, array $styles = []): void
 	{
 		$this->xml = self::XML_HEADER;
@@ -175,44 +178,50 @@ class TableToXLSX extends TableToODS
 			$cell = sprintf('<c r="%s" s="%d" />', $this->cellName(), $s);
 		}
 		else {
-			$type = !empty($attributes['type']) ? $attributes['type'] : ($styles['-spreadsheet-cell-type'] ?? null);
-			$type = $this->getCellType($value, $type);
+			$date = null;
+			$number_value = null;
+			$type = $this->getCellType($value, $attributes, $styles, $date, $number_value);
 
 			// Use real type in styles, useful to set the correct style
 			$styles['-spreadsheet-cell-type'] = $type;
 
-			// Remove space and non-breaking space
-			$number_value = str_replace([' ', "\xC2\xA0"], '', $attributes['number'] ?? $value);
-
-			if (preg_match('/^[+-]?\d+(?:[,.]\d+)?$/', $number_value)) {
-				$number_value = str_replace(',', '.', $number_value);
-				$number_value = str_replace('+', '', $number_value);
-			}
-			else {
-				$number_value = null;
-			}
-
-			if ($type == 'date'
-				&& ($date = strtotime($attributes['date'] ?? $value)))
-			{
-				$format = !intval(date('His', $date)) ? 'Y-m-d' : 'Y-m-d\TH:i:s';
-				$value = date($format, $date);
-				$t = 'd';
-				$s = 1;
-			}
-			elseif ($type == 'percentage' && null !== $number_value) {
+			// See styles.xml <cellXfs> for $s number
+			if ($type === 'date') {
+				// Cannot use ISO dates as Gnumeric does not read them
+				// https://www.ericwhite.com/blog/dates-in-strict-spreadsheetml-files/
+				//$t = 'd';
 				$t = 'n';
+
+				// Use number of days since January 1, 1900
+				// https://www.ericwhite.com/blog/dates-in-spreadsheetml/
+				$d = strtotime($date);
+				$value = juliantojd(date('m', $d), date('d', $d), date('Y', $d)) - juliantojd(1, 1, 1900);
+
+				// Add a one day, as 1900 is incorrectly considered as a leap-year
+				$value += 1;
+
+				if (date('His', $d) !== '000000') {
+					$s = 4;
+					// Add hours, minutes, and seconds
+					$value += (date('H', $d) + (date('i', $d) + (date('s', $d) / 60)) / 60) / 24;
+				}
+				else {
+					$s = 1;
+				}
+			}
+			elseif ($type === 'percentage') {
 				$value = $number_value / 100;
+				$t = 'n';
 				$s = 3;
 			}
-			elseif ($type == 'number' && null !== $number_value) {
-				$t = 'n';
+			elseif ($type === 'number') {
 				$value = $number_value;
+				$t = 'n';
 				$s = 0;
 			}
-			elseif ($type == 'currency' && null !== $number_value) {
-				$t = 'n';
+			elseif ($type === 'currency') {
 				$value = $number_value;
+				$t = 'n';
 				$s = 2;
 			}
 			else {
@@ -243,12 +252,18 @@ class TableToXLSX extends TableToODS
 				$cell .= '<is>';
 			}
 
-			$value = explode("\n", $value);
+			if ($type === 'date') {
+				// Calculate cell width from formatted date, not from fake Excel number
+				$value = [$date];
+			}
+			else {
+				$value = explode("\n", $value);
+			}
+
 			$column_width = 0;
 
-			foreach ($value as $line)
-			{
-				if (!$colspan) {
+			foreach ($value as $line) {
+				if ($colspan === 0 || $colspan === 1) {
 					$cell_width = $this->getCellWidth($line, $styles);
 
 					if ($cell_width > $column_width) {
@@ -394,6 +409,7 @@ class TableToXLSX extends TableToODS
 				<numFmt numFmtId="165" formatCode="dd/mm/yy"/>
 				<numFmt numFmtId="166" formatCode="#,##0.00\ [$€-40C];[RED]\-#,##0.00\ [$€-40C]"/>
 				<numFmt numFmtId="167" formatCode="0.00\ %"/>
+				<numFmt numFmtId="168" formatCode="dd/mm/yy\ hh:mm"/>
 			</numFmts>
 			<fonts count="4">
 				<font>
@@ -435,10 +451,7 @@ class TableToXLSX extends TableToODS
 				</border>
 			</borders>
 			<cellStyleXfs count="20">
-				<xf applyAlignment="true" applyBorder="true" applyFont="true" applyProtection="true" borderId="0" fillId="0" fontId="0" numFmtId="164">
-					<alignment horizontal="general" indent="0" shrinkToFit="false" textRotation="0" vertical="bottom" wrapText="false"/>
-					<protection hidden="false" locked="true"/>
-				</xf>
+				<xf applyAlignment="true" applyBorder="true" applyFont="true" applyProtection="true" borderId="0" fillId="0" fontId="0" numFmtId="164"><alignment horizontal="general" indent="0" shrinkToFit="false" textRotation="0" vertical="bottom" wrapText="false"/><protection hidden="false" locked="true"/></xf>
 				<xf applyAlignment="false" applyBorder="false" applyFont="true" applyProtection="false" borderId="0" fillId="0" fontId="1" numFmtId="0"/>
 				<xf applyAlignment="false" applyBorder="false" applyFont="true" applyProtection="false" borderId="0" fillId="0" fontId="1" numFmtId="0"/>
 				<xf applyAlignment="false" applyBorder="false" applyFont="true" applyProtection="false" borderId="0" fillId="0" fontId="2" numFmtId="0"/>
@@ -456,9 +469,10 @@ class TableToXLSX extends TableToODS
 				<xf applyAlignment="false" applyBorder="false" applyFont="true" applyProtection="false" borderId="0" fillId="0" fontId="1" numFmtId="43"/>
 				<xf applyAlignment="false" applyBorder="false" applyFont="true" applyProtection="false" borderId="0" fillId="0" fontId="1" numFmtId="41"/>
 				<xf applyAlignment="false" applyBorder="false" applyFont="true" applyProtection="false" borderId="0" fillId="0" fontId="1" numFmtId="44"/>
+				<xf applyAlignment="false" applyBorder="false" applyFont="true" applyProtection="false" borderId="0" fillId="0" fontId="1" numFmtId="42"/>
 				<xf applyAlignment="false" applyBorder="false" applyFont="true" applyProtection="false" borderId="0" fillId="0" fontId="1" numFmtId="9"/>
 			</cellStyleXfs>
-			<cellXfs count="4">
+			<cellXfs count="5">
 				<xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyFont="false" applyBorder="false" applyAlignment="false" applyProtection="false">
 					<alignment horizontal="general" vertical="top" textRotation="0" wrapText="false" indent="0" shrinkToFit="false"/>
 					<protection locked="true" hidden="false"/>
@@ -472,6 +486,10 @@ class TableToXLSX extends TableToODS
 					<protection locked="true" hidden="false"/>
 				</xf>
 				<xf numFmtId="167" fontId="0" fillId="0" borderId="0" xfId="0" applyFont="false" applyBorder="false" applyAlignment="false" applyProtection="false">
+					<alignment horizontal="general" vertical="top" textRotation="0" wrapText="false" indent="0" shrinkToFit="false"/>
+					<protection locked="true" hidden="false"/>
+				</xf>
+				<xf numFmtId="168" fontId="0" fillId="0" borderId="0" xfId="0" applyFont="false" applyBorder="false" applyAlignment="false" applyProtection="false">
 					<alignment horizontal="general" vertical="top" textRotation="0" wrapText="false" indent="0" shrinkToFit="false"/>
 					<protection locked="true" hidden="false"/>
 				</xf>

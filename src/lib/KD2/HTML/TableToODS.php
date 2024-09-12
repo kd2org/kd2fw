@@ -71,7 +71,7 @@ use DOMNode;
 	You should have received a copy of the GNU Affero General Public License
 	along with this software.  If not, see <https://www.gnu.org/licenses/>.
 */
-class TableToODS
+class TableToODS extends AbstractTable
 {
 	protected array $styles = [];
 	protected array $rows = [];
@@ -82,6 +82,9 @@ class TableToODS
 
 	public string $default_sheet_name = 'Sheet%d';
 	public string $default_locale = 'fr_FR';
+
+	const EXTENSION = 'ods';
+	const MIME_TYPE = 'application/vnd.oasis.opendocument.spreadsheet';
 
 	const XML_HEADER = '<?xml version="1.0" encoding="UTF-8"?>';
 
@@ -207,32 +210,45 @@ class TableToODS
 	}
 
 	/**
-	 * Create a new table from a Generator, instead of parsing HTML
+	 * Create a new table from an array or iterable object, instead of parsing HTML
 	 */
-	public function add(\Generator $iterator, string $sheet_name = null, array $table_styles = [])
+	public function addTable(iterable $iterator, string $sheet_name = null, array $table_styles = []): void
 	{
 		$this->openTable($sheet_name, $table_styles);
 
 		foreach ($iterator as $row) {
 			$row_styles = array_merge($table_styles, $row['styles'] ?? []);
-			$this->openRow($row_styles);
+			unset($row['styles']);
 
-			foreach ($row as $key => $cell) {
-				if ($key === 'styles') {
-					continue;
-				}
-
-				$cell_styles = array_merge($row_styles, $cell['styles'] ?? []);
-
-				$this->appendCell($cell['value'] ?? $cell, $cell['html'] ?? null, $cell_styles, $cell['attributes'] ?? []);
-			}
-
-			$this->closeRow();
+			$this->addRow($row, $row_styles);
 		}
 
 		$this->closeTable();
 	}
 
+	public function addRow(iterable $row, array $row_styles = []): void
+	{
+		$this->openRow($row_styles);
+
+		foreach ($row as $key => $cell) {
+			if (is_object($cell) && $cell instanceof \DateTimeInterface) {
+				$cell = [
+					'attributes' => [
+						'type' => 'date',
+						'date' => $cell->format(\DATE_ISO8601),
+					],
+					'value' => $cell->format(!intval($cell->format('His')) ? 'Y-m-d' : 'Y-m-d H:i:s'),
+				];
+			}
+
+			$cell ??= '';
+			$cell_styles = array_merge($row_styles, $cell['styles'] ?? []);
+
+			$this->appendCell($cell['value'] ?? $cell, $cell['html'] ?? null, $cell_styles, $cell['attributes'] ?? []);
+		}
+
+		$this->closeRow();
+	}
 
 	public function openTable(string $sheet_name, array $styles = []): void
 	{
@@ -303,9 +319,11 @@ class TableToODS
 			$this->col_index++;
 		}
 
+		$date = null;
+		$number_value = null;
+
 		$value = trim($value);
-		$type = !empty($attributes['type']) ? $attributes['type'] : ($styles['-spreadsheet-cell-type'] ?? null);
-		$type = $this->getCellType($value, $type);
+		$type = $this->getCellType($value, $attributes, $styles, $date, $number_value);
 
 		// Use real type in styles, useful to set the correct style
 		$styles['-spreadsheet-cell-type'] = $type;
@@ -341,31 +359,17 @@ class TableToODS
 			$cell .= '>';
 		}
 		else {
-			// Remove space and non-breaking space
-			$number_value = str_replace([' ', "\xC2\xA0"], '', $attributes['number'] ?? $value);
-
-			if (preg_match('/^[+-]?\d+(?:[,.]\d+)?$/', $number_value)) {
-				$number_value = str_replace(',', '.', $number_value);
-				$number_value = str_replace('+', '', $number_value);
+			if ($type === 'date') {
+				$cell .= sprintf(' calcext:value-type="date" office:date-value="%s" office:value-type="date" ', $date);
 			}
-			else {
-				$number_value = null;
-			}
-
-			if ($type == 'date'
-				&& ($date = strtotime($attributes['date'] ?? $value)))
-			{
-				$format = !intval(date('His', $date)) ? 'Y-m-d' : 'Y-m-d\TH:i:s';
-				$cell .= sprintf(' calcext:value-type="date" office:date-value="%s" office:value-type="date" ', date($format, $date));
-			}
-			elseif ($type == 'percentage' && null !== $number_value) {
+			elseif ($type === 'percentage') {
 				$cell .= sprintf(' office:value-type="percentage" office:value="%f" calcext:value-type="percentage"', $number_value / 100);
 			}
-			elseif ($type == 'currency' && null !== $number_value) {
+			elseif ($type === 'currency') {
 				$currency = $styles['-spreadsheet-currency'] ?? 'EUR';
 				$cell .= sprintf(' office:value-type="currency" office:currency="%s" office:value="%f" calcext:value-type="currency"', $currency, $number_value);
 			}
-			elseif ($type == 'number' && null !== $number_value) {
+			elseif ($type === 'number') {
 				$cell .= sprintf(' calcext:value-type="float" office:value="%f" office:value-type="float"', $number_value);
 			}
 			else {
@@ -395,7 +399,7 @@ class TableToODS
 			{
 				$cell .= sprintf('<text:p>%s</text:p>', htmlspecialchars($line, ENT_XML1, 'UTF-8'));
 
-				if (!$colspan) {
+				if ($colspan === 1 || $colspan === 0) {
 					$cell_width = $this->getCellWidth($line, $styles);
 
 					if ($cell_width > $column_width) {
@@ -459,32 +463,64 @@ class TableToODS
 		$this->closeTable();
 	}
 
-	protected function getCellType(string $value, ?string $type = null)
+	protected function getCellType(string $value, ?array $attributes, ?array $styles, string &$date = null, string &$number_value = null)
 	{
-		if ($type && $type != 'auto') {
-			return $type;
+		$type = !empty($attributes['type']) ? $attributes['type'] : ($styles['-spreadsheet-cell-type'] ?? null);
+
+		if (!$type || $type === 'auto') {
+			$number_value = str_replace([' ', "\xC2\xA0"], '', trim($value));
+
+			if (is_object($value) && $value instanceof \DateTimeInterface) {
+				$type = 'date';
+			}
+			elseif (is_int($value) || is_float($value)) {
+				$type = 'number';
+				$number_value = $value;
+			}
+			elseif (is_string($value)
+				&& preg_match('/^[+-]?(\d+)(?:[,.]\d+)$/', $number_value, $match)
+				&& ($match[1] == 0 || substr($match[1], 0, 1) !== '0')) {
+				$type = 'number';
+			}
+			elseif (preg_match('!^(?:\d\d?/\d\d?/\d\d(?:\d\d)?|\d{4}-\d{2}-\d{2})(?:\s+\d\d?[:\.]\d\d?(?:[:\.]\d\d?))?$!', $value)) {
+				$type = 'date';
+			}
+			elseif (preg_match('/^-?\d+(?:[,.]\d+)?\s*%$/', $number_value)) {
+				$type = 'percentage';
+			}
+			elseif (preg_match('/^-?\d+(?:[,.]\d+)?\s*(?:€|\$|EUR|CHF|USD|AUD|NZD)$/', $number_value)) {
+				$type = 'currency';
+			}
+			else {
+				$type = 'string';
+			}
 		}
 
-		$number_value = str_replace([' ', "\xC2\xA0"], '', trim($value));
+		// Check for valid date
+		if ($type === 'date') {
+			if ($date = strtotime($attributes['date'] ?? $value)) {
+				$format = !intval(date('His', $date)) ? 'Y-m-d' : 'Y-m-d\TH:i:s';
+				$date = date($format, $date);
+			}
+			else {
+				$type = 'string';
+			}
+		}
+		// Check for valid number
+		elseif ($type === 'percentage' || $type === 'number' || $type === 'currency') {
+			// Remove space and non-breaking space
+			$number_value = str_replace([' ', "\xC2\xA0"], '', $attributes['number'] ?? $value);
 
-		if (is_object($value) && $value instanceof \DateTimeInterface) {
-			return 'date';
-		}
-		elseif (is_int($value) || is_float($value)
-			|| (preg_match('/^-?(\d+)(?:[,.]\d+)?$/', (string) $number_value, $match) && ($match[1] == 0 || substr($match[1], 0, 1) != '0'))) {
-			return 'number';
-		}
-		elseif (preg_match('!^(?:\d\d?/\d\d?/\d\d(?:\d\d)?|\d{4}-\d{2}-\d{2})(?:\s+\d\d?[:\.]\d\d?(?:[:\.]\d\d?))?$!', $value)) {
-			return 'date';
-		}
-		elseif (preg_match('/^-?\d+(?:[,.]\d+)?\s*%$/', $number_value)) {
-			return 'percentage';
-		}
-		elseif (preg_match('/^-?\d+(?:[,.]\d+)?\s*(?:€|\$|EUR|CHF)$/', $number_value)) {
-			return 'currency';
+			if (preg_match('/^[+-]?\d+(?:[,.]\d+)?$/', $number_value)) {
+				$number_value = str_replace(',', '.', $number_value);
+				$number_value = str_replace('+', '', $number_value);
+			}
+			else {
+				$type = 'string';
+			}
 		}
 
-		return 'string';
+		return $type;
 	}
 
 	public function save(string $filename): void
@@ -512,7 +548,7 @@ class TableToODS
 		}
 
 		$z = new ZipWriter($destination);
-		$z->add('mimetype', 'application/vnd.oasis.opendocument.spreadsheet');
+		$z->add('mimetype', self::MIME_TYPE);
 		$z->setCompression(9);
 		$z->add('settings.xml', self::XML_HEADER . '<office:document-settings office:version="1.3" xmlns:config="urn:oasis:names:tc:opendocument:xmlns:config:1.0" xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:ooo="http://openoffice.org/2004/office" xmlns:xlink="http://www.w3.org/1999/xlink"></office:document-settings>');
 		$z->add('content.xml', $this->XML());
@@ -944,10 +980,10 @@ class TableToODS
 		$size = strtolower($size);
 		$v = preg_replace('/[^0-9]+/', '', $size);
 
-		if (substr($size, -2) == 'px') {
+		if (substr($size, -2) === 'px') {
 			return (int) ceil($v * 1.25);
 		}
 
-		return (int) $size;
+		return (int) $v;
 	}
 }

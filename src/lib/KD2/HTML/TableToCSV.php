@@ -17,12 +17,64 @@ use DOMXPath;
  *
  * @author bohwaz <https://bohwaz.net/>
  */
-class TableToCSV
+class TableToCSV extends AbstractTable
 {
-	protected array $rows = [];
-	protected string $csv = '';
+	const MIME_TYPE = 'application/csv';
+	const EXTENSION = 'csv';
 
-	public function import(string $html): void
+	protected array $rows = [];
+	protected string $separator = ',';
+	protected string $quote = '"';
+	protected string $short_date_format = 'Y-m-d';
+	protected string $long_date_format = 'Y-m-d H:i:s';
+
+	public function addTable(iterable $iterator, string $sheet_name = null, array $table_styles = []): void
+	{
+		foreach ($iterator as $row) {
+			$this->addRow($row);
+		}
+	}
+
+	public function openTable(string $sheet_name, array $styles = []): void
+	{
+	}
+
+	public function closeTable(): void
+	{
+	}
+
+	public function addRow(iterable $row, array $row_styles = []): void
+	{
+		$c = 0;
+		$r = count($this->rows);
+		$this->rows[$r] = [];
+
+		foreach ($row as $cell) {
+			$this->rows[$r][$c++] = $this->getCellValue($cell);
+		}
+	}
+
+	public function setShortDateFormat(string $format): void
+	{
+		$this->short_date_format = $format;
+	}
+
+	public function setLongDateFormat(string $format): void
+	{
+		$this->long_date_format = $format;
+	}
+
+	public function setSeparator(string $separator): void
+	{
+		$this->separator = $separator;
+	}
+
+	public function setQuote(string $quote): void
+	{
+		$this->quote = $quote;
+	}
+
+	public function import(string $html, ?string $css = null): void
 	{
 		libxml_use_internal_errors(true);
 
@@ -36,15 +88,9 @@ class TableToCSV
 		$this->rows = [];
 
 		foreach ($this->xpath($doc, './/table') as $i => $table) {
-			$this->add($table, $i);
+			$this->importTable($table);
 			break; // We only support the first table currently
 		}
-
-		foreach ($this->rows as $row) {
-			$this->csv .= implode(',', $row) . PHP_EOL;
-		}
-
-		$this->rows = [];
 
 		unset($doc);
 	}
@@ -65,7 +111,42 @@ class TableToCSV
 		return $result;
 	}
 
-	protected function add(DOMNode $table, int $count): void
+	protected function getCellValue($value, ?DOMNode $cell = null): string
+	{
+		if (!is_string($value) && $value instanceof \DateTimeInterface) {
+			$value = $value->format($value->format('His') === '000000' ? $this->short_date_format : $this->long_date_format);
+		}
+
+		// Remove space and non-breaking space from number value
+		if ($cell && $cell->hasAttribute('data-spreadsheet-value')) {
+			$number_value = $cell->getAttribute('data-spreadsheet-value');
+		}
+		else {
+			$number_value = $value ?? '';
+		}
+
+		$number_value = str_replace([' ', "\xC2\xA0"], '', $number_value);
+		$is_number = $cell && $cell->getAttribute('data-spreadsheet-type') === 'number';
+
+		if ($is_number || preg_match('/^-?\d+(?:[,.]\d+)?$/', $number_value)) {
+			$value = $number_value;
+		}
+
+		// Escape value
+		$value = str_replace("\r\n", "\n", (string) $value);
+
+		if ($this->quote === '') {
+			$value = str_replace($this->separator, '', $value);
+		}
+		else {
+			$value = str_replace($this->quote, $this->quote . $this->quote, $value);
+		}
+
+		$value = $this->quote . $value . $this->quote;
+		return $value;
+	}
+
+	protected function importTable(DOMNode $table): void
 	{
 		$row_index = 0;
 
@@ -82,16 +163,7 @@ class TableToCSV
 				$value = $cell->textContent;
 				$value = html_entity_decode($value, ENT_QUOTES | ENT_XML1);
 				$value = trim($value);
-
-				// Remove space and non-breaking space
-				$number_value = str_replace([' ', "\xC2\xA0"], '', $cell->getAttribute('data-spreadsheet-value') ?: $value);
-
-				if ($cell->getAttribute('data-spreadsheet-type') == 'number' || preg_match('/^-?\d+(?:[,.]\d+)?$/', $number_value)) {
-					$value = $number_value;
-				}
-
-				$value = str_replace('"', '""', $value);
-				$value = $value !== '' ? '"' . $value . '"' : '';
+				$value = $this->getCellValue($value, $cell);
 
 				$this->rows[$row_index][$col_index++] = $value;
 
@@ -123,11 +195,22 @@ class TableToCSV
 
 	public function save(string $filename): void
 	{
-		file_put_contents($filename, $this->csv);
+		file_put_contents($filename, $this->fetch());
 	}
 
 	public function fetch(): string
 	{
-		return $this->csv;
+		$csv = '';
+
+		foreach ($this->rows as $row) {
+			$csv .= implode($this->separator, $row) . "\r\n";
+		}
+
+		return $csv;
+	}
+
+	public function output(): void
+	{
+		$this->save('php://output');
 	}
 }
