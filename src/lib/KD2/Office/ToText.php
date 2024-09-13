@@ -42,6 +42,9 @@ class ToText
 		elseif (isset($source['string'])) {
 			return self::fromString($source['string']);
 		}
+		elseif (isset($source['content'])) {
+			return self::fromString($source['content']);
+		}
 
 		return null;
 	}
