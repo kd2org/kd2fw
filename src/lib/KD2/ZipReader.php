@@ -398,9 +398,9 @@ class ZipReader
 
 		$header['compression'] = $data['compression'];
 
-		// On ODT files, these headers are 0. Keep the previous value.
+		// On ODT files, these headers are 0 (streamed). Keep the value from central file header.
 		foreach (['size', 'compressed_size', 'crc'] as $hd) {
-			if ($data[$hd] == 0) {
+			if ($header[$hd] === 0) {
 				$header[$hd] = $data[$hd];
 			}
 		}
