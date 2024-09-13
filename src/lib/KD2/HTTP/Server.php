@@ -35,7 +35,7 @@ class Server
 	 * xsendfile => allow/forbid use of X-SendFile (Apache/Lighttpd)
 	 * ranges => allow/forbid HTTP ranges requests
 	 */
-	static public function serveFile(?string $content, ?string $path, $resource, array $options): void
+	static public function serveFile(?string $content, ?string $path, $resource, array $options = []): void
 	{
 		if (!is_null($resource) && !is_resource($resource)) {
 			throw new \InvalidArgumentException('$resource must be a valid resource');
@@ -68,7 +68,7 @@ class Server
 			$size = strlen($content);
 		}
 		elseif (null === $size && null !== $path) {
-			$size = strlen($content);
+			$size = filemtime($path);
 		}
 
 		if (null === $name && null !== $path) {
