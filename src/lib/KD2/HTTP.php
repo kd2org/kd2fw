@@ -189,6 +189,14 @@ class HTTP
 		return $this->request('PUT', $url, $file, $additional_headers);
 	}
 
+	public function download(string $url, string $destination, string $method = 'GET', $data = null, ?array $additional_headers = null): HTTP_Response
+	{
+		$fp = fopen($destination, 'wb');
+		$r = $this->request($method, $url, $data, $additional_headers, $fp);
+		fclose($fp);
+		return $r;
+	}
+
 	/**
 	 * Make a custom request
 	 * @param  string $method             HTTP verb (GET, POST, PUT, etc.)
@@ -198,7 +206,7 @@ class HTTP
 	 * @param  resource $write_pointer Pointer to write body to (body will not be returned then)
 	 * @return HTTP_Response
 	 */
-	public function request(string $method, string $url, $data = null, ?array $additional_headers = null, $write_pointer = null)
+	public function request(string $method, string $url, $data = null, ?array $additional_headers = null, $write_pointer = null): HTTP_Response
 	{
 		static $redirect_codes = [301, 302, 303, 307, 308];
 
