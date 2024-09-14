@@ -23,8 +23,6 @@ namespace KD2\WebDAV;
 
 use KD2\HTTP\Server as HTTP_Server;
 
-class Exception extends \RuntimeException {}
-
 /**
  * This is a minimal, lightweight, and self-supported WebDAV server
  * it does not require anything out of standard PHP, not even an XML library.
