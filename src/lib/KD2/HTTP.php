@@ -24,7 +24,7 @@ namespace KD2;
 class HTTP
 {
 	const FORM = 'application/x-www-form-urlencoded';
-	const JSON = 'application/json; charset=UTF-8';
+	const JSON = 'application/json';
 	const XML = 'text/xml';
 
 	const CLIENT_DEFAULT = 'default';
@@ -101,6 +101,7 @@ class HTTP
 	{
 		// Use faster client by default
 		$this->client = function_exists('curl_exec') ? self::CLIENT_CURL : self::CLIENT_DEFAULT;
+		//$this->client = self::CLIENT_DEFAULT;
 
 		// Random user agent
 		$this->user_agent = $this->uas[array_rand($this->uas)];
@@ -133,39 +134,14 @@ class HTTP
 	 * Make a GET request
 	 * @param  string $url                URL to request
 	 * @param  array  $data 			  Data to send with POST request
-	 * @param  string $type 			  Type of data: 'form' for HTML form or 'json' to encode array in JSON
+	 * @param  string $type 			  Type of data
 	 * @param  array  $additional_headers Optional headers to send with request
 	 * @return HTTP_Response
 	 */
 	public function POST(string $url, array $data = [], string $type = self::FORM, ?array $additional_headers = null): HTTP_Response
 	{
-		if ($type == self::FORM)
-		{
-			$data = http_build_query($data, '', '&');
-		}
-		elseif ($type == self::JSON)
-		{
-			$data = json_encode($data);
-		}
-		elseif ($type == self::XML)
-		{
-			if ($data instanceof \SimpleXMLElement)
-			{
-				$data = $data->asXML();
-			}
-			elseif ($data instanceof \DOMDocument)
-			{
-				$data = $data->saveXML();
-			}
-			elseif (!is_string($data))
-			{
-				throw new \InvalidArgumentException('Data is not a valid XML object or string.');
-			}
-		}
-
-		$additional_headers['Content-Length'] = strlen($data);
+		$additional_headers ??= [];
 		$additional_headers['Content-Type'] = $type;
-
 		return $this->request('POST', $url, $data, $additional_headers);
 	}
 
@@ -214,31 +190,47 @@ class HTTP
 			throw new \InvalidArgumentException('Invalid URL: ' . $url);
 		}
 
-		if (!is_resource($data) && !is_string($data) && !is_null($data)) {
-			throw new \InvalidArgumentException('$data is not null|string|resource');
-		}
-
 		$url = $this->url_prefix . $url;
 
 		$headers = $this->headers;
 
-		if (!is_null($additional_headers))
-		{
+		if (!is_null($additional_headers)) {
 			$headers = array_merge($headers, $additional_headers);
 		}
 
-		if ($this->user_agent && !isset($headers['User-Agent']))
-		{
+		if ($this->user_agent && !isset($headers['User-Agent'])) {
 			$headers['User-Agent'] = $this->user_agent;
 		}
 
+		$type = $headers['Content-Type'] ?? null;
+
+		// Convert object/array to string for JSON/XML
+		// (for FORM, this is done in specific clients)
+		if ((is_object($data) || is_array($data)) && $type && $type !== self::FORM) {
+			if ($type === self::JSON) {
+				$data = json_encode($data);
+			}
+			elseif ($type === self::XML) {
+				if ($data instanceof \SimpleXMLElement) {
+					$data = $data->asXML();
+				}
+				elseif ($data instanceof \DOMDocument) {
+					$data = $data->saveXML();
+				}
+				elseif (!is_string($data)) {
+					throw new \InvalidArgumentException('Data is not a valid XML object or string.');
+				}
+			}
+			else {
+				throw new \InvalidArgumentException('Data is not a valid string, and no valid Content-Type was passed.');
+			}
+		}
+
 		// Manual management of redirects
-		if (isset($this->http_options['max_redirects']))
-		{
+		if (isset($this->http_options['max_redirects'])) {
 			$max_redirects = (int) $this->http_options['max_redirects'];
 		}
-		else
-		{
+		else {
 			$max_redirects = 10;
 		}
 
@@ -246,8 +238,7 @@ class HTTP
 		$response = null;
 
 		// Follow redirect until we reach maximum
-		for ($i = 0; $i <= $max_redirects; $i++)
-		{
+		for ($i = 0; $i <= $max_redirects; $i++) {
 			// Make request
 			$client = $this->client . 'ClientRequest';
 			$response = $this->$client($method, $url, $data, $headers, $write_pointer);
@@ -536,6 +527,70 @@ class HTTP
 		return $uri;
 	}
 
+	protected function buildRequestBody($data, array &$headers): string
+	{
+		if (is_resource($data)) {
+			$body = '';
+
+			while (!feof($data)) {
+				$body .= fread($data, 8192);
+			}
+
+			$data = $body;
+		}
+
+		if (!is_object($data) && !is_array($data)) {
+			$headers['Content-Type'] ??= self::FORM;
+			$headers['Content-Length'] = strlen($data);
+			return $data;
+		}
+
+		$type = self::FORM;
+
+		foreach ($data as $key => &$item) {
+			if (is_resource($item)) {
+				$type = 'multipart/form-data';
+				$item = [
+					'type' => @mime_content_type($item) ?: 'application/octet-stream',
+					'name' => basename(stream_get_meta_data($item)['uri'] ?? 'file.ext'),
+					'body' => stream_get_contents($item),
+				];
+			}
+		}
+
+		unset($item);
+
+		if ($type === self::FORM) {
+			return http_build_query((array) $data, '', '&');
+		}
+
+		$boundary = '----------==--' . sha1(random_bytes(5));
+		$body = '';
+
+		foreach ($data as $key => $item) {
+			$body .= '--' . $boundary . "\r\n";
+			$body .= 'Content-Disposition: form-data; name="' . $key  .'"';
+
+			if (is_array($item)) {
+				$body .= '; filename="' . $item['name'] . '"'
+					. "\r\n"
+					. 'Content-Type: ' . $item['type'] . "\r\n\r\n"
+					. $item['body'] . "\r\n";
+				$item = null;
+			}
+			else {
+				$body .= "\r\n\r\n" . $item . "\r\n";
+			}
+		}
+
+		unset($data);
+
+		$body .= "\r\n\r\n--" . $boundary . "--\r\n";
+		$headers['Content-Type'] = 'multipart/form-data; boundary=' . $boundary;
+		$headers['Content-Length'] = strlen($body);
+		return $body;
+	}
+
 	/**
 	 * HTTP request using PHP stream and file_get_contents
 	 * @param  string $method
@@ -564,8 +619,9 @@ class HTTP
 			$headers['Proxy-Authorization'] = sprintf('Basic %s', base64_encode($this->http_options['proxy_auth']));
 		}
 
-		foreach ($headers as $key=>$value)
-		{
+		$data = $http_options['content'] = $this->buildRequestBody($data, $headers);
+
+		foreach ($headers as $key => $value) {
 			$request .= $key . ': ' . $value . "\r\n";
 		}
 
@@ -576,25 +632,18 @@ class HTTP
 			'follow_location' => false,
 		];
 
-		if (is_string($data)) {
+		$http_options = array_merge($this->http_options, $http_options);
+
+		if ($data !== null) {
 			$http_options['content'] = $data;
 		}
-		elseif (is_resource($data)) {
-			$http_options['content'] = '';
-
-			while (!feof($data)) {
-				$http_options['content'] .= fread($data, 8192);
-			}
-		}
-
-		$http_options = array_merge($this->http_options, $http_options);
 
 		$context = stream_context_create([
 			'http' => $http_options,
 			'ssl'  => $this->ssl_options,
 		]);
 
-		$request = $method . ' ' . $url . "\r\n" . $request . "\r\n" . $data;
+		$request = $method . ' ' . $url . "\r\n" . $request . "\r\n" . ($data ?? '');
 
 		$r = new HTTP_Response;
 		$r->url = $url;
@@ -623,7 +672,7 @@ class HTTP
 		}
 
 		$r->fail = false;
-		$r->size = strlen($r->body);
+		$r->size = strlen($r->body ?? '');
 
 		foreach ($http_response_header as $line) {
 			$header = strtok($line, ':');
@@ -659,8 +708,8 @@ class HTTP
 			$mime = null;
 			$size = 0;
 
-			while (!feof($in)) {
-				$line = fread($in, 8192);
+			while (!feof($r->pointer)) {
+				$line = fread($r->pointer, 8192);
 				$size += fwrite($write_pointer, $line);
 				hash_update($hash, $line);
 
@@ -675,7 +724,7 @@ class HTTP
 				}
 			}
 
-			fclose($in);
+			fclose($r->pointer);
 
 			$r->hash = hash_final($hash);
 			$r->mimetype = $mime;
@@ -695,6 +744,24 @@ class HTTP
 	 */
 	protected function curlClientRequest(string $method, string $url, $data, array $headers, $write_pointer = null)
 	{
+		$c = curl_init();
+
+		// Upload file
+		if (is_resource($data)) {
+			fseek($data, 0, SEEK_END);
+			$size = ftell($data);
+			fseek($data, 0);
+
+			curl_setopt($c, CURLOPT_INFILE, $data);
+			curl_setopt($c, CURLOPT_INFILESIZE, $size);
+			curl_setopt($c, CURLOPT_PUT, 1);
+		}
+		// Build request body
+		elseif ($data !== null) {
+			$data = $this->buildRequestBody($data, $headers);
+			curl_setopt($c, CURLOPT_POSTFIELDS, $data);
+		}
+
 		// Sets headers in the right format
 		foreach ($headers as $key=>&$header)
 		{
@@ -706,8 +773,6 @@ class HTTP
 		unset($header);
 
 		$r = new HTTP_Response;
-
-		$c = curl_init();
 
 		curl_setopt_array($c, [
 			CURLOPT_URL            => $url,
@@ -731,6 +796,11 @@ class HTTP
 			curl_setopt($c, CURLOPT_FILE, $write_pointer);
 		}
 
+curl_setopt($c, CURLOPT_VERBOSE, true);
+
+$streamVerboseHandle = fopen('php://output', 'w+');
+curl_setopt($c, CURLOPT_STDERR, $streamVerboseHandle);
+
 		if (!empty($this->http_options['proxy'])) {
 			curl_setopt($c, CURLOPT_PROXY, str_replace('tcp://', '', $this->http_options['proxy']));
 			curl_setopt($c, CURLOPT_PROXY_SSL_VERIFYHOST, !empty($this->ssl_options['verify_peer_name']) ? 2 : 0);
@@ -740,31 +810,11 @@ class HTTP
 			}
 		}
 
-		// Upload file
-		if (is_resource($data)) {
-			fseek($data, 0, SEEK_END);
-			$size = ftell($data);
-			fseek($data, 0);
-
-			curl_setopt($c, CURLOPT_INFILE, $data);
-			curl_setopt($c, CURLOPT_INFILESIZE, $size);
-			curl_setopt($c, CURLOPT_PUT, 1);
-		}
-		elseif ($data !== null) {
-			if (is_array($data)) {
-				$data = self::curlConvertFile($data);
-			}
-
-			curl_setopt($c, CURLOPT_POSTFIELDS, $data);
-		}
-
-		if (!empty($this->ssl_options['cafile']))
-		{
+		if (!empty($this->ssl_options['cafile'])) {
 			curl_setopt($c, CURLOPT_CAINFO, $this->ssl_options['cafile']);
 		}
 
-		if (!empty($this->ssl_options['capath']))
-		{
+		if (!empty($this->ssl_options['capath'])) {
 			curl_setopt($c, CURLOPT_CAPATH, $this->ssl_options['capath']);
 		}
 
@@ -818,10 +868,8 @@ class HTTP
 		$r->body = curl_exec($c);
 		$r->request = curl_getinfo($c, CURLINFO_HEADER_OUT) . $data;
 
-		if ($error = curl_error($c))
-		{
-			if (!empty($this->http_options['ignore_errors']))
-			{
+		if ($error = curl_error($c)) {
+			if (!empty($this->http_options['ignore_errors'])) {
 				$r->error = $error;
 				return $r;
 			}
@@ -829,8 +877,7 @@ class HTTP
 			throw new \RuntimeException('cURL error: ' . $error);
 		}
 
-		if ($r->body === false)
-		{
+		if ($r->body === false) {
 			return $r;
 		}
 
