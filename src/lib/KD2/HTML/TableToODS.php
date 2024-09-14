@@ -142,7 +142,7 @@ class TableToODS extends AbstractTable
 		// This property is applicable to a table only.
 		// If its value is 'true', then the first row will have buttons to order
 		// the content of the columns (this is called "AutoFilter" in LibreOffice)
-		'-spreadsheet-header-order-buttons',
+		'-spreadsheet-autofilter',
 	];
 
 	const DATE_FORMATS = [
@@ -268,7 +268,7 @@ class TableToODS extends AbstractTable
 			$this->newStyle('table', $styles) ?? 'Default'
 		);
 
-		if (($styles['-spreadsheet-header-order-buttons'] ?? null) === 'true') {
+		if (($styles['-spreadsheet-autofilter'] ?? null) === 'true') {
 			$this->database_ranges .= sprintf(
 				'<table:database-range table:display-filter-buttons="true" table:target-range-address="\'%s\'.A1:\'%1$s\'.ZZ99999" />',
 				$name
