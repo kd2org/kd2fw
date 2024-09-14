@@ -43,6 +43,7 @@ use DOMNode;
  * - wrap: wrap|nowrap
  * - hyphens: auto|none
  * - transform: rotate(90deg)
+ * - position: fixed (same as "freeze" feature, this can only be used on a single row)
  *
  * Other properties, as well as units (eg. '2em', '99%', etc.), are not
  * supported and might end up in weird results.
@@ -79,6 +80,9 @@ class TableToODS extends AbstractTable
 	protected int $col_index = 0;
 	protected int $count = 0;
 	protected array $columns_widths = [];
+	protected string $database_ranges = '';
+	protected string $table_name;
+	protected array $table_settings = [];
 
 	public string $default_sheet_name = 'Sheet%d';
 	public string $default_locale = 'fr_FR';
@@ -133,7 +137,12 @@ class TableToODS extends AbstractTable
 		// Name of the text color for a negative number,
 		// or 'none' to disable coloring negative numbers
 		// Supported color names: black, white, red, green, blue, yellow, magenta, cyan
-		'-spreadsheet-number-negative-color'
+		'-spreadsheet-number-negative-color',
+
+		// This property is applicable to a table only.
+		// If its value is 'true', then the first row will have buttons to order
+		// the content of the columns (this is called "AutoFilter" in LibreOffice)
+		'-spreadsheet-header-order-buttons',
 	];
 
 	const DATE_FORMATS = [
@@ -252,11 +261,21 @@ class TableToODS extends AbstractTable
 
 	public function openTable(string $sheet_name, array $styles = []): void
 	{
+		$name = htmlspecialchars($sheet_name, ENT_XML1);
+
 		$this->xml .= sprintf('<table:table table:name="%s" table:style-name="%s">',
-			htmlspecialchars($sheet_name, ENT_XML1),
+			$name,
 			$this->newStyle('table', $styles) ?? 'Default'
 		);
 
+		if (($styles['-spreadsheet-header-order-buttons'] ?? null) === 'true') {
+			$this->database_ranges .= sprintf(
+				'<table:database-range table:display-filter-buttons="true" table:target-range-address="\'%s\'.A1:\'%1$s\'.ZZ99999" />',
+				$name
+			);
+		}
+
+		$this->table_name = $sheet_name;
 		$this->rows = [];
 		$this->columns_widths = [];
 		$this->row_index = 0;
@@ -294,6 +313,7 @@ class TableToODS extends AbstractTable
 		$this->rows = [];
 		$this->columns_widths = [];
 		$this->row_index = 0;
+		$this->table_name = '';
 	}
 
 	public function openRow(array $styles = []): void
@@ -305,6 +325,16 @@ class TableToODS extends AbstractTable
 		}
 
 		$this->rows[$this->row_index]['styles'] = $styles;
+
+		// see https://github.com/jferard/fastods/issues/143
+		if (($styles['position'] ?? null) === 'fixed') {
+			$this->table_settings[$this->table_name] = sprintf(
+				'<config:config-item config:name="VerticalSplitMode" config:type="short">2</config:config-item>
+				<config:config-item config:name="VerticalSplitPosition" config:type="int">%d</config:config-item>
+				<config:config-item config:name="PositionBottom" config:type="int">%1$d</config:config-item>',
+				$this->row_index + 1
+			);
+		}
 	}
 
 	public function closeRow(): void
@@ -547,10 +577,35 @@ class TableToODS extends AbstractTable
 			$destination = 'php://output';
 		}
 
+		$settings = self::XML_HEADER . '<office:document-settings office:version="1.3" '
+			. 'xmlns:config="urn:oasis:names:tc:opendocument:xmlns:config:1.0" '
+			. 'xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" '
+			. 'xmlns:ooo="http://openoffice.org/2004/office" '
+			. 'xmlns:xlink="http://www.w3.org/1999/xlink">'
+			. '<office:settings>'
+			. '<config:config-item-set config:name="ooo:view-settings">'
+			. '<config:config-item-map-indexed config:name="Views">'
+			. '<config:config-item-map-entry>'
+			. '<config:config-item-map-named config:name="Tables">';
+
+		foreach ($this->table_settings as $name => $value) {
+			$settings .= sprintf('<config:config-item-map-entry config:name="%s">%s</config:config-item-map-entry>',
+				htmlspecialchars($name, ENT_XML1),
+				$value
+			);
+		}
+
+		$settings .= '</config:config-item-map-named>'
+			. '</config:config-item-map-entry>'
+			. '</config:config-item-map-indexed>'
+			. '</config:config-item-set>'
+			. '</office:settings>'
+			. '</office:document-settings>';
+
 		$z = new ZipWriter($destination);
 		$z->add('mimetype', self::MIME_TYPE);
 		$z->setCompression(9);
-		$z->add('settings.xml', self::XML_HEADER . '<office:document-settings office:version="1.3" xmlns:config="urn:oasis:names:tc:opendocument:xmlns:config:1.0" xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:ooo="http://openoffice.org/2004/office" xmlns:xlink="http://www.w3.org/1999/xlink"></office:document-settings>');
+		$z->add('settings.xml', $settings);
 		$z->add('content.xml', $this->XML());
 		$z->add('meta.xml', self::XML_HEADER . '<office:document-meta office:version="1.3" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:grddl="http://www.w3.org/2003/g/data-view#" xmlns:meta="urn:oasis:names:tc:opendocument:xmlns:meta:1.0" xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:ooo="http://openoffice.org/2004/office" xmlns:xlink="http://www.w3.org/1999/xlink"></office:document-meta>');
 		$z->add('manifest.rdf', self::XML_HEADER . '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description rdf:about="styles.xml"><rdf:type rdf:resource="http://docs.oasis-open.org/ns/office/1.2/meta/odf#StylesFile"/></rdf:Description><rdf:Description rdf:about=""><ns0:hasPart xmlns:ns0="http://docs.oasis-open.org/ns/office/1.2/meta/pkg#" rdf:resource="styles.xml"/></rdf:Description><rdf:Description rdf:about="content.xml"><rdf:type rdf:resource="http://docs.oasis-open.org/ns/office/1.2/meta/odf#ContentFile"/></rdf:Description><rdf:Description rdf:about=""><ns0:hasPart xmlns:ns0="http://docs.oasis-open.org/ns/office/1.2/meta/pkg#" rdf:resource="content.xml"/></rdf:Description><rdf:Description rdf:about=""><rdf:type rdf:resource="http://docs.oasis-open.org/ns/office/1.2/meta/pkg#Document"/></rdf:Description></rdf:RDF>');
@@ -586,6 +641,11 @@ class TableToODS extends AbstractTable
 		$out .= '<office:body><office:spreadsheet>';
 
 		$out .= $this->xml;
+
+		// Add database ranges, this allow to have "orderable" columns
+		if ($this->database_ranges !== '') {
+			$out .= '<table:database-ranges>' . $this->database_ranges . '</table:database-ranges>';
+		}
 
 		$out .= '</office:spreadsheet></office:body></office:document-content>';
 
