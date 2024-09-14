@@ -74,6 +74,7 @@ class TableToXLSX extends TableToODS
 		$this->columns_widths = [];
 		$this->row_index = 1;
 		$this->rows = [];
+		$this->table_name = $sheet_name;
 	}
 
 	public function closeTable(): void

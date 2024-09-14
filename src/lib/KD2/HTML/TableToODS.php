@@ -80,7 +80,6 @@ class TableToODS extends AbstractTable
 	protected int $col_index = 0;
 	protected int $count = 0;
 	protected array $columns_widths = [];
-	protected string $database_ranges = '';
 	protected string $table_name;
 	protected array $table_settings = [];
 
@@ -261,28 +260,27 @@ class TableToODS extends AbstractTable
 
 	public function openTable(string $sheet_name, array $styles = []): void
 	{
-		$name = htmlspecialchars($sheet_name, ENT_XML1);
-
 		$this->xml .= sprintf('<table:table table:name="%s" table:style-name="%s">',
-			$name,
+			htmlspecialchars($sheet_name, ENT_XML1),
 			$this->newStyle('table', $styles) ?? 'Default'
 		);
-
-		if (($styles['-spreadsheet-autofilter'] ?? null) === 'true') {
-			$this->database_ranges .= sprintf(
-				'<table:database-range table:display-filter-buttons="true" table:target-range-address="\'%s\'.A1:\'%1$s\'.ZZ99999" />',
-				$name
-			);
-		}
 
 		$this->table_name = $sheet_name;
 		$this->rows = [];
 		$this->columns_widths = [];
 		$this->row_index = 0;
+		$this->table_settings[$sheet_name] = [];
+
+		if (($styles['-spreadsheet-autofilter'] ?? null) === 'true') {
+			$this->table_settings[$sheet_name]['autofilter'] = true;
+		}
 	}
 
 	public function closeTable(): void
 	{
+		$this->table_settings[$this->table_name]['columns_count'] = count($this->columns_widths);
+		$this->table_settings[$this->table_name]['rows_count'] = count($this->rows);
+
 		ksort($this->columns_widths);
 
 		foreach ($this->columns_widths as $width) {
@@ -328,12 +326,7 @@ class TableToODS extends AbstractTable
 
 		// see https://github.com/jferard/fastods/issues/143
 		if (($styles['position'] ?? null) === 'fixed') {
-			$this->table_settings[$this->table_name] = sprintf(
-				'<config:config-item config:name="VerticalSplitMode" config:type="short">2</config:config-item>
-				<config:config-item config:name="VerticalSplitPosition" config:type="int">%d</config:config-item>
-				<config:config-item config:name="PositionBottom" config:type="int">%1$d</config:config-item>',
-				$this->row_index + 1
-			);
+			$this->table_settings[$this->table_name]['fixed'] = $this->row_index + 1;
 		}
 	}
 
@@ -588,11 +581,17 @@ class TableToODS extends AbstractTable
 			. '<config:config-item-map-entry>'
 			. '<config:config-item-map-named config:name="Tables">';
 
-		foreach ($this->table_settings as $name => $value) {
-			$settings .= sprintf('<config:config-item-map-entry config:name="%s">%s</config:config-item-map-entry>',
-				htmlspecialchars($name, ENT_XML1),
-				$value
-			);
+		foreach ($this->table_settings as $name => $s) {
+			if (!empty($s['fixed'])) {
+				$settings .= sprintf('<config:config-item-map-entry config:name="%s">
+					<config:config-item config:name="VerticalSplitMode" config:type="short">2</config:config-item>
+					<config:config-item config:name="VerticalSplitPosition" config:type="int">%d</config:config-item>
+					<config:config-item config:name="PositionBottom" config:type="int">%2$d</config:config-item>
+					</config:config-item-map-entry>',
+					htmlspecialchars($name, ENT_XML1),
+					$s['fixed']
+				);
+			}
 		}
 
 		$settings .= '</config:config-item-map-named>'
@@ -642,11 +641,21 @@ class TableToODS extends AbstractTable
 
 		$out .= $this->xml;
 
-		// Add database ranges, this allow to have "orderable" columns
-		if ($this->database_ranges !== '') {
-			$out .= '<table:database-ranges>' . $this->database_ranges . '</table:database-ranges>';
+		$out .= '<table:database-ranges>';
+
+		// Add database ranges, this allow to have "orderable" columns (autofilter)
+		foreach ($this->table_settings as $name => $s) {
+			if (!empty($s['autofilter'])) {
+				$out .= sprintf(
+					'<table:database-range table:display-filter-buttons="true" table:target-range-address="\'%s\'.A1:\'%1$s\'.%s%d" />',
+					htmlspecialchars($name, ENT_XML1),
+					$this->getColumnName($s['columns_count'] - 1),
+					$s['rows_count']
+				);
+			}
 		}
 
+		$out .= '</table:database-ranges>';
 		$out .= '</office:spreadsheet></office:body></office:document-content>';
 
 		return $out;
@@ -1045,5 +1054,18 @@ class TableToODS extends AbstractTable
 		}
 
 		return (int) $v;
+	}
+
+	public function getColumnName(int $index): string
+	{
+		$numeric = $index % 26;
+		$letter = chr(65 + $numeric);
+		$num2 = intval($index / 26);
+
+		if ($num2 > 0) {
+			return self::getColumnName($num2 - 1) . $letter;
+		} else {
+			return $letter;
+		}
 	}
 }
