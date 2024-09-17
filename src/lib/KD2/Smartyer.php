@@ -1114,9 +1114,17 @@ class Smartyer
 	 */
 	public function getValueFromArgument(string $arg): string
 	{
-		if ($arg[0] == '"' || $arg[0] == "'")
+		static $replace = [
+			'\\"'  => '"',
+			'\\\'' => '\'',
+			'\\n'  => "\n",
+			'\\t'  => "\t",
+			'\\\\' => '\\',
+		];
+
+		if (strlen($arg) && ($arg[0] == '"' || $arg[0] == "'"))
 		{
-			return str_replace(['\\"', "\\'"], ['"', "'"], substr($arg, 1, -1));
+			return strtr(substr($arg, 1, -1), $replace);
 		}
 
 		return $arg;
@@ -1471,7 +1479,7 @@ class Smartyer
 		}
 
 		// Assign variable to _variables array, even for parent templates
-		$code = '$_t = $this; while ($_t) { $_t->assign(%s, %s); $_t = $_t->parent; } unset($_t); ';
+		$code = '$_t = $this->parent; while ($_t) { $_t->assign(%s, %s); $_t = $_t->parent; } unset($_t); ';
 
 		// Assign variable locally
 		$code .= '${%1$s} = %2$s;';
