@@ -17,6 +17,7 @@ use DOMXPath;
  * - selectors matching elements ('table', 'table tr'), classes and IDs
  *
  * This is unsupported:
+ * - multiple classes selector: table.list.selected will match both <table class="list"> and <table class="statement">
  * - attributes selectors: a[name], a[name=pizza], etc.
  * - wildcards: *, +, >
  * - functions: :nth-child, etc.
