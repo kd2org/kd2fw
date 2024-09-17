@@ -49,7 +49,7 @@ class SMTP
 	const MAX_REPLY_LENGTH = 512;
 
 	const SUCCESS_CODE = 250;
-	const GRELISTING_CODE = 451;
+	const GREYLISTING_CODE = 451;
 
 	protected string $server;
 	protected int $port;
@@ -471,7 +471,7 @@ class SMTP
 
 		// Compatibility with IDN domains
 		if (function_exists('idn_to_ascii')) {
-			$host = @idn_to_ascii($host); // Silence errors because of PHP 7.2 http://php.net/manual/en/function.idn-to-ascii.php
+			$host = idn_to_ascii($host);
 			$email = substr($email, 0, strpos($email, '@')+1) . $host;
 		}
 
