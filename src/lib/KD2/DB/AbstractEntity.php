@@ -155,7 +155,7 @@ abstract class AbstractEntity
 	 * @param  array|null $source Source data array, if none is supplied $_POST will be used
 	 * @return void
 	 */
-	public function import(array $source = null): self
+	public function import(?array $source = null): self
 	{
 		if (null === $source) {
 			$source = $_POST;
@@ -211,7 +211,7 @@ abstract class AbstractEntity
 		return $value;
 	}
 
-	protected function assert($test, string $message = null): void
+	protected function assert($test, ?string $message = null): void
 	{
 		if ($test) {
 			return;
@@ -349,7 +349,7 @@ abstract class AbstractEntity
 		}
 	}
 
-	public function id(int $id = null): int
+	public function id(?int $id = null): int
 	{
 		if (null !== $id) {
 			$this->id = $id;
@@ -362,7 +362,7 @@ abstract class AbstractEntity
 		return $this->id;
 	}
 
-	public function exists(bool $exists = null): bool
+	public function exists(?bool $exists = null): bool
 	{
 		if (null !== $exists) {
 			$this->_exists = $exists;

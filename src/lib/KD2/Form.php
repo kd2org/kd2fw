@@ -315,7 +315,7 @@ class Form
 	 * @return boolean
 	 * @deprecated
 	 */
-	static public function validateRule($key, $rule_name, Array $params = [], Array $source = null, Array $rules = [])
+	static public function validateRule($key, $rule_name, array $params = [], ?array $source = [], array $rules = [])
 	{
 		$value = isset($source[$key]) ? $source[$key] : null;
 
@@ -585,7 +585,7 @@ class Form
 	 * @return boolean
 	 * @deprecated
 	 */
-	static public function validate(Array $all_rules, Array &$errors = null, Array $source = null)
+	static public function validate(array $all_rules, ?array &$errors = null, ?array $source = null)
 	{
 		if (is_null($errors))
 		{

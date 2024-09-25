@@ -449,7 +449,7 @@ class DB
 		return $return;
 	}
 
-	public function lastInsertId(string $name = null): string
+	public function lastInsertId(?string $name = null): string
 	{
 		$this->connect();
 		return $this->pdo->lastInsertId($name);
@@ -733,7 +733,7 @@ class DB
 	 * @param  null|string $clause INSERT clause (eg. 'OR IGNORE' etc.)
 	 * @return boolean
 	 */
-	public function insert(string $table, $fields, string $clause = null)
+	public function insert(string $table, $fields, ?string $clause = null)
 	{
 		assert(is_array($fields) || is_object($fields));
 
@@ -783,7 +783,7 @@ class DB
 	 * @param  array|object $args   Arguments for the WHERE clause
 	 * @return boolean
 	 */
-	public function update(string $table, $fields, string $where = null, $args = null)
+	public function update(string $table, $fields, ?string $where = null, $args = null)
 	{
 		assert(is_string($table));
 		assert((is_string($where) && strlen($where)) || is_null($where));

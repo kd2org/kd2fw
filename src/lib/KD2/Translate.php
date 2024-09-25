@@ -146,7 +146,7 @@ class Translate
 	 * @param  string $domain Domain
 	 * @return boolean
 	 */
-	static protected function _loadTranslations(?string $domain = null, string $locale = null)
+	static protected function _loadTranslations(?string $domain = null, ?string $locale = null)
 	{
 		// Fallback to default domain
 		if (is_null($domain))
