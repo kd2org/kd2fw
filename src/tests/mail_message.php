@@ -11,7 +11,8 @@ test_headers_multiline();
 test_length();
 test_encryption();
 test_invalid_multipart();
-test_multipart_boundary();
+test_invalid_multipart_boundary();
+test_multipart_mixed();
 
 function test_cc()
 {
@@ -222,7 +223,7 @@ function test_encryption()
 	$msg->setHeader('Subject', 'Plop!');
 	$msg->setHeader('To', 'coucou@plop.example');
 	$msg->setBody('Coucou !');
-	$msg->addPart('text/html', '<b>Coucou !</b>');
+	$msg->setHTMLBody('<b>Coucou !</b>');
 	$msg->encrypt('-----BEGIN PGP PUBLIC KEY BLOCK-----
 Comment: https://www.ietf.org/id/draft-bre-openpgp-samples-01.html
 
@@ -238,6 +239,7 @@ DAAKCRDyMVUMT0fjjlnQAQDFHUs6TIcxrNTtEZFjUFm1M0PJ1Dng/cDW4xN80fsn
 =iIGO
 -----END PGP PUBLIC KEY BLOCK-----');
 	Test::assert((bool) preg_match('/-----BEGIN PGP MESSAGE-----.*-----END PGP MESSAGE-----/s', $msg->output()));
+	Test::assert(count($msg->getParts()) === 2);
 }
 
 function test_invalid_multipart()
@@ -245,14 +247,23 @@ function test_invalid_multipart()
 	$msg = new Mail_Message;
 	$msg->parse(file_get_contents(__DIR__ . '/data/mails/multipart.eml'));
 	Test::equals(1, count($msg->getParts()));
+	Test::assert(!is_null($msg->getBody()));
 	Test::assert((bool) preg_match('/veux pas qu\'ils soient/', $msg->getBody()));
 	Test::assert(!preg_match('/multipart\//', $msg->output()));
 }
 
-function test_multipart_boundary()
+function test_invalid_multipart_boundary()
 {
 	$msg = new Mail_Message;
 	$msg->parse(file_get_contents(__DIR__ . '/data/mails/multipart2.eml'));
 	Test::equals(2, count($msg->getParts()));
+	Test::assert(strstr($msg->outputHeaders(), 'multipart/mixed; boundary="' . $msg->getMimeOutputBoundary()));
+}
+
+function test_multipart_mixed()
+{
+	$msg = new Mail_Message;
+	$msg->parse(file_get_contents(__DIR__ . '/data/mails/multipart_mixed.eml'));
+	Test::equals(4, count($msg->getParts()));
 	Test::assert(strstr($msg->outputHeaders(), 'multipart/mixed; boundary="' . $msg->getMimeOutputBoundary()));
 }
