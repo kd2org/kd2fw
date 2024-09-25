@@ -1218,7 +1218,7 @@ class Smartyer
 	/**
 	 * Native default escape modifier
 	 */
-	static protected function escape($str, string $type = 'html'): string
+	static protected function escape($str, ?string $type = 'html'): string
 	{
 		if ($type === 'json') {
 			$str = json_encode($str);
