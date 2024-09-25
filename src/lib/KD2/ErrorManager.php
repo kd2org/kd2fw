@@ -112,11 +112,10 @@ class ErrorManager
 	static protected $term_color = false;
 
 	/**
-	 * Will be set to true when catching an exception to avoid double catching
+	 * Will be incremented when catching an exception to avoid double catching
 	 * with the shutdown function
-	 * @var boolean
 	 */
-	static protected $catching = false;
+	static protected int $catching = 0;
 
 	/**
 	 * Used to store timers and memory consumption
@@ -193,14 +192,9 @@ class ErrorManager
 
 	/**
 	 * Main exception handler
-	 * @param  object  $e    Exception or Error (PHP 7) object
-	 * @param  boolean $exit Exit the script at the end
-	 * @return void
 	 */
-	static public function exceptionHandler($e, $exit = true)
+	static public function exceptionHandler(\Throwable $e, bool $exit = true): void
 	{
-		self::$catching = true;
-
 		try {
 			self::reportException($e, $exit);
 		}
@@ -209,37 +203,22 @@ class ErrorManager
 			echo PHP_EOL . PHP_EOL . $e;
 			exit(1);
 		}
-
-		return true;
 	}
 
 	/**
 	 * Main exception handler
-	 * @param  object  $e    Exception or Error (PHP 7) object
-	 * @param  boolean $exit Exit the script at the end
-	 * @return void
 	 */
-	static public function reportException($e, $exit)
+	static public function reportException(\Throwable $e, bool $exit = true): void
 	{
-		foreach (self::$custom_handlers as $class=>$callback)
-		{
-			if ($e instanceOf $class)
-			{
-				call_user_func($callback, $e);
-				$e = false;
-				break;
-			}
-		}
+		self::$catching++;
 
-		if ($e === false)
-		{
-			if ($exit)
-			{
-				exit(1);
-			}
-			else
-			{
-				return;
+		if (self::$catching === 1) {
+			foreach (self::$custom_handlers as $class => $callback) {
+				if ($e instanceOf $class) {
+					call_user_func($callback, $e);
+					$e = false;
+					break;
+				}
 			}
 		}
 
@@ -247,14 +226,12 @@ class ErrorManager
 		unset($e);
 
 		// Log exception to file
-		if (ini_get('log_errors'))
-		{
+		if (ini_get('log_errors')) {
 			error_log($log);
 		}
 
 		// Disable any output if it was buffering
-		if (ob_get_level())
-		{
+		if (ob_get_level()) {
 			ob_end_clean();
 		}
 
