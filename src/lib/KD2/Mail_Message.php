@@ -1278,7 +1278,7 @@ class Mail_Message
 
 		foreach ($to as $address) {
 			$count++;
-			$success += mail($address, $this->getHeader('Subject') ?? '[no subject]', $this->outputBody(), $this->outputHeaders($headers, true));
+			$success += mail($address, $subject, $this->outputBody(), $this->outputHeaders($headers, true));
 		}
 
 		return ($success == $count);
