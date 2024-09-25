@@ -382,15 +382,15 @@ class Smartyer
 
 	/**
 	 * Sets the auto-escaping type for the current template
-	 * @param string $type Escape type supported by self::escape()
+	 * @param string|null $type Escape type supported by self::escape(), set to NULL to disable escaping
 	 */
-	public function setEscapeType(string $type): self
+	public function setEscapeType(?string $type): self
 	{
 		$this->escape_type = $type;
 		return $this;
 	}
 
-	public function getEscapeType(): string
+	public function getEscapeType(): ?string
 	{
 		return $this->escape_type;
 	}
