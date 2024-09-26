@@ -493,12 +493,15 @@ class Garbage2xhtml
         {
             $tag =& $this->allowed_tags[$tag];
         }
-        elseif (($prefix = strtok($tag, ':')) && array_key_exists($prefix, $this->allowed_tags))
-        {
-            $tag =& $this->allowed_tags[$match[0]];
-        }
+        else {
+            $prefix = strtok($tag, ':');
+            strtok('');
 
-        strtok('');
+            if ($prefix && array_key_exists($prefix, $this->allowed_tags))
+            {
+                $tag =& $this->allowed_tags[$match[0]];
+            }
+        }
 
         $value = preg_replace('!^.*\s+!U', '', $value);
 
