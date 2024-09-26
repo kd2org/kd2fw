@@ -587,14 +587,21 @@ class MiniSkel
                     $out .= ']';
                 }
                 // [(#REM) Comments] comments are ignored
-                elseif ($node['name'] != 'rem')
+                elseif ($node['name'] !== 'rem')
                 {
-                    $out .= $this->processVariable($node['name'],
+                    $r = $this->processVariable($node['name'],
                         $node['applyDefault'],
                         isset($node['modifiers']) ? $node['modifiers'] : [],
                         isset($node['pre']) ? $this->outputVariables($node['pre'], $context) : '',
                         isset($node['post']) ? $this->outputVariables($node['post'], $context) : '',
                         $context);
+
+                    if (is_array($r)) {
+                        return $r;
+                    }
+                    else {
+                        $out .= $r;
+                    }
                 }
             }
             else
