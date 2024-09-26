@@ -407,10 +407,10 @@ class TableToXLSX extends TableToODS
 		return self::XML_HEADER . '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
 			<numFmts count="1">
 				<numFmt numFmtId="164" formatCode="General"/>
-				<numFmt numFmtId="165" formatCode="dd/mm/yy"/>
+				<numFmt numFmtId="165" formatCode="dd/mm/yyyy"/>
 				<numFmt numFmtId="166" formatCode="#,##0.00\ [$€-40C];[RED]\-#,##0.00\ [$€-40C]"/>
 				<numFmt numFmtId="167" formatCode="0.00\ %"/>
-				<numFmt numFmtId="168" formatCode="dd/mm/yy\ hh:mm"/>
+				<numFmt numFmtId="168" formatCode="dd/mm/yyyy\ hh:mm"/>
 			</numFmts>
 			<fonts count="4">
 				<font>
