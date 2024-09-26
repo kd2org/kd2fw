@@ -486,7 +486,7 @@ class TableToODS extends AbstractTable
 		$this->closeTable();
 	}
 
-	protected function getCellType(string $value, ?array $attributes, ?array $styles, string &$date = null, string &$number_value = null)
+	protected function getCellType(string $value, ?array $attributes, ?array $styles, ?string &$date = null, ?string &$number_value = null)
 	{
 		$type = !empty($attributes['type']) ? $attributes['type'] : ($styles['-spreadsheet-cell-type'] ?? null);
 
