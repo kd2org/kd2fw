@@ -153,11 +153,11 @@ class TableToODS extends AbstractTable
 	];
 
 	const NUMBER_FORMATS = [
-		'integer' => '<number:number number:decimal-places="0" number:min-decimal-places="0" number:min-integer-digits="1" number:grouping="true"/>',
-		'float' => '<number:number number:decimal-places="2" number:min-decimal-places="2" number:min-integer-digits="1" number:grouping="true"/>',
-		'percentage_integer' => '<number:number number:decimal-places="0" number:min-decimal-places="0" number:min-integer-digits="1"/>
+		'integer' => '<number:number number:decimal-places="0" number:min-integer-digits="1" number:grouping="true"/>',
+		'float' => '<number:number number:decimal-places="2" number:min-integer-digits="1" number:grouping="true"/>',
+		'percentage_integer' => '<number:number number:decimal-places="0" number:min-integer-digits="1"/>
 			<number:text> %</number:text>',
-		'percentage_float' => '<number:number number:decimal-places="2" number:min-decimal-places="2" number:min-integer-digits="1"/>
+		'percentage_float' => '<number:number number:decimal-places="2" number:min-integer-digits="1"/>
 			<number:text> %</number:text>',
 	];
 
@@ -383,20 +383,20 @@ class TableToODS extends AbstractTable
 		}
 		else {
 			if ($type === 'date') {
-				$cell .= sprintf(' calcext:value-type="date" office:date-value="%s" office:value-type="date" ', $date);
+				$cell .= sprintf(' office:date-value="%s" office:value-type="date"', $date);
 			}
 			elseif ($type === 'percentage') {
-				$cell .= sprintf(' office:value-type="percentage" office:value="%f" calcext:value-type="percentage"', $number_value / 100);
+				$cell .= sprintf(' office:value-type="percentage" office:value="%f"', $number_value / 100);
 			}
 			elseif ($type === 'currency') {
 				$currency = $styles['-spreadsheet-currency'] ?? 'EUR';
-				$cell .= sprintf(' office:value-type="currency" office:currency="%s" office:value="%f" calcext:value-type="currency"', $currency, $number_value);
+				$cell .= sprintf(' office:value-type="currency" office:currency="%s" office:value="%f"', $currency, $number_value);
 			}
 			elseif ($type === 'number') {
-				$cell .= sprintf(' calcext:value-type="float" office:value="%f" office:value-type="float"', $number_value);
+				$cell .= sprintf(' office:value="%f" office:value-type="float"', $number_value);
 			}
 			else {
-				$cell .= ' calcext:value-type="string" office:value-type="string"';
+				$cell .= ' office:value-type="string"';
 			}
 
 			$cell .= '>';
@@ -501,7 +501,7 @@ class TableToODS extends AbstractTable
 				$number_value = $value;
 			}
 			elseif (is_string($value)
-				&& preg_match('/^[+-]?(\d+)(?:[,.]\d+)$/', $number_value, $match)
+				&& preg_match('/^[+-]?(\d+)(?:[,.]\d+)?$/', $number_value, $match)
 				&& ($match[1] == 0 || substr($match[1], 0, 1) !== '0')) {
 				$type = 'number';
 			}
@@ -570,6 +570,26 @@ class TableToODS extends AbstractTable
 			$destination = 'php://output';
 		}
 
+		$z = new ZipWriter($destination);
+		$z->add('mimetype', self::MIME_TYPE);
+		$z->setCompression(9);
+		$z->add('settings.xml', $this->XMLSettings());
+		$z->add('content.xml', $this->XML());
+		$z->add('meta.xml', self::XML_HEADER . '<office:document-meta office:version="1.3" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:grddl="http://www.w3.org/2003/g/data-view#" xmlns:meta="urn:oasis:names:tc:opendocument:xmlns:meta:1.0" xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:ooo="http://openoffice.org/2004/office" xmlns:xlink="http://www.w3.org/1999/xlink"></office:document-meta>');
+		$z->add('manifest.rdf', self::XML_HEADER . '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description rdf:about="content.xml"><rdf:type rdf:resource="http://docs.oasis-open.org/ns/office/1.2/meta/odf#ContentFile"/></rdf:Description><rdf:Description rdf:about=""><ns0:hasPart xmlns:ns0="http://docs.oasis-open.org/ns/office/1.2/meta/pkg#" rdf:resource="content.xml"/></rdf:Description><rdf:Description rdf:about=""><rdf:type rdf:resource="http://docs.oasis-open.org/ns/office/1.2/meta/pkg#Document"/></rdf:Description></rdf:RDF>');
+		$z->add('META-INF/manifest.xml', self::XML_HEADER . '<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3" >
+				<manifest:file-entry manifest:full-path="/" manifest:version="1.3" manifest:media-type="application/vnd.oasis.opendocument.spreadsheet"/>
+				<manifest:file-entry manifest:full-path="settings.xml" manifest:media-type="text/xml"/>
+				<manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>
+				<manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>
+				<manifest:file-entry manifest:full-path="manifest.rdf" manifest:media-type="application/rdf+xml"/>
+			</manifest:manifest>');
+		$z->finalize();
+		return $z;
+	}
+
+	public function XMLSettings(): string
+	{
 		$settings = self::XML_HEADER . '<office:document-settings office:version="1.3" '
 			. 'xmlns:config="urn:oasis:names:tc:opendocument:xmlns:config:1.0" '
 			. 'xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" '
@@ -601,27 +621,12 @@ class TableToODS extends AbstractTable
 			. '</office:settings>'
 			. '</office:document-settings>';
 
-		$z = new ZipWriter($destination);
-		$z->add('mimetype', self::MIME_TYPE);
-		$z->setCompression(9);
-		$z->add('settings.xml', $settings);
-		$z->add('content.xml', $this->XML());
-		$z->add('meta.xml', self::XML_HEADER . '<office:document-meta office:version="1.3" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:grddl="http://www.w3.org/2003/g/data-view#" xmlns:meta="urn:oasis:names:tc:opendocument:xmlns:meta:1.0" xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:ooo="http://openoffice.org/2004/office" xmlns:xlink="http://www.w3.org/1999/xlink"></office:document-meta>');
-		$z->add('manifest.rdf', self::XML_HEADER . '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description rdf:about="styles.xml"><rdf:type rdf:resource="http://docs.oasis-open.org/ns/office/1.2/meta/odf#StylesFile"/></rdf:Description><rdf:Description rdf:about=""><ns0:hasPart xmlns:ns0="http://docs.oasis-open.org/ns/office/1.2/meta/pkg#" rdf:resource="styles.xml"/></rdf:Description><rdf:Description rdf:about="content.xml"><rdf:type rdf:resource="http://docs.oasis-open.org/ns/office/1.2/meta/odf#ContentFile"/></rdf:Description><rdf:Description rdf:about=""><ns0:hasPart xmlns:ns0="http://docs.oasis-open.org/ns/office/1.2/meta/pkg#" rdf:resource="content.xml"/></rdf:Description><rdf:Description rdf:about=""><rdf:type rdf:resource="http://docs.oasis-open.org/ns/office/1.2/meta/pkg#Document"/></rdf:Description></rdf:RDF>');
-		$z->add('META-INF/manifest.xml', self::XML_HEADER . '<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3" xmlns:loext="urn:org:documentfoundation:names:experimental:office:xmlns:loext:1.0">
-				<manifest:file-entry manifest:full-path="/" manifest:version="1.3" manifest:media-type="application/vnd.oasis.opendocument.spreadsheet"/>
-				<manifest:file-entry manifest:full-path="settings.xml" manifest:media-type="text/xml"/>
-				<manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>
-				<manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>
-				<manifest:file-entry manifest:full-path="manifest.rdf" manifest:media-type="application/rdf+xml"/>
-			</manifest:manifest>');
-		$z->finalize();
-		return $z;
+		return $settings;
 	}
 
 	public function XML(): string
 	{
-		$out = self::XML_HEADER . '<office:document-content office:version="1.3" xmlns:calcext="urn:org:documentfoundation:names:experimental:calc:xmlns:calcext:1.0" xmlns:chart="urn:oasis:names:tc:opendocument:xmlns:chart:1.0" xmlns:css3t="http://www.w3.org/TR/css3-text/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dom="http://www.w3.org/2001/xml-events" xmlns:dr3d="urn:oasis:names:tc:opendocument:xmlns:dr3d:1.0" xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0" xmlns:drawooo="http://openoffice.org/2010/draw" xmlns:field="urn:openoffice:names:experimental:ooo-ms-interop:xmlns:field:1.0" xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0" xmlns:form="urn:oasis:names:tc:opendocument:xmlns:form:1.0" xmlns:formx="urn:openoffice:names:experimental:ooxml-odf-interop:xmlns:form:1.0" xmlns:grddl="http://www.w3.org/2003/g/data-view#" xmlns:loext="urn:org:documentfoundation:names:experimental:office:xmlns:loext:1.0" xmlns:math="http://www.w3.org/1998/Math/MathML" xmlns:meta="urn:oasis:names:tc:opendocument:xmlns:meta:1.0" xmlns:number="urn:oasis:names:tc:opendocument:xmlns:datastyle:1.0" xmlns:of="urn:oasis:names:tc:opendocument:xmlns:of:1.2" xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:ooo="http://openoffice.org/2004/office" xmlns:oooc="http://openoffice.org/2004/calc" xmlns:ooow="http://openoffice.org/2004/writer" xmlns:presentation="urn:oasis:names:tc:opendocument:xmlns:presentation:1.0" xmlns:rpt="http://openoffice.org/2005/report" xmlns:script="urn:oasis:names:tc:opendocument:xmlns:script:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0" xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0" xmlns:tableooo="http://openoffice.org/2009/table" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:xforms="http://www.w3.org/2002/xforms" xmlns:xhtml="http://www.w3.org/1999/xhtml" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">';
+		$out = self::XML_HEADER . '<office:document-content office:version="1.3" xmlns:chart="urn:oasis:names:tc:opendocument:xmlns:chart:1.0" xmlns:css3t="http://www.w3.org/TR/css3-text/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dom="http://www.w3.org/2001/xml-events" xmlns:dr3d="urn:oasis:names:tc:opendocument:xmlns:dr3d:1.0" xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0" xmlns:drawooo="http://openoffice.org/2010/draw" xmlns:field="urn:openoffice:names:experimental:ooo-ms-interop:xmlns:field:1.0" xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0" xmlns:form="urn:oasis:names:tc:opendocument:xmlns:form:1.0" xmlns:formx="urn:openoffice:names:experimental:ooxml-odf-interop:xmlns:form:1.0" xmlns:grddl="http://www.w3.org/2003/g/data-view#" xmlns:math="http://www.w3.org/1998/Math/MathML" xmlns:meta="urn:oasis:names:tc:opendocument:xmlns:meta:1.0" xmlns:number="urn:oasis:names:tc:opendocument:xmlns:datastyle:1.0" xmlns:of="urn:oasis:names:tc:opendocument:xmlns:of:1.2" xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:ooo="http://openoffice.org/2004/office" xmlns:oooc="http://openoffice.org/2004/calc" xmlns:ooow="http://openoffice.org/2004/writer" xmlns:presentation="urn:oasis:names:tc:opendocument:xmlns:presentation:1.0" xmlns:rpt="http://openoffice.org/2005/report" xmlns:script="urn:oasis:names:tc:opendocument:xmlns:script:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0" xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0" xmlns:tableooo="http://openoffice.org/2009/table" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:xforms="http://www.w3.org/2002/xforms" xmlns:xhtml="http://www.w3.org/1999/xhtml" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">';
 
 		$out .= '<office:automatic-styles>
 			<style:style style:family="table-row" style:name="ro-default">
@@ -635,8 +640,6 @@ class TableToODS extends AbstractTable
 
 		$out .= '</office:automatic-styles>';
 
-
-		//$out .= '</office:styles>';
 		$out .= '<office:body><office:spreadsheet>';
 
 		$out .= $this->xml;
@@ -648,7 +651,7 @@ class TableToODS extends AbstractTable
 			if (!empty($s['autofilter'])) {
 				$out .= sprintf(
 					'<table:database-range table:display-filter-buttons="true" table:target-range-address="\'%s\'.A1:\'%1$s\'.%s%d" />',
-					htmlspecialchars($name, ENT_XML1),
+					htmlspecialchars(str_replace("'", "''", $name), ENT_XML1),
 					$this->getColumnName($s['columns_count'] - 1),
 					$s['rows_count']
 				);
@@ -706,7 +709,7 @@ class TableToODS extends AbstractTable
 				$xml .= sprintf('<style:%s-properties %s/>', $name, $attrs);
 			}
 
-			if ($type == 'row') {
+			if ($type === 'row') {
 				$xml .= '<style:table-row-properties style:use-optimal-row-height="true" />';
 			}
 
