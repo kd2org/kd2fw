@@ -55,6 +55,63 @@ class BBCode
 		return self::escapeArg(self::cleanArg($str));
 	}
 
+	/**
+	 * Parse block arguments, this is similar to parsing HTML arguments
+	 */
+	static public function parseArguments(string $str): array
+	{
+		$args = [];
+		$name = null;
+		$state = 0;
+		$last_value = '';
+
+		preg_match_all('/(?:"(?:\\\\"|[^\"])*?"|\'(?:\\\\\'|[^\'])*?\'|(?>[^"\'=\s]+))+|[=]/i', $str, $match);
+
+		foreach ($match[0] as $value) {
+			if ($state === 0) {
+				$name = $value;
+			}
+			elseif ($state === 1) {
+				if ($value !== '=') {
+					throw new \InvalidArgumentException('Expecting \'=\' after \'' . $last_value . '\'');
+				}
+			}
+			elseif ($state === 2) {
+				if ($value === '=') {
+					throw new \InvalidArgumentException('Unexpected \'=\' after \'' . $last_value . '\'');
+				}
+
+				$args[$name] = self::getValueFromArgument($value);
+				$name = null;
+				$state = -1;
+			}
+
+			$last_value = $value;
+			$state++;
+		}
+
+		unset($state, $last_value, $name, $str, $match);
+
+		return $args;
+	}
+
+	static public function getValueFromArgument(string $arg): string
+	{
+		static $replace = [
+			'\\"'  => '"',
+			'\\\'' => '\'',
+			'\\n'  => "\n",
+			'\\t'  => "\t",
+			'\\\\' => '\\',
+		];
+
+		if (strlen($arg) && ($arg[0] === '"' || $arg[0] === "'")){
+			return strtr(substr($arg, 1, -1), $replace);
+		}
+
+		return $arg;
+	}
+
 	static public function render($str, $tags = null)
 	{
 		if (is_null($tags))
@@ -79,7 +136,7 @@ class BBCode
 		if ($tags['inline'] ?? null)
 		{
 			// [b] [i] [s] [u] (most BB parsers) [em] [strong] [ins] [del] (FluxBB)
-			$str = preg_replace('#(?<!\\\\)\[(/?(?:b|i|u|s|strong|em|ins|del))\]#i', '<\\1>', $str);
+			$str = preg_replace('#(?<!\\\\)\[(/?(?:b|i|u|s|strong|em|ins|del|sub|sup))\]#i', '<\\1>', $str);
 		}
 
 		if ($tags['h'] ?? null)
@@ -119,10 +176,31 @@ class BBCode
 
 		if ($tags['img'] ?? null)
 		{
+			// [img=WIDTHxHEIGHT] as described on http://www.bbcode.org/reference.php
+			$str = preg_replace_callback('#(?<!\\\\)\[img=(\d+)x(\d+)\](.*?)(?<!\\\\)\[/img\]#i', function ($match) {
+				$w = min((int)$match[1], 1920);
+				$h = min((int)$match[2], 1920);
+				return '<img loading="lazy" src="' . self::escapeArg($match[3]) . '" alt="" width="' . $w . '" height="' . $h . '" />';
+			}, $str);
+
 			// [img=alt text], [img]
-			// Note: no support for [img=WIDTHxHEIGHT] as described on http://www.bbcode.org/reference.php
 			$str = preg_replace_callback('#(?<!\\\\)\[img'.$arg.'?\](.*?)(?<!\\\\)\[/img\]#i', function ($match) {
-				return '<figure><img src="' . self::escapeArg($match[2]) . '" alt="' . self::escapeCleanArg($match['arg']) . '" /></figure>';
+				return '<img loading="lazy" src="' . self::escapeArg($match[2]) . '" alt="' . self::escapeCleanArg($match['arg']) . '" />';
+			}, $str);
+
+			// [img width=XXX alt="sfsd" align="center"]
+			$str = preg_replace_callback('#(?<!\\\\)\[img\s+(.+)\](.*?)(?<!\\\\)\[/img\]#i', function ($match) {
+				if (trim($match[1]) === '') {
+					return $match[0];
+				}
+
+				$args = self::parseArguments($match[1]);
+				$args = array_intersect_key($args, array_flip(['align', 'width', 'height', 'alt']));
+				$args['src'] = $match[2];
+				$args = array_map(fn($k, $v) => $k . '="' . self::escapeArg($v) . '"', array_keys($args), $args);
+				$args = implode(' ', $args);
+
+				return '<img loading="lazy" ' . $args . ' />';
 			}, $str);
 		}
 
@@ -143,8 +221,18 @@ class BBCode
 			}, $str);
 		}
 
-		// FIXME:
 		// [list], [list=a], [list=1] [*] item [/list], [ul], [ol]
+		if ($tags['list'] ?? null) {
+			$str = preg_replace_callback('#(?<!\\\\)\[list(?:=([a1]))\](.*?)\[/list\]#is', function ($match) {
+				$tag = ($match[1] ?? 'a') === '1' ? 'ol' : 'ul';
+				return '<' . $tag . '>' . $match[2] . '</' . $tag . '>';
+			}, $str);
+
+			$str = preg_replace('#(?<!\\\\)\[(/?(?:ol|ul|li))\]#', '<$1>', $str);
+			$str = preg_replace('#(?<!\\\\)\[\*\]#', '<li>', $str);
+		}
+
+		// FIXME:
 		// [size=10] (px) [size=10(px|em|ft|cm|mm|%...)]
 		// [align=(center|left|right)], [center]
 		// [font=...]
