@@ -189,7 +189,7 @@ class TableToODS extends AbstractTable
 	 * using the supplied CSS stylesheet, or any <style> or <link>
 	 * tag, if it mentions 'media="spreadsheet"'
 	 */
-	public function import(string $html, string $css = null): void
+	public function import(string $html, ?string $css = null): void
 	{
 		libxml_use_internal_errors(true);
 
@@ -220,7 +220,7 @@ class TableToODS extends AbstractTable
 	/**
 	 * Create a new table from an array or iterable object, instead of parsing HTML
 	 */
-	public function addTable(iterable $iterator, string $sheet_name = null, array $table_styles = []): void
+	public function addTable(iterable $iterator, ?string $sheet_name = null, array $table_styles = []): void
 	{
 		$this->openTable($sheet_name, $table_styles);
 
@@ -500,8 +500,9 @@ class TableToODS extends AbstractTable
 				$type = 'number';
 				$number_value = $value;
 			}
+			// A number must have a decimal separator
 			elseif (is_string($value)
-				&& preg_match('/^[+-]?(\d+)(?:[,.]\d+)?$/', $number_value, $match)
+				&& preg_match('/^[+-]?(\d+)(?:[,.]\d+)$/', $number_value, $match)
 				&& ($match[1] == 0 || substr($match[1], 0, 1) !== '0')) {
 				$type = 'number';
 			}
