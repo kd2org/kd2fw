@@ -1,22 +1,22 @@
 <?php
 /*
-    This file is part of KD2FW -- <http://dev.kd2.org/>
+	This file is part of KD2FW -- <http://dev.kd2.org/>
 
-    Copyright (c) 2001-2019 BohwaZ <http://bohwaz.net/>
-    All rights reserved.
+	Copyright (c) 2001-2019 BohwaZ <http://bohwaz.net/>
+	All rights reserved.
 
-    KD2FW is free software: you can redistribute it and/or modify
-    it under the terms of the GNU Affero General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
+	KD2FW is free software: you can redistribute it and/or modify
+	it under the terms of the GNU Affero General Public License as published by
+	the Free Software Foundation, either version 3 of the License, or
+	(at your option) any later version.
 
-    Foobar is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU Affero General Public License for more details.
+	Foobar is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	GNU Affero General Public License for more details.
 
-    You should have received a copy of the GNU Affero General Public License
-    along with Foobar.  If not, see <https://www.gnu.org/licenses/>.
+	You should have received a copy of the GNU Affero General Public License
+	along with Foobar.  If not, see <https://www.gnu.org/licenses/>.
 */
 
 namespace KD2\Office;
@@ -154,10 +154,10 @@ class ToText
 	 */
 	static public function convertOpenDocument(string $contents): string
 	{
-        /* remove soft-page-breaks. We don't need them and they may disturb later decoding */
-        $contents = str_replace('<text:soft-page-break/>', '', $contents);
-        /* same for xml-protected spaces */
-        $contents = str_replace('<text:s/>', ' ', $contents);
+		/* remove soft-page-breaks. We don't need them and they may disturb later decoding */
+		$contents = str_replace('<text:soft-page-break/>', '', $contents);
+		/* same for xml-protected spaces */
+		$contents = str_replace('<text:s/>', ' ', $contents);
 
 		/* headline, first level */
 		$contents = preg_replace_callback('!<text:h[^>]*outline-level="(\d+)"[^>]*>([^<]*)<[^>]*>!',
