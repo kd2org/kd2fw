@@ -24,8 +24,11 @@ namespace KD2\Office;
 use KD2\ZipReader;
 
 /**
- * OpenDocument converter to plain text
- * This is mostly a PHP port from ODT2TXT
+ * Converts LibreOffice/MS Office documents to plain text.
+ * For OpenDocument files, some kind of formatting will be retained (headlines, lists)
+ * Supported input formats: ODT, ODS, ODP, XLSX, DOCX, PPTX.
+ *
+ * This is based on ideas from ODT2TXT and docx2txt
  * @see https://github.com/dstosberg/odt2txt/blob/master/odt2txt.c
  * @see https://github.com/ankushshah89/python-docx2txt/blob/master/docx2txt/docx2txt.py
  */
