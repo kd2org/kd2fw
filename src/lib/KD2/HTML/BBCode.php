@@ -241,6 +241,12 @@ class BBCode
 		// colors/bgcolors: background color: [bg=color], [background=color], [f=color]
 		// [color=#AABBCC], [color=red], [color=#ABC], [c=...]
 		if ($tags['colors'] ?? null) {
+
+			$str = preg_replace_callback('#(?<!\\\\)\[highlight'.$arg.'?\](.*?)(?<!\\\\)\[/highlight\]#i', function ($match) {
+				$color = self::escapeCleanArg($match['arg'] ?? 'yellow');
+				return '<mark style="background-color: ' . $color . '">' . $match[2] . '</mark>';
+			}, $str);
+
 			$str = preg_replace_callback('#(?<!\\\\)\[(x|y|c|color|f|bg|background|bgcolor)=(.+?)\](.*?)(?<!\\\\)\[/\1\]#i', function ($match) {
 				if (!ctype_alnum(str_replace(['#', '-'], '', strtolower($match[2])))) {
 					return $match[0];
