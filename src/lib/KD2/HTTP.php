@@ -539,7 +539,7 @@ class HTTP
 			$data = $body;
 		}
 
-		if (!is_object($data) && !is_array($data)) {
+		if (!is_object($data) && !is_array($data) && !is_null($data)) {
 			$headers['Content-Type'] ??= self::FORM;
 			$headers['Content-Length'] = strlen($data);
 			return $data;
@@ -619,7 +619,9 @@ class HTTP
 			$headers['Proxy-Authorization'] = sprintf('Basic %s', base64_encode($this->http_options['proxy_auth']));
 		}
 
-		$data = $http_options['content'] = $this->buildRequestBody($data, $headers);
+		if (null !== $data) {
+			$data = $this->buildRequestBody($data, $headers);
+		}
 
 		foreach ($headers as $key => $value) {
 			$request .= $key . ': ' . $value . "\r\n";
