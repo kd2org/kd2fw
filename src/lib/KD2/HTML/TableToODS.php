@@ -345,7 +345,7 @@ class TableToODS extends AbstractTable
 		$date = null;
 		$number_value = null;
 
-		$value = trim($value);
+		$value = is_string($value) ? trim($value) : $value;
 		$type = $this->getCellType($value, $attributes, $styles, $date, $number_value);
 
 		// Use real type in styles, useful to set the correct style
@@ -486,7 +486,7 @@ class TableToODS extends AbstractTable
 		$this->closeTable();
 	}
 
-	protected function getCellType(string $value, ?array $attributes, ?array $styles, ?string &$date = null, ?string &$number_value = null)
+	protected function getCellType($value, ?array $attributes, ?array &$styles, ?string &$date = null, ?string &$number_value = null)
 	{
 		$type = !empty($attributes['type']) ? $attributes['type'] : ($styles['-spreadsheet-cell-type'] ?? null);
 
@@ -496,14 +496,20 @@ class TableToODS extends AbstractTable
 			if (is_object($value) && $value instanceof \DateTimeInterface) {
 				$type = 'date';
 			}
-			elseif (is_int($value) || is_float($value)) {
+			elseif (is_int($value)) {
+				$styles['-spreadsheet-number-format'] ??= 'integer';
 				$type = 'number';
 				$number_value = $value;
 			}
-			// A number must have a decimal separator
+			elseif (is_float($value)) {
+				$type = 'number';
+				$number_value = $value;
+			}
+			// A number must have a decimal separator, or be zero, or not begin with a zero
+			// This is to avoid matching french phone numbers as integers (06XXXXXX)
 			elseif (is_string($value)
-				&& preg_match('/^[+-]?(\d+)(?:[,.]\d+)$/', $number_value, $match)
-				&& ($match[1] == 0 || substr($match[1], 0, 1) !== '0')) {
+				&& preg_match('/^[+-]?(\d+)([,.]\d+)?$/', $number_value, $match)
+				&& ($match[1] == 0 || isset($match[2]) || substr($match[1], 0, 1) !== '0')) {
 				$type = 'number';
 			}
 			elseif (preg_match('!^(?:\d\d?/\d\d?/\d\d(?:\d\d)?|\d{4}-\d{2}-\d{2})(?:\s+\d\d?[:\.]\d\d?(?:[:\.]\d\d?))?$!', $value)) {
@@ -880,13 +886,13 @@ class TableToODS extends AbstractTable
 	{
 		$type = $properties['-spreadsheet-cell-type'] ?? null;
 
-		if (!$type || $type == 'auto' || $type == 'string') {
+		if (!$type || $type === 'auto' || $type === 'string') {
 			return null;
 		}
 
 		$style_name = 'data_' . $style_name;
 
-		if ($type == 'date') {
+		if ($type === 'date') {
 			return $this->getDateStyle($style_name, $properties);
 		}
 		else {
