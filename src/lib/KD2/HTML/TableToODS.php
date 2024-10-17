@@ -508,7 +508,7 @@ class TableToODS extends AbstractTable
 			// A number must have a decimal separator, or be zero, or not begin with a zero
 			// This is to avoid matching french phone numbers as integers (06XXXXXX)
 			elseif (is_string($value)
-				&& preg_match('/^[+-]?(\d+)([,.]\d+)?$/', $number_value, $match)
+				&& preg_match('/^[+-]?(\d+)([,.]\d+)$/', $number_value, $match)
 				&& ($match[1] == 0 || isset($match[2]) || substr($match[1], 0, 1) !== '0')) {
 				$type = 'number';
 			}
