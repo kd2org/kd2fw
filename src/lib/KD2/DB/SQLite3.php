@@ -154,6 +154,10 @@ class SQLite3 extends DB
 		'fts5' => '3.9.0+ENABLE_FTS5',
 
 		'dbstat' => '3.0.0+ENABLE_DBSTAT_VTAB',
+
+		// Support for math functions
+		// https://www.sqlite.org/changes.html#version_3_35_0
+		'math' => '3.35.0+ENABLE_MATH_FUNCTIONS',
 	];
 
 	public function close(): void
