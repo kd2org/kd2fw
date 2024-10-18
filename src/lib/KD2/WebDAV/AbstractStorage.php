@@ -5,6 +5,14 @@ namespace KD2\WebDAV;
 abstract class AbstractStorage
 {
 	/**
+	 * These file names will be ignored when doing a PUT
+	 * as they are garbage, coming from some OS
+	 * @see https://raw.githubusercontent.com/owncloud/client/master/sync-exclude.lst
+	 */
+	const PUT_IGNORE_PATTERN = '!^~|~$|^~.*tmp$|^Thumbs\.db$|^desktop\.ini$|\.unison$|^My Saved Places'
+		. '|^\.(lock\.|_|DS_Store|DocumentRevisions|directory|Trash|Temp|fseventsd|apdisk|synkron|sync|symform|fuse|nfs)!i';
+
+	/**
 	 * Return the requested resource
 	 *
 	 * @param  string $uri Path to resource
