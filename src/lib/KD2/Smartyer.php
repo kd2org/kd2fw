@@ -226,7 +226,7 @@ class Smartyer
 	 * @param Smartyer|null $parent   Parent template object, useful to have a global
 	 * template object with lots of assigns that will be used with all templates
 	 */
-	public function __construct(?string $template = null, ?Smartyer &$parent = null)
+	public function __construct(?string $template = null, ?Smartyer $parent = null)
 	{
 		$this->template = $template;
 
