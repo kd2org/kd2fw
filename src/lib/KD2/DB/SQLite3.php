@@ -1197,4 +1197,9 @@ class SQLite3 extends DB
 
 		return (int) $this->db->querySingle(sprintf('SELECT SUM(pgsize) FROM dbstat WHERE name = %s;', $this->quote($name)), false);
 	}
+
+	public function changes(): int
+	{
+		return $this->db->changes();
+	}
 }
