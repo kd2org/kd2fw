@@ -789,29 +789,40 @@ class UserSession
 		return !empty($_SESSION['userSessionRequireOTP']);
 	}
 
+	public function markRecoveryCodeAsUsed(string $code, \stdClass $user): void
+	{
+		// Define your behaviour
+	}
+
 	public function loginOTP(string $code): bool
 	{
 		$this->start();
 
-		if (empty($_SESSION['userSessionRequireOTP']))
-		{
+		if (empty($_SESSION['userSessionRequireOTP'])) {
 			return false;
 		}
 
 		$user = $_SESSION['userSessionRequireOTP']->user;
 
-		if (empty($user->otp_secret) || empty($user->id))
-		{
+		if (empty($user->otp_secret) || empty($user->id)) {
 			return false;
 		}
 
-		if (!$this->checkOTP($user->otp_secret, $code))
-		{
+		$ok = false;
+
+		if ($this->checkOTP($user->otp_secret, $code)) {
+			$ok = true;
+		}
+		elseif (!empty($user->otp_recovery_codes) && in_array($code, $user->otp_recovery_codes, true)) {
+			$ok = true;
+			$this->markRecoveryCodeAsUsed($code, $user);
+		}
+
+		if (!$ok) {
 			return false;
 		}
 
-		if (!empty($_SESSION['userSessionRequireOTP']->remember_me))
-		{
+		if (!empty($_SESSION['userSessionRequireOTP']->remember_me)) {
 			$this->createRememberMeSelector($user->id, $user->password);
 		}
 
