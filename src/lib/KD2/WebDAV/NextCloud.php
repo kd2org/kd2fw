@@ -829,7 +829,7 @@ abstract class NextCloud
 
 			$props = $this->storage->propfind($dest, [self::PROP_OC_ID], 0);
 
-			if (count($props)) {
+			if (!empty($props)) {
 				header('OC-FileId: ' . current($props));
 			}
 
