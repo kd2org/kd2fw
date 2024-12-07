@@ -169,11 +169,15 @@ class Markdown extends Parsedown
 			$attributes[$key] = $value;
 		}
 
-		if ($name == 'iframe' || $name == 'video' || $name == 'audio') {
+		if ($name === 'iframe' || $name === 'video' || $name === 'audio') {
 			$attributes['loading'] = 'lazy';
 		}
 
-		if ($name == 'iframe') {
+		if ($name === 'video' || $name === 'audio') {
+			$attributes['controls'] = 'true';
+		}
+
+		if ($name === 'iframe') {
 			if (!isset($attributes['src']) || !preg_match('!^https?://|//!', $attributes['src'])) {
 				return null;
 			}
@@ -191,7 +195,7 @@ class Markdown extends Parsedown
 				$attributes['height'] = $match[1];
 			}
 		}
-		elseif ($name == 'object') {
+		elseif ($name === 'object') {
 			if (!isset($attributes['data']) || !preg_match('!^https?://!', $attributes['data'])) {
 				return null;
 			}
