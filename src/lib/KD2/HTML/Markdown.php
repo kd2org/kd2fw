@@ -211,6 +211,10 @@ class Markdown extends Parsedown
 			$attributes['href'] = $this->_filterURL($attributes['href']);
 		}
 
+		if (isset($attributes['poster'])) {
+			$attributes['poster'] = $this->_filterURL($attributes['poster']);
+		}
+
 		return $attributes;
 	}
 
