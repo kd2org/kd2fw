@@ -158,6 +158,10 @@ class SQLite3 extends DB
 		// Support for math functions
 		// https://www.sqlite.org/changes.html#version_3_35_0
 		'math' => '3.35.0+ENABLE_MATH_FUNCTIONS',
+
+		// Does this SQLite version considers JSON functions as trusted?
+		// https://sqlite.org/forum/forumpost/c88a671ad083d153
+		'trusted_json' => '3.41.0',
 	];
 
 	public function close(): void
@@ -238,6 +242,11 @@ class SQLite3 extends DB
 		$this->db->enableExceptions(true);
 
 		$this->db->busyTimeout($this->pdo_attributes[PDO::ATTR_TIMEOUT] * 1000);
+
+		// Security setting
+		// see https://sqlite.org/forum/forumpost/4f079ae490f84c7f
+		// and https://www.sqlite.org/security.html
+		$this->db->exec('PRAGMA mmap_size = 0;');
 
 		foreach ($this->sqlite_functions as $name => $callback)
 		{
