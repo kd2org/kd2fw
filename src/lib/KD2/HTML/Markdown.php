@@ -595,7 +595,7 @@ class Markdown extends Parsedown
 		elseif ($name === 'iframe') {
 			$attributes = $this->_filterHTMLAttributes($name, $this->allowed_block_tags[$name], $match[3]);
 
-			if (null === $attributes) {
+			if (null === $attributes || empty($attributes['src'])) {
 				return null;
 			}
 
@@ -615,7 +615,7 @@ class Markdown extends Parsedown
 			$attributes['allowtransparency'] = '';
 			$attributes['style'] = 'position: absolute; inset: 0px;';
 
-			array_walk($attributes, fn (&$v, $k) => $v = $k . '="' . htmlspecialchars($v) . '"');
+			array_walk($attributes, fn (&$v, $k) => $v = $k . '="' . htmlspecialchars((string)$v) . '"');
 			$attributes = implode(' ', $attributes);
 
 			return ['element' => [
