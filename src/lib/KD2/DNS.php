@@ -73,7 +73,8 @@ class DNS
 		$opcode = 0x0000; // opcode
 
 		// Build the header
-		$header = pack("n", $id);
+		$header = "";
+		$header .= pack("n", $id);
 		$header .= pack("n", $opcode | $flags);
 		$header .= pack("nnnn", 1, 0, 0, 0);
 		$header .= $question_binary;
@@ -81,10 +82,9 @@ class DNS
 		$header .= pack("n", 0x0001); // internet class
 		$headersize = strlen($header);
 		$headersizebin = pack("n", $headersize);
-		$header = $headersizebin . $header;
 
 		$request_size = fwrite($socket, $header, $headersize);
-		$rawbuffer = fread($socket, 1);
+		$rawbuffer = fread($socket, 4096);
 		fclose($socket);
 
 		if (strlen($rawbuffer) < 12) {
@@ -99,10 +99,16 @@ class DNS
 			return $out;
 		};
 
-		$read_name_pos = function ($offset) use ($rawbuffer) {
+		$read_name_pos = function ($offset_orig, $max_len=65536) use ($rawbuffer) {
 			$out = [];
+			$offset = $offset_orig;
 
-			while (($len = ord(substr($rawbuffer, $offset, 1))) && $len > 0) {
+			while (($len = ord(substr($rawbuffer, $offset, 1))) && $len > 0 && ($offset+$len < $offset_orig+$max_len ) ) {
+				if ($len >= 64) {
+					$offset = (($len & 0x3f) << 8) + ord(substr($rawbuffer, $offset + 1, 1));
+					continue;
+				}
+
 				$out[] = substr($rawbuffer, $offset + 1, $len);
 				$offset += $len + 1;
 			}
@@ -131,18 +137,17 @@ class DNS
 		$fields = $header['fields'];
 
 		$flags = new \stdClass;
-        $flags->rcode = $fields & 0xf;
-        $flags->ra = (($fields >> 7) & 1) === 1;
-        $flags->rd = (($fields >> 8) & 1) === 1;
-        $flags->tc = (($fields >> 9) & 1) === 1;
-        $flags->aa = (($fields >> 10) & 1) === 1;
-        $flags->opcode = ($fields >> 11) & 0xf;
-        $flags->qr = (($fields >> 15) & 1) === 1;
+		$flags->rcode = $fields & 0xf;
+		$flags->ra = (($fields >> 7) & 1) === 1;
+		$flags->rd = (($fields >> 8) & 1) === 1;
+		$flags->tc = (($fields >> 9) & 1) === 1;
+		$flags->aa = (($fields >> 10) & 1) === 1;
+		$flags->opcode = ($fields >> 11) & 0xf;
+		$flags->qr = (($fields >> 15) & 1) === 1;
 
-
-        if ($flags->tc) {
-        	throw new \OverflowException('The DNS server returned a truncated result for a UDP query');
-        }
+		if ($flags->tc) {
+			throw new \OverflowException('The DNS server returned a truncated result for a UDP query');
+		}
 
 		// No answers
 		if (!$header['ancount']) {
@@ -168,7 +173,7 @@ class DNS
 
 			$t = $types[$ans_header['type']] ?? null;
 
-			if ($type != 'ANY' && $t != $type) {
+			if ($type !== 'ANY' && $t !== $type) {
 				// Skip type that was not requested
 				$t = null;
 			}
@@ -190,7 +195,11 @@ class DNS
 					$responses[] = $read_name();
 					break;
 				case 'TXT':
-					$responses[] = $read($ans_header['length']);
+					$data = '';
+					for ($strCount = 0; strlen($data) + (1 + $strCount) < $ans_header['length']; $strCount++) {
+						$data .= $read(ord($read(1)));
+					}
+					$responses[] = $data;
 					break;
 				default:
 					// Skip
