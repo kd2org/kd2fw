@@ -798,10 +798,8 @@ class HTTP
 			curl_setopt($c, CURLOPT_FILE, $write_pointer);
 		}
 
-curl_setopt($c, CURLOPT_VERBOSE, true);
-
-$streamVerboseHandle = fopen('php://output', 'w+');
-curl_setopt($c, CURLOPT_STDERR, $streamVerboseHandle);
+		//curl_setopt($c, CURLOPT_VERBOSE, true);
+		//curl_setopt($c, CURLOPT_STDERR, fopen('php://stderr', 'w+'));
 
 		if (!empty($this->http_options['proxy'])) {
 			curl_setopt($c, CURLOPT_PROXY, str_replace('tcp://', '', $this->http_options['proxy']));
