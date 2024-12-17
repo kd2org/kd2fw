@@ -972,7 +972,7 @@ class Smartyer
 	 * Throws an exception for the current template and hopefully giving the right line
 	 * @throws Smartyer_Exception
 	 */
-	public function parseError(int $line, string $message, ?Exception $previous = null)
+	public function parseError(?int $line, string $message, ?Exception $previous = null)
 	{
 		throw new Smartyer_Exception($message, $this->template_path, $line, $previous);
 	}
