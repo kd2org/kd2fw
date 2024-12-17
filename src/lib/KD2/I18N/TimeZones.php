@@ -33,6 +33,41 @@ class TimeZones
 		}
 	}
 
+	static public function listGroupedByContinent(string $locale = 'fr_FR'): array
+	{
+		$list = \DateTimeZone::listIdentifiers();
+
+		$out = [];
+
+		foreach ($list as $name) {
+			$continent = strtok($name, '/');
+			$label = strtok('');
+
+			if (array_key_exists($name, self::REPLACE_LABEL)) {
+				$label = self::REPLACE_LABEL[$name];
+			}
+			else {
+				$label = strtr($label, ['/' => ' / ', '_' => ' ']) ?: $name;
+			}
+
+			$out[$continent] ??= [];
+			$out[$continent][$name] = $label;
+		}
+
+		unset($list);
+		ksort($out);
+		$collator = new \Collator($locale);
+
+		foreach ($out as &$list) {
+			$collator->asort($list);
+		}
+
+		unset($collator);
+		unset($list);
+
+		return $out;
+	}
+
 	static public function listForCountry(string $code, string $locale = 'fr_FR'): array
 	{
 		$list = \DateTimeZone::listIdentifiers(\DateTimeZone::PER_COUNTRY, $code);
