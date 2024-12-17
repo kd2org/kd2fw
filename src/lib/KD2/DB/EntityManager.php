@@ -146,7 +146,7 @@ class EntityManager
 	{
 		$db = $this->DB();
 		$query = $this->formatQuery($query);
-		$res = $db->preparedQuery($query, $params);
+		$res = $db->preparedQuery($query, ...$params);
 
 		if ($db instanceof SQLite3) {
 			while ($row = $res->fetchArray(\SQLITE3_ASSOC)) {
