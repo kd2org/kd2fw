@@ -77,7 +77,7 @@ class Translate
 	 * Sets the locale (eg. en_US, fr_BE, etc.)
 	 * @param string $locale Locale
 	 */
-	static public function setLocale($locale)
+	static public function setLocale(string $locale)
 	{
 		$locale = strtok($locale, '@.-+=%:; ');
 		strtok('');
@@ -94,9 +94,8 @@ class Translate
 	 *
 	 * @param  string $domain    Translation domain (equivalent to a category, in practice will be the name of the file .po/.mo)
 	 * @param  string $directory Directory where translations will be stored
-	 * @return boolean
 	 */
-	static public function registerDomain($domain, $directory = null)
+	static public function registerDomain(string $domain, string $directory = null): void
 	{
 		if (!is_null($directory) && !is_readable($directory))
 		{
@@ -106,24 +105,18 @@ class Translate
 		self::$domains[$domain] = $directory;
 		self::$translations[$domain] = [];
 
-		if (is_null(self::$default_domain))
-		{
+		if (is_null(self::$default_domain)) {
 			self::$default_domain = $domain;
 		}
-
-		return true;
 	}
 
-	static public function unregisterDomain($domain)
+	static public function unregisterDomain(string $domain): void
 	{
 		unset(self::$translations[$domain], self::$domains[$domain]);
 
-		if (self::$default_domain === $domain)
-		{
+		if (self::$default_domain === $domain) {
 			self::$default_domain = null;
 		}
-
-		return true;
 	}
 
 	/**
@@ -131,7 +124,7 @@ class Translate
 	 * @param  string $domain Domain
 	 * @return void
 	 */
-	static public function setDefaultDomain($domain): void
+	static public function setDefaultDomain(string $domain): void
 	{
 		if (!array_key_exists($domain, self::$domains))
 		{
@@ -144,13 +137,11 @@ class Translate
 	/**
 	 * Loads translations for this domain and the current locale, either from cache or from the .po/.mo file
 	 * @param  string $domain Domain
-	 * @return boolean
 	 */
-	static protected function _loadTranslations(?string $domain = null, ?string $locale = null)
+	static protected function _loadTranslations(?string $domain = null, ?string $locale = null): ?string
 	{
 		// Fallback to default domain
-		if (is_null($domain))
-		{
+		if (is_null($domain)) {
 			$domain = self::$default_domain;
 		}
 
@@ -158,31 +149,26 @@ class Translate
 			return null;
 		}
 
-		if (is_null($locale))
-		{
+		if (is_null($locale)) {
 			$locale = self::$locale;
 			$locale_short = $locale ? substr($locale, strpos($locale, '_')) : null;
 		}
 
 		// Already loaded
-		if (isset(self::$translations[$domain][$locale]) || isset(self::$translations[$domain][$locale_short]))
-		{
+		if (isset(self::$translations[$domain][$locale]) || isset(self::$translations[$domain][$locale_short])) {
 			return $domain;
 		}
 
 		// If this domain exists
-		if (array_key_exists($domain, self::$domains))
-		{
+		if (array_key_exists($domain, self::$domains)) {
 			$dir = self::$domains[$domain];
 		}
 		// Or if we have a "catch-all" domain
-		elseif (array_key_exists('*', self::$domains))
-		{
+		elseif (array_key_exists('*', self::$domains)) {
 			$dir = self::$domains['*'];
 		}
 		// Or we fail
-		else
-		{
+		else {
 			throw new \InvalidArgumentException('Unknown gettext domain: ' . $domain);
 		}
 
@@ -191,39 +177,41 @@ class Translate
 		$cache_key = 'gettext_' . $domain . '_' . $locale;
 
 		// Try to fetch from cache
-		if (!is_null(self::$cache) && self::$cache->exists($cache_key))
-		{
+		if (!is_null(self::$cache) && self::$cache->exists($cache_key)) {
 			self::$translations[$domain][$locale] = self::$cache->get($cache_key);
-			return true;
-		}
-
-		// If not, let's parse and load from .po or .mo file
-
-		if (file_exists($dir . DIRECTORY_SEPARATOR . $locale))
-		{
-			$dir .= DIRECTORY_SEPARATOR . $locale;
-		}
-		elseif ($locale_short && file_exists($dir . DIRECTORY_SEPARATOR . $locale_short))
-		{
-			$dir .= DIRECTORY_SEPARATOR . $locale_short;
-		}
-		else
-		{
-			// No directory found, don't fail, just fallback to msgids
 			return $domain;
 		}
 
-		// File path is domain_directory/locale/LC_MESSAGES/domain.mo
-		// example: myApp/fr_BE/LC_MESSAGES/errors.mo
-		$file = implode(DIRECTORY_SEPARATOR, [$dir, 'LC_MESSAGES', $domain]);
+		$paths = [
+			$dir . DIRECTORY_SEPARATOR . $locale,
+			$dir . DIRECTORY_SEPARATOR . $locale_short,
+			$dir . DIRECTORY_SEPARATOR . $locale . DIRECTORY_SEPARATOR . $domain,
+			$dir . DIRECTORY_SEPARATOR . $locale . DIRECTORY_SEPARATOR . 'LC_MESSAGES' . DIRECTORY_SEPARATOR . $domain,
+			$dir . DIRECTORY_SEPARATOR . $locale_short . DIRECTORY_SEPARATOR . $domain,
+			$dir . DIRECTORY_SEPARATOR . $locale_short . DIRECTORY_SEPARATOR . 'LC_MESSAGES' . DIRECTORY_SEPARATOR . $domain,
+		];
 
-		if (file_exists($file . '.mo'))
-		{
-			self::$translations[$domain][$locale] = self::parseGettextMOFile($file . '.mo', true);
+		$po = $mo = null;
+
+		foreach ($paths as $path) {
+			if (file_exists($path . '.mo')) {
+				$mo = $path;
+				break;
+			}
+			elseif (file_exists($path . '.po')) {
+				$po = $path;
+				break;
+			}
 		}
-		elseif (file_exists($file . '.po'))
-		{
-			self::$translations[$domain][$locale] = self::parseGettextPOFile($file . '.po', true);
+
+		if ($mo) {
+			self::$translations[$domain][$locale] = self::parseGettextMOFile($mo . '.mo', true);
+		}
+		elseif ($po) {
+			self::$translations[$domain][$locale] = self::parseGettextPOFile($po . '.po', true);
+		}
+		else {
+			return null;
 		}
 
 		return $domain;
@@ -236,10 +224,9 @@ class Translate
 	 * @param  array  $translations List of translations, in format array(msgid => array(0 => msgstr, 1 => plural form, 10 => plural form 10...))
 	 * @return void
 	 */
-	static public function importTranslations($domain, $locale, Array $translations)
+	static public function importTranslations(string $domain, string $locale, Array $translations): void
 	{
-		if (!array_key_exists($domain, self::$translations))
-		{
+		if (!array_key_exists($domain, self::$translations)) {
 			self::registerDomain($domain);
 		}
 
@@ -252,7 +239,7 @@ class Translate
 	 * @param  string $locale Locale
 	 * @return array
 	 */
-	static public function exportTranslations($domain, $locale = null)
+	static public function exportTranslations(string $domain, string $locale = null): array
 	{
 		$locale = is_null($locale) ? self::$locale : $locale;
 		self::_loadTranslations($domain, $locale);
@@ -265,7 +252,7 @@ class Translate
 	 * @param  integer $n   Number to use for the translation
 	 * @return integer The number of the plural msgstr
 	 */
-	static protected function _parseGettextPlural($rule, $n)
+	static protected function _parseGettextPlural(string $rule, int $n): int
 	{
 		strtok($rule, '='); // Skip
 		$nplurals = (int) strtok(';');
@@ -301,15 +288,13 @@ class Translate
 	 * @param  integer $n     Number used to determine the plural form to use
 	 * @return integer The number of the plural msgstr
 	 */
-	static protected function _guessPlural($locale, $n)
+	static protected function _guessPlural(string $locale, int $n): int
 	{
-		if ($locale != 'pt_BR')
-		{
+		if ($locale != 'pt_BR') {
 			$locale = substr($locale, 0, 2);
 		}
 
-		switch ($locale)
-		{
+		switch ($locale) {
 			// Romanic family: french, brazilian portugese
 			case 'fr':
 			case 'pt_BR':
@@ -376,15 +361,14 @@ class Translate
 	 * @param  string $context Optional translation context (msgctxt in gettext)
 	 * @return string
 	 */
-	static public function gettext($msgid1, $msgid2 = null, $n = null, $domain = null, $context = null)
+	static public function gettext(string $msgid1, ?string $msgid2 = null, ?int $n = null, ?string $domain = null, ?string $context = null): string
 	{
 		$domain = self::_loadTranslations($domain);
 
 		$id = $msgid1;
 
 		// Append context of the msgid
-		if (!is_null($context))
-		{
+		if (!is_null($context)) {
 			$id = $context . chr(4) . $id;
 		}
 
@@ -392,20 +376,16 @@ class Translate
 		strtok('');
 		$str = null;
 
-		if (isset(self::$translations[$domain][self::$locale][$id]))
-		{
+		if (isset(self::$translations[$domain][self::$locale][$id])) {
 			$str = self::$translations[$domain][self::$locale][$id];
 		}
-		elseif (isset(self::$translations[$domain][$locale_short][$id]))
-		{
+		elseif (isset(self::$translations[$domain][$locale_short][$id])) {
 			$str = self::$translations[$domain][$locale_short][$id];
 		}
 
 		// No translations for this id
-		if ($str === null)
-		{
-			if ($msgid2 !== null && $n !== null)
-			{
+		if ($str === null) {
+			if ($msgid2 !== null && $n !== null) {
 				// Use english plural rule here
 				return ($n != 1) ? $msgid2 : $msgid1;
 			}
@@ -415,14 +395,12 @@ class Translate
 
 		$plural = !is_null($n) && !is_null($msgid2) ? self::_guessPlural(self::$locale, $n) : 0;
 
-		if (!isset($str[$plural]))
-		{
+		if (!isset($str[$plural])) {
 			// No translation for this plural form: fallback to first form
 			$plural = 0;
 		}
 
-		if (!isset($str[$plural]))
-		{
+		if (!isset($str[$plural])) {
 			// No translation for plural form, even after fallback, return msgid
 			return $plural ? $msgid2 : $msgid1;
 		}
@@ -438,20 +416,19 @@ class Translate
 	 * @param  string      $context      Optional translation context (msgctxt in gettext)
 	 * @return string
 	 */
-	static public function string($msgid, Array $args = [], $domain = null, $context = null)
+	static public function string(string $msgid, ?array $args = null, ?string $domain = null, ?string $context = null): string
 	{
-		if (is_array($msgid))
-		{
-			if (count($msgid) !== 3)
-			{
+		$args ??= [];
+
+		if (is_array($msgid)) {
+			if (count($msgid) !== 3) {
 				throw new \InvalidArgumentException('Invalid plural msgid: array should be [msgid, msgid_plural, count]');
 			}
 
 			$str = self::gettext($msgid[0], $msgid[1], $msgid[2], $domain, $context);
 			$args['count'] = $msgid[2];
 		}
-		else
-		{
+		else {
 			$str = self::gettext($msgid, null, null, $domain, $context);
 		}
 
@@ -468,7 +445,7 @@ class Translate
 	 * @param  string      $context      Optional translation context (msgctxt in gettext)
 	 * @return string
 	 */
-	static public function plural($msgid, $msgid_plural, $count, Array $args = [], $domain = null, $context = null)
+	static public function plural(string $msgid, string $msgid_plural, int $count, ?array $args = null, ?string $domain = null, ?string $context = null): string
 	{
 		$str = self::gettext($msgid, $msgid_plural, $count, $domain, $context);
 		return self::named_sprintf($str, $args);
@@ -480,15 +457,13 @@ class Translate
 	 * @param  array  $args Arguments
 	 * @return string
 	 */
-	static public function named_sprintf($str, $args)
+	static public function named_sprintf(string $str, array $args): string
 	{
-		foreach ($args as $k=>$v)
-		{
+		foreach ($args as $k => $v) {
 			$str = preg_replace('/%' . preg_quote($k, '/') . '(?=\s|[^\w\d_]|$)/', $v, $str);
 		}
 
-		if (strpos($str, '%') !== false)
-		{
+		if (strpos($str, '%') !== false && count($args)) {
 			return vsprintf($str, $args);
 		}
 
@@ -503,7 +478,7 @@ class Translate
 	 * (used internally to reduce cache size)
 	 * @return null|array        array of translations
 	 */
-	static public function parseGettextMOFile($path, $one_msgid_only = false): ?array
+	static public function parseGettextMOFile(string $path, bool $one_msgid_only = false): ?array
 	{
 		$fp = fopen($path, 'rb');
 
@@ -512,24 +487,21 @@ class Translate
 		$header = unpack('L1magic/L1version/L1count/L1o_msg/L1o_trn', $data);
 		extract($header);
 
-		if ((dechex($magic) != '950412de') || ($version != 0))
-		{
+		if ((dechex($magic) != '950412de') || ($version != 0)) {
 			return null;
 		}
 
 		// Read the rest of the file
 		$data .= fread($fp, 1<<20);
 
-		if (!$data)
-		{
+		if (!$data) {
 			return null;
 		}
 
 		$translations = [];
 
 		// fetch all entries
-		for ($n = 0; $n < $count; $n++)
-		{
+		for ($n = 0; $n < $count; $n++) {
 			// msgid
 			$r = unpack('L1length/L1offset', substr($data, $o_msg + $n * 8, 8));
 			$msgid = substr($data, $r['offset'], $r['length']);
@@ -544,8 +516,7 @@ class Translate
 
 			$translations[$msgid] = $msgstr;
 
-			if (isset($msgid_plural) && !$one_msgid_only)
-			{
+			if (isset($msgid_plural) && !$one_msgid_only) {
 				$translations[$msgid_plural] =& $translations[$msgid];
 			}
 		}
@@ -561,7 +532,7 @@ class Translate
 	 * (used internally to reduce cache size)
 	 * @return array        array of translations
 	 */
-	static public function parseGettextPOFile($path, $one_msgid_only = false)
+	static public function parseGettextPOFile(string $path, bool $one_msgid_only = false): array
 	{
 		static $c_esc = ["\\n"=>"\n", "\\r"=>"\r", "\\\\"=>"\\", "\\f"=>"\f", "\\t"=>"\t", "\\"=>""];
 
@@ -570,82 +541,70 @@ class Translate
 		$msgid = $msgstr = [];
 		$msgctxt = null;
 
-		do
-		{
+		do {
 			$line = trim(fgets($fp));
 
 			$space = strpos($line, " ");
 
 			// Ignore comments
-			if (substr($line, 0, 1) == "#")
-			{
+			if (substr($line, 0, 1) == "#") {
 				continue;
 			}
 			// msgid
-			elseif (strncmp($line, "msgid", 5) == 0)
-			{
+			elseif (strncmp($line, "msgid", 5) == 0) {
 				$msgid[] = trim(substr($line, $space + 1), '"');
 			}
 			// translation
-			elseif (strncmp($line, "msgstr", 6) == 0)
-			{
+			elseif (strncmp($line, "msgstr", 6) == 0) {
 				$msgstr[] = trim(substr($line, $space + 1), '"');
 			}
 			// Context
-			elseif (strncmp($line, 'msgctxt', 7) == 0)
-			{
+			elseif (strncmp($line, 'msgctxt', 7) == 0) {
 				$msgctxt = trim(substr($line, $space + 1), '"');
 			}
 			// continued (could be _id or _str)
-			elseif (substr($line, 0, 1) == '"')
-			{
+			elseif (substr($line, 0, 1) == '"') {
 				$line = trim($line, '"');
 
-				if ($i = count($msgstr))
-				{
-					if (!isset($msgstr[$i]))
-					{
+				if ($i = count($msgstr)) {
+					if (!isset($msgstr[$i])) {
 						$msgstr[$i] = '';
 					}
 
 					$msgstr[$i] .= $line;
 				}
-				elseif ($i = count($msgid))
-				{
-					if (!isset($msgid[$i]))
-					{
+				elseif ($i = count($msgid)) {
+					if (!isset($msgid[$i])) {
 						$msgid[$i] = '';
 					}
 
 					$msgid[$i] .= $line;
 				}
-				elseif ($msgctxt !== null)
-				{
+				elseif ($msgctxt !== null) {
 					$msgctxt .= $line;
 				}
 			}
 
 			// Complete dataset: append to translations
-			if (count($msgid) && count($msgstr) && (empty($line) || ($line[0] == "#") || feof($fp)))
+			if (count($msgid)
+				&& count($msgstr)
+				&& (empty($line) || ($line[0] == "#") || feof($fp)))
 			{
 				$msgid[0] = strtr($msgid[0], $c_esc);
 
 				// context: link to msgid with a EOF character
 				// see https://secure.php.net/manual/fr/book.gettext.php#89975
-				if ($msgctxt !== null)
-				{
+				if ($msgctxt !== null) {
 					$msgid[0] = $msgctxt . chr(4) . $msgid[0];
 				}
 
 				$translations[$msgid[0]] = [];
 
-				foreach ($msgstr as $v)
-				{
+				foreach ($msgstr as $v) {
 					$translations[$msgid[0]][] = strtr($v, $c_esc);
 				}
 
-				if (isset($msgid[1]) && $one_msgid_only)
-				{
+				if (isset($msgid[1]) && $one_msgid_only) {
 					$msgid[1] = strtr($msgid[1], $c_esc);
 					$translations[$msgid[1]] =& $translations[$msgid[0]];
 				}
@@ -653,7 +612,8 @@ class Translate
 				$msgid = $msgstr = [];
 				$msgctxt = null;
 			}
-		} while (!feof($fp));
+		}
+		while (!feof($fp));
 
 		fclose($fp);
 
@@ -663,18 +623,15 @@ class Translate
 	/**
 	 * Returns the preferred language of the client from its HTTP Accept-Language header
 	 * @param  boolean $full_locale Set to TRUE to get the real locale ('en_AU' for example), false will return only the lang ('en')
-	 * @return string               Locale or language
 	 */
-	static public function getHttpLang($full_locale = false)
+	static public function getHttpLang(bool $full_locale = false): ?string
 	{
-		if (empty($_SERVER['HTTP_ACCEPT_LANGUAGE']))
-		{
+		if (empty($_SERVER['HTTP_ACCEPT_LANGUAGE'])) {
 			return null;
 		}
 
 		// Convenient PECL Intl function
-		if (function_exists('locale_accept_from_http'))
-		{
+		if (function_exists('locale_accept_from_http')) {
 			$default = ini_get('intl.use_exceptions');
 			ini_set('intl.use_exceptions', 1);
 
@@ -696,22 +653,18 @@ class Translate
 		$locale_priority = 0;
 
 		// For each locale extract its priority
-		foreach ($http_langs as $lang)
-		{
-			if (preg_match('/;q=([0-9.,]+)/', $lang, $match))
-			{
+		foreach ($http_langs as $lang) {
+			if (preg_match('/;q=([0-9.,]+)/', $lang, $match)) {
 				$q = (int) $match[1] * 10;
 				$lang = str_replace($match[0], '', $lang);
 			}
-			else
-			{
+			else {
 				$q = 10;
 			}
 
 			$lang = strtolower(trim($lang));
 
-			if (strlen($lang) > 2)
-			{
+			if (strlen($lang) > 2) {
 				$lang = explode('-', $lang);
 				$lang = array_slice($lang, 0, 2);
 				$lang = $lang[0] . '_' . strtoupper($lang[1]);
@@ -719,8 +672,7 @@ class Translate
 
 			// Higher priority than the previous one?
 			// Let's use it then!
-			if ($q > $locale_priority)
-			{
+			if ($q > $locale_priority) {
 				$locale = $lang;
 			}
 		}
@@ -901,15 +853,13 @@ class Translate
 	 * @param  string $lang Language to use (only 'fr' and 'en' are available)
 	 * @return array
 	 */
-	static public function getCountriesList($lang = null)
+	static public function getCountriesList(?string $lang = null): array
 	{
-		if (null === $lang)
-		{
+		if (null === $lang) {
 			$lang = substr(self::$locale, 0, 2);
 		}
 
-		if ($lang != 'fr')
-		{
+		if ($lang != 'fr') {
 			$lang = 'en';
 		}
 
@@ -927,17 +877,14 @@ class Translate
 	static public function extendSmartyer(Smartyer &$tpl)
 	{
 		$tpl->register_modifier('date_format', function ($date, $format = '%c') {
-			if (is_object($date))
-			{
+			if (is_object($date)) {
 				$date = $date->getTimestamp();
 			}
-			elseif (!is_numeric($date))
-			{
+			elseif (!is_numeric($date)) {
 				$date = strtotime($date);
 			}
 
-			if (strpos('DATE_', $format) === 0 && defined($format))
-			{
+			if (strpos('DATE_', $format) === 0 && defined($format)) {
 				return date(constant($format), $date);
 			}
 
@@ -956,8 +903,7 @@ class Translate
 	{
 		$block = trim($block);
 
-		if ($block[0] != '{')
-		{
+		if ($block[0] != '{') {
 			return false;
 		}
 
@@ -966,28 +912,23 @@ class Translate
 		$raw_args = '';
 		$strings = [];
 
-		foreach ($block as $k=>$v)
-		{
-			if ($k % 2 == 0)
-			{
+		foreach ($block as $k => $v) {
+			if ($k % 2 == 0) {
 				$raw_args .= $v;
 			}
-			else
-			{
+			else {
 				$strings[] = trim($v);
 			}
 		}
 
 		$nb_strings = count($strings);
 
-		if ($nb_strings < 1)
-		{
+		if ($nb_strings < 1) {
 			$s->parseError($pos, 'No string found in translation block: ' . $block);
 		}
 
 		// Only one plural is allowed
-		if ($nb_strings > 2)
-		{
+		if ($nb_strings > 2) {
 			$s->parseError($pos, 'Maximum number of translation strings is 2, found ' . $nb_strings . ' in: ' . $block);
 		}
 
@@ -995,17 +936,14 @@ class Translate
 
 		$code = sprintf('\KD2\Translate::gettext(%s, ', var_export($strings[0], true));
 
-		if ($nb_strings > 1)
-		{
-			if (!isset($args['n']))
-			{
+		if ($nb_strings > 1) {
+			if (!isset($args['n'])) {
 				$s->parseError($pos, 'Multiple strings in translation block, but no \'n\' argument.');
 			}
 
 			$code .= sprintf('%s, (int) %s, ', var_export($strings[1], true), $args['n']);
 		}
-		else
-		{
+		else {
 			$code .= 'null, null, ';
 		}
 
@@ -1016,8 +954,7 @@ class Translate
 
 		$escape = $s->getEscapeType();
 
-		if (isset($args['escape']))
-		{
+		if (isset($args['escape'])) {
 			$escape = strtolower($args['escape']);
 		}
 
@@ -1025,13 +962,11 @@ class Translate
 
 		// Use named arguments: %name, %nb_apples...
 		// This will cause weird bugs if you use %s, or %d etc. before or between named arguments
-		if (!empty($args))
-		{
+		if (!empty($args)) {
 			$code = sprintf('\KD2\Translate::named_sprintf(%s, %s)', $code, $s->exportArguments($args));
 		}
 
-		if ($escape != 'false' && $escape != 'off' && $escape !== '')
-		{
+		if ($escape != 'false' && $escape != 'off' && $escape !== '') {
 			$code = sprintf('self::escape(%s, %s)', $code, var_export($escape, true));
 		}
 
