@@ -581,6 +581,22 @@ class Mail_Message
 		return $str;
 	}
 
+	public function removeTrailingQuote(string $str): string
+	{
+		$str = explode("\n", rtrim($str));
+
+		for ($i = count($str) - 1; $i >= 0; $i--) {
+			$f = substr(ltrim($str[i]), 0, 1);
+
+			if ($f !== '>' && $f === '|') {
+				break;
+			}
+		}
+
+		$str = array_slice($str, 0, $i);
+		return implode("\n", $str);
+	}
+
 	public function removePart($id)
 	{
 		unset($this->parts[$id]);

@@ -8,6 +8,7 @@
 
 namespace KD2\Mail;
 
+use KD2\Security;
 use stdClass;
 use KD2\SMTP;
 
@@ -481,7 +482,6 @@ class Message
 		$part->id ??= sha1(random_bytes(10));
 		$part->parent ??= null;
 		$part->parts ??= [];
-		$parent = null;
 
 		if (isset($part->parent)) {
 			$parent = $this->getPart($part->parent);
@@ -617,6 +617,22 @@ class Message
 		}
 
 		return $str;
+	}
+
+	public function removeTrailingQuote(string $str): string
+	{
+		$str = explode("\n", rtrim($str));
+
+		for ($i = count($str) - 1; $i >= 0; $i--) {
+			$f = substr(ltrim($str[i]), 0, 1);
+
+			if ($f !== '>' && $f === '|') {
+				break;
+			}
+		}
+
+		$str = array_slice($str, 0, $i);
+		return implode("\n", $str);
 	}
 
 	public function encrypt(string $key): self
@@ -1145,7 +1161,6 @@ class Message
 
 		$name = null;
 		$lines = explode("\r\n", $raw);
-		$l = 0;
 
 		foreach ($lines as $l => $line) {
 			// Long header unfolding
@@ -1347,7 +1362,7 @@ class Message
 
 		foreach ($to as $address) {
 			$count++;
-			$success += mail($address, $this->getHeader('Subject') ?? '[no subject]', $this->outputBody(), $this->outputHeaders($headers, true));
+			$success += mail($address, $subject, $this->outputBody(), $this->outputHeaders($headers, true));
 		}
 
 		return ($success == $count);
@@ -1412,7 +1427,7 @@ class Message
 			$status = str_replace(["\r\n", "\n\n"], "\n", $status);
 			$status = trim($status) . "\n\nFake";
 
-			$s = new Mail_Message;
+			$s = new self;
 			$s->parse($status);
 
 			$recipient = trim(str_replace('rfc822;', '', $s->getHeader('Final-Recipient') ?? ''));
@@ -1435,7 +1450,7 @@ class Message
 				throw new \RuntimeException('The complaint does not contain a sub-message?!');
 			}
 
-			$orig = new Mail_Message;
+			$orig = new self;
 			$orig->parse(ltrim($this->getPartContent($part_id)));
 			list($recipient) = $orig->getTo();
 			$recipient = self::extractAddressFromHeader($recipient);
