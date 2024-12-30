@@ -367,8 +367,12 @@ class Translate
 
 		$id = $msgid1;
 
+		if (null !== $msgid2) {
+			$id .= chr(0) . $msgid2;
+		}
+
 		// Append context of the msgid
-		if (!is_null($context)) {
+		if (null !== $context) {
 			$id = $context . chr(4) . $id;
 		}
 
@@ -528,92 +532,109 @@ class Translate
 	 * Parses a gettext raw .po file and returns an array
 	 * @link http://include-once.org/upgradephp-17.tgz Source
 	 * @param  string $path .po file path
-	 * @param  boolean $one_msgid_only If set to true won't return an entry for msgid_plural
-	 * (used internally to reduce cache size)
 	 * @return array        array of translations
 	 */
-	static public function parseGettextPOFile(string $path, bool $one_msgid_only = false): array
+	static public function parseGettextPOFile(string $path): array
 	{
 		static $c_esc = ["\\n"=>"\n", "\\r"=>"\r", "\\\\"=>"\\", "\\f"=>"\f", "\\t"=>"\t", "\\"=>""];
 
 		$fp = fopen($path, 'r');
+		$l = 0;
 		$translations = [];
-		$msgid = $msgstr = [];
+
+		$context = null;
+		$msgid = null;
+		$msgstr = [];
 		$msgctxt = null;
+
+		$append_translation = function ($msgid, $msgstr, $msgctxt) use (&$translations, $c_esc) {
+			if (trim($msgid) === '') {
+				return;
+			}
+
+			$msgid = strtr($msgid, $c_esc);
+
+			// context: link to msgid with a EOF character
+			// see https://secure.php.net/manual/fr/book.gettext.php#89975
+			if ($msgctxt !== null) {
+				$msgid = $msgctxt . chr(4) . $msgid;
+			}
+
+			$translations[$msgid] = [];
+
+			foreach ($msgstr as $v) {
+				$translations[$msgid][] = strtr($v, $c_esc);
+			}
+		};
 
 		do {
 			$line = trim(fgets($fp));
-
-			$space = strpos($line, " ");
+			$l++;
+			$space = strpos($line, ' ');
+			$word = false !== $space ? substr($line, 0, $space) : null;
 
 			// Ignore comments
-			if (substr($line, 0, 1) == "#") {
+			if (substr($line, 0, 1) === "#") {
 				continue;
 			}
-			// msgid
-			elseif (strncmp($line, "msgid", 5) == 0) {
-				$msgid[] = trim(substr($line, $space + 1), '"');
+			// append msgid_plural
+			elseif ($word === 'msgid') {
+				if (null !== $msgid) {
+					$append_translation($msgid, $msgstr, $msgctxt);
+					$msgid = null;
+					$msgstr = [];
+					$msgctxt = null;
+					$context = null;
+				}
+
+				$v = trim(substr($line, $space + 1), '"');
+				$msgid = $v;
+				$context = 'msgid';
+			}
+			elseif ($word === 'msgid_plural') {
+				if ($context !== 'msgid') {
+					throw new \LogicException(sprintf('Line %d: msgid_plural must follow msgid', $l));
+				}
+
+				$v = trim(substr($line, $space + 1), '"');
+				$msgid .= chr(0) . $v;
 			}
 			// translation
-			elseif (strncmp($line, "msgstr", 6) == 0) {
-				$msgstr[] = trim(substr($line, $space + 1), '"');
+			elseif (null !== $word && substr($word, 0, 6) === 'msgstr') {
+				if ($context !== 'msgid' && !count($msgstr)) {
+					throw new \LogicException(sprintf('Line %d: msgstr must follow msgid (%s): %s', $l, $context, $line));
+				}
+
+				$v = trim(substr($line, $space + 1), '"');
+				$msgstr[] = $v;
+				$context = 'msgstr';
 			}
 			// Context
-			elseif (strncmp($line, 'msgctxt', 7) == 0) {
-				$msgctxt = trim(substr($line, $space + 1), '"');
+			elseif ($word === 'msgctxt') {
+				$v = trim(substr($line, $space + 1), '"');
+				$msgctxt = $v;
+				$context = 'msgctxt';
 			}
 			// continued (could be _id or _str)
-			elseif (substr($line, 0, 1) == '"') {
+			elseif (substr($line, 0, 1) === '"') {
 				$line = trim($line, '"');
 
-				if ($i = count($msgstr)) {
-					if (!isset($msgstr[$i])) {
-						$msgstr[$i] = '';
-					}
-
-					$msgstr[$i] .= $line;
+				if ($context === 'msgstr') {
+					$msgstr[key($msgstr)] .= $line;
 				}
-				elseif ($i = count($msgid)) {
-					if (!isset($msgid[$i])) {
-						$msgid[$i] = '';
-					}
-
-					$msgid[$i] .= $line;
+				elseif ($context === 'msgid') {
+					$msgid .= $line;
 				}
-				elseif ($msgctxt !== null) {
+				elseif ($context === 'msgctxt') {
 					$msgctxt .= $line;
 				}
 			}
-
-			// Complete dataset: append to translations
-			if (count($msgid)
-				&& count($msgstr)
-				&& (empty($line) || ($line[0] == "#") || feof($fp)))
-			{
-				$msgid[0] = strtr($msgid[0], $c_esc);
-
-				// context: link to msgid with a EOF character
-				// see https://secure.php.net/manual/fr/book.gettext.php#89975
-				if ($msgctxt !== null) {
-					$msgid[0] = $msgctxt . chr(4) . $msgid[0];
-				}
-
-				$translations[$msgid[0]] = [];
-
-				foreach ($msgstr as $v) {
-					$translations[$msgid[0]][] = strtr($v, $c_esc);
-				}
-
-				if (isset($msgid[1]) && $one_msgid_only) {
-					$msgid[1] = strtr($msgid[1], $c_esc);
-					$translations[$msgid[1]] =& $translations[$msgid[0]];
-				}
-
-				$msgid = $msgstr = [];
-				$msgctxt = null;
-			}
 		}
 		while (!feof($fp));
+
+		if (null !== $msgid) {
+			$append_translation($msgid, $msgstr, $msgctxt);
+		}
 
 		fclose($fp);
 
