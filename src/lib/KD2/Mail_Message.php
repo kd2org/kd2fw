@@ -281,8 +281,12 @@ class Mail_Message
 		return self::splitMultipleAddressHeaderValue($value);
 	}
 
-	static public function splitMultipleAddressHeaderValue(string $value): array
+	static public function splitMultipleAddressHeaderValue($value): array
 	{
+		if (is_array($value)) {
+			$value = implode(', ', $value);
+		}
+
 		if (!trim($value)) {
 			return [];
 		}
