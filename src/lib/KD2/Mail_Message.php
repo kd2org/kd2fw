@@ -585,47 +585,6 @@ class Mail_Message
 		return $str;
 	}
 
-	public function removeTrailingQuote(string $str): string
-	{
-		$str = explode("\n", rtrim($str));
-
-		for ($i = count($str) - 1; $i >= 0; $i--) {
-			$f = substr(ltrim($str[$i]), 0, 1);
-
-			if ($f !== '>' && $f !== '|') {
-				break;
-			}
-		}
-
-		$str = array_slice($str, 0, $i + 1);
-
-		for ($i = count($str) - 1; $i >= 0; $i--) {
-			$line = trim($str[$i]);
-
-			if ($line === '') {
-				continue;
-			}
-
-			if (preg_match('/^(Le|On)\s.*:$/', $line)) {
-				$str[$i] = '';
-			}
-
-			break;
-		}
-
-		return rtrim(implode("\n", $str));
-	}
-
-	/**
-	 * This removes everything below ----Message d'origine----
-	 * This can lead to deleting useful content!
-	 */
-	public function removeOriginalMessageQuote(string $str): string
-	{
-		$str = preg_replace('!^(----+).*(?1).*!ms', '', $str);
-		return $str;
-	}
-
 	public function removePart($id)
 	{
 		unset($this->parts[$id]);
