@@ -13,7 +13,7 @@ class Formatter
 	const SIGNATURE_REGEXP = '!(?:^--+$|^—$|^-\w)|(?:^Sent from (?:my|Mail) (?:\s*\w+){1,4}$|^Envoyé depuis)|(?:^={30,}$)$!';
 	const QUOTE_HEADER_REGEXP = '!^(?:On|Le|El|Il|Op|W|Den|Am)\s+.*'
 		. '(?:wrote|écrit|escribió|ha escrit|scritto|schreef|geschreven|pisze|napisał(?:\(a\))?|skrev|schrieb)\s*:$!';
-	const QUOTE_SEPARATOR_REGEXP = '!^(?:____+|----+\s*Message[^-\s]+\s*----+)$!';
+	const QUOTE_SEPARATOR_REGEXP = '!^(?:____+|----+\s*Message[^-]+\s*----+)$!m';
 
 	protected string $message;
 	protected ?string $text;
@@ -62,6 +62,13 @@ class Formatter
 		}
 
 		$text = str_replace(["\r\n", "\r"], "\n", $this->message);
+
+		if (preg_match(self::QUOTE_SEPARATOR_REGEXP, $text, $match, PREG_OFFSET_CAPTURE)) {
+			$pos = $match[0][1];
+			$this->citation = substr($text, $pos);
+			$this->text = substr($text, 0, $pos);
+			return;
+		}
 
 		$signature_line = null;
 		$citation_line = null;
