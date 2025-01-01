@@ -13,7 +13,7 @@ class Formatter
 	const SIGNATURE_REGEXP = '!(?:^--+$|^—$|^-\w)|(?:^Sent from (?:my|Mail) (?:\s*\w+){1,4}$|^Envoyé depuis)|(?:^={30,}$)$!';
 	const QUOTE_HEADER_REGEXP = '!^(?:On|Le|El|Il|Op|W|Den|Am)\s+.*'
 		. '(?:wrote|écrit|escribió|ha escrit|scritto|schreef|geschreven|pisze|napisał(?:\(a\))?|skrev|schrieb)\s*:$!';
-	const QUOTE_SEPARATOR_REGEXP = '!^(?:____+|----+\s*Message[^-]+\s*----+)$!m';
+	const QUOTE_SEPARATOR_REGEXP = '/^\s*(?:____+|----+\s*Message[^-]+\s*----+|----+)\s*$/m';
 
 	protected string $message;
 	protected ?string $text;
@@ -63,6 +63,9 @@ class Formatter
 
 		$text = str_replace(["\r\n", "\r"], "\n", $this->message);
 
+		// Remove non-breaking space
+		$text = str_replace("\xc2\xa0", ' ', $text);
+
 		if (preg_match(self::QUOTE_SEPARATOR_REGEXP, $text, $match, PREG_OFFSET_CAPTURE)) {
 			$pos = $match[0][1];
 			$this->citation = substr($text, $pos);
@@ -80,9 +83,6 @@ class Formatter
 
 		for ($i = $last; $i >= 0; $i--) {
 			$line = trim($text[$i]);
-
-			// Remove non-breaking space
-			$line = str_replace("\xc2\xa0", ' ', $line);
 
 			if (null === $signature_line
 				&& !$quoted_line
