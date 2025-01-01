@@ -948,7 +948,8 @@ class Mail_Message
 		}
 
 		if (function_exists('iconv_mime_encode')) {
-			return iconv_mime_encode('', $value);
+			// Remove colon+space
+			return substr(iconv_mime_encode('', $value), 2);
 		}
 
 		if ($this->is_utf8($value)) {
