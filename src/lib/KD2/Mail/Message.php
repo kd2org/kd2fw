@@ -961,7 +961,8 @@ class Message
 		}
 
 		if (function_exists('iconv_mime_encode')) {
-			return iconv_mime_encode('', $value);
+			// Remove colon+space
+			return substr(iconv_mime_encode('', $value), 2);
 		}
 
 		$value = '=?UTF-8?B?'.base64_encode($value).'?=';
