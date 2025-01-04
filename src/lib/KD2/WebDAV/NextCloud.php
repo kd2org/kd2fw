@@ -41,6 +41,7 @@ abstract class NextCloud
 	const OC_NAMESPACE = 'http://owncloud.org/ns';
 
 	const PROP_OC_ID = self::OC_NAMESPACE . ':id';
+	const PROP_OC_FILEID = self::OC_NAMESPACE . ':fileid';
 	const PROP_OC_SIZE = self::OC_NAMESPACE . ':size';
 	const PROP_OC_DOWNLOADURL = self::OC_NAMESPACE . ':downloadURL';
 	const PROP_OC_PERMISSIONS = self::OC_NAMESPACE . ':permissions';
@@ -760,7 +761,7 @@ abstract class NextCloud
 	 * File preview, new version, requires a file ID
 	 * @see https://help.nextcloud.com/t/getting-image-preview-with-android-library-or-via-webdav/75743/5
 	 */
-	protected function nc_preview_v2(string $uri): void
+	protected function nc_preview_v2(): void
 	{
 		http_response_code(404);
 	}
