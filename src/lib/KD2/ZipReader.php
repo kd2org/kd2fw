@@ -136,8 +136,8 @@ class ZipReader
 		}
 
 		// Suspicious uncompressed size
-		if (isset($this->file_size) && $size >= $this->file_size * 50) {
-			throw new \OutOfBoundsException('The archive uncompressed size is more than 50 times the compressed size.');
+		if (isset($this->file_size) && $size >= $this->file_size * 100) {
+			throw new \OutOfBoundsException('The archive uncompressed size is more than 100 times the compressed size.');
 		}
 	}
 
