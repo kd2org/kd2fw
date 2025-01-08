@@ -71,6 +71,10 @@ class Mail_Message
 	{
 		$value = $this->getHeader('message-id');
 
+		if (!$value) {
+			return null;
+		}
+
 		if (preg_match('!<(.*?)>!', $value, $match))
 		{
 			return $match[1];
@@ -81,7 +85,7 @@ class Mail_Message
 			return $value;
 		}
 
-		return false;
+		return null;
 	}
 
 	public function setMessageId($id = null)

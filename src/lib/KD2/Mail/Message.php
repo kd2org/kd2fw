@@ -49,7 +49,7 @@ class Message
 		return $this->headers;
 	}
 
-	public function getHeader($key)
+	public function getHeader(string $key): ?string
 	{
 		$key = strtolower($key);
 
@@ -60,9 +60,13 @@ class Message
 		return str_replace("\n", '', $this->headers[$key]);
 	}
 
-	public function getMessageId()
+	public function getMessageId(): ?string
 	{
 		$value = $this->getHeader('message-id');
+
+		if (!$value) {
+			return null;
+		}
 
 		if (preg_match('!<(.*?)>!', $value, $match)) {
 			return $match[1];
@@ -72,7 +76,7 @@ class Message
 			return $value;
 		}
 
-		return false;
+		return null;
 	}
 
 	public function setMessageId(string $id = null)
