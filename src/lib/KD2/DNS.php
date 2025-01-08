@@ -187,7 +187,9 @@ class DNS
 					break;
 				case 'MX':
 					$prio = unpack('nprio', $read(2)); // priority
-					$responses[$prio['prio']] = $read_name();
+					//$responses[$prio['prio']] = $read_name();
+					// Don't use priority as key, as there might be multiple responses of the same priority
+					$responses[] = $read_name();
 					break;
 				case 'NS':
 				case 'CNAME':
