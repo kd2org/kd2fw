@@ -11,9 +11,13 @@ namespace KD2\Mail;
 class Formatter
 {
 	const SIGNATURE_REGEXP = '!(?:^--+$|^—$|^-\w)|(?:^Sent from (?:my|Mail) (?:\s*\w+){1,4}$|^Envoyé depuis)|(?:^={30,}$)$!';
-	const QUOTE_HEADER_REGEXP = '!^(?:On|Le|El|Il|Op|W|Den|Am)\s+.*'
-		. '(?:wrote|écrit|escribió|ha escrit|scritto|schreef|geschreven|pisze|napisał(?:\(a\))?|skrev|schrieb)\s*:$!';
-	const QUOTE_SEPARATOR_REGEXP = '/^\s*(?:____+|----+\s*Message[^-]+\s*----+|-------+)\s*$/m';
+	const QUOTE_HEADER_REGEXP = '!^(?:On|Le|El|Il|Op|W|Den|Am|\d+ [a-zûé]+)\s+.*'
+		. '(?:wrote|écrit|escribió|ha escrit|scritto|schreef|geschreven|pisze|napisał(?:\(a\))?|skrev|schrieb)\s*:$!i';
+	const QUOTE_SEPARATOR_REGEXP = '/^\s*(?:____+'
+		. '|----+\s*Message[^-]+\s*----+'
+		. '|-------+)\s*$'
+		. '|^(?:De|From)[ ]?:.*?@.*?[\]>]\s*$'
+		. '|^[ ]*Le\s.{1,800}\sa\sécrit\s?:[ ]*$/sm';
 
 	protected string $message;
 	protected ?string $text;
@@ -104,7 +108,7 @@ class Formatter
 		$next = null;
 
 		for ($i = $last; $i >= 0; $i--) {
-			$line = ltrim($text[$i]);
+			$line = trim($text[$i]);
 
 			if (empty($line)) {
 				continue;
