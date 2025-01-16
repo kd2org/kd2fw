@@ -226,8 +226,8 @@ class Mail_Message
 
 	static public function extractNameFromHeader(string $value): string
 	{
-		if (preg_match('/["\'](.+?)[\'"]/', $value, $match)) {
-			return $match[1];
+		if (preg_match('/(["\'])(.+?)\1/', $value, $match)) {
+			return $match[2];
 		}
 		elseif (preg_match('/\\((.+?)\\)/', $value, $match)) {
 			return $match[1];
