@@ -214,7 +214,7 @@ class Message
 
 	static public function extractNameFromHeader(string $value): string
 	{
-		if (preg_match('/["\'](.+?)[\'"]/', $value, $match)) {
+		if (preg_match('/(["\'])(.+?)\1/', $value, $match)) {
 			return $match[1];
 		}
 		elseif (preg_match('/\\((.+?)\\)/', $value, $match)) {
