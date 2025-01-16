@@ -17,7 +17,7 @@ class Formatter
 		. '|----+\s*Message[^-]+\s*----+'
 		. '|-------+)\s*$'
 		. '|^(?:De|From)[ ]?:.*?@.*?[\]>]\s*$'
-		. '|^[ ]*Le\s.{1,800}\sa\sécrit\s?:[ ]*$/sm';
+		. '|^[ ]*Le\s.{1,400}\sa\sécrit\s?:[ ]*$/sm';
 
 	protected string $message;
 	protected ?string $text;
