@@ -129,9 +129,8 @@
 	textEditor.prototype.insertAtPosition = function (start_pos, str, new_pos)
 	{
 		var end_pos = start_pos + str.length;
-		var sel = this.getSelection();
 
-		this.setSelection(sel.start, sel.end);
+		this.setSelection(start_pos, start_pos);
 		this.insert(str);
 
 		if (!new_pos) new_pos = end_pos;
