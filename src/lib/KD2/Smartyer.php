@@ -69,7 +69,7 @@ class Smartyer
 	/**
 	 * Current template complete path
 	 */
-	protected string $template_path;
+	protected ?string $template_path = null;
 
 	/**
 	 * Current compiled template path
@@ -165,12 +165,12 @@ class Smartyer
 	/**
 	 * Directory used to store the compiled code
 	 */
-	protected string $compiled_dir;
+	protected ?string $compiled_dir = null;
 
 	/**
 	 * Root directory to child templates
 	 */
-	protected string $templates_dir;
+	protected ?string $templates_dir = null;
 
 	/**
 	 * Sets the path where compiled templates will be stored
@@ -235,8 +235,7 @@ class Smartyer
 		{
 			$copy = ['modifiers', 'blocks', 'functions', 'escape_type', 'compile_functions', 'namespace', 'compiled_dir', 'templates_dir'];
 
-			foreach ($copy as $key)
-			{
+			foreach ($copy as $key) {
 				$this->{$key} = &$parent->{$key};
 			}
 
@@ -532,18 +531,19 @@ class Smartyer
 	 */
 	protected function compile(): string
 	{
-		if (!isset($this->source) && isset($this->template_path)) {
-			$this->source = file_get_contents($this->template_path);
+		$code = $this->source;
+
+		if (!isset($code)) {
+			$code = file_get_contents($this->template_path) ?: null;
 		}
 
-		if (!isset($this->source)) {
-			var_dump($this->template_path); exit;
+		if (!isset($code)) {
 			throw new \LogicException('No source code found');
 		}
 
-		$this->source = str_replace("\r", "", $this->source);
+		$code = str_replace("\r", "", $code);
 
-		$compiled = $this->parse($this->source);
+		$compiled = $this->parse($code);
 
 		// Force new lines (this is to avoid PHP eating new lines after its closing tag)
 		$compiled = preg_replace("/\?>\n/", "$0\n", $compiled);
@@ -601,12 +601,10 @@ class Smartyer
 			}
 		}
 
-		$this->source = null;
-
 		// Atomic update if everything worked, destination will be overwritten
 		rename($this->compiled_template_path . '.tmp', $this->compiled_template_path);
 
-		unset($compiled);
+		unset($compiled, $code);
 
 		return $out;
 	}
@@ -994,7 +992,7 @@ class Smartyer
 		$name = null;
 		$last_value = '';
 
-		preg_match_all('/(?:"(?:\\.|[^\"])*?"|\'(?:\\.|[^\'])*?\'|(?>[^"\'=\s]+))+|[=]/i', $str, $match);
+		preg_match_all('/(?:"(?:\\\\"|[^"])*?"|\'(?:\\\\\'|[^\'])*?\'|(?>[^"\'=\s]+))+|[=]/i', $str, $match);
 
 		foreach ($match[0] as $value)
 		{

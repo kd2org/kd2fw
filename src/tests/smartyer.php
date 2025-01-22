@@ -7,7 +7,10 @@ use KD2\Translate;
 require __DIR__ . '/_assert.php';
 
 $root_smartyer = new Smartyer;
-$root_smartyer->setCompiledDir(sys_get_temp_dir());
+$tmpdir = sys_get_temp_dir() . '/smartyer.' . sha1(random_bytes(10));
+
+register_shutdown_function(fn() => exec('rm -rf ' . escapeshellarg($tmpdir)));
+$root_smartyer->setCompiledDir($tmpdir);
 
 test_variables($root_smartyer);
 test_literals($root_smartyer);
@@ -128,8 +131,8 @@ function test_variables(Smartyer $smartyer)
 	Test::equals($expected, $output, 'Magic variable in modifier arguments');
 
 	// quotes in quoted arguments
-	$code = '{"Hello world!"|replace:"world":"\"\'world\'\"!"|raw}';
-	$expected = 'Hello "\'world\'"!!';
+	$code = '{"Hello world!"|replace:"world":"\"\'world\' ok\"!"|raw}';
+	$expected = 'Hello "\'world\' ok"!!';
 	$output = Smartyer::fromString($code, $smartyer)->fetch();
 
 	Test::equals($expected, $output, 'Quotes in quoted arguments');
@@ -190,14 +193,14 @@ function test_foreach(Smartyer $smartyer)
 	$output = Smartyer::fromString($code, $smartyer)->assign('loop', $loop)->fetch();
 
 	Test::equals($expected, $output, 'Simple loop, PHP style');
-	
+
 	// Simple loop, Smarty style
 	$code = '{foreach from=$loop item="v" key="k"}{$k} = {$v} ({$iteration}) {/foreach}';
 	$expected = '0 = a (1) 1 = b (2) 2 = c (3) ';
 	$output = Smartyer::fromString($code, $smartyer)->assign('loop', $loop)->fetch();
 
 	Test::equals($expected, $output, 'Simple loop, Smarty style');
-	
+
 	// Simple loop, Smarty style, no key
 	$code = '{foreach from=$loop item="v"}{$v} ({$iteration}) {/foreach}';
 	$expected = 'a (1) b (2) c (3) ';
@@ -264,6 +267,19 @@ function test_functions(Smartyer $smartyer)
 
 	$output = $tpl->fetch();
 	Test::equals($expected, $output, 'function with parameters');
+
+	// custom function
+	$code = '{echo a="Test \"lol ok\" pizza" b=\'Test \\\'lol ok\\\' pizza\'}';
+	$expected = 'Test "lol ok" pizza Test \'lol ok\' pizza';
+
+	$tpl = Smartyer::fromString($code, $smartyer);
+
+	$tpl->register_function('echo', function ($args) {
+		return implode(' ', $args);
+	});
+
+	$output = $tpl->fetch();
+	Test::equals($expected, $output, 'function with escaped quotes in parameters');
 }
 
 function test_blocks(Smartyer $smartyer)
