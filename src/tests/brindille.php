@@ -165,4 +165,10 @@ function test_modifiers_parameters()
 	});
 
 	Test::equals('{"var1":"acab"}', $b->render('{{:json var1="baca"|reverse}}'));
+
+	$b->registerFunction('echo', function (array $params) {
+		return implode(' ', $params);
+	});
+
+	Test::equals('bla "lol lol" bla bla \'lol lol\' bla', $b->render('{{:echo var1="bla \\"lol lol\\" bla" var2=\'bla \\\'lol lol\\\' bla\'}}'));
 }
