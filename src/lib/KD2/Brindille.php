@@ -912,6 +912,10 @@ class Brindille
 			}
 		}
 
+		if (empty($code)) {
+			throw new Brindille_Exception('No condition given');
+		}
+
 		return sprintf('<?php %s (%s): ?>', $tag_name, $code);
 	}
 
