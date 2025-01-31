@@ -302,6 +302,10 @@ class Brindille
 			$level = count($this->_variables)-1;
 		}
 
+		if (count($this->_variables) > 100) {
+			throw new \Exception('Recursive limit reached');
+		}
+
 		$this->_variables[$level][$key] = $value;
 	}
 
@@ -592,14 +596,28 @@ class Brindille
 	 */
 	protected function _magic(string $expr, $var, &$found = null)
 	{
-		$i = 0;
-		$keys = explode('.', $expr);
+		static $call = 0;
 
-		while (null !== ($key = array_shift($keys)))
-		{
+		if ($call > 99999) {
+			throw new \LogicException('Call limit for magic variable finding has been reached, check for recursivity issues');
+		}
+
+		$call++;
+		$i = 0;
+
+		// Expression ending with a dot is invalid and will return NULL
+		if (substr($expr, -1) === '.') {
+			$found = false;
+			return null;
+		}
+
+		$key = strtok($expr, '.');
+
+		do {
 			if ($i++ > 20) {
 				// Limit the amount of recusivity we can go through
 				$found = false;
+				strtok('');
 				return null;
 			}
 
@@ -607,12 +625,14 @@ class Brindille
 				// Test for constants
 				if (defined(get_class($var) . '::' . $key)) {
 					$found = true;
+					strtok('');
 					return constant(get_class($var) . '::' . $key);
 				}
 
 				// Test for properties
 				if (!property_exists($var, $key)) {
 					$found = false;
+					strtok('');
 					return null;
 				}
 
@@ -621,12 +641,15 @@ class Brindille
 			elseif (is_array($var)) {
 				if (!array_key_exists($key, $var)) {
 					$found = false;
+					strtok('');
 					return null;
 				}
 
 				$var = $var[$key];
 			}
 		}
+		while (false !== ($key = strtok('.')));
+		strtok('');
 
 		$found = true;
 		return $var;
@@ -1311,11 +1334,7 @@ class Brindille
 			$has_dot = false !== strpos($var, '.');
 			$has_bracket = false !== strpos($var, '[');
 
-			if ($has_bracket && $has_dot) {
-				// You can't have both
-				throw new Brindille_Exception(sprintf('Invalid variable name: %s', $var));
-			}
-			elseif ($has_bracket) {
+			if ($has_bracket) {
 				$separator = '[';
 			}
 			else {
@@ -1370,6 +1389,7 @@ class Brindille
 			// Same for 'from', but use it as a variable name
 			// {{:assign var="test" from="types.%s"|args:$type}}
 			elseif (array_key_exists('from', $params) && count($params) === 1) {
+				$prev = null;
 				$prev = is_string($params['from']) ? $tpl->get($params['from']) : null;
 			}
 			// Or else assign all params
