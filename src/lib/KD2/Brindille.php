@@ -598,7 +598,7 @@ class Brindille
 	{
 		static $call = 0;
 
-		if ($call > 99999) {
+		if ($call > 999999) {
 			throw new \LogicException('Call limit for magic variable finding has been reached, check for recursivity issues');
 		}
 
