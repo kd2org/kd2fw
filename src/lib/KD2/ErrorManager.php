@@ -957,10 +957,11 @@ class ErrorManager
 	 * Copy of var_dump but returns a string instead of a variable
 	 * @param  mixed  $var   variable to dump
 	 * @param  bool $hide_values Do not return values if set to TRUE
+	 * @param  bool $objects_as_arrays Return objects as arrays
 	 * @param  integer $level Indentation level (internal use)
 	 * @return string
 	 */
-	static public function dump($var, $hide_values = false, $level = 0)
+	static public function dump($var, bool $hide_values = false, bool $objects_as_arrays = false, int $level = 0): string
 	{
 		if ($level > 20)
 		{
@@ -983,12 +984,10 @@ class ErrorManager
 				return 'resource(' . (int)$var . ') of type (' . get_resource_type($var) . ')';
 			case 'array':
 			case 'object':
-				if (is_object($var))
-				{
+				if (is_object($var) && !$objects_as_arrays) {
 					$out = 'object(' . get_class($var) . ') (' . count((array) $var) . ') {' . PHP_EOL;
 				}
-				else
-				{
+				else {
 					$out = 'array(' . count((array) $var) . ') {' . PHP_EOL;
 				}
 
@@ -1020,7 +1019,7 @@ class ErrorManager
 						$out .= '=> *RECURSION*' . PHP_EOL;
 					}
 					else {
-						$out .= '=> ' . self::dump($value, $hide_values, $level + 1) . PHP_EOL;
+						$out .= '=> ' . self::dump($value, $hide_values, $objects_as_arrays, $level + 1) . PHP_EOL;
 					}
 				}
 
