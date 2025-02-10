@@ -261,6 +261,10 @@ class UserSession
 
 	public function __construct(DB $db, $config = [])
 	{
+		// Reset any existing session
+		unset($_SESSION);
+		session_name($this->cookie_name);
+
 		$this->db = $db;
 
 		foreach ($config as $key=>$value)
@@ -292,10 +296,11 @@ class UserSession
 		}
 	}
 
-	protected function getSessionOptions()
+	protected function getSessionOptions(bool $create_cookie)
 	{
 		return [
 			'name'            => $this->cookie_name,
+			'use_cookies'     => $create_cookie,
 			'cookie_path'     => $this->cookie_path,
 			'cookie_domain'   => $this->cookie_domain,
 			'cookie_secure'   => $this->cookie_secure,
@@ -317,16 +322,16 @@ class UserSession
 	public function start(bool $write = false)
 	{
 		// Don't start session if it has been already started
-		if (isset($_SESSION) && !($write && $this->non_locking)) {
+		if (isset($_SESSION) && !$write) {
 			return true;
 		}
 
 		$init = false;
-		$session_id = false;
+		$create_cookie = $write;
+		$session_id = $_COOKIE[$this->cookie_name] ?? null;
 
 		if (!isset($_SESSION)) {
-			$session_id = $_COOKIE[$this->cookie_name] ?? null;
-			$session_url = false;
+			$session_url = null;
 
 			// Allow to pass session ID in URL for some URLs
 			if (!$session_id
@@ -348,6 +353,7 @@ class UserSession
 
 				$session_id = $_GET[$this->cookie_name];
 				$session_url = true;
+				$create_cookie = false;
 			}
 
 			// Only start session if it exists
@@ -383,7 +389,33 @@ class UserSession
 		}
 
 		if ($write || $session_id) {
-			$return = session_start($this->getSessionOptions());
+			// Make sure the session ID belongs to the session name
+			if ($session_id && 0 !== strpos($session_id, $this->cookie_name . '-')) {
+				$session_id = null;
+			}
+
+			// Don't create cookie if it's already there
+			if ($session_id && ($_COOKIE[$this->cookie_name] ?? null) === $session_id) {
+				$create_cookie = false;
+			}
+
+			// Create session ID including cookie name to restrict context
+			$session_id ??= session_create_id($this->cookie_name . '-');
+			$this->setId($session_id);
+
+			$_COOKIE[$this->cookie_name] ??= $session_id;
+
+			$return = session_start($this->getSessionOptions($create_cookie));
+
+			// Make sure we restrict the context of the session
+			if (!isset($_SESSION['__name'])) {
+				$_SESSION['__name'] = $this->cookie_name;
+			}
+			// Attempting to use a different session, this is suspect
+			elseif ($_SESSION['__name'] !== $this->cookie_name) {
+				$this->destroy();
+				return false;
+			}
 
 			if ($init) {
 				$this->data = array_merge($this->data, $_SESSION['userSessionData'] ?? []);
@@ -572,6 +604,13 @@ class UserSession
 		}
 
 		$this->start(true);
+		$this->destroy();
+
+		return true;
+	}
+
+	protected function destroy(): void
+	{
 		session_destroy();
 		$_SESSION = null;
 
@@ -581,8 +620,6 @@ class UserSession
 		unset($_COOKIE[$this->cookie_name]);
 
 		$this->user = null;
-
-		return true;
 	}
 
 	/**
