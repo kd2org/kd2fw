@@ -328,7 +328,7 @@ class ErrorManager
 		}
 	}
 
-	static public function reportExceptionSilent(\Throwable $e): void
+	static public function reportExceptionSilent(\Throwable $e): string
 	{
 		$report = self::logException($e);
 		extract($report);
@@ -336,6 +336,8 @@ class ErrorManager
 		if (self::$email_errors) {
 			self::sendEmail($title, $report, $log, $html_report);
 		}
+
+		return $report->context->id;
 	}
 
 	static public function logException(\Throwable $e): array
