@@ -373,15 +373,16 @@ class UserSession
 					ini_set('session.use_cookies', false);
 					ini_set('session.use_only_cookies', false);
 				}
-
-				session_set_cookie_params([
-					'lifetime' => 0,
-					'path'     => $this->cookie_path,
-					'domain'   => $this->cookie_domain,
-					'secure'   => $this->cookie_secure,
-					'httponly' => true,
-					'samesite' => 'Lax',
-				]);
+				elseif (ini_get('session.use_cookies')) {
+					session_set_cookie_params([
+						'lifetime' => 0,
+						'path'     => $this->cookie_path,
+						'domain'   => $this->cookie_domain,
+						'secure'   => $this->cookie_secure,
+						'httponly' => true,
+						'samesite' => 'Lax',
+					]);
+				}
 
 				session_name($this->cookie_name);
 				$init = true;
