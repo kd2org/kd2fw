@@ -1124,6 +1124,8 @@ class Brindille
 	 *
 	 * This is used to reference variables and code in arrays
 	 *
+	 * Warning: this is different than _exportArgument
+	 *
 	 * @param  array   $args      Arguments to export
 	 * @return string
 	 */
