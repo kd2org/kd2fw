@@ -1122,6 +1122,11 @@ class SQLite3 extends DB
 		}
 	}
 
+	public function hasTable(string $name): bool
+	{
+		return $this->test('sqlite_master', 'name = ? AND type = \'table\'', $name);
+	}
+
 	public function getTableForeignKeys(string $name): array
 	{
 		$fk = [];
