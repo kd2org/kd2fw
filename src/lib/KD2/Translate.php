@@ -95,7 +95,7 @@ class Translate
 	 * @param  string $domain    Translation domain (equivalent to a category, in practice will be the name of the file .po/.mo)
 	 * @param  string $directory Directory where translations will be stored
 	 */
-	static public function registerDomain(string $domain, string $directory = null): void
+	static public function registerDomain(string $domain, ?string $directory = null): void
 	{
 		if (!is_null($directory) && !is_readable($directory))
 		{
@@ -224,7 +224,7 @@ class Translate
 	 * @param  array  $translations List of translations, in format array(msgid => array(0 => msgstr, 1 => plural form, 10 => plural form 10...))
 	 * @return void
 	 */
-	static public function importTranslations(string $domain, string $locale, Array $translations): void
+	static public function importTranslations(string $domain, string $locale, array $translations): void
 	{
 		if (!array_key_exists($domain, self::$translations)) {
 			self::registerDomain($domain);
@@ -239,7 +239,7 @@ class Translate
 	 * @param  string $locale Locale
 	 * @return array
 	 */
-	static public function exportTranslations(string $domain, string $locale = null): array
+	static public function exportTranslations(string $domain, ?string $locale = null): array
 	{
 		$locale = is_null($locale) ? self::$locale : $locale;
 		self::_loadTranslations($domain, $locale);
@@ -1005,7 +1005,7 @@ class Translate
 	use function \KD2\{_, gettext, ngettext, dgettext, dngettext, bindtextdomain, textdomain, setlocale}
 */
 
-function _($id, Array $args = [], $domain = null)
+function _($id, array $args = [], $domain = null)
 {
 	return Translate::string($id, $args, $domain);
 }
