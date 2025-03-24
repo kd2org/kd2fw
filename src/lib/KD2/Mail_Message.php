@@ -403,6 +403,31 @@ class Mail_Message
 		$this->addPart('text/html', $content);
 	}
 
+	public function removeHTMLBody(): void
+	{
+		$text_id = null;
+		$html_id = null;
+
+		foreach ($this->parts as $id => $part) {
+			if ($part['type'] === 'text/plain' && null === $text_id) {
+				$text_id = $id;
+			}
+			elseif ($part['type'] === 'text/html' && null === $html_id) {
+				$html_id = $id;
+			}
+		}
+
+		if (null === $html_id) {
+			return;
+		}
+
+		if (null === $text_id) {
+			$this->setBody($this->getBodyText());
+		}
+
+		$this->removePart($html_id);
+	}
+
 	/**
 	 * Return body text, using HTML as "best source" if available
 	 * (as some HTML emails contain a shitty plaintext alternative),
