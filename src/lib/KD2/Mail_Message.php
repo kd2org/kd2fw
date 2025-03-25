@@ -407,6 +407,7 @@ class Mail_Message
 	{
 		$text_id = null;
 		$html_id = null;
+		$text = null;
 
 		foreach ($this->parts as $id => $part) {
 			if ($part['type'] === 'text/plain' && null === $text_id) {
@@ -422,10 +423,14 @@ class Mail_Message
 		}
 
 		if (null === $text_id) {
-			$this->setBody($this->getBodyText());
+			$text = $this->getBodyText();
 		}
 
 		$this->removePart($html_id);
+
+		if ($text) {
+			$this->setBody($text);
+		}
 	}
 
 	/**
