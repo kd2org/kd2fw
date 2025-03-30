@@ -500,6 +500,20 @@ class Mail_Message
 		return $this->parts;
 	}
 
+	/**
+	 * Change inline parts as attachment, to fix issues
+	 */
+	public function fixInlineParts(): void
+	{
+		foreach ($this->parts as &$p) {
+			if (!empty($p['cid']) || !empty($p['location'])) {
+				$p['attachment'] = true;
+			}
+		}
+
+		unset($p);
+	}
+
 	public function listParts()
 	{
 		$out = [];
@@ -833,7 +847,7 @@ class Mail_Message
 			$content = chunk_split(base64_encode($part['content']));
 		}
 
-		if (!empty($part['name']) && (!empty($part['cid']) || !empty($part['location'])))
+		if (empty($part['attachment']) && !empty($part['name']) && (!empty($part['cid']) || !empty($part['location'])))
 		{
 			$out .= 'Content-Disposition: inline; filename="' . $part['name'] . "\"\n";
 		}
