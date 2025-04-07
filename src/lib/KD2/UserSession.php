@@ -370,8 +370,8 @@ class UserSession
 				}
 
 				if ($session_url) {
-					ini_set('session.use_cookies', false);
-					ini_set('session.use_only_cookies', false);
+					@ini_set('session.use_cookies', false);
+					@ini_set('session.use_only_cookies', false);
 				}
 				elseif (ini_get('session.use_cookies')) {
 					session_set_cookie_params([
