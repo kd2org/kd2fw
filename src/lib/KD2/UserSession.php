@@ -234,6 +234,17 @@ class UserSession
 		return !$this->db->test('compromised_passwords_cache_ranges', 'prefix = ? AND date >= ?', $prefix, $expiry);
 	}
 
+	/**
+	 * Return a string containing an identifier for this app setup (eg. domain name),
+	 * AND an identifier for user password (eg. hashed password).
+	 * This is to make sure that other sessions are killed when the user changes their password,
+	 * to block any attacker that could have be already logged in.
+	 */
+	protected function getUserSessionVerifier(): ?string
+	{
+		return strval($this->user);
+	}
+
 	////////////////////////////////////////////////////////////////////////////
 	// Actual code of UserSession
 
@@ -475,18 +486,36 @@ class UserSession
 		// Démarrage session
 		$this->start();
 
-		if (empty($_SESSION['userSession']))
-		{
+		if (empty($_SESSION['userSession'])) {
 			$this->rememberMeAutoLogin();
 		}
 
-		if (empty($_SESSION['userSession']))
-		{
+		if (empty($_SESSION['userSession'])) {
 			return false;
 		}
 
 		$this->user = $_SESSION['userSession'];
+
+		// Upgrade old sessions and set identifier for new sessions if it's not there
+		if (empty($_SESSION['userIdentifier'])) {
+			$this->start(true);
+			$_SESSION['userIdentifier'] = $this->getUserSessionVerifier();
+			$this->close();
+		}
+		// Make sure that if password has changed, the session is killed
+		elseif ($_SESSION['userIdentifier'] !== $this->getUserSessionVerifier()) {
+			$this->logout();
+			return false;
+		}
+
 		return true;
+	}
+
+	public function clearSessionVerifier(): void
+	{
+		$this->start(true);
+		$_SESSION['userIdentifier'] = null;
+		$this->close();
 	}
 
 	public function getUser()
@@ -583,6 +612,10 @@ class UserSession
 
 		$this->start(true);
 		$this->user = $_SESSION['userSession'] = $user;
+
+		// Make sure the password is in the session, and the session should be closed if it changes
+		$_SESSION['userIdentifier'] = $this->getUserSessionVerifier();
+
 		$this->close();
 		return true;
 	}
