@@ -485,6 +485,11 @@ class Brindille
 			'?>' => '<?=\'?>\'?>'
 		]);
 
+		// Remove PHP tags that can be cut by Brindille code, eg.
+		// <{{literal}}? or <{{**lol**}}?php
+		$code = preg_replace('!<(\{\{.*?\}\})\?!s', '<?=\'<\'?>$1<?=\'?\'?>', $code);
+		$code = preg_replace('!\?(\{\{.*?\}\})>!s', '<?=\'?\'?>$1<?=\'>\'?>', $code);
+
 		$keep_whitespaces = false !== strpos($code, '{{**keep_whitespaces**}}');
 
 		// Remove comments, but do not affect the number of lines

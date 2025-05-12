@@ -28,9 +28,17 @@ function test_php_tags()
 	$b = new Brindille;
 	$b->assign('php', '<?php');
 	$b->registerDefaults();
+	$b->registerFunction('test', fn() => '');
 
 	Test::equals('&lt;?php', $b->render('{{$php}}'));
-	Test::equals('<?php exit; ?>', $b->render('<?php exit; ?>'));
+	Test::equals('<?php echo 42; ?>', $b->render('<?php echo 42; ?>'));
+	Test::equals('<?php echo 42; ?>', $b->render('<{{literal}}?php echo 42; ?{{/literal}}>'));
+	Test::equals('<?php echo 42; ?>', $b->render('<{{**test**}}?php echo 42; ?{{**test**}}>'));
+	Test::equals('<?php echo 42; ?>', $b->render('<{{$test}}?php echo 42; ?{{$test}}>'));
+	Test::equals('<?php echo 42; ?>', $b->render("<{{:test \nlol=1}}?php echo 42; ?{{:test lol=1}}>"));
+
+	// With spaces and new lines
+	Test::equals('<?php echo 42; ?>', $b->render("<{{**lol\n\n\n\n\t\n**}}?php echo 42; ?{{**lol\n\n\n\n\t\n**}}>"));
 }
 
 function test_comments()
