@@ -287,9 +287,12 @@ class Security
 			throw new \RuntimeException('Cannot create temporary directory for GnuPG');
 		}
 
-		putenv('GNUPGHOME=' . $tmpdir);
+		// Before PECL gnupg 1.5.0, setting home_dir required to set environment variable
+		if (version_compare(phpversion('gnupg'), '1.5.0', '<')) {
+			@putenv('GNUPGHOME=' . $tmpdir);
+		}
 
-		$gpg = new \gnupg;
+		$gpg = new \gnupg(['home_dir' => $tmpdir]);
 		$gpg->seterrormode(\GNUPG_ERROR_EXCEPTION);
 
 		$info = $gpg->import($key);
