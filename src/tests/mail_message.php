@@ -13,6 +13,7 @@ test_encryption();
 test_invalid_multipart();
 test_invalid_multipart_boundary();
 test_multipart_mixed();
+test_body_removal();
 
 function test_cc()
 {
@@ -266,4 +267,15 @@ function test_multipart_mixed()
 	$msg->parse(file_get_contents(__DIR__ . '/data/mails/multipart_mixed.eml'));
 	Test::equals(4, count($msg->getParts()));
 	Test::assert(strstr($msg->outputHeaders(), 'multipart/mixed; boundary="' . $msg->getMimeOutputBoundary()));
+}
+
+/**
+ * Make sure the content-type has been overwritten
+ */
+function test_body_removal()
+{
+	$msg = new Mail_Message;
+	$msg->parse(file_get_contents(__DIR__ . '/data/mails/quoted_html.eml'));
+	$msg->removeHTMLBody();
+	Test::strictlyEquals(false, strpos('text/html', $msg->output()));
 }

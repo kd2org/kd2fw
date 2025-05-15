@@ -370,6 +370,8 @@ class Mail_Message
 		if (count($this->parts) <= 1) {
 			// Remove CTE if present
 			unset($this->headers['content-transfer-encoding']);
+			// Also remove content-type
+			unset($this->headers['content-type']);
 		}
 
 		foreach ($this->parts as &$part)
@@ -389,6 +391,8 @@ class Mail_Message
 		if (count($this->parts) <= 1) {
 			// Remove CTE if present
 			unset($this->headers['content-transfer-encoding']);
+			// Also remove content-type
+			unset($this->headers['content-type']);
 		}
 
 		foreach ($this->parts as &$part)
