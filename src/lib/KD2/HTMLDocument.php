@@ -324,7 +324,7 @@ class HTMLDocument extends \DOMDocument
 	 * @param  integer $options use the options parameter to specify additional Libxml parameters
 	 * @return bool Returns TRUE on success or FALSE on failure.
 	 */
-	public function loadHTML(string $source, int $options = null): bool
+	public function loadHTML(string $source, ?int $options = null): bool
 	{
 		if (is_null($options))
 		{
@@ -353,7 +353,7 @@ class HTMLDocument extends \DOMDocument
 	 * @param  integer $options  use the options parameter to specify additional Libxml parameters
 	 * @return boolean Returns TRUE on success or FALSE on failure.
 	 */
-	public function loadHTMLFile(string $filename, int $options = null): bool
+	public function loadHTMLFile(string $filename, ?int $options = null): bool
 	{
 		if (is_null($options))
 		{

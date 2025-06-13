@@ -20,7 +20,7 @@ class Date extends DateTime {
 	}
 
 	#[\ReturnTypeWillChange]
-	static public function createFromFormat($format, $datetime, DateTimeZone $timezone = null)
+	static public function createFromFormat($format, $datetime, ?DateTimeZone $timezone = null)
 	{
 		$v = parent::createFromFormat($format, $datetime, $timezone);
 
