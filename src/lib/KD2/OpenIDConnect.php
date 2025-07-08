@@ -22,6 +22,7 @@
 namespace KD2;
 
 use KD2\HTTP;
+use stdClass;
 
 /**
  * OpenIDConnect: an OpenID Connect (OAuth 2.0) simple client library
@@ -35,31 +36,31 @@ class OpenIDConnect
 	 * Auto-discovery configuration
 	 * @var stdClass
 	 */
-	protected $config;
+	protected stdClass $config;
 
 	/**
 	 * Client ID
 	 * @var string
 	 */
-	protected $id;
+	protected string $id;
 
 	/**
 	 * Client secret
 	 * @var string
 	 */
-	protected $secret;
+	protected string $secret;
 
 	/**
 	 * Client redirect URL
 	 * @var string
 	 */
-	protected $redirect_url;
+	protected string $redirect_url;
 
 	/**
 	 * User access token (once auth is successful)
 	 * @var string
 	 */
-	protected $token;
+	protected ?string $token = null;
 
 	/**
 	 * Instantiates a new OpenIDConnect object
@@ -69,20 +70,18 @@ class OpenIDConnect
 	 * @param string $secret       Client secret, obtained from provider
 	 * @param string $redirect_url Client redirect URL
 	 */
-	public function __construct($url, $id, $secret, $redirect_url)
+	public function __construct(string $url, string $id, string $secret, string $redirect_url)
 	{
 		$url = rtrim($url, '/');
 		$response = (new HTTP)->GET($url . '/.well-known/openid-configuration');
 
-		if (!$response)
-		{
+		if (!$response) {
 			throw new \RuntimeException(sprintf('Not an OpenIDConnect server, cannot find configuration: %s', $url));
 		}
 
 		$this->config = json_decode($response);
 
-		if (!$this->config)
-		{
+		if (!$this->config) {
 			throw new \RuntimeException('Invalid configuration');
 		}
 
@@ -95,10 +94,9 @@ class OpenIDConnect
 	 * Authenticate client with provider, may redirect to a third party URL
 	 * @return void|boolean
 	 */
-	public function authenticate()
+	public function authenticate(): bool
 	{
-		if (isset($_GET['code']) || isset($_GET['error']))
-		{
+		if (isset($_GET['code']) || isset($_GET['error'])) {
 			return $this->handleOAuthResponse();
 		}
 
@@ -110,13 +108,13 @@ class OpenIDConnect
 	 * Returns Authentication URL where user should be redirected to perform auth
 	 * @return string
 	 */
-	public function getAuthenticationURL()
+	public function getAuthenticationURL(): string
 	{
 		$params = [
 			'response_type' => 'code',
 			'client_id'     => $this->id,
 			'redirect_uri'  => $this->redirect_url,
-			'state'         => 'random' . time(), // FIXME: unsafe
+			'state'         => sha1(random_bytes(10)),
 			'scope'         => implode(' ', $this->config->scopes_supported),
 		];
 
@@ -131,12 +129,11 @@ class OpenIDConnect
 	 * Handles response from OAuth server, if possible
 	 * @return boolean TRUE if user is correctly authenticated
 	 */
-	public function handleOAuthResponse()
+	public function handleOAuthResponse(): bool
 	{
 		$this->checkError($_GET);
 
-		if (empty($_GET['code']))
-		{
+		if (empty($_GET['code'])) {
 			throw new \RuntimeException('OAuth 2.0: Missing request code.');
 		}
 
@@ -152,8 +149,7 @@ class OpenIDConnect
 
 		$response = (new HTTP)->POST($this->config->token_endpoint, $params);
 
-		if (!$response)
-		{
+		if (!$response) {
 			return false;
 		}
 
@@ -161,8 +157,7 @@ class OpenIDConnect
 
 		$this->checkError($response);
 
-		if (empty($response['access_token']))
-		{
+		if (empty($response['access_token'])) {
 			return false;
 		}
 
@@ -173,13 +168,12 @@ class OpenIDConnect
 
 	/**
 	 * Checks server response for errors and throws a RuntimeException if one is found
-	 * @param  Array $response  Server response
+	 * @param  array $response  Server response
 	 * @return boolean
 	 */
-	protected function checkError(Array $response)
+	protected function checkError(array $response): bool
 	{
-		if (isset($response['error']))
-		{
+		if (isset($response['error'])) {
 			$error = $response['error'];
 			$error .= isset($response['error_description']) ? ' -- ' . $response['error_description'] : '';
 			throw new \RuntimeException('OAuth authentication error: ' . $error);
@@ -190,13 +184,13 @@ class OpenIDConnect
 
 	/**
 	 * Returns Authorization header with access token to perform requests to provider
-	 * @return string
+	 * @return null|string
 	 */
-	public function getAuthorizationHeader()
+	public function getAuthorizationHeader(): ?string
 	{
 		if (!$this->token)
 		{
-			return false;
+			return null;
 		}
 
 		return 'Bearer ' . $this->token;
@@ -206,15 +200,14 @@ class OpenIDConnect
 	 * Returns user info from provider
 	 * @return stdClass
 	 */
-	public function getUserInfo()
+	public function getUserInfo(): ?stdClass
 	{
 		$response = (new HTTP)->GET($this->config->userinfo_endpoint, [
 			'Authorization' => $this->getAuthorizationHeader()
 		]);
 
-		if (!$response)
-		{
-			return false;
+		if (!$response) {
+			return null;
 		}
 
 		$response = json_decode($response);
