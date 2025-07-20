@@ -599,21 +599,30 @@ class Markdown extends Parsedown
 				return null;
 			}
 
-			$h = intval($attributes['height'] ?? 56.25);
+			if (empty($attributes['height'])) {
+				$h = 56.25;
+			}
+			elseif (substr(trim($attributes['height']), -1) === '%') {
+				$h = intval($attributes['height']);
+			}
+			else {
+				$h = preg_replace('/[^\d]+/', '', $attributes['height']);
+			}
+
 			$w = intval($attributes['width'] ?? 100);
 
-			if ($h < $w) {
+			if (is_int($h) && $h < $w) {
 				$style = sprintf('padding-top: %f%%;', ($h / $w) * 100);
 			}
 			else {
-				$style = sprintf('height: %s', $attributes['height']);
+				$style = sprintf('height: %d%s', $attributes['height'], is_int($attributes['height']) ? '%' : 'px');
 			}
 
 			unset($attributes['width'], $attributes['height']);
 			$attributes['frameborder'] = 0;
 			$attributes['allowfullscreen'] = '';
 			$attributes['allowtransparency'] = '';
-			$attributes['style'] = 'position: absolute; inset: 0px;';
+			$attributes['style'] = 'position: absolute; inset: 0px';
 
 			array_walk($attributes, fn (&$v, $k) => $v = $k . '="' . htmlspecialchars((string)$v) . '"');
 			$attributes = implode(' ', $attributes);
