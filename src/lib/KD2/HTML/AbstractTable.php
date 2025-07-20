@@ -15,7 +15,7 @@ abstract class AbstractTable
 	abstract public function output(): void;
 	abstract public function fetch(): string;
 
-	public function download(?string $name = null): void
+	public function download(?string $name = null, ?string $extension = null): void
 	{
 		$name ??= 'document';
 
@@ -24,7 +24,7 @@ abstract class AbstractTable
 		$name = substr($name, 0, 128);
 
 		header('Content-type: ' . static::MIME_TYPE);
-		header(sprintf('Content-Disposition: attachment; filename="%s.%s"', $name, static::EXTENSION));
+		header(sprintf('Content-Disposition: attachment; filename="%s.%s"', $name, $extension ?? static::EXTENSION));
 		$this->output();
 	}
 }
