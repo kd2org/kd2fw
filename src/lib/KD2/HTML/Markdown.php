@@ -615,7 +615,7 @@ class Markdown extends Parsedown
 				$style = sprintf('padding-top: %f%%;', ($h / $w) * 100);
 			}
 			else {
-				$style = sprintf('height: %d%s', $attributes['height'], is_int($attributes['height']) ? '%' : 'px');
+				$style = sprintf('height: %d%s', $h, is_int($h) ? '%' : 'px');
 			}
 
 			unset($attributes['width'], $attributes['height']);
