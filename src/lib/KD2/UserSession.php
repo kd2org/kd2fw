@@ -417,7 +417,7 @@ class UserSession
 
 			$_COOKIE[$this->cookie_name] ??= $session_id;
 
-			$return = session_start($this->getSessionOptions($create_cookie));
+			$return = session_start(headers_sent() ? [] : $this->getSessionOptions($create_cookie));
 
 			// Make sure we restrict the context of the session
 			if (!isset($_SESSION['__name'])) {
