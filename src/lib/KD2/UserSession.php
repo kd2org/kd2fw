@@ -376,10 +376,6 @@ class UserSession
 					@session_regenerate_id();
 				}
 
-				if (headers_sent($file, $line)) {
-					throw new \LogicException(sprintf('Cannot start session: headers already sent in line %d of %s', $line, $file));
-				}
-
 				if ($session_url) {
 					@ini_set('session.use_cookies', false);
 					@ini_set('session.use_only_cookies', false);
@@ -401,6 +397,10 @@ class UserSession
 		}
 
 		if ($write || $session_id) {
+			if (headers_sent($file, $line)) {
+				throw new \LogicException(sprintf('Cannot start session: headers already sent in line %d of %s', $line, $file));
+			}
+
 			// Make sure the session ID belongs to the session name
 			if ($session_id && 0 !== strpos($session_id, $this->cookie_name . '-')) {
 				$session_id = null;
@@ -417,7 +417,7 @@ class UserSession
 
 			$_COOKIE[$this->cookie_name] ??= $session_id;
 
-			$return = session_start(headers_sent() ? [] : $this->getSessionOptions($create_cookie));
+			$return = session_start();
 
 			// Make sure we restrict the context of the session
 			if (!isset($_SESSION['__name'])) {
