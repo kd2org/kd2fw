@@ -670,7 +670,7 @@ class Mail_Message
 		return $this->raw;
 	}
 
-	public function outputHeaders(array $headers = null, bool $for_sending = false)
+	public function outputHeaders(?array $headers = null, bool $for_sending = false)
 	{
 		if (null === $headers) {
 			$headers = $this->headers;
