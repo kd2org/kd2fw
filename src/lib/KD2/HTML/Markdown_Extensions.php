@@ -72,7 +72,8 @@ class Markdown_Extensions
 	{
 		// Only allow color names / hex codes
 		foreach ($args as $k => $v) {
-			if (!self::_checkColorValue($v)) {
+			if (!is_string($v)
+				|| !self::_checkColorValue($v)) {
 				unset($args[$k]);
 			}
 		}
