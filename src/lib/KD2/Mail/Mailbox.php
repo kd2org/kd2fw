@@ -2,16 +2,6 @@
 
 namespace KD2\Mail;
 
-/*
-$m = new Mailbox('localhost', Mailbox::IMAP);
-$m->setLogin('test', 'test');
-//var_dump($m->listMessages());
-//var_dump($m->append(file_get_contents('/tmp/a.eml'), 'INBOX'));
-//var_dump($m->listMessages());
-//var_dump($m->fetchHeaders('INBOX', 1));
-var_dump($m->move('INBOX', 2, 'Sent'));
-*/
-
 /**
  * IMAP library using curl
  * Parsing the message is left up to your implementation.
@@ -26,6 +16,9 @@ var_dump($m->move('INBOX', 2, 'Sent'));
  * https://irp.nain-t.net/doku.php/190imap:030_commandes
  * https://www.rfc-editor.org/rfc/rfc3501#section-7.4.2
  * https://explained-from-first-principles.com/email/#internet-message-access-protocol
+ * https://www.atmail.com/blog/advanced-imap/
+ * https://irp.nain-t.net/doku.php/190imap:030_commandes
+ * https://nickb.dev/blog/introduction-to-imap/
  */
 class Mailbox
 {
@@ -40,6 +33,15 @@ class Mailbox
 	protected string $password;
 	protected $curl;
 	protected bool $expunge = false;
+
+	const DEFAULT_FETCH_QUERY = [
+		'flags',
+		'date',
+		'size',
+		'envelope',
+	];
+
+	const SEARCH_UNSEEN = ['UNSEEN'];
 
 	public function __construct(string $server, string $protocol = self::IMAPS)
 	{
@@ -58,11 +60,31 @@ class Mailbox
 		}
 	}
 
-	public function setLogin(string $username, string $password): void
+	public function setLogin(
+		string $username,
+		#[\SensitiveParameter]
+		string $password
+	): void
 	{
 		$this->init();
 		curl_setopt($this->curl, CURLOPT_USERNAME, $username);
 		curl_setopt($this->curl, CURLOPT_PASSWORD, $password);
+	}
+
+	public function setLogFilePointer($p)
+	{
+		if (null === $p) {
+			$this->opt(CURLOPT_VERBOSE, false);
+			$this->opt(CURLOPT_STDERR, null);
+		}
+		else {
+			if (!is_resource($p)) {
+				throw new \InvalidArgumentException('Pointer argument is not a valid resource');
+			}
+
+			$this->opt(CURLOPT_VERBOSE, true);
+			$this->opt(CURLOPT_STDERR, $p);
+		}
 	}
 
 	protected function init(): void
@@ -96,7 +118,7 @@ class Mailbox
 	protected function parseFlags(string $flags): array
 	{
 		$flags = explode(' ', $flags);
-		$flags = array_map(fn($a) => substr($a, 1), $flags);
+		$flags = array_map(fn($a) => ltrim($a, '\\'), $flags);
 		return $flags;
 	}
 
@@ -111,10 +133,10 @@ class Mailbox
 			array_walk($item, fn (&$a) => $a = ($a === 'NIL') ? null : substr($a, 1, -1));
 
 			$address = (object) [
-				'name' => $item[1],
+				'name'    => $item[1],
 				'address' => $item[3] . '@' . $item[4],
-				'domain' => $item[4],
-				'user' => $item[3],
+				'domain'  => $item[4],
+				'user'    => $item[3],
 			];
 
 			if ($address->name) {
@@ -128,6 +150,35 @@ class Mailbox
 		}
 
 		return $out;
+	}
+
+	protected function parseImapBodyStructure(string $struct): \stdClass
+	{
+		$struct = trim($struct);
+		$attachments = [];
+		$html = false;
+		$text = false;
+
+		// Match all attachments: ("APPLICATION" "PDF" ("NAME" "doc.pdf") NIL NIL "BASE64" 12345 ("ATTACHMENT" ("FILENAME" "doc.pdf")))
+		preg_match_all('/\(\s*"([^"]+)"\s+"([^"]+)"\s*\("NAME"\s+"([^"]+)"\).*?"([^"]+)"\s+(\d+)(?:\s+NIL)?\s*\("ATTACHMENT"/i', $struct, $matches, PREG_SET_ORDER);
+
+		foreach ($matches as $match) {
+			$attachments[] = (object) [
+				'type' => strtolower($match[1]),
+				'subtype' => strtolower($match[2]),
+				'filename' => $match[3],
+				'encoding' => strtolower($match[4]),
+				'size' => (int)$match[5],
+			];
+		}
+
+		// Very simplified way to check if there is a HTML and text part
+		// this might fail in 0.1% of test cases (eg. "text" "html" is an attachment)
+		// (("TEXT" "PLAIN" ("CHARSET" "us-ascii") NIL NIL "QUOTED-PRINTABLE" 4888 170 NIL NIL NIL)("TEXT" "HTML" ("CHARSET" "us-ascii") NIL NIL "QUOTED-PRINTABLE" 32407 479 NIL NIL NIL) "ALTERNATIVE"
+		$html = stripos($struct, '"TEXT" "HTML"') !== false;
+		$text = stripos($struct, '"TEXT" "PLAIN"') !== false;
+
+		return (object) compact('attachments', 'html', 'text');
 	}
 
 	protected function parseImapEnvelope(string $str): array
@@ -148,6 +199,10 @@ class Mailbox
 			}
 			else {
 				$a = $this->parseImapAddresses(substr($a, 1, -1));
+			}
+
+			if (is_string($a)) {
+				$a = mb_decode_mimeheader($a);
 			}
 		});
 
@@ -193,8 +248,8 @@ class Mailbox
 			$f = trim($match[3], '"');
 
 			$folders[$f] = (object) [
-				'name' => mb_convert_encoding($f, 'UTF7-IMAP', 'UTF-8'),
-				'flags' => $this->parseFlags($match[1]),
+				'name'      => mb_convert_encoding($f, 'UTF7-IMAP', 'UTF-8'),
+				'flags'     => $this->parseFlags($match[1]),
 				'separator' => $match[2],
 			];
 		}
@@ -202,7 +257,7 @@ class Mailbox
 		return $folders;
 	}
 
-	public function countUnread(string $folder = 'INBOX'): int
+	public function countUnseen(string $folder = 'INBOX'): int
 	{
 		$r = $this->request(null, sprintf('STATUS %s (UNSEEN)', $folder));
 
@@ -213,27 +268,26 @@ class Mailbox
 		return (int) $match[1];
 	}
 
-	public function listUIDs(string $folder = 'INBOX'): array
+	public function listUIDs(string $folder = 'INBOX', ?array $query = null): array
 	{
-		return $this->search($folder, 'ALL');
+		$query ??= ['ALL'];
+		return $this->search($folder, $this->buildSearchQuery($query));
 	}
 
-	public function listUnseenUIDs(string $folder = 'INBOX'): array
+	public function listMessages(string $folder = 'INBOX', ?array $search = null): array
 	{
-		$out = [];
-
-		foreach ($this->search($folder, 'UNSEEN') as $uid) {
-			$out[$uid] = $this->fetch($folder, $uid);
+		if (null === $search) {
+			$uids = '1:*';
+		}
+		else {
+			$uids = $this->listUIDs($folder, $search);
+			$uids = implode(',', $uids);
 		}
 
-		return $out;
-	}
-
-	public function listMessages(string $folder = 'INBOX'): array
-	{
-		$out = [];
-		$r = $this->request($folder, 'FETCH 1:* FULL');
+		// Macro equivalent to: (FLAGS INTERNALDATE RFC822.SIZE ENVELOPE BODY)
+		$r = $this->request($folder, sprintf('UID FETCH %s FULL', $uids));
 		$r = trim($r);
+		$out = [];
 
 		if (!$r) {
 			return [];
@@ -244,17 +298,18 @@ class Mailbox
 		foreach ($r as $line) {
 			$line = trim($line);
 
-			if (!preg_match('/^\* (\d+) FETCH \(FLAGS \((.*?)\) INTERNALDATE "(.*?)" RFC822.SIZE (\d+) ENVELOPE \((.*?)\) BODY \((.*?)\)\)$/', $line, $match)) {
-				continue;
+			if (!preg_match('/^\* (\d+) FETCH \(FLAGS \((.*?)\) UID (\d+) INTERNALDATE "(.*?)" RFC822.SIZE (\d+) ENVELOPE \((.*?)\) BODY \((.*?)\)\)$/', $line, $match)) {
+				throw new \LogicException('Cannot parse line: ' . $line);
 			}
 
-			$envelope = $this->parseImapEnvelope($match[5]);
+			$envelope = $this->parseImapEnvelope($match[6]);
 
 			$msg = (object) array_merge([
-				'uid' => (int) $match[1],
+				'uid'   => (int) $match[3],
 				'flags' => $this->parseFlags($match[2]),
-				'internal_date' => \DateTime::createFromFormat(\DateTime::RFC822, $match[3]),
-				'size' => (int) $match[4]
+				'date'  => \DateTime::createFromFormat(\DateTime::RFC822, $match[4]),
+				'size'  => (int) $match[5],
+				'parts' => $this->parseImapBodyStructure($match[7]),
 			], $envelope);
 
 			$out[] = $msg;
@@ -263,27 +318,44 @@ class Mailbox
 		return $out;
 	}
 
-	public function iterateMessages(string $folder = 'INBOX'): \Generator
+	public function buildSearchQuery(array $params)
 	{
-		foreach ($this->listUIDs($folder) as $uid) {
-			yield $uid => $this->fetch($folder, $uid);
+		$out = [];
+
+		foreach ($params as $key => $value) {
+			if ($key === 'since') {
+				$out[] = sprintf('SINCE %s', $value->format('d-M-Y'));
+			}
+			elseif (is_int($key)) {
+				$out[] = $value;
+			}
+		}
+
+		return implode(' ', $out);
+	}
+
+	public function iterateMessages(string $folder = 'INBOX', ?array $search = null): \Generator
+	{
+		foreach ($this->listUIDs($folder, $search) as $uid) {
+			yield $this->fetchMessage($folder, $uid);
 		}
 	}
 
-	public function iterateNewMessages(string $folder = 'INBOX'): \Generator
+	public function iterateMessagesHeaders(string $folder = 'INBOX', ?array $search = null): \Generator
 	{
-		foreach ($this->listUnseenUIDs($folder) as $uid) {
-			yield $uid => $this->fetch($folder, $uid);
+		foreach ($this->listUIDs($folder, $search) as $uid) {
+			yield $this->fetchHeaders($folder, $uid);
 		}
 	}
 
 	public function search(string $folder, string $query): array
 	{
-		$r = $this->request($folder . '?' . $query);
+		$query = 'UID SEARCH ' . $query;
+		$r = $this->request($folder, $query);
 		$r = trim($r);
 
 		if (0 !== strpos($r, '* SEARCH')) {
-			throw new \RuntimeException('Invalid SEARCH');
+			throw new \RuntimeException(sprintf('Invalid SEARCH: %s (%s)', $query, $r));
 		}
 
 		$r = substr($r, strlen('* SEARCH'));
@@ -306,10 +378,71 @@ class Mailbox
 		return $this->request(sprintf('%s/;UID=%d/;SECTION=TEXT', $folder, $uid));
 	}
 
-	public function fetch(string $folder, int $uid): string
+	public function fetchMessage(string $folder, int $uid): string
 	{
 		return $this->request(sprintf('%s/;UID=%d', $folder, $uid));
 	}
+
+/*
+	// Useless for now
+	// see https://github.com/curl/curl/issues/18847
+	public function buildFetchQuery(array $query): string
+	{
+		static $aliases = [
+			//'body'      => 'BODY.PEEK[TEXT]',
+			//'headers'   => 'BODY.PEEK[HEADER]',
+			//'message'   => 'BODY.PEEK[]',
+			//'subject'   => 'BODY.PEEK[HEADER.FIELDS (Subject)]',
+			//'structure' => 'BODYSTRUCTURE.PEEK',
+			'size'      => 'RFC822.SIZE',
+			'date'      => 'INTERNALDATE',
+			'envelope'  => 'ENVELOPE',
+			'flags'     => 'FLAGS',
+		];
+
+		$headers = [];
+
+		foreach ($query as &$value) {
+			if (array_key_exists($value, $aliases)) {
+				$value = $aliases[$value];
+			}
+			elseif (substr($value, 0, 2) === 'h:') {
+				$headers[] = substr($value, 2);
+				$value = null;
+			}
+		}
+
+		unset($value);
+		$query = array_filter($query);
+
+		if (count($headers)) {
+			$query[] = 'BODY.PEEK[HEADER.FIELDS (' . implode(' ', $headers) . ')]';
+		}
+
+		$out = implode(' ', $query);
+
+		if (preg_match('/BODY\[|BODY\./', $out)) {
+			// see https://github.com/curl/curl/issues/18847
+			throw new \InvalidArgumentException('BODY arguments in FETCH don\'t work properly with curl');
+		}
+
+		return $out;
+	}
+
+	public function fetchMultiple(string $folder, array $uids): array
+	{
+		if (!count($uids)) {
+			return [];
+		}
+
+		$cmd = sprintf('UID FETCH %s (%s)', implode(',', $uids), $this->buildFetchQuery($query));
+		$r = $this->request($folder, $cmd);
+
+		$r = explode("\n", $r);
+		//TODO
+		return [];
+	}
+*/
 
 	public function delete(string $folder, int $uid): void
 	{
