@@ -150,6 +150,28 @@ abstract class AbstractEntity
 	}
 
 	/**
+	 * Load data from existing identical entity
+	 */
+	public function loadFromEntity($entity): self
+	{
+		if (!($entity instanceof static)) {
+			throw new \InvalidArgumentException('The passed entity has a different class');
+		}
+
+		$properties = self::$_types_cache[static::class];
+
+		foreach ($properties as $name => $prop) {
+			if ($name === 'id') {
+				continue;
+			}
+
+			$this->set($name, $entity->$name ?? null);
+		}
+
+		return $this;
+	}
+
+	/**
 	 * Import data from an array of user-supplied values, only keys corresponding to entity properties
 	 * will be used, others will be ignored.
 	 * @param  array|null $source Source data array, if none is supplied $_POST will be used
