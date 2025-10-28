@@ -103,15 +103,10 @@ class Mail_Message
 		$id = uniqid();
 		$hash = sha1($id . print_r($this->headers, true));
 
-		$from = $this->getFromAddress();
 		$host = null;
 
-		if ($from) {
-			$host = substr($from, strrpos($from, '@')+1);
-		}
-
 		if (!$host) {
-			$host = $_SERVER['SERVER_NAME'] ?? 'mail.localhost';
+			$host = $_SERVER['SERVER_NAME'] ?? (@gethostname() ?: 'mail.localhost');
 		}
 
 		$id = $id . '.' . substr(base_convert($hash, 16, 36), 0, 10) . '@' . $host;
