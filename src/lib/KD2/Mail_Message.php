@@ -107,7 +107,7 @@ class Mail_Message
 		$host = null;
 
 		if ($from) {
-			$host = substr($from, strrpos($from, '@'));
+			$host = substr($from, strrpos($from, '@')+1);
 		}
 
 		if (!$host) {
