@@ -652,6 +652,10 @@ class HTTP
 		$r->request = $request;
 		$r->body = null;
 
+		if (\PHP_VERSION_ID >= 80400) {
+			http_clear_last_response_headers();
+		}
+
 		try {
 			if (null !== $write_pointer) {
 				$r->pointer = fopen($url, 'rb', false, $context);
@@ -675,6 +679,10 @@ class HTTP
 
 		$r->fail = false;
 		$r->size = strlen($r->body ?? '');
+
+		if (\PHP_VERSION_ID >= 80400) {
+			$http_response_header = http_get_last_response_headers();
+		}
 
 		foreach ($http_response_header as $line) {
 			$header = strtok($line, ':');
