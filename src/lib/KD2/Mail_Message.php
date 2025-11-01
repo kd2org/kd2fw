@@ -1431,9 +1431,12 @@ class Mail_Message
 			];
 		}
 		// Ignore auto-replies
-		elseif ($this->getHeader('precedence') || $this->getHeader('X-Autoreply')
-			|| $this->getHeader('X-Autorespond') || $this->getHeader('auto-submitted')
+		elseif ($this->getHeader('X-Autoreply')
+			|| $this->getHeader('X-Autorespond')
+			|| ($this->getHeader('auto-submitted') && strtolower($this->getHeader('auto-submitted')) !== 'no')
 			|| stristr($this->getHeader('Delivered-To') ?? '', 'Autoresponder')
+			|| stristr($this->getHeader('precedence') ?? '', 'auto')
+			|| preg_match('/no.?reply|ne.?pas.?repondre/', $this->getHeader('from') ?? '')
 			|| preg_match('/spamenmoins\.com/', $this->getHeader('From') ?? '')
 			|| preg_match('/^(?:Réponse\s*automatique|Out\s*of\s*office|Automatic\s*reply|Auto:\s+)/i', $this->getHeader('Subject') ?? ''))
 		{
