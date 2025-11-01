@@ -57,6 +57,11 @@ class BarCode
 	public function __construct(string $code)
 	{
 		$this->code = preg_replace('/[^\d]/', '', $code);
+
+		// Manage EAN-8 as EAN-13
+		if (strlen($this->code) === 8) {
+			$this->code = '00000' . $this->code;
+		}
 	}
 
 	public function get(): string
@@ -66,7 +71,7 @@ class BarCode
 
 	public function verify(): bool
 	{
-		if (strlen($this->code) < 13) {
+		if (strlen($this->code) !== 13) {
 			return false;
 		}
 
