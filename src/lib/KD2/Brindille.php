@@ -486,9 +486,10 @@ class Brindille
 		]);
 
 		// Remove PHP tags that can be cut by Brindille code, eg.
-		// <{{literal}}? or <{{**lol**}}?php
-		$code = preg_replace('!<(\{\{.*?\}\})\?!s', '<?=\'<\'?>$1<?=\'?\'?>', $code);
-		$code = preg_replace('!\?(\{\{.*?\}\})>!s', '<?=\'?\'?>$1<?=\'>\'?>', $code);
+		// <{{literal}}? or <{{**fail**}}?php
+		// also take into account spaces, eg. "< {{strip}} ?"
+		$code = preg_replace('!<\s*(\{\{.*?\}\})\s*\?!s', '<?=\'<\'?>$1<?=\'?\'?>', $code);
+		$code = preg_replace('!\?\s*(\{\{.*?\}\})\s*>!s', '<?=\'?\'?>$1<?=\'>\'?>', $code);
 
 		$keep_whitespaces = false !== strpos($code, '{{**keep_whitespaces**}}');
 
@@ -522,10 +523,31 @@ class Brindille
 		// Remove comments altogether
 		$return = preg_replace('!<\?php /\*.*?\*/ \?>!s', '', $return);
 
+		// Remove whitespaces inside logic code with {{#strip}} section
+		$return = preg_replace_callback('/\s*{{#strip}}((?:(?!{{\/strip}}).)*?){{\/strip}}\s*/s', function($match) {
+			$code = preg_replace('/\?>\s+/', '?>', $match[1]);
+			$code = preg_replace('/\s+<\?php/', '<?php', $code);
+			return trim($code);
+		}, $return);
+
 		if ($keep_whitespaces) {
+			// Detect EOL line endings type from source code
+			if (preg_match("!(\r\n|\r|\n)!", $code, $match)) {
+				$eol = $match[1];
+			}
+			else {
+				// Default to Unix line endings
+				$eol = "\n";
+			}
+
+			// Normalize all line endings to Unix
 			$return = str_replace(["\r\n", "\r"], "\n", $return);
+
 			// Keep whitespaces, but PHP is eating the line break after a closing tag, so double it
 			$return = str_replace("?>\n", "?>\n\n", $return);
+
+			// Restore original EOL and normalize all line endings
+			$return = str_replace("\n", $eol, $return);
 		}
 		else {
 			// Remove whitespaces between PHP logic blocks (not echo blocks)
@@ -746,6 +768,9 @@ class Brindille
 			return sprintf('<?=%s?>', $this->_variable($start . $name . $params, true, $line));
 		}
 
+		if (($start === '#' || $start === '/') && $name === 'strip') {
+			return $all;
+		}
 		if ($start == '#' && array_key_exists($name, $this->_sections)) {
 			return $this->_section($name, $params, $line);
 		}
