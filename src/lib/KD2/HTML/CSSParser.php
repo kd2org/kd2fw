@@ -12,17 +12,21 @@ use DOMXPath;
  * Simplified CSS parser and matching engine
  * This is inspired by NetSurf, Servo, Gecko and SerenityOS LibWeb.
  *
- * This will parse and match:
+ * This is what is supported:
  * - @media rules for media names: eg. 'screen', 'handheld', etc.
  * - selectors matching elements ('table', 'table tr'), classes and IDs
+ * - 'inherit' value
+ * - basic inheritance of CSS 2.1 properties
+ * - shorthand notation override
  *
  * This is unsupported:
- * - multiple classes selector: table.list.selected will match both <table class="list"> and <table class="statement">
+ * - minified CSS: each property has to be on its own line
+ * - multiple classes selector: table.list.selected will match both <table class="list"> and <table class="selected">
  * - attributes selectors: a[name], a[name=pizza], etc.
  * - wildcards: *, +, >
  * - functions: :nth-child, etc.
  * - pseudo-selectors: :hover, ::after,etc.
- * - @import and other at-rules
+ * - @import, @media and other at-rules
  * - !important
  *
  * @author BohwaZ <https://bohwaz.net/>
@@ -47,18 +51,171 @@ class CSSParser
 
 	const TOKENS = [
 		// @media / @import / etc.
-		'at-rule' => '\s*@' . self::RULE_NAME_TOKEN . '\s+[^\{\};]+?\s*[\{;]\s*',
+		'at-rule'  => '\s*@' . self::RULE_NAME_TOKEN . '\s+[^\{\};]+?\s*[\{;]\s*',
 		// Properties: border: 1px solid red; padding: 1px }
-		'property' => '\s*-?' . self::RULE_NAME_TOKEN . '\s*:\s*[^;]+?\s*[;\}]\s*',
-		'open' => '\s*[^\{\}]+?\s*\{\s*',
-		'close' => '\s*\}\s*',
+		// also: url('data:image/svg+xml;utf8,<svg...')
+		'property' => '\s*-*' . self::RULE_NAME_TOKEN . '\s*:\s*(?:(?:\'[^\']*?\'|"[^"]*?"|[^;]+?))*\s*[;\}]\s*',
+		'open'     => '\s*[^\{\}]+?\s*\{\s*',
+		'close'    => '\s*\}\s*',
+	];
+
+	// see https://stackoverflow.com/questions/5612302/which-css-properties-are-inherited
+	protected array $inherited_properties = [
+		'azimuth',
+		'border-collapse',
+		'border-spacing',
+		'caption-side',
+		'color',
+		'cursor',
+		'direction',
+		'elevation',
+		'empty-cells',
+		'font-family',
+		'font-size',
+		'font-style',
+		'font-variant',
+		'font-weight',
+		'font',
+		'letter-spacing',
+		'line-height',
+		'list-style-image',
+		'list-style-position',
+		'list-style-type',
+		'list-style',
+		'orphans',
+		'pitch-range',
+		'pitch',
+		'quotes',
+		'richness',
+		'speak-header',
+		'speak-numeral',
+		'speak-punctuation',
+		'speak',
+		'speech-rate',
+		'stress',
+		'text-align',
+		'text-indent',
+		'text-transform',
+		'visibility',
+		'voice-family',
+		'volume',
+		'white-space',
+		'widows',
+		'word-spacing',
+	];
+
+	// List of shorthand properties (CSS2.1)
+	// and the matching list of properties they override
+	// see https://www.w3.org/TR/2011/REC-CSS2-20110607/propidx.html#q24.0
+	// and https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_cascade/Shorthand_properties
+	protected array $shorthand_properties = [
+		'margin' => [
+			'margin-left',
+			'margin-right',
+			'margin-top',
+			'margin-bottom',
+		],
+		'padding' => [
+			'padding-left',
+			'padding-right',
+			'padding-top',
+			'padding-bottom',
+		],
+		'font' => [
+			'font-family',
+			'font-size',
+			'font-stretch',
+			'font-style',
+			'font-variant',
+			'font-weight',
+			'line-height',
+		],
+		'border-left' => [
+			'border-left-width',
+			'border-left-style',
+			'border-left-color',
+		],
+		'border-right' => [
+			'border-right-width',
+			'border-right-style',
+			'border-right-color',
+		],
+		'border-top' => [
+			'border-top-width',
+			'border-top-style',
+			'border-top-color',
+		],
+		'border-bottom' => [
+			'border-bottom-width',
+			'border-bottom-style',
+			'border-bottom-color',
+		],
+		'border-color' => [
+			'border-left-color',
+			'border-right-color',
+			'border-bottom-color',
+			'border-top-color',
+		],
+		'border-width' => [
+			'border-left-width',
+			'border-right-width',
+			'border-bottom-width',
+			'border-top-width',
+		],
+		'border-style' => [
+			'border-left-style',
+			'border-right-style',
+			'border-bottom-style',
+			'border-top-style',
+		],
+		'border' => [
+			'border-color',
+			'border-width',
+			'border-style',
+			'border-left-width',
+			'border-left-style',
+			'border-left-color',
+			'border-right-width',
+			'border-right-style',
+			'border-right-color',
+			'border-top-width',
+			'border-top-style',
+			'border-top-color',
+			'border-bottom-width',
+			'border-bottom-style',
+			'border-bottom-color',
+		],
+		'overflow' => [
+			'overflow-x',
+			'overflow-y',
+		],
+		'list-style' => [
+			'list-style-image',
+			'list-style-position',
+			'list-style-type',
+		],
+		'background' => [
+			'background-attachment',
+			'background-clip',
+			'background-color',
+			'background-image',
+			'background-origin',
+			'background-position',
+			'background-repeat',
+			'background-size',
+		],
+		'outline' => [
+			'outline-color',
+			'outline-width',
+			'outline-style',
+		],
 	];
 
 	protected array $declarations = [];
 	protected array $cache = [];
 	protected array $path_cache = [];
 
-	public function xpath(DOMNode $dom, string $query, int $item = null)
+	public function xpath(DOMNode $dom, string $query, ?int $item = null)
 	{
 		$xpath = new DOMXPath($dom instanceOf DOMDocument ? $dom : $dom->ownerDocument);
 		$result = $xpath->query($query, $dom);
@@ -80,7 +237,7 @@ class CSSParser
 	 * @param DOMNode $dom DOM document (or subset of it)
 	 * @param string $media supply a media string here ('print', 'screen') to only keep stylesheets matching this media
 	 */
-	public function importExternalFromDOM(DOMNode $dom, string $media = null): void
+	public function importExternalFromDOM(DOMNode $dom, ?string $media = null): void
 	{
 		$links = $this->xpath($dom, './/link[@rel="stylesheet"][@href]');
 
@@ -111,7 +268,7 @@ class CSSParser
 	 * @param DOMNode $dom DOM document (or subset of it)
 	 * @param string $media supply a media string here ('print', 'screen') to only keep stylesheets matching this media
 	 */
-	public function importInternalFromDOM(DOMNode $dom, string $media = null): void
+	public function importInternalFromDOM(DOMNode $dom, ?string $media = null): void
 	{
 		$tags = $this->xpath($dom, './/style[@type="text/css"]');
 
@@ -136,7 +293,7 @@ class CSSParser
 	 * @param string $css Raw CSS text
 	 * @param string $media Supply a media string here ('print', 'screen') to only keep declarations matching this media
 	 */
-	public function import(string $css, string $media = null): void
+	public function import(string $css, ?string $media = null): void
 	{
 		$this->declarations = $this->parse($css);
 
@@ -457,7 +614,12 @@ class CSSParser
 				// until we run out of selectors or parent nodes
 				while ($last = prev($selector)) {
 					$parent = $node;
+
 					while ($parent = $parent->parentNode) {
+						if (!($parent instanceof DOMElement)) {
+							break;
+						}
+
 						if ($this->matchSelector($parent, $last)) {
 							// If this matches, go to the next one
 							$node = $parent;
@@ -521,13 +683,52 @@ class CSSParser
 	 * css_declarations, containing a list of the declaration blocks matching this node
 	 * css_properties, containing an inherited list of CSS properties (cascading applies)
 	 */
-	public function apply(DOMNode $node, array $properties = []): \Generator
+	public function apply(DOMNode $node, array $parent_properties = []): \Generator
 	{
+		$node->ownerDocument->registerNodeClass('DOMNode', '\KD2\HTML\CSSDOMNode');
+		$node->ownerDocument->registerNodeClass('DOMElement', '\KD2\HTML\CSSDOMElement');
+
 		$declarations = $this->match($node);
+		$properties = [];
 
 		foreach ($declarations as $declaration) {
-			$properties = array_merge($properties, $declaration['properties']);
+			foreach ($declaration['properties'] as $key => $value) {
+				// Apply override from shorthand properties
+				if (array_key_exists($key, $this->shorthand_properties)) {
+					foreach ($this->shorthand_properties[$key] as $delete) {
+						unset($properties[$delete]);
+					}
+				}
+
+				$properties[$key] = $value;
+			}
 		}
+
+		foreach ($properties as $key => &$value) {
+			// Apply specific inheritance from parent node
+			if ($value === 'inherit') {
+				$value = $parent_properties[$key] ?? null;
+			}
+			// Apply override from shorthand properties
+			elseif (array_key_exists($key, $this->shorthand_properties)) {
+				unset($parent_properties[$key]);
+
+				foreach ($this->shorthand_properties[$key] as $delete) {
+					unset($parent_properties[$delete]);
+				}
+			}
+		}
+
+		unset($value);
+
+		// Remove inherited properties that don't have a parent property
+		$properties = array_filter($properties, fn($a) => !is_null($a));
+
+		// Apply default inherited properties
+		static $inherited_properties = array_flip($this->inherited_properties);
+		$parent_properties = array_intersect_key($parent_properties, $inherited_properties);
+		$properties = array_merge($parent_properties, $properties);
+		unset($parent_properties);
 
 		if (count($properties)) {
 			$node->css_properties = $properties;
@@ -535,7 +736,7 @@ class CSSParser
 			yield $node;
 		}
 
-
+		// Now iterate over all child nodes
 		foreach ($node->childNodes as $child) {
 			if ($child->nodeType != XML_ELEMENT_NODE) {
 				continue;
@@ -565,7 +766,12 @@ class CSSParser
 	public function style(DOMNode $parent)
 	{
 		foreach ($this->apply($parent) as $element) {
-			$element->setAttribute('style', trim($this->outputStyles($element->css_properties)));
+			$style = $this->outputStyles($element->css_properties);
+
+			// Keep existing style attributes in last position, so they override any applied style
+			$style .= $element->getAttribute('style');
+
+			$element->setAttribute('style', trim($style));
 		}
 	}
 
@@ -594,4 +800,16 @@ class CSSParser
 			echo str_repeat("-", 70) . "\n";
 		}
 	}
+}
+
+class CSSDOMNode extends DOMNode
+{
+	public $css_properties;
+	public $css_declarations;
+}
+
+class CSSDOMElement extends DOMElement
+{
+	public $css_properties;
+	public $css_declarations;
 }
