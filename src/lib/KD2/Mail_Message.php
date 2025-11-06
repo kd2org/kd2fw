@@ -1338,7 +1338,7 @@ class Mail_Message
 	}
 
 	/**
-	 * Tente de trouver le statut de rejet (définitif ou temporaire) d'un message à partir du message d'erreur reçu
+	 * Tries to find out if a bounce is hard (true) or soft (false) from a SMTP error message
 	 * @param  string $error_message
 	 * @return boolean|null TRUE if the rejection is permanent, FALSE if temporary, NULL if status is unknown
 	 */
