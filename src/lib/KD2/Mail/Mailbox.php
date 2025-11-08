@@ -2,6 +2,8 @@
 
 namespace KD2\Mail;
 
+use stdClass;
+
 /**
  * IMAP library using curl
  * Parsing the message is left up to your implementation.
@@ -33,6 +35,7 @@ class Mailbox
 	protected string $password;
 	protected $curl;
 	protected bool $expunge = false;
+	protected $log_pointer = null;
 
 	const DEFAULT_FETCH_QUERY = [
 		'flags',
@@ -76,6 +79,7 @@ class Mailbox
 		if (null === $p) {
 			$this->opt(CURLOPT_VERBOSE, false);
 			$this->opt(CURLOPT_STDERR, null);
+			$this->log_pointer = null;
 		}
 		else {
 			if (!is_resource($p)) {
@@ -84,6 +88,7 @@ class Mailbox
 
 			$this->opt(CURLOPT_VERBOSE, true);
 			$this->opt(CURLOPT_STDERR, $p);
+			$this->log_pointer = $p;
 		}
 	}
 
@@ -115,28 +120,116 @@ class Mailbox
 		curl_setopt($this->curl, $key, $value);
 	}
 
-	protected function parseFlags(string $flags): array
+	public function parseImapString(string $str, int &$pos = 0)
 	{
-		$flags = explode(' ', $flags);
-		$flags = array_map(fn($a) => ltrim($a, '\\'), $flags);
-		return $flags;
+		$idx = 0;
+		$out = [];
+		$in_quotes = false;
+
+		for ($i = $pos; $i < strlen($str); $i++) {
+			$c = $str[$i];
+
+			if ($c === '"') {
+				if ($in_quotes) {
+					$in_quotes = false;
+					$idx++;
+				}
+				else {
+					$in_quotes = true;
+				}
+				continue;
+			}
+			elseif (!$in_quotes) {
+				if ($c === '(') {
+					$i++;
+					$out[$idx++] = $this->parseImapString($str, $i);
+					continue;
+				}
+				elseif ($c === ')') {
+					break;
+				}
+				// Parse bytes
+				elseif ($c === '{') {
+					$closing_pos = strpos($str, '}', $i + 1);
+					$length = substr($str, $i + 1, $closing_pos - ($i + 1));
+					$i += strlen($length) + 2 + 2;
+					$out[$idx++] = substr($str, $i, $length);
+					$i += $length;
+					continue;
+				}
+				elseif (trim($c) === '') {
+					$idx++;
+					continue;
+				}
+			}
+			$out[$idx] ??= '';
+			$out[$idx] .= $c;
+		}
+
+		$pos = $i;
+
+		// Replace NIL with NULL
+		array_walk($out, fn (&$a) => $a = $a === 'NIL' ? null : $a);
+
+		// use array_values, as we might increment $idx a bit too often
+		// with empty characters, but not an issue
+		return array_values($out);
 	}
 
-	protected function parseImapAddresses(string $str): array
+	public function parseImapFetch(string $str): stdClass
 	{
-		// personal name, [SMTP] at-domain-list (source route), mailbox name, and host name
-		preg_match_all('/\((".*?"|NIL) (".*?"|NIL) (".*?"|NIL) (".*?"|NIL)\)/', $str, $list, PREG_SET_ORDER);
-
+		$tuples = $this->parseImapString($str);
 		$out = [];
 
-		foreach ($list as $item) {
-			array_walk($item, fn (&$a) => $a = ($a === 'NIL') ? null : substr($a, 1, -1));
+		for ($i = 0; $i < count($tuples); $i++) {
+			$name = $tuples[$i];
+			$i++; // Skip to value
+			$value = $tuples[$i];
 
+			if ($name === 'INTERNALDATE') {
+				$out['date'] = new \DateTime($value);
+			}
+			elseif ($name === 'RFC822.SIZE') {
+				$out['size'] = (int)$value;
+			}
+			elseif ($name === 'UID') {
+				$out['uid'] = (int)$value;
+			}
+			elseif ($name === 'BODYSTRUCTURE' || $name === 'BODY') {
+				$out['body'] = $this->parseImapBodyStructure($value);
+			}
+			elseif ($name === 'ENVELOPE') {
+				$out['envelope'] = $this->parseImapEnvelope($value);
+			}
+			elseif ($name === 'FLAGS') {
+				$out['flags'] = $value;
+			}
+			elseif ($name === 'BODY[HEADER.FIELDS') {
+				// Skip closing bracket and list of headers
+				$i += 2;
+				$value = $tuples[$i];
+				$value = str_replace("\r", '', $value);
+				$value = preg_replace("/\n[ \t]/", '', $value);
+				$out['headers'] = trim($value);
+			}
+		}
+
+		if (isset($out['envelope'])) {
+			$out = array_merge($out, $out['envelope']);
+		}
+
+		return (object) $out;
+	}
+
+	protected function parseImapAddresses(array $item): array
+	{
+		foreach ($item as &$address) {
+			// personal name, [SMTP] at-domain-list (source route), mailbox name, and host name
 			$address = (object) [
-				'name'    => $item[1],
-				'address' => $item[3] . '@' . $item[4],
-				'domain'  => $item[4],
-				'user'    => $item[3],
+				'name'    => $address[0],
+				'address' => $address[2] . '@' . $address[3],
+				'user'    => $address[2],
+				'domain'  => $address[3],
 			];
 
 			if ($address->name) {
@@ -145,71 +238,123 @@ class Mailbox
 			else {
 				$address->full = $address->address;
 			}
-
-			$out[] = $address;
 		}
 
-		return $out;
+		unset($address);
+
+		return $item;
 	}
 
-	protected function parseImapBodyStructure(string $struct): \stdClass
+	protected function parseImapBodyStructure(array $struct): stdClass
 	{
-		$struct = trim($struct);
-		$attachments = [];
-		$html = false;
-		$text = false;
+		$body = (object) [
+			'html'        => false,
+			'text'        => false,
+			'attachments' => [],
+			'inlines'     => [],
+			'structure'   => null,
+		];
 
-		// Match all attachments: ("APPLICATION" "PDF" ("NAME" "doc.pdf") NIL NIL "BASE64" 12345 ("ATTACHMENT" ("FILENAME" "doc.pdf")))
-		preg_match_all('/\(\s*"([^"]+)"\s+"([^"]+)"\s*\("NAME"\s+"([^"]+)"\).*?"([^"]+)"\s+(\d+)(?:\s+NIL)?\s*\("ATTACHMENT"/i', $struct, $matches, PREG_SET_ORDER);
+		$body->structure = $this->simplifyImapBodyStructure($struct, $body);
 
-		foreach ($matches as $match) {
-			$attachments[] = (object) [
-				'type' => strtolower($match[1]),
-				'subtype' => strtolower($match[2]),
-				'filename' => $match[3],
-				'encoding' => strtolower($match[4]),
-				'size' => (int)$match[5],
-			];
-		}
-
-		// Very simplified way to check if there is a HTML and text part
-		// this might fail in 0.1% of test cases (eg. "text" "html" is an attachment)
-		// (("TEXT" "PLAIN" ("CHARSET" "us-ascii") NIL NIL "QUOTED-PRINTABLE" 4888 170 NIL NIL NIL)("TEXT" "HTML" ("CHARSET" "us-ascii") NIL NIL "QUOTED-PRINTABLE" 32407 479 NIL NIL NIL) "ALTERNATIVE"
-		$html = stripos($struct, '"TEXT" "HTML"') !== false;
-		$text = stripos($struct, '"TEXT" "PLAIN"') !== false;
-
-		return (object) compact('attachments', 'html', 'text');
+		return $body;
 	}
 
-	protected function parseImapEnvelope(string $str): array
+	protected function simplifyImapBodyStructure(array $struct, stdClass &$body): stdClass
+	{
+		$part = new stdClass;
+
+		// First item is a string: we are in a part
+		// If it's a list, then we are in a multipart
+		if (is_array($struct[0])) {
+			$part->parts = [];
+
+			for ($i = 0; $i < count($struct); $i++) {
+				if (!is_array($struct[$i])) {
+					break;
+				}
+
+				$part->parts[] = $struct[$i];
+			}
+
+			$part->multipart = strtolower($struct[$i]);
+			$part->boundary = $struct[$i + 1][1];
+
+			foreach ($part->parts as &$subpart) {
+				$subpart = $this->simplifyImapBodyStructure($subpart, $body);
+
+				if (isset($subpart->type)
+					&& ($part->multipart === 'alternative' || $part->multipart === 'related')) {
+					if ($subpart->type === 'text/html') {
+						$body->html = true;
+					}
+					elseif ($subpart->type === 'text/plain') {
+						$body->text = true;
+					}
+				}
+
+				if (!empty($subpart->attachment)) {
+					$body->attachments[] = $subpart;
+				}
+				elseif (!empty($subpart->inline)) {
+					$body->inlines[] = $subpart;
+				}
+			}
+
+			unset($subpart);
+		}
+		else {
+			$part->type = strtolower($struct[0] . '/' . $struct[1]);
+			$part->content_id = $struct[3] ?? null;
+			$part->encoding = $struct[5] ?? null;
+			$part->size = isset($struct[6]) ? (int) $struct[6] : null;
+			$part->filename = null;
+
+			$atype = strtolower($struct[8][0] ?? '') ?: null;
+			$tuples = $struct[8][1] ?? null;
+			$part->attachment = $atype === 'attachment';
+			$part->inline = $atype === 'inline';
+
+			// This might be charset or name
+			if (($atype === 'inline' || $atype === 'attachment')
+				&& is_array($tuples)) {
+
+				for ($i = 0; $i < count($tuples); $i++) {
+					if ($tuples[$i] !== 'filename') {
+						continue;
+					}
+
+					$part->{$tuples[$i]} = $tuples[++$i];
+				}
+			}
+		}
+
+		return $part;
+	}
+
+	protected function parseImapEnvelope(array $item): array
 	{
 		static $keys = ['date', 'subject', 'from', 'sender', 'reply_to', 'to', 'cc', 'bcc', 'in_reply_to', 'message_id'];
 
-		preg_match_all('/(?<=\s|^)(?:".*?"|NIL|\(.*?\))(?=\s|$)/', $str, $envelope, PREG_PATTERN_ORDER);
+		$envelope = array_combine($keys, $item);
 
-		$envelope = $envelope[0];
-		$envelope = array_combine($keys, $envelope);
+		foreach ($envelope as $key => &$value) {
+			if (is_array($value)) {
+				$value = $this->parseImapAddresses($value);
 
-		array_walk($envelope, function (&$a) {
-			if ($a === 'NIL') {
-				$a = null;
+				if ($key === 'from' || $key === 'sender') {
+					$value = $value[0] ?? null;
+				}
 			}
-			elseif (substr($a, 0, 1) == '"') {
-				$a = substr($a, 1, -1);
+			elseif ($key === 'message_id') {
+				$value = trim((string) $value, '<>') ?: null;
 			}
-			else {
-				$a = $this->parseImapAddresses(substr($a, 1, -1));
+			elseif ($key === 'date') {
+				$value = new \DateTime($value);
 			}
+		}
 
-			if (is_string($a)) {
-				$a = mb_decode_mimeheader($a);
-			}
-		});
-
-		$envelope['message_id'] = trim($envelope['message_id'], '<>');
-		$envelope['from'] = $envelope['from'][0] ?? null;
-		$envelope['sender'] = $envelope['sender'][0] ?? null;
-		$envelope['date'] = \DateTime::createFromFormat(\DateTime::RFC2822, $envelope['date']);
+		unset($value);
 
 		return $envelope;
 	}
@@ -249,7 +394,7 @@ class Mailbox
 
 			$folders[$f] = (object) [
 				'name'      => mb_convert_encoding($f, 'UTF7-IMAP', 'UTF-8'),
-				'flags'     => $this->parseFlags($match[1]),
+				'flags'     => explode(' ', $match[1]),
 				'separator' => $match[2],
 			];
 		}
@@ -274,45 +419,49 @@ class Mailbox
 		return $this->search($folder, $this->buildSearchQuery($query));
 	}
 
-	public function listMessages(string $folder = 'INBOX', ?array $search = null): array
+	public function listMessages(string $folder = 'INBOX', ?array $search = null, array $headers = []): array
 	{
 		if (null === $search) {
 			$uids = '1:*';
 		}
 		else {
 			$uids = $this->listUIDs($folder, $search);
+
+			if (!count($uids)) {
+				return [];
+			}
+
 			$uids = implode(',', $uids);
 		}
 
-		// Macro equivalent to: (FLAGS INTERNALDATE RFC822.SIZE ENVELOPE BODY)
-		$r = $this->request($folder, sprintf('UID FETCH %s FULL', $uids));
-		$r = trim($r);
-		$out = [];
+		// FULL: Macro equivalent to: (FLAGS INTERNALDATE RFC822.SIZE ENVELOPE BODY)
+		$request = 'FLAGS INTERNALDATE RFC822.SIZE ENVELOPE BODYSTRUCTURE';
+
+		if (count($headers)) {
+			$request .= sprintf(' BODY.PEEK[HEADER.FIELDS (%s)]', implode(' ', $headers));
+		}
+
+		$request = sprintf('UID FETCH %s (%s)', $uids, $request);
+		$r = $this->requestVerbose($folder, $request);
 
 		if (!$r) {
 			return [];
 		}
 
-		$r = explode("\n", $r);
+		$split = preg_split('/(?:\)$)?^\* \d+ FETCH \(/m', substr(trim($r), 0, -1), -1, PREG_SPLIT_NO_EMPTY);
 
-		foreach ($r as $line) {
-			$line = trim($line);
+		// Remove last split which is just the AOK message
+		if (count($split)) {
+			$last = $split[count($split) - 1] ;
+			$split[count($split) - 1] = substr($last, 0, strrpos($last, ")\r\n"));
+		}
 
-			if (!preg_match('/^\* (\d+) FETCH \(FLAGS \((.*?)\) UID (\d+) INTERNALDATE "(.*?)" RFC822.SIZE (\d+) ENVELOPE \((.*?)\) BODY \((.*?)\)\)$/', $line, $match)) {
-				throw new \LogicException('Cannot parse line: ' . $line);
-			}
+		$split = array_filter($split, 'trim');
 
-			$envelope = $this->parseImapEnvelope($match[6]);
+		$out = [];
 
-			$msg = (object) array_merge([
-				'uid'   => (int) $match[3],
-				'flags' => $this->parseFlags($match[2]),
-				'date'  => \DateTime::createFromFormat(\DateTime::RFC822, $match[4]),
-				'size'  => (int) $match[5],
-				'parts' => $this->parseImapBodyStructure($match[7]),
-			], $envelope);
-
-			$out[] = $msg;
+		foreach ($split as $str) {
+			$out[] = $this->parseImapFetch($str);
 		}
 
 		return $out;
@@ -452,17 +601,61 @@ class Mailbox
 
 	public function addFlag(string $folder, int $uid, string $flag): void
 	{
-		$this->request($folder, sprintf('UID STORE %d +FLAGS (\\%s)', $uid, $flag));
+		$this->request($folder, sprintf('UID STORE %d +FLAGS (%s)', $uid, $flag));
 	}
 
 	public function removeFlag(string $folder, int $uid, string $flag): void
 	{
-		$this->request($folder, sprintf('UID STORE %d -FLAGS (\\%s)', $uid, $flag));
+		$this->request($folder, sprintf('UID STORE %d -FLAGS (%s)', $uid, $flag));
 	}
 
 	public function move(string $folder, int $uid, string $target_folder): void
 	{
 		$this->request($folder, sprintf('UID MOVE %d %s', $uid, $target_folder));
+	}
+
+	protected function requestVerbose(?string $uri = null, ?string $request = null): string
+	{
+		try {
+			$dh = fopen('php://memory', 'w');
+			$this->opt(CURLOPT_VERBOSE, true);
+			$this->opt(CURLOPT_STDERR, $dh);
+
+			stream_get_contents($dh);
+			$pos = ftell($dh);
+
+			$this->request($uri, $request);
+
+			fseek($dh, $pos, SEEK_SET);
+			$out = '';
+			$in_response = false;
+
+			while (!feof($dh)) {
+				$line = fgets($dh, 4096);
+
+				if (!$in_response && substr($line, 0, 2) === '< ') {
+					$in_response = true;
+				}
+
+				if ($in_response && substr($line, 0, 2) === '* ') {
+					break;
+				}
+				elseif ($in_response) {
+					$out .= substr($line, 2);
+				}
+			}
+
+			fclose($dh);
+
+			return $out;
+		}
+		finally {
+			$this->opt(CURLOPT_STDERR, $this->log_pointer);
+
+			if (!$this->log_pointer) {
+				$this->opt(CURLOPT_VERBOSE, false);
+			}
+		}
 	}
 
 	/**
@@ -488,11 +681,8 @@ class Mailbox
 		}
 
 		$i = 0;
-		$dh = fopen('php://memory', 'w');
 
 		try {
-			$this->opt(CURLOPT_VERBOSE, true);
-			$this->opt(CURLOPT_STDERR, $dh);
 			$this->opt(CURLOPT_BUFFERSIZE, strlen($message));
 			$this->opt(CURLOPT_UPLOAD, true);
 			$this->opt(CURLOPT_INFILESIZE, strlen($message));
@@ -507,14 +697,8 @@ class Mailbox
 				return $str;
 			});
 
-			$this->request($folder);
-
-			$this->opt(CURLOPT_STDERR, null);
-
 			// Curl doesn't have an option to fetch new UID, so we use its verbose output
-			rewind($dh);
-			$debug = stream_get_contents($dh);
-			fclose($dh);
+			$debug = $this->requestVerbose($folder);
 
 			if (preg_match('/OK \[APPENDUID \d+ (\d+)\]/', $debug, $match)) {
 				return (int)$match[1];
@@ -523,7 +707,6 @@ class Mailbox
 			return null;
 		}
 		finally {
-			$this->opt(CURLOPT_VERBOSE, false);
 			$this->opt(CURLOPT_BUFFERSIZE, null);
 			$this->opt(CURLOPT_UPLOAD, false);
 			$this->opt(CURLOPT_INFILESIZE, -1);
