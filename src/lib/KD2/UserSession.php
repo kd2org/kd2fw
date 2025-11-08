@@ -645,7 +645,7 @@ class UserSession
 
 	protected function destroy(): void
 	{
-		session_destroy();
+		@session_destroy();
 		$_SESSION = null;
 
 		setcookie($this->cookie_name, '', -1, $this->cookie_path,
