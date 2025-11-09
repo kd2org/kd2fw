@@ -50,7 +50,7 @@ class Markdown_Extensions
 			$fg = 'black';
 		}
 
-		return sprintf('<a href="%s" target="%s" style="padding: %dpt %dpt; display: %s; color: %s; background-color: %s; box-shadow: 0px 0px 5px #000; margin: %3$dpt; border-radius: %3$dpt; text-decoration: %s; font-size: %dpt; text-align: center;">%s</a>',
+		return sprintf('<a href="%s" target="%s" style="padding: %dpt %dpt; display: %s; color: %s; background-color: %s; box-shadow: 0px 0px 5px #000; margin: %3$dpt; border-radius: %3$dpt; text-decoration: %s; font-size: %dpt; text-align: center; margin: .5em; margin-bottom: 1em;">%s</a>',
 			htmlspecialchars($href),
 			substr($href, 0, 4) === 'http' ? '_blank' : '_self',
 			$padding,
