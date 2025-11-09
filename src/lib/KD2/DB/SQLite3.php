@@ -36,7 +36,7 @@ use PDO;
 
 class SQLite3 extends DB
 {
-	protected ?\SQLite3 $db;
+	protected ?\SQLite3 $db = null;
 
 	protected int $transaction = 0;
 
