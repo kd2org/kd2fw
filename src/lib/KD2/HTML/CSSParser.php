@@ -26,7 +26,7 @@ use DOMXPath;
  * - wildcards: *, +, >
  * - functions: :nth-child, etc.
  * - pseudo-selectors: :hover, ::after,etc.
- * - @import, @media and other at-rules
+ * - @import and other at-rules
  * - !important
  *
  * @author BohwaZ <https://bohwaz.net/>
