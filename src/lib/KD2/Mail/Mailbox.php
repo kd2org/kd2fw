@@ -32,7 +32,6 @@ class Mailbox
 	protected string $server;
 	protected string $protocol;
 	protected string $username;
-	protected string $password;
 	protected $curl;
 	protected bool $expunge = false;
 	protected $log_pointer = null;
@@ -66,12 +65,20 @@ class Mailbox
 	public function setLogin(
 		string $username,
 		#[\SensitiveParameter]
-		string $password
+		?string $password,
+		#[\SensitiveParameter]
+		?string $token
 	): void
 	{
 		$this->init();
 		curl_setopt($this->curl, CURLOPT_USERNAME, $username);
-		curl_setopt($this->curl, CURLOPT_PASSWORD, $password);
+
+		if ($password !== null) {
+			curl_setopt($this->curl, CURLOPT_PASSWORD, $password);
+		}
+		elseif ($token !== null) {
+			curl_setopt($this->curl, CURLOPT_XOAUTH2_BEARER, $token);
+		}
 	}
 
 	public function setLogFilePointer($p)
