@@ -36,20 +36,11 @@ use PDO;
 
 class SQLite3 extends DB
 {
-	/**
-	 * @var \SQLite3
-	 */
-	protected $db;
+	protected ?\SQLite3 $db;
 
-	/**
-	 * @var int
-	 */
-	protected $transaction = 0;
+	protected int $transaction = 0;
 
-	/**
-	 * @var integer|null
-	 */
-	protected $flags = null;
+	protected ?int $flags = null;
 
 	const DATE_FORMAT = 'Y-m-d';
 	const DATETIME_FORMAT = 'Y-m-d H:i:s';
@@ -220,7 +211,7 @@ class SQLite3 extends DB
 
 	public function connect(): void
 	{
-		if (null !== $this->db) {
+		if (isset($this->db)) {
 			return;
 		}
 
@@ -580,7 +571,12 @@ class SQLite3 extends DB
 	 */
 	public function preparedQuery(string $query, ...$args)
 	{
-		return parent::preparedQuery($query, ...$args);
+		try {
+			return parent::preparedQuery($query, ...$args);
+		}
+		catch (\Exception $e) {
+			$this->throwError($e);
+		}
 	}
 
 	public function execute($statement, ...$args)
@@ -749,6 +745,15 @@ class SQLite3 extends DB
 		return $out;
 	}
 
+	protected function throwError(\Exception $e)
+	{
+		if ($this->db->lastErrorCode()) {
+			$e = new DB_Exception($this->db->lastErrorMsg(), $this->db->lastErrorCode(), $e);
+		}
+
+		throw $e;
+	}
+
 	/**
 	 * Executes multiple queries in a transaction
 	 */
@@ -763,12 +768,7 @@ class SQLite3 extends DB
 		catch (\Exception $e)
 		{
 			$this->rollback();
-
-			if ($this->db->lastErrorCode()) {
-				throw new DB_Exception($this->db->lastErrorMsg(), $this->db->lastErrorCode(), $e);
-			}
-
-			throw $e;
+			$this->throwError($e);
 		}
 
 		return $this->commit();
@@ -787,11 +787,8 @@ class SQLite3 extends DB
 			$return = $this->db->exec($statement);
 		}
 		catch (\Exception $e) {
-			if ($this->db->lastErrorCode()) {
-				throw new DB_Exception($this->db->lastErrorMsg(), $this->db->lastErrorCode(), $e);
-			}
-
-			throw $e;
+			$this->throwError($e);
+			$return = false;
 		}
 
 		if ($this->callback) {
@@ -886,11 +883,7 @@ class SQLite3 extends DB
 			$return = $this->db->prepare($statement);
 		}
 		catch (\Exception $e) {
-			if ($this->db->lastErrorCode()) {
-				throw new DB_Exception($this->db->lastErrorMsg(), $this->db->lastErrorCode(), $e);
-			}
-
-			throw $e;
+			$this->throwError($e);
 		}
 
 		if ($this->callback) {
