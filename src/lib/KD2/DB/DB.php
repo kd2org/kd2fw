@@ -36,16 +36,9 @@ class DB_Exception extends \RuntimeException {}
 
 class DB
 {
-	/**
-	 * @var int
-	 */
-	protected $transaction = 0;
+	protected int $transaction = 0;
 
-	/**
-	 * Attributes for PDO instance
-	 * @var array
-	 */
-	protected $pdo_attributes = [
+	protected array $pdo_attributes = [
 		PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
 		PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_OBJ,
 		PDO::ATTR_TIMEOUT            => 5, // in seconds
@@ -64,21 +57,21 @@ class DB
 	 */
 	protected $pdo;
 
-	protected $sqlite_functions = [
+	protected array $sqlite_functions = [
 		'base64_encode'      => 'base64_encode',
 		'rank'               => [__CLASS__, 'sqlite_rank'],
 		'haversine_distance' => [__CLASS__, 'sqlite_haversine'],
 		'escape_like'        => ['$this', 'escapeLike'],
 	];
 
-	protected $sqlite_collations = [
+	protected array $sqlite_collations = [
 	];
 
 	/**
 	 * Statements cache
 	 * @var array
 	 */
-	protected $statements = [];
+	protected array $statements = [];
 
 	protected $callback = null;
 
