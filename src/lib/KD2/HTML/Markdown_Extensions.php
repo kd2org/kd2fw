@@ -20,7 +20,9 @@ class Markdown_Extensions
 		'/right'   => [self::class, 'alignClose'],
 	];
 
-	static protected bool $in_grid = false;
+	static protected ?array $grid_columns = null;
+	static protected ?int $grid_count = null;
+	static protected bool $grid_legacy = false;
 
 	static public function register(Markdown $md): void
 	{
@@ -134,19 +136,42 @@ class Markdown_Extensions
 	{
 		$style = '';
 
-		if (isset($args['column'])) {
-			$style .= 'grid-column: ' . htmlspecialchars($args['column']);
+		if (self::$grid_count === count(self::$grid_columns)) {
+			self::$grid_count = 0;
 		}
 
-		if (isset($args['row'])) {
-			$style .= 'grid-row: ' . htmlspecialchars($args['row']);
-		}
+		if (self::$grid_legacy) {
+			$style .= sprintf(' width: %d%%;', self::$grid_columns[self::$grid_count]*100 - count(self::$grid_columns)*2);
 
-		if (isset($args['align'])) {
-			$style .= 'align-self: ' . htmlspecialchars($args['align']);
-		}
+			if (isset($args['align'])) {
+				if (false !== strpos($args['align'], 'start')) {
+					$align = 'top';
+				}
+				elseif (false !== strpos($args['align'], 'end')) {
+					$align = 'bottom';
+				}
+				else {
+					$align = 'middle';
+				}
 
-		$style = self::filterStyleAttribute($style);
+				$style .= sprintf(' vertical-align: %s;', $align);
+			}
+		}
+		else {
+			if (isset($args['column'])) {
+				$style .= 'grid-column: ' . htmlspecialchars($args['column']);
+			}
+
+			if (isset($args['row'])) {
+				$style .= 'grid-row: ' . htmlspecialchars($args['row']);
+			}
+
+			if (isset($args['align'])) {
+				$style .= 'align-self: ' . htmlspecialchars($args['align']);
+			}
+
+			$style = self::filterStyleAttribute($style);
+		}
 
 		return sprintf('<article class="web-block" style="%s">', $style);
 	}
@@ -161,19 +186,24 @@ class Markdown_Extensions
 
 		// Split grid in blocks
 		if (!isset($args[0]) && !isset($args['short']) && !isset($args['template'])) {
-			if (!self::$in_grid) {
+			if (null === self::$grid_count) {
 				return '';
 			}
 
-			return '</article>' . self::gridBlock($args);
+			self::$grid_count++;
+			$close = '</article>';
+
+			return $close . self::gridBlock($args);
 		}
 
-		if (self::$in_grid) {
+		if (null === self::$grid_count) {
 			$out .= self::gridClose($block);
 		}
 
-		$class = 'web-grid';
-		$style = 'grid-template: ';
+		$style = '--grid-template: ';
+		self::$grid_legacy = array_key_exists('legacy', $args);
+		$class = self::$grid_legacy ? 'web-grid-legacy' : 'web-grid';
+		$columns = [100]; // mostly for legacy
 
 		// Automatic template from simple string:
 		// !! = 2 columns, #!! = 1 50% column, two 25% columns
@@ -182,9 +212,26 @@ class Markdown_Extensions
 			$template = preg_replace('/[^!#]/', '', $template);
 			$l = strlen($template);
 			$fraction = ceil(100*(1/$l)) / 100;
+
+			preg_match_all('/(?:!|#+)/', $template, $match);
+
+			$columns = [];
+			$grid = [];
+
+			foreach ($match[0] as $i) {
+				if ($i === '!') {
+					$columns[] = $fraction;
+					$grid[] = sprintf('minmax(0, %sfr) ', $fraction);
+				}
+				else {
+					$columns[] = $fraction * strlen($i);
+					$grid[] = sprintf('minmax(0, %sfr) ', $fraction * strlen($i));
+				}
+			}
+
 			$template = str_replace('!', sprintf('minmax(0, %sfr) ', $fraction), $template);
 			$template = preg_replace_callback('/(#+)/', fn ($match) => sprintf('minmax(0, %sfr) ', $fraction * strlen($match[1])), $template);
-			$style .= 'none / ' . trim($template);
+			$style .= 'none / ' . trim(implode(' ', $grid));
 		}
 		elseif (isset($args['template'])) {
 			$style .= $args['template'];
@@ -206,21 +253,21 @@ class Markdown_Extensions
 		}
 
 		$style = self::filterStyleAttribute($style);
+		self::$grid_count = 0;
+		self::$grid_columns = $columns;
 
-		$out .= sprintf('<section class="%s" style="--%s">', $class, htmlspecialchars($style));
+		$out .= sprintf('<section class="%s" style="%s">', $class, self::$grid_legacy ? '' : '--' . htmlspecialchars($style));
 		$out .= self::gridBlock($args);
-		self::$in_grid = true;
 
 		return $out;
 	}
 
 	static public function gridClose(bool $block): string
 	{
-
 		$out = '</article>';
 		$out .= '</section>';
 
-		self::$in_grid = false;
+		self::$grid_count = null;
 		return $out;
 	}
 
