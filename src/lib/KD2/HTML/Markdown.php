@@ -110,7 +110,7 @@ class Markdown extends Parsedown
 	 */
 	protected function _parseAttributes(string $str): array
 	{
-		preg_match_all('/([[:alpha:]][[:alnum:]]*)(?:\s*=\s*(?:([\'"])(.*?)\2|([^>\s\'"]+)))?/i', $str, $match, PREG_SET_ORDER);
+		preg_match_all('/([\w-]*)(?:\s*=\s*(?:([\'"])(.*?)\2|([^>\s\'"]+)))?/i', $str, $match, PREG_SET_ORDER);
 		$params = [];
 
 		foreach ($match as $m)
@@ -917,13 +917,7 @@ class Markdown extends Parsedown
 		}
 		// unofficial named arguments similar to html args
 		elseif ($params !== '' && (strpos($params, '=') !== false)) {
-			preg_match_all('/([[:alpha:]][[:alnum:]]*)(?:\s*=\s*(?:([\'"])(.*?)\2|([^>\s\'"]+)))?/i', $params, $match, PREG_SET_ORDER);
-			$params = [];
-
-			foreach ($match as $m)
-			{
-				$params[$m[1]] = isset($m[4]) ? $m[4] : (isset($m[3]) ? $m[3] : null);
-			}
+			$params = self::_parseAttributes($params);
 		}
 		// unofficial unnamed arguments separated by spaces
 		elseif ($params !== '' && $params[0] == ' ') {
