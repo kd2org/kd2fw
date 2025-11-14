@@ -359,6 +359,9 @@ class Mailbox
 			elseif ($key === 'date') {
 				$value = new \DateTime($value);
 			}
+			elseif ($key === 'subject') {
+				$value = mb_decode_mimeheader($value);
+			}
 		}
 
 		unset($value);
