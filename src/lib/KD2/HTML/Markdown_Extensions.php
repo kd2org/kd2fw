@@ -131,7 +131,6 @@ class Markdown_Extensions
 		return $str;
 	}
 
-
 	static public function gridBlock(array $args): string
 	{
 		$style = '';
@@ -140,34 +139,57 @@ class Markdown_Extensions
 			self::$grid_count = 0;
 		}
 
-		if (self::$grid_legacy) {
-			$style .= sprintf(' width: %d%%;', self::$grid_columns[self::$grid_count]*100 - count(self::$grid_columns)*2);
+		$align = $args['align'] ?? null;
+		$valign = $args['valign'] ?? null;
 
-			if (isset($args['align'])) {
-				if (false !== strpos($args['align'], 'start')) {
-					$align = 'top';
+		if (self::$grid_legacy) {
+			$style .= sprintf(' width: %d%%;', self::$grid_columns[self::$grid_count ?? 0]*100 - count(self::$grid_columns)*2);
+
+			if (null !== $valign) {
+				if ($valign === 'start' || $valign === 'top') {
+					$valign = 'top';
 				}
-				elseif (false !== strpos($args['align'], 'end')) {
-					$align = 'bottom';
+				elseif ($valign === 'end' || $valign === 'bottom') {
+					$valign = 'bottom';
 				}
 				else {
-					$align = 'middle';
+					$valign = 'middle';
 				}
 
-				$style .= sprintf(' vertical-align: %s;', $align);
+				$style .= sprintf(' vertical-align: %s;', $valign);
 			}
 		}
 		else {
 			if (isset($args['column'])) {
-				$style .= 'grid-column: ' . htmlspecialchars($args['column']);
+				$style .= 'grid-column: ' . htmlspecialchars($args['column']) . ';';
 			}
 
 			if (isset($args['row'])) {
-				$style .= 'grid-row: ' . htmlspecialchars($args['row']);
+				$style .= 'grid-row: ' . htmlspecialchars($args['row']) . ';';
 			}
 
-			if (isset($args['align'])) {
-				$style .= 'align-self: ' . htmlspecialchars($args['align']);
+			// Allow aliases
+			if (null !== $align) {
+				if ($align === 'left') {
+					$align = 'start';
+				}
+				elseif ($align === 'right') {
+					$align = 'end';
+				}
+
+				$style .= sprintf('justify-self: %s;', htmlspecialchars($align));
+			}
+
+			// Allow aliases
+			if (null !== $valign) {
+				if ($valign === 'top') {
+					$valign = 'start';
+				}
+				elseif ($valign === 'bottom') {
+					$valign = 'end';
+				}
+
+				$style .= 'align-self: ' . htmlspecialchars($valign) . ';';
 			}
 
 			$style = self::filterStyleAttribute($style);
@@ -196,11 +218,12 @@ class Markdown_Extensions
 			return $close . self::gridBlock($args);
 		}
 
-		if (null === self::$grid_count) {
+		if (null !== self::$grid_count) {
 			$out .= self::gridClose($block);
+			self::$grid_count = 0;
 		}
 
-		$style = '--grid-template: ';
+		$styles = [];
 		self::$grid_legacy = array_key_exists('legacy', $args);
 		$class = self::$grid_legacy ? 'web-grid-legacy' : 'web-grid';
 		$columns = [100]; // mostly for legacy
@@ -231,17 +254,13 @@ class Markdown_Extensions
 
 			$template = str_replace('!', sprintf('minmax(0, %sfr) ', $fraction), $template);
 			$template = preg_replace_callback('/(#+)/', fn ($match) => sprintf('minmax(0, %sfr) ', $fraction * strlen($match[1])), $template);
-			$style .= 'none / ' . trim(implode(' ', $grid));
+			$styles['--grid-template'] = 'none / ' . trim(implode(' ', $grid));
 		}
 		elseif (isset($args['template'])) {
-			$style .= $args['template'];
+			$styles['--grid-template'] = $args['template'];
 		}
 		else {
-			$style .= '1fr';
-		}
-
-		if (isset($args['gap'])) {
-			$style .= '; gap: ' . $args['gap'];
+			$styles['--grid-template'] = '1fr';
 		}
 
 		if (array_key_exists('debug', $args)) {
@@ -252,12 +271,35 @@ class Markdown_Extensions
 			$class .= ' ' . $args['class'];
 		}
 
+		if (isset($args['bgcolor'])) {
+			$args['padding'] ??= '.5em';
+			$styles['background-color'] = $args['bgcolor'];
+		}
+
+		static $allowed_properties = ['gap', 'color', 'padding', 'border', 'border-radius', 'background-color', 'text-align'];
+
+		foreach ($allowed_properties as $name) {
+			if (isset($args[$name])) {
+				$styles[$name] = $args[$name];
+			}
+		}
+
+		if (self::$grid_legacy) {
+			unset($styles['--grid-template'], $styles['gap']);
+		}
+
+		$style = '';
+
+		foreach ($styles as $name => $value) {
+			$style .= $name . ':' . $value . ';';
+		}
+
 		$style = self::filterStyleAttribute($style);
-		self::$grid_count = 0;
 		self::$grid_columns = $columns;
 
-		$out .= sprintf('<section class="%s" style="%s">', $class, self::$grid_legacy ? '' : '--' . htmlspecialchars($style));
+		$out .= sprintf('<section class="%s" style="%s">', $class, htmlspecialchars($style));
 		$out .= self::gridBlock($args);
+		self::$grid_count = 0;
 
 		return $out;
 	}
