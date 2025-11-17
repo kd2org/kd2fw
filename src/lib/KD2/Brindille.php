@@ -880,7 +880,24 @@ class Brindille
 		$params = $this->_parseArguments($params, $line);
 		$params = $this->_exportArguments($params);
 
-		return sprintf('<?php unset($last); $i = call_user_func($this->_sections[%s], %s, $this, %d); $i ??= []; foreach ($i as $key => $value): $this->_variables[] = []; $this->assignArray(array_merge($value, [\'__\' => $value, \'_\' => $key]), null, false); ?>',
+		$code = '<?php unset($last); '
+			// Call and assign the result of the section function
+			. '$i = call_user_func($this->_sections[%s], %s, $this, %d); '
+			// If the section function returned NULL, then treat it as an empty array to avoid an error
+			. '$i ??= []; '
+			. 'foreach ($i as $key => $value): '
+			// Create a new variables context (entry in the stack)
+			. '$this->_variables[] = []; '
+			// Assign the value to the current variable context
+			. '$this->assignArray(array_merge($value, [\'__\' => $value, \'_\' => $key]), null, false); '
+			// The try block ends by a finally, so that if an exception is raised
+			// inside the loop, we still do the array_pop on the _variables array.
+			// This way we leave the current variable context and get back to the parent one.
+			// eg. {{:assign a="A"}} {{#foreach from=$items item="a"}} {{:error message="Fail"}} {{/foreach}} {{$a}}
+			// will correctly display 'A' instead of whatever `$a` was containing inside the loop
+			. 'try { ?>';
+
+		return sprintf($code,
 			var_export($name, true),
 			$params,
 			$line
@@ -993,7 +1010,15 @@ class Brindille
 			return $this->_block('else:' . $name, '', $line);
 		}
 		elseif ($type == self::SECTION) {
-			return '<?php $last = array_pop($this->_variables); endforeach; if (!isset($last) || !count($last)): ?>';
+			return '<?php '
+				// Leave the current variables context (entry in stack)
+				// and assign the list of variables of this context to $last
+				. '} finally { $last = array_pop($this->_variables); } '
+				// Close the loop
+				. 'endforeach; '
+				// If $last is not set, or it has zero variables, it means
+				// there was zero item in the loop, as a loop item always has at least _ and __ variables
+				. 'if (!isset($last) || !count($last)): ?>';
 		}
 		else {
 			return '<?php else: ?>';
@@ -1017,7 +1042,7 @@ class Brindille
 			return '<?php endif; ?>';
 		}
 		else {
-			return '<?php array_pop($this->_variables); endforeach; ?>';
+			return '<?php } finally { array_pop($this->_variables); } endforeach; ?>';
 		}
 	}
 
