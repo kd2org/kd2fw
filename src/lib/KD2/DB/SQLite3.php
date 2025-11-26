@@ -581,17 +581,20 @@ class SQLite3 extends DB
 
 	public function execute($statement, ...$args)
 	{
+		if ($this->callback) {
+			$original_args = func_get_args();
+		}
+
 		if (!($statement instanceof \SQLite3Stmt)) {
 			throw new \InvalidArgumentException('Statement must be of type SQLite3Stmt');
 		}
 
-		// Forcer en tableau
 		$args = (array) $args;
 
 		$this->connect();
 
 		if ($this->callback) {
-			call_user_func($this->callback, __FUNCTION__, 'before', $this, ... func_get_args());
+			call_user_func($this->callback, __FUNCTION__, 'before', $this, ... $original_args);
 		}
 
 		$statement->reset();
@@ -644,7 +647,7 @@ class SQLite3 extends DB
 			$result = $statement->execute();
 
 			if ($this->callback) {
-				call_user_func($this->callback, __FUNCTION__, 'after', $this, ... func_get_args());
+				call_user_func($this->callback, __FUNCTION__, 'after', $this, ... $original_args);
 			}
 
 			$is_readonly = $statement->readOnly();
@@ -671,16 +674,17 @@ class SQLite3 extends DB
 	public function query(string $statement)
 	{
 		$this->connect();
-		$statement = $this->applyTablePrefix($statement);
 
 		if ($this->callback) {
-			call_user_func($this->callback, __FUNCTION__, 'before', $this, ... func_get_args());
+			$original_args = func_get_args();
+			call_user_func($this->callback, __FUNCTION__, 'before', $this, ... $original_args);
 		}
 
+		$statement = $this->applyTablePrefix($statement);
 		$return = $this->db->query($statement);
 
 		if ($this->callback) {
-			call_user_func($this->callback, __FUNCTION__, 'after', $this, ... func_get_args());
+			call_user_func($this->callback, __FUNCTION__, 'after', $this, ... $original_args);
 		}
 
 		return $return;
@@ -777,11 +781,13 @@ class SQLite3 extends DB
 	public function exec(string $statement)
 	{
 		$this->connect();
-		$statement = $this->applyTablePrefix($statement);
 
 		if ($this->callback) {
-			call_user_func($this->callback, __FUNCTION__, 'before', $this, ... func_get_args());
+			$original_args = func_get_args();
+			call_user_func($this->callback, __FUNCTION__, 'before', $this, ... $original_args);
 		}
+
+		$statement = $this->applyTablePrefix($statement);
 
 		try {
 			$return = $this->db->exec($statement);
@@ -792,7 +798,7 @@ class SQLite3 extends DB
 		}
 
 		if ($this->callback) {
-			call_user_func($this->callback, __FUNCTION__, 'after', $this, ... func_get_args());
+			call_user_func($this->callback, __FUNCTION__, 'after', $this, ... $original_args);
 		}
 
 		return $return;
@@ -873,11 +879,13 @@ class SQLite3 extends DB
 	public function prepare(string $statement, array $driver_options = [])
 	{
 		$this->connect();
-		$statement = $this->applyTablePrefix($statement);
 
 		if ($this->callback) {
-			call_user_func($this->callback, __FUNCTION__, 'before', $this, ... func_get_args());
+			$original_args = func_get_args();
+			call_user_func($this->callback, __FUNCTION__, 'before', $this, ... $original_args);
 		}
+
+		$statement = $this->applyTablePrefix($statement);
 
 		try {
 			$return = $this->db->prepare($statement);
@@ -887,7 +895,7 @@ class SQLite3 extends DB
 		}
 
 		if ($this->callback) {
-			call_user_func($this->callback, __FUNCTION__, 'after', $this, ... func_get_args());
+			call_user_func($this->callback, __FUNCTION__, 'after', $this, ... $original_args);
 		}
 
 		return $return;
@@ -940,7 +948,7 @@ class SQLite3 extends DB
 				$fp = fopen($dir . DIRECTORY_SEPARATOR . $match[1], 'r');
 				$st = null;
 
-				while ($row = fgetcsv($fp)) {
+				while ($row = fgetcsv($fp, null, ',', '"', '\\')) {
 					if (null === $st) {
 						$columns = substr(str_repeat('?, ', count($row)), 0, -2);
 						$st = $this->db->prepare(sprintf('INSERT INTO %s VALUES (%s);', $this->quoteIdentifier($match[2]), $columns));

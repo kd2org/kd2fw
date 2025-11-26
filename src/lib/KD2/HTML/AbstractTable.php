@@ -4,8 +4,8 @@ namespace KD2\HTML;
 
 abstract class AbstractTable
 {
-	abstract public function import(string $html, string $css = null): void;
-	abstract public function addTable(iterable $iterator, string $sheet_name = null, array $table_styles = []): void;
+	abstract public function import(string $html, ?string $css = null): void;
+	abstract public function addTable(iterable $iterator, ?string $sheet_name = null, array $table_styles = []): void;
 	abstract public function addRow(iterable $row, array $row_styles = []): void;
 
 	abstract public function openTable(string $sheet_name, array $styles = []): void;

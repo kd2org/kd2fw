@@ -225,7 +225,7 @@ trait NextCloudNotes
 				}
 
 				if (isset($props['DAV::getlastmodified'])) {
-					header('Last-Modified: ' . $props['DAV::getlastmodified']->format(\DATE_RFC7231));
+					header('Last-Modified: ' . $props['DAV::getlastmodified']->format($this->server::DATE_RFC7231));
 				}
 
 				$notes = $this->iterateNotes($root, $recursive, $with_content, $prune_before);

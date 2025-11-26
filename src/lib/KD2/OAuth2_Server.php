@@ -325,34 +325,10 @@ class OAuth2_Server
 		], $code);
 	}
 
-	protected function randomBytes($length)
-	{
-		if (function_exists('random_bytes'))
-		{
-			return random_bytes($length);
-		}
-        elseif (function_exists('mcrypt_create_iv') && version_compare(PHP_VERSION, '5.3.7') >= 0)
-        {
-            return mcrypt_create_iv($length, MCRYPT_DEV_URANDOM);
-        }
-		elseif (file_exists('/dev/urandom') && is_readable('/dev/urandom'))
-		{
-			return file_get_contents('/dev/urandom', false, null, 0, $length);
-		}
-		elseif (function_exists('openssl_random_pseudo_bytes'))
-		{
-			return openssl_random_pseudo_bytes($length);
-		}
-		else
-		{
-			throw new \LogicException('Cannot generate random bytes: no random source found.');
-		}
-	}
-
 	protected function generateToken($ref)
 	{
 		// 16 random bytes
-		$bytes = self::randomBytes(16);
+		$bytes = random_bytes(16);
 
 		// hash it
 		$token = hash('sha256', $bytes . $ref, true);

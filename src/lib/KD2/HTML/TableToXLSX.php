@@ -145,7 +145,7 @@ class TableToXLSX extends TableToODS
 		$this->row_index = 1;
 	}
 
-	protected function cellName(int $col = null, int $row = null): string
+	protected function cellName(?int $col = null, ?int $row = null): string
 	{
 		$col ??= $this->col_index;
 		$row ??= $this->row_index;

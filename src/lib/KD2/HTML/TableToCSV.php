@@ -28,7 +28,7 @@ class TableToCSV extends AbstractTable
 	protected string $short_date_format = 'Y-m-d';
 	protected string $long_date_format = 'Y-m-d H:i:s';
 
-	public function addTable(iterable $iterator, string $sheet_name = null, array $table_styles = []): void
+	public function addTable(iterable $iterator, ?string $sheet_name = null, array $table_styles = []): void
 	{
 		foreach ($iterator as $row) {
 			$this->addRow($row);
@@ -95,7 +95,7 @@ class TableToCSV extends AbstractTable
 		unset($doc);
 	}
 
-	public function xpath(DOMNode $dom, string $query, int $item = null)
+	public function xpath(DOMNode $dom, string $query, ?int $item = null)
 	{
 		$xpath = new DOMXPath($dom instanceOf DOMDocument ? $dom : $dom->ownerDocument);
 		$result = $xpath->query($query, $dom);

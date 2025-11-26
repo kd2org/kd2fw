@@ -233,16 +233,17 @@ class DB
 	public function query(string $statement)
 	{
 		$this->connect();
-		$statement = $this->applyTablePrefix($statement);
 
 		if ($this->callback) {
-			call_user_func($this->callback, __FUNCTION__, 'before', $this, ... func_get_args());
+			$original_args = func_get_args();
+			call_user_func($this->callback, __FUNCTION__, 'before', $this, ... $original_args);
 		}
 
+		$statement = $this->applyTablePrefix($statement);
 		$out = $this->pdo->query($statement);
 
 		if ($this->callback) {
-			call_user_func($this->callback, __FUNCTION__, 'after', $this, ... func_get_args());
+			call_user_func($this->callback, __FUNCTION__, 'after', $this, ... $original_args);
 		}
 
 		return $out;
@@ -260,16 +261,17 @@ class DB
 	public function exec(string $statement)
 	{
 		$this->connect();
-		$statement = $this->applyTablePrefix($statement);
 
 		if ($this->callback) {
-			call_user_func($this->callback, __FUNCTION__, 'before', $this, ... func_get_args());
+			$original_args = func_get_args();
+			call_user_func($this->callback, __FUNCTION__, 'before', $this, ... $original_args);
 		}
 
+		$statement = $this->applyTablePrefix($statement);
 		$out = $this->pdo->exec($statement);
 
 		if ($this->callback) {
-			call_user_func($this->callback, __FUNCTION__, 'after', $this, ... func_get_args());
+			call_user_func($this->callback, __FUNCTION__, 'after', $this, ... $original_args);
 		}
 
 		return $out;
@@ -280,7 +282,8 @@ class DB
 		$this->connect();
 
 		if ($this->callback) {
-			call_user_func($this->callback, __FUNCTION__, 'before', $this, ... func_get_args());
+			$original_args = func_get_args();
+			call_user_func($this->callback, __FUNCTION__, 'before', $this, ... $original_args);
 		}
 
 		$this->begin();
@@ -329,7 +332,7 @@ class DB
 		}
 
 		if ($this->callback) {
-			call_user_func($this->callback, __FUNCTION__, 'after', $this, ... func_get_args());
+			call_user_func($this->callback, __FUNCTION__, 'after', $this, ... $original_args);
 		}
 
 		return $return;
@@ -366,16 +369,17 @@ class DB
 	public function prepare(string $statement, array $driver_options = [])
 	{
 		$this->connect();
-		$statement = $this->applyTablePrefix($statement);
 
 		if ($this->callback) {
-			call_user_func($this->callback, __FUNCTION__, 'before', $this, ... func_get_args());
+			$original_args = func_get_args();
+			call_user_func($this->callback, __FUNCTION__, 'before', $this, ... $original_args);
 		}
 
+		$statement = $this->applyTablePrefix($statement);
 		$return = $this->pdo->prepare($statement, $driver_options);
 
 		if ($this->callback) {
-			call_user_func($this->callback, __FUNCTION__, 'after', $this, ... func_get_args());
+			call_user_func($this->callback, __FUNCTION__, 'after', $this, ... $original_args);
 		}
 
 		return $return;
@@ -537,6 +541,10 @@ class DB
 
 	public function execute($statement, ...$args)
 	{
+		if ($this->callback) {
+			$original_args = func_get_args();
+		}
+
         // Only one argument, which is an array: this is an associative array
         if (isset($args[0]) && is_array($args[0]))
         {
@@ -560,13 +568,13 @@ class DB
         unset($arg);
 
 		if ($this->callback) {
-			call_user_func($this->callback, __FUNCTION__, 'before', $this, ... func_get_args());
+			call_user_func($this->callback, __FUNCTION__, 'before', $this, ... $original_args);
 		}
 
 		$statement->execute($args);
 
 		if ($this->callback) {
-			call_user_func($this->callback, __FUNCTION__, 'after', $this, ... func_get_args());
+			call_user_func($this->callback, __FUNCTION__, 'after', $this, ... $original_args);
 		}
 
 		return $statement;
@@ -974,13 +982,13 @@ class DB
 	 * SQLite search ranking user defined function
 	 * Converted from C from SQLite manual: https://www.sqlite.org/fts3.html#appendix_a
 	 * @param  string $aMatchInfo
-	 * @return double Score
+	 * @return float Score
 	 */
 	static public function sqlite_rank($aMatchInfo)
 	{
 		$iSize = 4; // byte size
 		$iPhrase = (int) 0;                 // Current phrase //
-		$score = (double)0.0;               // Value to return //
+		$score = (float)0.0;               // Value to return //
 
 		/* Check that the number of arguments passed to this function is correct.
 		** If not, jump to wrong_number_args. Set aMatchinfo to point to the array
@@ -1017,11 +1025,11 @@ class DB
 			{
 				$nHitCount = ord(substr($aPhraseinfo, 3 * $iCol * $iSize, $iSize));
 				$nGlobalHitCount = ord(substr($aPhraseinfo, (3 * $iCol + 1) * $iSize, $iSize));
-				$weight = ($iCol < func_num_args() - 1) ? (double) func_get_arg($iCol + 1) : 0;
+				$weight = ($iCol < func_num_args() - 1) ? (float) func_get_arg($iCol + 1) : 0;
 
 				if ($nHitCount > 0 && $nGlobalHitCount != 0)
 				{
-					$score += ((double)$nHitCount / (double)$nGlobalHitCount) * $weight;
+					$score += ((float)$nHitCount / (float)$nGlobalHitCount) * $weight;
 				}
 			}
 		}
@@ -1031,7 +1039,7 @@ class DB
 
 	/**
 	 * Haversine distance between two points
-	 * @return double Distance in kilometres
+	 * @return float Distance in kilometres
 	 */
 	static public function sqlite_haversine()
 	{
