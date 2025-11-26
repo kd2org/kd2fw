@@ -330,7 +330,10 @@ class Test
 	static public function invoke($class, $method, array $args = [])
 	{
 		$method = new \ReflectionMethod($class, $method);
-		$method->setAccessible(true);
+
+		if (PHP_VERSION_ID < 80500) {
+			$method->setAccessible(true);
+		}
 
 		return $method->invokeArgs($class, $args);
 	}
@@ -341,7 +344,11 @@ class Test
 	static public function getProperty($class, $property)
 	{
 		$p = new \ReflectionProperty($class, $property);
-		$p->setAccessible(true);
+
+		if (PHP_VERSION_ID < 80500) {
+			$method->setAccessible(true);
+		}
+
 		return $p->getValue($class);
 	}
 }
