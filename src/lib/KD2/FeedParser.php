@@ -302,9 +302,17 @@ class FeedParser
     static protected function utf8_encode($str)
     {
 		// Check if string is already UTF-8 encoded or not
-		if (!preg_match('//u', $str))
-        {
-            return utf8_encode($str);
+		if (!preg_match('//u', $str)) {
+			// For PHP 8.2+
+			if (function_exists('mb_convert_encoding')) {
+				return mb_convert_encoding($str, 'UTF-8', mb_list_encodings());
+			}
+			elseif (function_exists('utf8_encode')) {
+            	return @utf8_encode($str);
+            }
+            else {
+            	throw new \Exception('utf8_decode function has been removed, install mbstring extension');
+            }
         }
 
         return $str;

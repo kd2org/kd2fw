@@ -145,7 +145,7 @@ class Point implements ArrayAccess
 			throw new \InvalidArgumentException('Invalid latitude (must be between -180 and 180)');
 		}
 
-		$this->$key = (double) $value;
+		$this->$key = (float) $value;
 	}
 
 	/**

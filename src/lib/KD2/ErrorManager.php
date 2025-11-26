@@ -178,6 +178,7 @@ class ErrorManager
 		// Catch ASSERT_BAIL errors differently because throwing an exception
 		// in this case results in an execution shutdown, and shutdown handler
 		// isn't even called. See https://bugs.php.net/bug.php?id=53619
+		// TODO: remove when minimum supported version is 8.0+
 		if (PHP_VERSION_ID < 80000 && assert_options(ASSERT_ACTIVE) && assert_options(ASSERT_BAIL) && substr($message, 0, 18) == 'Warning: assert():')
 		{
 			$message .= ' (ASSERT_BAIL detected)';
