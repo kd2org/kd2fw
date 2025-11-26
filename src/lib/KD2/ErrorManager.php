@@ -1087,8 +1087,11 @@ class ErrorManager
 			$body = file_get_contents($url, false, stream_context_create($opts));
 			$code = null;
 
-			foreach ($http_response_header as $header)
-			{
+			if (function_exists('http_get_last_response_headers')) {
+				$http_response_header = http_get_last_response_headers();
+			}
+
+			foreach ($http_response_header as $header) {
 				$a = substr($header, 0, 7);
 
 				if ($a == 'HTTP/1.')
