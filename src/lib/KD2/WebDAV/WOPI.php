@@ -318,6 +318,10 @@ class WOPI
 			$r = file_get_contents($url);
 			$ok = false;
 
+			if (function_exists('http_get_last_response_headers')) {
+				$http_response_header = http_get_last_response_headers();
+			}
+
 			foreach ($http_response_header as $h) {
 				if (0 === strpos($h, 'HTTP/') && false !== strpos($h, '200')) {
 					$ok = true;
