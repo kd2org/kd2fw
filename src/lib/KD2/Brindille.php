@@ -241,7 +241,7 @@ class Brindille
 	 */
 	public function registerDefaults()
 	{
-		$this->registerFunction('assign', [self::class, '__assign']);
+		$this->registerFunction('assign', [self::class, '_assign']);
 
 		// This is because PHP 8.1 sucks (string functions no longer accept NULL)
 		// so we need to force NULLs as strings
@@ -271,7 +271,7 @@ class Brindille
 			return Translate::strftime($format, $date);
 		});
 
-		$this->registerSection('foreach', [self::class, '__foreach']);
+		$this->registerSection('foreach', [self::class, '_foreach']);
 	}
 
 	/**
@@ -1306,7 +1306,7 @@ class Brindille
 	 * {{/foreach}}
 	 * ```
 	 */
-	static public function __foreach(array $params, Brindille $tpl, int $line): \Generator
+	static public function _foreach(array $params, Brindille $tpl, int $line): \Generator
 	{
 		if (array_key_exists('count', $params)) {
 			for ($i = 0; $i < (int)$params['count']; $i++) {
@@ -1368,7 +1368,7 @@ class Brindille
 	 * {{:assign .="user"}} => {{$user.name}} (within a section)
 	 * {{:assign var="people[address]" value="42 street"}}
 	 */
-	static public function __assign(array $params, Brindille $tpl, int $line)
+	static public function _assign(array $params, Brindille $tpl, int $line)
 	{
 		$unset = [];
 
@@ -1380,7 +1380,7 @@ class Brindille
 
 			$level = count($tpl->_variables) - strlen($key);
 
-			self::__assign(array_merge($tpl->_variables[$level], ['var' => $value]), $tpl, $line);
+			self::_assign(array_merge($tpl->_variables[$level], ['var' => $value]), $tpl, $line);
 			unset($params[$key]);
 		}
 
