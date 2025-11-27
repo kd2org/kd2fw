@@ -1429,25 +1429,50 @@ class Mail_Message
 				'message'   => null,
 			];
 		}
-		// Ignore auto-replies
-		elseif ($this->getHeader('X-Autoreply')
-			|| $this->getHeader('X-Autorespond')
-			|| ($this->getHeader('auto-submitted') && strtolower($this->getHeader('auto-submitted')) !== 'no')
-			|| stristr($this->getHeader('Delivered-To') ?? '', 'Autoresponder')
-			|| stristr($this->getHeader('precedence') ?? '', 'auto')
-			|| preg_match('/no.?reply|ne.?pas.?repondre/', $this->getHeader('from') ?? '')
-			|| preg_match('/spamenmoins\.com/', $this->getHeader('From') ?? '')
-			|| preg_match('/^(?:Réponse\s*automatique|Out\s*of\s*office|Automatic\s*reply|Auto:\s+)/i', $this->getHeader('Subject') ?? ''))
-		{
+		elseif ($this->isAutoreply()) {
 			return [
 				'type' => 'autoreply',
 			];
 		}
-		else
-		{
+		else {
 			return [
 				'type' => 'genuine',
 			];
 		}
+	}
+
+	public function isAutoreply(): bool
+	{
+		if ($this->getHeader('X-Autoreply')
+			|| $this->getHeader('X-Autorespond')) {
+			return true;
+		}
+
+		if ($this->getHeader('auto-submitted')
+			&& strtolower($this->getHeader('auto-submitted')) !== 'no') {
+			return true;
+		}
+
+		if (stristr($this->getHeader('Delivered-To') ?? '', 'Autoresponder')) {
+			return true;
+		}
+
+		if (stristr($this->getHeader('precedence') ?? '', 'auto')) {
+			return true;
+		}
+
+		if (preg_match('/no.?reply|ne.?pas.?repondre/', $this->getHeader('from') ?? '')) {
+			return true;
+		}
+
+		if (preg_match('/spamenmoins\.com/', $this->getHeader('From') ?? '')) {
+			return true;
+		}
+
+		if (preg_match('/^(?:Réponse\s*automatique|Out\s*of\s*office|Automatic\s*reply|Auto:\s+)/i', $this->getHeader('Subject') ?? '')) {
+			return true;
+		}
+
+		return false;
 	}
 }
