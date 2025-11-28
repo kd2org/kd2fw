@@ -755,20 +755,39 @@ class HTTP
 	protected function curlClientRequest(string $method, string $url, $data, array $headers, $write_pointer = null)
 	{
 		$c = curl_init();
+		$r = new HTTP_Response;
+
+		// Upload file
+		if (is_resource($data)) {
+			fseek($data, 0, SEEK_END);
+			$size = ftell($data);
+			fseek($data, 0);
+
+			curl_setopt($c, CURLOPT_INFILE, $data);
+			curl_setopt($c, defined('CURLOPT_INFILESIZE_LARGE') ? constant('CURLOPT_INFILESIZE_LARGE') : CURLOPT_INFILESIZE, $size);
+
+			// **IMPORTANT** This needs to be set *AFTER* CURLOPT_POST!
+			// If not, CURLOPT_POST will **reset** its internals to **GET**
+			// (losing the body contents) but *still* send a PUT method o_O
+			curl_setopt($c, CURLOPT_PUT, true);
+		}
+		// Build request body
+		elseif ($data !== null) {
+			$data = $this->buildRequestBody($data, $headers);
+			curl_setopt($c, CURLOPT_POSTFIELDS, $data);
+
+		}
 
 		// Sets headers in the right format
-		foreach ($headers as $key=>&$header)
-		{
+		foreach ($headers as $key => &$header) {
 			$header = $key . ': ' . $header;
 		}
 
+		unset($header);
+		$headers = array_values($headers);
 		$headers[] = 'Expect:';
 
-		unset($header);
-
-		$r = new HTTP_Response;
-
-		if ($method == 'POST') {
+		if ($method === 'POST') {
 			curl_setopt($c, CURLOPT_POST, true);
 		}
 
@@ -791,26 +810,6 @@ class HTTP
 		}
 		else {
 			curl_setopt($c, CURLOPT_FILE, $write_pointer);
-		}
-
-		// Upload file
-		if (is_resource($data)) {
-			fseek($data, 0, SEEK_END);
-			$size = ftell($data);
-			fseek($data, 0);
-
-			curl_setopt($c, CURLOPT_INFILE, $data);
-			curl_setopt($c, defined('CURLOPT_INFILESIZE_LARGE') ? constant('CURLOPT_INFILESIZE_LARGE') : CURLOPT_INFILESIZE, $size);
-
-			// **IMPORTANT** This needs to be set *AFTER* CURLOPT_POST!
-			// If not, CURLOPT_POST will **reset** its internals to **GET**
-			// (losing the body contents) but *still* send a PUT method o_O
-			curl_setopt($c, CURLOPT_PUT, true);
-		}
-		// Build request body
-		elseif ($data !== null) {
-			$data = $this->buildRequestBody($data, $headers);
-			curl_setopt($c, CURLOPT_POSTFIELDS, $data);
 		}
 
 		//curl_setopt($c, CURLOPT_VERBOSE, true);
@@ -892,6 +891,12 @@ class HTTP
 			throw new \RuntimeException('cURL error: ' . $error);
 		}
 
+		$r->status = (int) curl_getinfo($c, CURLINFO_HTTP_CODE);
+
+		if (PHP_VERSION_ID < 80500) {
+			curl_close($c);
+		}
+
 		if ($r->body === false) {
 			return $r;
 		}
@@ -902,9 +907,6 @@ class HTTP
 
 		$r->fail = false;
 		$r->size = strlen($r->body);
-		$r->status = (int) curl_getinfo($c, CURLINFO_HTTP_CODE);
-
-		curl_close($c);
 
 		return $r;
 	}
