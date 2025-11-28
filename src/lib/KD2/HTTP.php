@@ -186,11 +186,11 @@ class HTTP
 	{
 		static $redirect_codes = [301, 302, 303, 307, 308];
 
+		$url = $this->url_prefix . $url;
+
 		if (0 !== strpos($url, 'http://') && 0 !== strpos($url, 'https://')) {
 			throw new \InvalidArgumentException('Invalid URL: ' . $url);
 		}
-
-		$url = $this->url_prefix . $url;
 
 		$headers = $this->headers;
 
@@ -756,22 +756,6 @@ class HTTP
 	{
 		$c = curl_init();
 
-		// Upload file
-		if (is_resource($data)) {
-			fseek($data, 0, SEEK_END);
-			$size = ftell($data);
-			fseek($data, 0);
-
-			curl_setopt($c, CURLOPT_INFILE, $data);
-			curl_setopt($c, CURLOPT_INFILESIZE, $size);
-			curl_setopt($c, CURLOPT_PUT, 1);
-		}
-		// Build request body
-		elseif ($data !== null) {
-			$data = $this->buildRequestBody($data, $headers);
-			curl_setopt($c, CURLOPT_POSTFIELDS, $data);
-		}
-
 		// Sets headers in the right format
 		foreach ($headers as $key=>&$header)
 		{
@@ -784,6 +768,10 @@ class HTTP
 
 		$r = new HTTP_Response;
 
+		if ($method == 'POST') {
+			curl_setopt($c, CURLOPT_POST, true);
+		}
+
 		curl_setopt_array($c, [
 			CURLOPT_URL            => $url,
 			CURLOPT_HTTPHEADER     => $headers,
@@ -794,7 +782,6 @@ class HTTP
 			CURLOPT_SSL_VERIFYHOST => !empty($this->ssl_options['verify_peer_name']) ? 2 : 0,
 			CURLOPT_CUSTOMREQUEST  => $method,
 			CURLOPT_TIMEOUT        => !empty($this->http_options['timeout']) ? (int) $this->http_options['timeout'] : 30,
-			CURLOPT_POST           => $method == 'POST' ? true : false,
 			CURLOPT_SAFE_UPLOAD    => true, // Disable file upload with values beginning with @
 			CURLINFO_HEADER_OUT    => true,
 		]);
@@ -804,6 +791,26 @@ class HTTP
 		}
 		else {
 			curl_setopt($c, CURLOPT_FILE, $write_pointer);
+		}
+
+		// Upload file
+		if (is_resource($data)) {
+			fseek($data, 0, SEEK_END);
+			$size = ftell($data);
+			fseek($data, 0);
+
+			curl_setopt($c, CURLOPT_INFILE, $data);
+			curl_setopt($c, defined('CURLOPT_INFILESIZE_LARGE') ? constant('CURLOPT_INFILESIZE_LARGE') : CURLOPT_INFILESIZE, $size);
+
+			// **IMPORTANT** This needs to be set *AFTER* CURLOPT_POST!
+			// If not, CURLOPT_POST will **reset** its internals to **GET**
+			// (losing the body contents) but *still* send a PUT method o_O
+			curl_setopt($c, CURLOPT_PUT, true);
+		}
+		// Build request body
+		elseif ($data !== null) {
+			$data = $this->buildRequestBody($data, $headers);
+			curl_setopt($c, CURLOPT_POSTFIELDS, $data);
 		}
 
 		//curl_setopt($c, CURLOPT_VERBOSE, true);
