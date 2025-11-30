@@ -188,6 +188,9 @@ class Markdown_Extensions
 				elseif ($valign === 'bottom') {
 					$valign = 'end';
 				}
+				elseif ($valign === 'middle') {
+					$valign = 'center';
+				}
 
 				$style .= 'align-self: ' . htmlspecialchars($valign) . ';';
 			}
@@ -276,7 +279,23 @@ class Markdown_Extensions
 			$styles['background-color'] = $args['bgcolor'];
 		}
 
-		static $allowed_properties = ['gap', 'color', 'padding', 'border', 'border-radius', 'background-color', 'text-align'];
+		$valign = $args['valign'] ?? null;
+
+		if (null !== $valign) {
+			if ($valign === 'top') {
+				$valign = 'start';
+			}
+			elseif ($valign === 'bottom') {
+				$valign = 'end';
+			}
+			elseif ($valign === 'middle') {
+				$valign = 'center';
+			}
+
+			$args['align-items'] = $valign;
+		}
+
+		static $allowed_properties = ['gap', 'color', 'padding', 'border', 'border-radius', 'background-color', 'text-align', 'align-items'];
 
 		foreach ($allowed_properties as $name) {
 			if (isset($args[$name])) {
