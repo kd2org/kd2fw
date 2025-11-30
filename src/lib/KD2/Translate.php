@@ -380,6 +380,8 @@ class Translate
 		strtok('');
 		$str = null;
 
+		$domain ??= '';
+
 		if (isset(self::$translations[$domain][self::$locale][$id])) {
 			$str = self::$translations[$domain][self::$locale][$id];
 		}
