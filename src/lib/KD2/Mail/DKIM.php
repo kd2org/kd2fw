@@ -7,20 +7,43 @@ class DKIM
 	// headers to sign (minimal: From, To, Subject, Date)
 	const DEFAULT_SIGNED_HEADERS = ['from', 'to', 'subject', 'date', 'message-id', 'x-mailer'];
 
-	protected function canonicalizeHeaders(string $headers, string $canonicalization)
+	protected $read_cache_callback;
+	protected $write_cache_callback;
+
+	/**
+	 * To minimize DNS requests, you can use a cache.
+	 *
+	 * The reader callback MUST return NULL if the entry is not in cache.
+	 * Writer will be called with domain first, and DNS record second.
+	 *
+	 * If DNS record is stored as NULL by writer, the reader shouldn't treat it
+	 * as a permanent record, but have a shorter retention time, eg. a few minutes.
+	 * This is because the NULL may come from a temporary network issue.
+	 */
+	public function setCacheCallbacks(callable $read, callable $write): void
+	{
+		$this->read_cache_callback = $read;
+		$this->write_cache_callback = $write;
+	}
+
+	public function canonicalizeHeaders(string $headers, string $canonicalization): string
 	{
 		if ($canonicalization === 'simple') {
 			return $headers;
 		}
 
 		// relaxed
+		$headers = trim($headers);
 		$lines = explode("\r\n", $headers);
 		$new_headers = [];
 		$current = null;
+		$i = 0;
 
-		foreach ($lines as &$line) {
-			if (substr($line, 0, 1) === ' ') {
-				$current .= ' ' . ltrim($line);
+		foreach ($lines as $line) {
+			$first = substr($line, 0, 1);
+
+			if ($first === ' ' || $first === "\t") {
+				$current .= ' ' . trim($line);
 				// Unfold all header field continuation lines as described in
 				// [RFC5322]; in particular, lines with terminators embedded in
 				// continued header field values (that is, CRLF sequences followed by
@@ -37,12 +60,14 @@ class DKIM
 			// Delete any WSP characters remaining before and after the colon
 			// separating the header field name from the header field value.  The
 			// colon separator MUST be retained.
-			$line = $name . ':' . ltrim($value);
+			$new_headers[$i] = trim($name) . ':' . ltrim($value);
+			$current =& $new_headers[$i];
+			$i++;
 		}
 
-		unset($line);
+		unset($line, $lines);
 
-		foreach ($lines as &$line) {
+		foreach ($new_headers as &$line) {
 			// Convert all sequences of one or more WSP characters to a single SP
 			// character.  WSP characters here include those before and after a
 			// line folding boundary.
@@ -55,11 +80,15 @@ class DKIM
 
 		unset($line);
 
-		$headers = implode("\r\n", $lines);
+		$headers = implode("\r\n", $new_headers);
+
+		// Implementations MUST NOT remove the CRLF at the end of the header field value.
+		$headers .= "\r\n";
+
 		return $headers;
 	}
 
-	protected function canonicalizeBody(string $body, string $canonicalization)
+	public function canonicalizeBody(string $body, string $canonicalization): string
 	{
 		if ($canonicalization === 'relaxed') {
 			// Ignore all whitespace at the end of lines.  Implementations
@@ -214,14 +243,61 @@ class DKIM
 	public function verify(string $message): ?string
 	{
 		list($headers, $body) = $this->normalizeMessage($message);
-		$found = $this->parseHeaders($headers, ['dkim-signature']);
+
+		$found = [];
+		$i = 0;
+		$headers_lines = explode("\r\n", $headers);
+		$current = null;
+
+		foreach ($headers_lines as $line) {
+			$first = substr($line, 0, 1);
+
+			if ($current !== null
+				&& ($first === ' ' || $first === "\t")) {
+				$current .= ' ' . ltrim($line, " \t");
+				continue;
+			}
+			elseif (stripos($line, 'dkim-signature:') !== 0) {
+				// Ignore headers that are not DKIM-Signature
+				unset($current);
+				$current = null;
+				continue;
+			}
+
+			$found[$i] = substr($line, strlen('dkim-signature: '));
+			$current =& $found[$i];
+			$i++;
+		}
+
+		unset($current, $i, $headers_lines);
 
 		if (!count($found)) {
 			return 'No DKIM signature found.';
 		}
 
-		$dkim = substr($found['dkim-signature'], strlen('dkim-signature: '));
+		// Skip Ed25519 keys as they are not yet standard (RFC is only proposed)
+		$found = array_filter($found, fn ($a) => false === stripos($a, 'k=ed25519'));
+
+		if (!count($found)) {
+			return 'No valid DKIM signature found: there were signatures with Ed25519, but they cannot be verified.';
+		}
+
+		// Try each signature, if one works, nice
+		foreach ($found as $sig) {
+			$r = $this->verifySignature($sig, $headers, $body);
+
+			if ($r === null) {
+				return null;
+			}
+		}
+
+		return $r;
+	}
+
+	public function verifySignature(string $dkim, string $headers, string $body): ?string
+	{
 		$dkim = preg_split('/;\s+/', trim($dkim));
+		$dkim = implode("\n", $dkim);
 		$dkim = parse_ini_string($dkim, false, INI_SCANNER_RAW);
 
 		static $required = ['v', 'a', 'b', 'bh', 'd', 'h', 's'];
@@ -269,8 +345,20 @@ class DKIM
 		$selector = $dkim['s'];
 
 		$host = sprintf('%s._domainkey.%s', $selector, $domain);
-		$dns = dns_get_record($host, DNS_TXT);
-		$raw_record = $dns[0]['txt'] ?? null;
+		$raw_record = null;
+
+		if (null !== $this->read_cache_callback) {
+			$raw_record = $this->read_cache_callback($host);
+		}
+
+		if (null === $raw_record) {
+			$dns = dns_get_record($host, DNS_TXT);
+			$raw_record = $dns[0]['txt'] ?? null;
+		}
+
+		if (null !== $this->write_cache_callback) {
+			$this->write_cache_callback($host, $raw_record);
+		}
 
 		if (empty($raw_record)) {
 			return sprintf('Cannot find TXT record for %s', $host);
@@ -302,9 +390,9 @@ class DKIM
 			trim(chunk_split($pubkey, 64, "\n"))
 		);
 
-		list($alg, $hash) = explode($dkim['a']);
+		list($alg, $hash) = explode('-', $dkim['a']);
 
-		$verified = openssl_verify($signed_string, base64_decode($dkim['b']), $pubkey, $hash);
+		$verified = openssl_verify($sign_str, base64_decode($dkim['b']), $pubkey, $hash);
 
 		if ($verified === 0) {
 			return 'Invalid signature';

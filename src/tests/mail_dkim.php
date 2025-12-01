@@ -5,8 +5,56 @@ use KD2\Mail\DKIM;
 
 require __DIR__ . '/_assert.php';
 
+test_body_canonicalization();
+test_headers_canonicalization();
+
 test_sign();
 test_valid();
+
+function test_body_canonicalization()
+{
+	$dkim = new DKIM;
+
+	$expected = 'uoq1oCgLlTqpdDX/iUbLy7J1Wic=';
+	$result = $dkim->canonicalizeBody("\r\n\r\n", 'simple');
+	$result = base64_encode(sha1($result, true));
+	Test::strictlyEquals($expected, $result);
+
+	$expected = '2jmj7l5rSw0yVb/vlWAYkK/YBwk=';
+	$result = $dkim->canonicalizeBody("\r\n\r\n", 'relaxed');
+	$result = base64_encode(sha1($result, true));
+	Test::strictlyEquals($expected, $result);
+}
+
+function test_headers_canonicalization()
+{
+	$dkim = new DKIM;
+	$replace = function (string $source): string {
+		$source = preg_replace('/\r|\n/', '', $source);
+		$source = preg_replace('/[ ]*<SP>[ ]*/', ' ', $source);
+		$source = preg_replace('/[ ]*<HTAB>[ ]*/', "\t", $source);
+		$source = preg_replace('/[ ]*<CRLF>[ ]*/', "\r\n", $source);
+		return $source;
+	};
+
+	$source = "A: <SP> X <CRLF>
+B <SP> : <SP> Y <HTAB><CRLF>
+                <HTAB> Z <SP><SP><CRLF>";
+	$source = $replace($source);
+
+	$target = "A: <SP> X <CRLF>
+B <SP> : <SP> Y <HTAB><CRLF>
+       <HTAB> Z <SP><SP><CRLF>";
+
+	$result = $dkim->canonicalizeHeaders($source, 'simple');
+	Test::strictlyEquals($replace($target), $result);
+
+	$target = "a:X <CRLF>
+b:Y <SP> Z <CRLF>";
+
+	$result = $dkim->canonicalizeHeaders($source, 'relaxed');
+	Test::strictlyEquals($replace($target), $result);
+}
 
 function test_sign()
 {
@@ -59,4 +107,6 @@ Hello!
 
 function test_valid()
 {
+	$dkim = new DKIM;
+	Test::strictlyEquals(null, $dkim->verify(file_get_contents('data/mails/dkim/01.eml')));
 }
