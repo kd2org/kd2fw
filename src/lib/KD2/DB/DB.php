@@ -552,27 +552,27 @@ class DB
 			$original_args = func_get_args();
 		}
 
-        // Only one argument, which is an array: this is an associative array
-        if (isset($args[0]) && is_array($args[0]))
-        {
-        	$args = $args[0];
-        }
+		// Only one argument, which is an array: this is an associative array
+		if (isset($args[0]) && is_array($args[0]))
+		{
+			$args = $args[0];
+		}
 
-        if (!is_array($args) && !is_object($args)) {
-        	throw new \InvalidArgumentException('Expecting an array or object as query arguments');
-        }
+		if (!is_array($args) && !is_object($args)) {
+			throw new \InvalidArgumentException('Expecting an array or object as query arguments');
+		}
 
-        $args = (array) $args;
+		$args = (array) $args;
 
-        foreach ($args as &$arg)
-        {
-        	if (is_object($arg) && $arg instanceof \DateTimeInterface)
-        	{
-        		$arg = $arg->format('Y-m-d H:i:s');
-        	}
-        }
+		foreach ($args as &$arg)
+		{
+			if (is_object($arg) && $arg instanceof \DateTimeInterface)
+			{
+				$arg = $arg->format('Y-m-d H:i:s');
+			}
+		}
 
-        unset($arg);
+		unset($arg);
 
 		if ($this->callback) {
 			call_user_func($this->callback, __FUNCTION__, 'before', $this, ... $original_args);
@@ -988,35 +988,39 @@ class DB
 	/**
 	 * SQLite search ranking user defined function
 	 * Converted from C from SQLite manual: https://www.sqlite.org/fts3.html#appendix_a
-	 * @param  string $aMatchInfo
-	 * @return float Score
 	 */
-	static public function sqlite_rank($aMatchInfo)
+	static public function sqlite_rank(string $aMatchinfo, ...$weights): float
 	{
-		$iSize = 4; // byte size
-		$iPhrase = (int) 0;                 // Current phrase //
-		$score = (float)0.0;               // Value to return //
-
 		/* Check that the number of arguments passed to this function is correct.
 		** If not, jump to wrong_number_args. Set aMatchinfo to point to the array
 		** of unsigned integer values returned by FTS function matchinfo. Set
 		** nPhrase to contain the number of reportable phrases in the users full-text
 		** query, and nCol to the number of columns in the table.
 		*/
-		$aMatchInfo = (string) func_get_arg(0);
-		$nPhrase = ord(substr($aMatchInfo, 0, $iSize));
-		$nCol = ord(substr($aMatchInfo, $iSize, $iSize));
+		$nCol = 0;
+		$nPhrase = 0;
+		$match_info = unpack('V*', $aMatchinfo);
+		$nMatchinfo = count($match_info);
+		$match_info = array_values(array_map('intval', $match_info));
 
-		if (func_num_args() > (1 + $nCol))
-		{
-			throw new \Exception("Invalid number of arguments : ".$nCol);
+		if ($nMatchinfo >= 2) {
+			$nPhrase = $match_info[0];
+			$nCol = $match_info[1];
 		}
 
-		// Iterate through each phrase in the users query. //
-		for ($iPhrase = 0; $iPhrase < $nPhrase; $iPhrase++)
-		{
-			$iCol = (int) 0; // Current column //
+		if ($nMatchinfo !== (2 + 3 * $nCol * $nPhrase)) {
+			throw new \BadMethodCallException('invalid matchinfo blob passed to function rank()');
+		}
 
+		if (count($weights) !== $nCol) {
+			throw new \BadMethodCallException('Invalid number of arguments: ' . $nCol);
+		}
+
+		$score = 0.0;
+		$weights = array_map('floatval', $weights);
+
+		// Iterate through each phrase in the users query. //
+		for ($iPhrase = 0; $iPhrase < $nPhrase; $iPhrase++) {
 			/* Now iterate through each column in the users query. For each column,
 			** increment the relevancy score by:
 			**
@@ -1026,17 +1030,17 @@ class DB
 			** the hit count and global hit counts for each column are found in
 			** aPhraseinfo[iCol*3] and aPhraseinfo[iCol*3+1], respectively.
 			*/
-			$aPhraseinfo = substr($aMatchInfo, (2 + $iPhrase * $nCol * 3) * $iSize);
 
-			for ($iCol = 0; $iCol < $nCol; $iCol++)
-			{
-				$nHitCount = ord(substr($aPhraseinfo, 3 * $iCol * $iSize, $iSize));
-				$nGlobalHitCount = ord(substr($aPhraseinfo, (3 * $iCol + 1) * $iSize, $iSize));
-				$weight = ($iCol < func_num_args() - 1) ? (float) func_get_arg($iCol + 1) : 0;
+			$aPhraseinfoOffset = 2 + $iPhrase * $nCol * 3;
 
-				if ($nHitCount > 0 && $nGlobalHitCount != 0)
-				{
-					$score += ((float)$nHitCount / (float)$nGlobalHitCount) * $weight;
+			for ($iCol = 0; $iCol < $nCol; $iCol++) {
+				$idxHit = $aPhraseinfoOffset + $iCol * 3;
+				$nHitCount = $match_info[$idxHit];
+				$nGlobalHitCount = $match_info[$idxHit + 1];
+				$weight = $weights[$iCol];
+
+				if ($nHitCount > 0 && $nGlobalHitCount !== 0) {
+					$score += ($nHitCount / $nGlobalHitCount) * $weight;
 				}
 			}
 		}
