@@ -1317,7 +1317,10 @@ class Smartyer
 	 */
 	static public function dateFormat($date, string $format = '%b, %e %Y'): string
 	{
-		if (is_object($date)) {
+		if (is_null($date) || is_array($date)) {
+			return '';
+		}
+		elseif (is_object($date)) {
 			$date = $date->getTimestamp();
 		}
 		elseif (!is_numeric($date)) {
