@@ -136,7 +136,8 @@ class Mailbox
 		for ($i = $pos; $i < strlen($str); $i++) {
 			$c = $str[$i];
 
-			if ($c === '"') {
+			if ($c === '"'
+				&& (!$in_quotes || ($str[$i - 1] ?? '') !== '\\')) {
 				if ($in_quotes) {
 					$in_quotes = false;
 					$idx++;
@@ -169,6 +170,11 @@ class Mailbox
 					continue;
 				}
 			}
+			// Remove escape characters
+			elseif ($in_quotes && $c === '\\') {
+				$c = '';
+			}
+
 			$out[$idx] ??= '';
 			$out[$idx] .= $c;
 		}
@@ -176,7 +182,11 @@ class Mailbox
 		$pos = $i;
 
 		// Replace NIL with NULL
-		array_walk($out, fn (&$a) => $a = $a === 'NIL' ? null : $a);
+		array_walk($out, function (&$a) {
+			if ($a === 'NIL') {
+				$a = null;
+			}
+		});
 
 		// use array_values, as we might increment $idx a bit too often
 		// with empty characters, but not an issue
@@ -342,6 +352,10 @@ class Mailbox
 	protected function parseImapEnvelope(array $item): array
 	{
 		static $keys = ['date', 'subject', 'from', 'sender', 'reply_to', 'to', 'cc', 'bcc', 'in_reply_to', 'message_id'];
+
+		if (count($keys) !== count($item)) {
+			var_dump($item); exit;
+		}
 
 		$envelope = array_combine($keys, $item);
 
