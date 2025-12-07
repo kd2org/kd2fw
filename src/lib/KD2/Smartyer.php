@@ -106,6 +106,7 @@ class Smartyer
 	 */
 	protected array $modifiers = [
 		'nl2br' => 'nl2br',
+		'strip_tags' => 'strip_tags',
 		'count' => 'count',
 		'args' 	=> 'sprintf',
 		'const' => 'constant',
