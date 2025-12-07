@@ -321,6 +321,11 @@ class Mail_Message
 	public function getDate()
 	{
 		$date = $this->getHeader('date');
+
+		// FairEmail sends an invalid date format: Sun, 7 Dec 2025 15:58:53 +0100 (GMT+01:00)
+		$date = preg_replace('!\([A-Z]+\s*[\d:]+\)!', '', $date);
+		$date = trim($date);
+
 		return $date ? new \DateTime($date) : null;
 	}
 
@@ -1457,8 +1462,16 @@ class Mail_Message
 			return true;
 		}
 
-		if (stristr($this->getHeader('precedence') ?? '', 'auto')) {
-			return true;
+		$precedence = $this->getHeader('precedence');
+
+		if (isset($precedence)) {
+			$precedence = (array) $precedence;
+
+			foreach ($precedence as $item) {
+				if (stristr($item, 'auto')) {
+					return true;
+				}
+			}
 		}
 
 		if (preg_match('/no.?reply|ne.?pas.?repondre/', $this->getHeader('from') ?? '')) {
