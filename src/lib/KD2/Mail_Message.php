@@ -323,7 +323,7 @@ class Mail_Message
 		$date = $this->getHeader('date');
 
 		// FairEmail sends an invalid date format: Sun, 7 Dec 2025 15:58:53 +0100 (GMT+01:00)
-		$date = preg_replace('!\([A-Z]+\s*[\d:]+\)!', '', $date);
+		$date = preg_replace('!\(.*?\)$!', '', $date);
 		$date = trim($date);
 
 		return $date ? new \DateTime($date) : null;
