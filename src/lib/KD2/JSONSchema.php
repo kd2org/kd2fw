@@ -25,13 +25,7 @@ class JSONSchema
 
 	static protected function parse(string $raw, ?string $path = null)
 	{
-		$file = json_decode($raw);
-
-		if (!$file && json_last_error()) {
-			throw new \LogicException(sprintf('JSON parsing of schema failed: %s', json_last_error_msg()));
-		}
-
-		return $file;
+		return json_decode($raw, JSON_THROW_ON_ERROR);
 	}
 
 	static public function fromFile(string $file)
