@@ -673,9 +673,9 @@ abstract class NextCloud
 		return $this->nc_ocs([]);
 	}
 
-	protected function nc_empty_json(): string
+	protected function nc_opencloud_graph(): string
 	{
-		return '{}';
+		return '{"value":[]}';
 	}
 
 	protected function nc_avatar(): void
