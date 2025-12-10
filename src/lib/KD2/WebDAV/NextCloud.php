@@ -89,6 +89,26 @@ abstract class NextCloud
 
 	protected bool $block_ios_clients = true;
 
+	// Some default values, just in case clients expect URLs and stuff, as documentation is lacking
+	// https://docs.nextcloud.com/server/stable/developer_manual/client_apis/OCS/ocs-api-overview.html#theming-capabilities
+	protected array $theme = [
+		'name'                 => 'WebDAV',
+		'url'                  => 'https://fossil.kd2.org/kd2fw/',
+		'slogan'               => 'NextCloud is slow',
+		'color'                => '#00679e',
+		'color-text'           => '#ffffff',
+		'color-element'        => '#00679e',
+		'color-element-bright' => '#00679e',
+		'color-element-dark'   => '#00679e',
+		'logo'                 => 'https://upload.wikimedia.org/wikipedia/commons/6/60/Nextcloud_Logo.svg',
+		'background'           => '#333333',
+		'background-text'      => '#ffffff',
+		'background-plain'     => '',
+		'background-default'   => '',
+		'logoheader'           => 'https://upload.wikimedia.org/wikipedia/commons/6/60/Nextcloud_Logo.svg',
+		'favicon'              => 'https://upload.wikimedia.org/wikipedia/commons/6/60/Nextcloud_Logo.svg'
+	];
+
 	/**
 	 * Handle your authentication
 	 * you should handle real user login/password as well as app-specific passwords here
@@ -258,6 +278,7 @@ abstract class NextCloud
 		// Main routes
 		'remote.php/webdav/' => 'webdav', // desktop client
 		'remote.php/dav' => 'webdav', // android client
+		'dav/files/' => 'webdav', // LesPas Android client
 
 		// Login v1, for Android app
 		'index.php/login/flow' => 'login_v1',
@@ -286,8 +307,10 @@ abstract class NextCloud
 		'status.php' => 'status',
 		'ocs/v1.php/cloud/capabilities' => 'capabilities',
 		'ocs/v2.php/cloud/capabilities' => 'capabilities',
+		'v2.php/cloud/capabilities' => 'capabilities',
 		'ocs/v2.php/cloud/user' => 'user',
 		'ocs/v1.php/cloud/user' => 'user',
+		'v1.php/cloud/user' => 'user',
 		'ocs/v1.php/config' => 'config',
 		'ocs/v2.php/apps/files_sharing/api/v1/shares' => 'shares',
 		'ocs/v2.php/apps/user_status' => 'empty',
@@ -307,7 +330,7 @@ abstract class NextCloud
 	// ownCloud Android: /remote.php/dav/files/ (note the missing user part)
 	// -> only at first, then it queries the correct path, WTF
 	// See also https://github.com/nextcloud/server/issues/25867
-	const WEBDAV_BASE_REGEXP = '~^.*remote\.php/(?:webdav/|dav/files/(?:(?:(?!/).)+(?:/+|$)|/*$))~';
+	const WEBDAV_BASE_REGEXP = '~^.*(?:remote\.php/)?(?:webdav/|dav/files/(?:[^/]+(?:/+|$)|/*$))~';
 
 	public function setRootURL(string $url)
 	{
@@ -595,6 +618,7 @@ abstract class NextCloud
 					'api_version' => ['1.3'],
 					'version' => '4.11.99',
 				],
+				'theming' => $this->theme,
 			],
 		]);
 	}
@@ -613,7 +637,7 @@ abstract class NextCloud
 		$user = $this->getUserName() ?? 'null';
 
 		return $this->nc_ocs([
-			'id' => sha1($user),
+			'id' => $user,
 			'enabled' => true,
 			'email' => null,
 			'storageLocation' => '/secret/whoknows/' . sha1($user),
