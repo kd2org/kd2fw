@@ -415,6 +415,12 @@ abstract class NextCloud
 			echo $json;
 			$this->server->log("NC => Body:\n%s", $json);
 		}
+		elseif (is_string($v)) {
+			http_response_code(200);
+			header('Content-Type: application/json', true);
+			echo $v;
+			$this->server->log("NC => Body:\n%s", $v);
+		}
 
 		$this->server->log('NC Sent response: %d', http_response_code());
 
@@ -667,9 +673,9 @@ abstract class NextCloud
 		return $this->nc_ocs([]);
 	}
 
-	protected function nc_empty_json(): array
+	protected function nc_empty_json(): string
 	{
-		return [];
+		return '{}';
 	}
 
 	protected function nc_avatar(): void
