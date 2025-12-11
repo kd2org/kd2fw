@@ -1013,7 +1013,14 @@ class Translate
 			$escape = strtolower($args['escape']);
 		}
 
-		unset($args['escape'], $args['domain'], $args['context']);
+		$assign = $args['assign'] ?? null;
+
+		if ($assign) {
+			$assign = trim($assign, '"\'');
+			$s->validateVariableName($assign);
+		}
+
+		unset($args['escape'], $args['domain'], $args['context'], $args['assign']);
 
 		// Use named arguments: %name, %nb_apples...
 		// This will cause weird bugs if you use %s, or %d etc. before or between named arguments
@@ -1025,7 +1032,14 @@ class Translate
 			$code = sprintf('self::escape(%s, %s)', $code, var_export($escape, true));
 		}
 
-		return 'echo ' . $code . ';';
+		if ($assign) {
+			$code = sprintf('${%s} = %s;', var_export($assign, true), $code);
+		}
+		else {
+			$code = sprintf('echo %s;', $code);
+		}
+
+		return $code;
 	}
 }
 
