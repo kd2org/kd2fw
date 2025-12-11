@@ -107,6 +107,7 @@ class Smartyer
 	protected array $modifiers = [
 		'nl2br' => 'nl2br',
 		'strip_tags' => 'strip_tags',
+		'rawurlencode' => 'rawurlencode',
 		'count' => 'count',
 		'args' 	=> 'sprintf',
 		'const' => 'constant',
@@ -1214,6 +1215,15 @@ class Smartyer
 		return $var;
 	}
 
+	public function validateVariableName(string $var): void
+	{
+		if (!preg_match('/^[a-zA-Z_\x80-\xff][a-zA-Z0-9_\x80-\xff]*$/', $var)
+			|| $var === 'this'
+			|| substr($var, 0, 1) === '_') {
+			throw new \BadFunctionCallException('Invalid variable name');
+		}
+	}
+
 	/**
 	 * Native default escape modifier
 	 */
@@ -1368,11 +1378,7 @@ class Smartyer
 
 		$var = $tpl->getValueFromArgument($args['var']);
 
-		if (!preg_match('/^[a-zA-Z_\x80-\xff][a-zA-Z0-9_\x80-\xff]*$/', $var)
-			|| $var === 'this'
-			|| substr($var, 0, 1) === '_') {
-			throw new \BadFunctionCallException('Invalid variable name in "var" argument to function {assign}');
-		}
+		$tpl->validateVariableName($var);
 
 		// Assign variable to _variables array, even for parent templates
 		$code = '$_t = $this->parent; while ($_t) { $_t->assign(%s, %s); $_t = $_t->parent; } unset($_t); ';
