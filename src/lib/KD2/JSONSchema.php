@@ -25,7 +25,7 @@ class JSONSchema
 
 	static protected function parse(string $raw, ?string $path = null)
 	{
-		return json_decode($raw, JSON_THROW_ON_ERROR);
+		return json_decode($raw, false, JSON_THROW_ON_ERROR);
 	}
 
 	static public function fromFile(string $file)
