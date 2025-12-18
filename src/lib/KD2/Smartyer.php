@@ -1326,7 +1326,7 @@ class Smartyer
 		}
 
 		if (!$strict_cut) {
-			$cut = preg_replace('/[^\s.,:;!?]*?$/s' . $u, '', $str);
+			$cut = preg_replace('/[^\s.,:;!?]*?$/s', '', $str);
 
 			if (trim($cut) === '') {
 				$cut = $str;
