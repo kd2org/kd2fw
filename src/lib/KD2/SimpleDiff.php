@@ -415,6 +415,91 @@ class SimpleDiff
 
         return $out;
     }
-}
 
-?>
+    static public function asHTML(string $old, string $new, int $context_lines = 3, ?string $old_label = null, ?string $new_label = null): string
+    {
+        $diff = self::diff_to_array(false, $old, $new, $context_lines);
+
+        $out = '<table class="diff">';
+
+        if (isset($old_label, $new_label)) {
+            $out .= sprintf(
+                '<thead><tr><td colspan=2></td><th>%s</th><td></td><th>%s</th></tr></thead>',
+                htmlspecialchars($old_label),
+                htmlspecialchars($new_label)
+            );
+        }
+
+        $out .= '<tbody>';
+
+        $prev = key($diff);
+
+        foreach ($diff as $i=>$line)
+        {
+            if ($i > $prev + 1)
+            {
+                $out .= '<tr class="separator"><td colspan="5"><hr /></td></tr>';
+            }
+
+            list($type, $old, $new) = $line;
+
+            $class1 = $class2 = '';
+            $t1 = $t2 = '';
+
+            if ($type == self::INS)
+            {
+                $class2 = 'ins';
+                $t2 = '<span data-icon="➕"></span>';
+                $old = htmlspecialchars($old, ENT_QUOTES, 'UTF-8');
+                $new = htmlspecialchars($new, ENT_QUOTES, 'UTF-8');
+            }
+            elseif ($type == self::DEL)
+            {
+                $class1 = 'del';
+                $t1 = '<span data-icon="➖"></span>';
+                $old = htmlspecialchars($old, ENT_QUOTES, 'UTF-8');
+                $new = htmlspecialchars($new, ENT_QUOTES, 'UTF-8');
+            }
+            elseif ($type == self::CHANGED)
+            {
+                $class1 = 'del';
+                $class2 = 'ins';
+                $t1 = '<span data-icon="➖"></span>';
+                $t2 = '<span data-icon="➕"></span>';
+
+                $lineDiff = self::wdiff($old, $new);
+                $lineDiff = htmlspecialchars($lineDiff, ENT_QUOTES, 'UTF-8');
+
+                // Don't show new things in deleted line
+                $old = preg_replace('!\{\+(?:.*)\+\}!U', '', $lineDiff);
+                $old = str_replace('  ', ' ', $old);
+                $old = str_replace('-] [-', ' ', $old);
+                $old = preg_replace('!\[-(.*)-\]!U', '<del>\\1</del>', $old);
+
+                // Don't show old things in added line
+                $new = preg_replace('!\[-(?:.*)-\]!U', '', $lineDiff);
+                $new = str_replace('  ', ' ', $new);
+                $new = str_replace('+} {+', ' ', $new);
+                $new = preg_replace('!\{\+(.*)\+\}!U', '<ins>\\1</ins>', $new);
+            }
+            else
+            {
+                $old = htmlspecialchars($old, ENT_QUOTES, 'UTF-8');
+                $new = htmlspecialchars($new, ENT_QUOTES, 'UTF-8');
+            }
+
+            $out .= '<tr>';
+            $out .= '<td class="line">'.($i+1).'</td>';
+            $out .= '<td class="leftChange">'.$t1.'</td>';
+            $out .= '<td class="leftText '.$class1.'">'.$old.'</td>';
+            $out .= '<td class="rightChange">'.$t2.'</td>';
+            $out .= '<td class="rightText '.$class2.'">'.$new.'</td>';
+            $out .= '</tr>';
+
+            $prev = $i;
+        }
+
+        $out .= '</tbody></table>';
+        return $out;
+    }
+}
