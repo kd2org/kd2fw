@@ -108,6 +108,7 @@ class Smartyer
 		'nl2br' => 'nl2br',
 		'strip_tags' => 'strip_tags',
 		'rawurlencode' => 'rawurlencode',
+		'json_encode' => 'json_encode',
 		'count' => 'count',
 		'args' 	=> 'sprintf',
 		'const' => 'constant',
