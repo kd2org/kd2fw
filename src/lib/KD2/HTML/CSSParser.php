@@ -725,7 +725,8 @@ class CSSParser
 		$properties = array_filter($properties, fn($a) => !is_null($a));
 
 		// Apply default inherited properties
-		static $inherited_properties = array_flip($this->inherited_properties);
+		static $inherited_properties = null;
+		$inherited_properties ??= array_flip($this->inherited_properties);
 		$parent_properties = array_intersect_key($parent_properties, $inherited_properties);
 		$properties = array_merge($parent_properties, $properties);
 		unset($parent_properties);
