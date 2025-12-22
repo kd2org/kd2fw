@@ -609,7 +609,7 @@ class Mail_Message
 		$str = preg_replace('!<(script|style).*</\1>!is', '', $str);
 		$str = strip_tags($str);
 
-		$str = html_entity_decode($str, ENT_QUOTES, 'UTF-8');
+		$str = html_entity_decode($str, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML401, 'UTF-8');
 		$str = preg_replace('/^\h*/m', '', $str);
 		$str = preg_replace("!\n{3,}!", "\n\n", $str);
 
@@ -1228,17 +1228,26 @@ class Mail_Message
 			$name = !empty($match[2]) ? $match[2] : $match[1];
 		}
 
+		if (!empty($headers['content-disposition'])
+			&& 0 === strpos(ltrim($headers['content-disposition']), 'attachment;')) {
+			$attachment = true;
+		}
+		else {
+			$attachment = false;
+		}
+
 		if (!empty($headers['content-id']) && preg_match('/<(.*?)>/m', $headers['content-id'], $match))
 		{
 			$cid = $match[1];
 		}
 
 		$part = [
-			'type'  =>  $type,
-			'name'  =>  $name,
-			'cid'   =>  $cid,
-			'content'=> $body,
-			'encoding' => null,
+			'type'       => $type,
+			'name'       => $name,
+			'cid'        => $cid,
+			'content'    => $body,
+			'encoding'   => null,
+			'attachment' => $attachment,
 		];
 
 		$part['content'] = implode("\n", $part['content']);
