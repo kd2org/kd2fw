@@ -1443,6 +1443,11 @@ class Mail_Message
 				'message'   => null,
 			];
 		}
+		elseif (preg_match('/spamenmoins\.com|mailinblack\.com/', $this->getHeader('From') ?? '')) {
+			return [
+				'type' => 'captcha',
+			];
+		}
 		elseif ($this->isAutoreply()) {
 			return [
 				'type' => 'autoreply',
@@ -1484,10 +1489,6 @@ class Mail_Message
 		}
 
 		if (preg_match('/no.?reply|ne.?pas.?repondre/', $this->getHeader('from') ?? '')) {
-			return true;
-		}
-
-		if (preg_match('/spamenmoins\.com/', $this->getHeader('From') ?? '')) {
 			return true;
 		}
 
