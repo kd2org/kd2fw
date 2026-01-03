@@ -131,7 +131,15 @@ class SMTP
 	 * @param integer $secure     either SMTP::NONE, SMTP::SSL, SMTP::TLS or SMTP::STARTTLS
 	 * @param string  $servername Internal server name used for Message-ID generation and HELO commands (if null will use SERVER_NAME or hostname)
 	 */
-	public function __construct(string $server = 'localhost', int $port = 25, ?string $username = null, ?string $password = null, ?string $secure = self::NONE, ?string $servername = null)
+	public function __construct(
+		string $server = 'localhost',
+		int $port = 25,
+		?string $username = null,
+		#[\SensitiveParameter]
+		?string $password = null,
+		?string $secure = self::NONE,
+		?string $servername = null
+	)
 	{
 		$prefix = '';
 
@@ -169,6 +177,7 @@ class SMTP
 	public function connect(): void
 	{
 		$this->conn = stream_socket_client($this->server . ':' . $this->port, $errno, $errstr, $this->timeout);
+		stream_set_timeout($this->conn, $this->timeout);
 
 		if (!$this->conn) {
 			throw new SMTP_Exception('Unable to connect to server ' . $this->server . ': ' . $errno . ' - ' . $errstr);
