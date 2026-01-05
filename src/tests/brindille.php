@@ -82,6 +82,8 @@ function test_variables()
 
 	Test::equals('%2F%3F', $b->render('{{"/?"|escape:"url"}}'));
 	Test::equals('%2F%3F', $b->render('{{"/?"|rawurlencode}}'));
+	Test::equals('éé&quot;é&quot;&#039;', $b->render('{{"éé\\"é\\"\'"}}'));
+	Test::equals('éé&quot;é&quot;&#039;', $b->render('{{"éé\\"é\\"\'"|escape}}'));
 	Test::equals('éé&quot;é&quot;&#039;', $b->render('{{"éé\\"é\\"\'"|escape:"html"}}'));
 	Test::equals('éé&quot;é&quot;&apos;', $b->render('{{"éé\\"é\\"\'"|escape:"xml"}}'));
 
