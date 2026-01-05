@@ -230,7 +230,7 @@ class Brindille
 	/**
 	 * Default escaping of variable blocks, set to NULL to disable escaping
 	 */
-	protected ?string $_escape_type = 'html';
+	public ?string $_escape_type = 'html';
 
 	/**
 	 * Register default modifiers, sections and functions.
@@ -238,6 +238,34 @@ class Brindille
 	public function registerDefaults()
 	{
 		$this->registerFunction('assign', [self::class, '_assign']);
+		$this->registerFunction('debug', function(array $params, Brindille $tpl) {
+			if (!count($params)) {
+				$params = $tpl->getAllVariables();
+			}
+
+			$dump = self::printVariable($params);
+
+			if (PHP_SAPI === 'cli' || $tpl->_escape_type === null) {
+				return "\n====== <DEBUG> ======\n" . $dump . "\n====== </DEBUG> ======\n";
+			}
+
+			// Add some colors
+	        ini_set("highlight.default", "sienna");
+        	ini_set("highlight.keyword", "#999");
+        	ini_set("highlight.string", "#000");
+			$dump = highlight_string('<?php ' . $dump, true);
+			$dump = strip_tags($dump, '<span>');
+			// Remove first block (<?php tag)
+			$dump = substr($dump, strpos($dump, '</span>') + strlen('</span>'));
+			$dump = str_replace('↪', '<span style="background: #ccc; padding: 2px 3px; border-radius: 5px;display: inline-block; line-height: .5em; font-size: 20px">↪</span>', $dump);
+
+			// FIXME: only send back HTML when content-type is text/html, or send raw text
+			$out = '<details class="debug" open style="all: unset; display: flex; flex-direction: column; align-items: stretch; justify-content: stretch; border: 4px dashed darkorange; color: black; border-radius: 10px; overflow: hidden;"><summary style="all: unset; background: yellow; padding: 5px; font-size: 20px; cursor: pointer; position: relative;">DEBUG</summary><pre style="all: unset; border-top: 4px dashed darkorange; display: block; font-family: monospace; white-space: pre; padding: 10px; overflow: auto; max-height: 80vh; background: #ffc; font-size: 14px">';
+			$out .= $dump;
+			$out .= '</pre></details>';
+
+			return $out;
+		});
 
 		$this->registerSection('foreach', [self::class, '_foreach']);
 
@@ -978,39 +1006,60 @@ class Brindille
 
 	static public function printVariable($var, bool $with_keys = true, int $indent = 0)
 	{
-		if (is_array($var) || is_object($var)) {
+		static $char = '    ';
+
+		// Treat object as array
+		if (is_object($var) && $var instanceof \stdClass) {
+			$var = get_object_vars($var);
+		}
+
+		if (is_object($var) && $var instanceof \DateTimeInterface) {
+			return 'DateTime: ' . $var->format('"Y-m-d H:i:s" (e)');
+		}
+		elseif (is_object($var)) {
+			return get_class($var);
+		}
+		elseif (is_array($var)) {
 			$out = '';
 
-			if ($with_keys) {
-				$out = "[\n";
-			}
-
-			if (is_object($var)) {
-				$var = get_object_vars($var);
+			if ($with_keys && $indent) {
+				$out = '[';
 			}
 
 			foreach ($var as $key => $value) {
 				$value = self::printVariable($value, true, $indent + 1);
 
 				if ($with_keys) {
-					$out .= sprintf("%s%s => %s\n", str_repeat('  ', $indent), var_export($key, true), $value);
+					$out .= sprintf("\n%s%s => %s", str_repeat($char, $indent), var_export($key, true), $value);
 				}
 				else {
 					$out .= $value . ', ';
 				}
 			}
 
-			if ($with_keys) {
-				$out .= str_repeat('  ', max(0, $indent - 1)) . "]\n";
+			if ($with_keys && $indent) {
+				if ($out === '[') {
+					$out .= ']';
+				}
+				else {
+					$out .= "\n" . str_repeat($char, max(0, $indent - 1)) . ']';
+				}
 			}
-			else {
+			elseif (!$with_keys) {
 				$out = substr($out, 0, -2);
 			}
+
 
 			return $out;
 		}
 		else {
-			return var_export($var, true);
+			$out = var_export($var, true);
+			$out = strtr($out, [
+				"\r\n" => "\\r\\n\n" . str_repeat($char, $indent) . '↪ ',
+				"\r" => "\\r\n" . str_repeat($char, $indent) . '↪ ',
+				"\n" => "\\n\n" . str_repeat($char, $indent) . '↪ ',
+			]);
+			return $out;
 		}
 	}
 
