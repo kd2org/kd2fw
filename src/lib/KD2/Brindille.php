@@ -935,7 +935,7 @@ class Brindille
 					$ok = true;
 					break;
 				}
-				elseif ($t->type === 'numeric' && is_numeric($value)) {
+				elseif ($t->type === 'numeric' && is_numeric(str_replace(',', '.', (string)$value))) {
 					$ok = true;
 					break;
 				}
