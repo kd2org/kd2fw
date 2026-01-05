@@ -278,7 +278,7 @@ class Brindille
 		$this->registerModifier('escape', [$this, '_escape'], ['string+', '?string+']);
 		$this->registerModifier('json_encode', 'json_encode', [null]);
 		$this->registerModifier('or',
-			fn ($in, $else) => empty($param) || (is_string($param) && trim($param) === '') ? $else : $in,
+			fn ($in, $else) => empty($in) || (is_string($in) && trim($in) === '') ? $else : $in,
 			[null, null]);
 		$this->registerModifier('rawurlencode', 'rawurlencode', ['string+']);
 		$this->registerModifier('nl2br', 'nl2br', ['string+']);
