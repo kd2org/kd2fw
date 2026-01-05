@@ -1654,10 +1654,13 @@ class Brindille
 			$var = $params['var'];
 			unset($params['var']);
 
-			$has_dot = false !== strpos($var, '.');
+			$has_period = false !== strpos($var, '.');
 			$has_bracket = false !== strpos($var, '[');
 
-			if ($has_bracket) {
+			if ($has_period && $has_bracket) {
+				throw new \InvalidArgumentException(sprintf('Invalid variable name "%s": you can only use period or brackets, but not both', $var));
+			}
+			elseif ($has_bracket) {
 				$separator = '[';
 			}
 			else {
@@ -1667,6 +1670,11 @@ class Brindille
 			$parts = explode($separator, $var);
 
 			$var_name = array_shift($parts);
+
+			if (!preg_match(self::RE_VALID_VARIABLE_NAME, $var_name)) {
+				throw new \InvalidArgumentException(sprintf('Invalid variable name "%s": invalid characters found', $var));
+			}
+
 			$unset[] = $var_name;
 
 			if (!isset($tpl->_variables[0][$var_name]) || !is_array($tpl->_variables[0][$var_name])) {
