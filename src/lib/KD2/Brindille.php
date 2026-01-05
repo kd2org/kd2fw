@@ -277,9 +277,13 @@ class Brindille
 		$this->registerModifier('strftime', $strftime, ['DateTimeInterface|string|int', 'string+']);
 		$this->registerModifier('escape', [$this, '_escape'], ['string+', '?string+']);
 		$this->registerModifier('json_encode', 'json_encode', [null]);
+		$this->registerModifier('or',
+			fn ($in, $else) => empty($param) || (is_string($param) && trim($param) === '') ? $else : $in,
+			[null, null]);
 		$this->registerModifier('rawurlencode', 'rawurlencode', ['string+']);
 		$this->registerModifier('nl2br', 'nl2br', ['string+']);
-		$this->registerModifier('strip_tags', 'strip_tags', ['string+', 'string+|array']);
+		$this->registerModifier('strip_tags', 'strip_tags', ['string+', 'string|array']);
+
 		$this->registerModifier('tolower',
 			fn($str) => function_exists('mb_strtolower') ? mb_strtolower($str) : strtolower($str),
 			['string+']);
