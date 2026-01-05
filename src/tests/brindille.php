@@ -51,6 +51,7 @@ function test_comments()
 function test_variables()
 {
 	$b = new Brindille;
+	$b->setEscapeType(null);
 
 	$b->assign('ok', '42');
 	$b->assignArray(['plop' => 'plip']);
@@ -70,11 +71,30 @@ function test_variables()
 	Test::equals('<html>', $b->render('{{$html|raw}}'));
 
 	$b->registerDefaults();
+	$b->setEscapeType('html');
+
+	Test::equals('&lt;html&gt;abc42', $b->render('{{$html|cat:"a"|cat:"b":"c"|cat:42}}'));
 	Test::equals('<html>abc42', $b->render('{{$html|raw|cat:"a"|cat:"b":"c"|cat:42}}'));
 	Test::equals('-<html>-', $b->render('{{"-%s-"|args:$html|raw}}'));
 	Test::equals('-&quot;__&quot;-32', $b->render('{{"-%s-"|args:\'"__"\'|cat:32}}'));
 	Test::equals('-"__"-32', $b->render('{{"-%s-"|raw|args:\'"__"\'|cat:32}}'));
 	Test::equals('<?=\'-"\\\'__"-\'?>', $b->compile('{{"-\\"\'__\\"-"|raw}}'));
+
+	Test::equals('%2F%3F', $b->render('{{"/?"|escape:"url"}}'));
+	Test::equals('%2F%3F', $b->render('{{"/?"|rawurlencode}}'));
+	Test::equals('éé&quot;é&quot;&#039;', $b->render('{{"éé\\"é\\"\'"|escape:"html"}}'));
+	Test::equals('éé&quot;é&quot;&apos;', $b->render('{{"éé\\"é\\"\'"|escape:"xml"}}'));
+
+	$e = null;
+
+	try {
+		$r = $b->render('{{"/?"|rawurlencode:true}}');
+	}
+	catch (Brindille_Exception $e) {
+	}
+
+	Test::assert($e instanceof Brindille_Exception);
+	Test::assert(preg_match('/Wrong argument count/', $e->getMessage()));
 }
 
 function test_if()
