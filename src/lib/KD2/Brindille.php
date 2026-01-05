@@ -202,14 +202,14 @@ class Brindille
 	protected array $_sections = [];
 
 	/**
-	 * List of registered modifiers
+	 * List of registered modifiers (escape is always available)
+	 * Each value is an array and can have these keys:
+	 * callback => callable value
+	 * pass_object => if true, Brindille object will be passed as the first parameter, and the line number as second parameter
+	 *   (if false, then the value will be the first parameter)
+	 * types => list of parameters types to enforce
 	 */
-	protected array $_modifiers = ['escape' => null];
-
-	/**
-	 * List of registered modifiers where first parameter is the Brindille object
-	 */
-	protected array $_modifiers_with_instance = [];
+	protected array $_modifiers = [];
 
 	/**
 	 * List of registered functions
@@ -228,50 +228,45 @@ class Brindille
 	public array $_variables = [0 => []];
 
 	/**
-	 * Register default modifiers:
-	 * - escape
-	 * - args
-	 * - nl2br
-	 * - strip_tags
-	 * - count
-	 * - cat
-	 * - date_format
-	 *
-	 * And the 'foreach' section, as well as the 'assign' function.
+	 * Default escaping of variable blocks, set to NULL to disable escaping
+	 */
+	protected ?string $_escape_type = 'html';
+
+	/**
+	 * Register default modifiers, sections and functions.
 	 */
 	public function registerDefaults()
 	{
 		$this->registerFunction('assign', [self::class, '_assign']);
 
-		// This is because PHP 8.1 sucks (string functions no longer accept NULL)
-		// so we need to force NULLs as strings
-		$this->registerModifier('escape', function ($str) {
-			if (is_scalar($str) || is_null($str)) {
-				return htmlspecialchars((string)$str);
-			}
-			else {
-				return '<span style="color: #000; background: yellow; padding: 5px; white-space: pre-wrap; display: inline-block; font-family: monospace;">Error: cannot escape this value!<br />'
-					. htmlspecialchars(print_r($str, true)) . '</span>';
-			}
-		});
-
-		$this->registerModifier('args', 'sprintf');
-		$this->registerModifier('nl2br', 'nl2br');
-		$this->registerModifier('strip_tags', 'strip_tags');
-		$this->registerModifier('count', function ($var) {
-			if (is_countable($var)) {
-				return count($var);
-			}
-
-			return null;
-		});
-		$this->registerModifier('cat', function() { return implode('', func_get_args()); });
-
-		$this->registerModifier('date_format', function ($date, $format = '%d/%m/%Y %H:%M') {
-			return Translate::strftime($format, $date);
-		});
-
 		$this->registerSection('foreach', [self::class, '_foreach']);
+
+		$this->registerModifier('args', 'sprintf', ['string+', '...' => 'scalar+']);
+		$this->registerModifier('cat', fn (...$args) => implode('', $args), ['...' => 'string+']);
+		$this->registerModifier('count', fn ($var) => is_countable($var) ? count($var) : null);
+		$strftime = fn ($date, $format = '%d/%m/%Y %H:%M') => Translate::strftime($format, $date);
+		$this->registerModifier('date_format', $strftime, ['DateTimeInterface|string|int', 'string+']);
+		$this->registerModifier('strftime', $strftime, ['DateTimeInterface|string|int', 'string+']);
+		$this->registerModifier('escape', [$this, '_escape'], ['string+', '?string+']);
+		$this->registerModifier('json_encode', 'json_encode', [null]);
+		$this->registerModifier('rawurlencode', 'rawurlencode', ['string+']);
+		$this->registerModifier('nl2br', 'nl2br', ['string+']);
+		$this->registerModifier('strip_tags', 'strip_tags', ['string+', 'string+|array']);
+		$this->registerModifier('tolower',
+			fn($str) => function_exists('mb_strtolower') ? mb_strtolower($str) : strtolower($str),
+			['string+']);
+		$this->registerModifier('toupper',
+			fn($str) => function_exists('mb_strtoupper') ? mb_strtoupper($str) : strtoupper($str),
+			['string+']);
+		$this->registerModifier('ucwords',
+			fn($str) => function_exists('mb_convert_case') ? mb_convert_case($str, \MB_CASE_TITLE) : ucwords($str),
+			['string+']);
+		$this->registerModifier('ucfirst',
+			fn($str) => function_exists('mb_strtoupper') ? mb_strtoupper(mb_substr($str, 0, 1)) . mb_substr($str, 1) : ucfirst($str),
+			['string+']);
+		$this->registerModifier('lcfirst',
+			fn($str) => function_exists('mb_strtolower') ? mb_strtolower(mb_substr($str, 0, 1)) . mb_substr($str, 1) : ucfirst($str),
+			['string+']);
 	}
 
 	/**
@@ -318,8 +313,7 @@ class Brindille
 
 	public function checkModifierExists(string $name): bool
 	{
-		return array_key_exists($name, $this->_modifiers)
-			|| array_key_exists($name, $this->_modifiers_with_instance);
+		return array_key_exists($name, $this->_modifiers);
 	}
 
 	/**
@@ -338,19 +332,68 @@ class Brindille
 	 *
 	 * @param  string $name Name of the modifier
 	 * @param  callable $callback A valid callback
-	 * @param  bool $pass_instance_as_first_argument Set to TRUE if you want to have access
-	 * to the template context from within the modifier
+	 * @param  array $parameters_types List of types to enforce for each parameter value,
+	 * each value is a parameter: ['string', 'int'].
+	 * - null instead of a string means any type is accepted for this parameter
+	 * - allowed types: scalar (int/float/bool/string), numeric, array, int, float, bool, string
+	 * - prefixing the type with '?' allow nulls,
+	 * - suffixing 'string' with '+' converts null and other scalar values to string: 'string+'
+	 * - suffixing 'scalar' with '+' converts null to string: 'scalar+'
+	 * - suffixing 'array' with '+' converts any passed object to array: 'array+'
+	 * - multiple types are allowed by using pipe: '?array|string'
+	 * @param  bool $pass_object Set to TRUE if the callback should receive the Brindille object
+	 * as the first parameter
 	 */
-	public function registerModifier(string $name, callable $callback, bool $pass_instance_as_first_argument = false): void
+	public function registerModifier(string $name, callable $callback, ?array $parameters_types = null, bool $pass_object = false): void
 	{
-		unset($this->_modifiers_with_instance[$name], $this->_modifiers[$name]);
+		$value = compact('callback');
 
-		if ($pass_instance_as_first_argument) {
-			$this->_modifiers_with_instance[$name] = $callback;
+		if ($pass_object) {
+			$value['pass_object'] = true;
 		}
-		else {
-			$this->_modifiers[$name] = $callback;
+
+		if (null !== $parameters_types) {
+			$required = 0;
+			foreach ($parameters_types as &$type) {
+				if ($type === null) {
+					continue;
+				}
+
+				$type = array_map([$this, 'parseModifierParamType'], explode('|', $type));
+			}
+
+			unset($type);
+
+			if (array_key_exists('...', $parameters_types)) {
+				$value['default_param_type'] = $parameters_types['...'];
+			}
+
+			unset($parameters_types['...']);
+			$value['types'] = $parameters_types;
 		}
+
+		$this->_modifiers[$name] = (object) $value;
+	}
+
+	protected function parseModifierParamType(string $value): \stdClass
+	{
+		static $str_delete = ['=', '?', '+'];
+		static $allowed_types = ['scalar', 'string', 'float', 'int', 'numeric', 'bool', 'array'];
+
+		$out = (object) [
+			'force'    => false !== strpos($value, '+'),
+			'nullable' => substr($value, 0, 1) === '?',
+			'required' => false !== strpos($value, '='),
+			'type'     => str_replace($str_delete, '', $value),
+		];
+
+		// Only allow class names, which must have an uppercase letter (simpler)
+		if (strtolower($out->type) === $out->type
+			&& !in_array($out->type, $allowed_types)) {
+			throw new \InvalidArgumentException(sprintf('Type "%s" is invalid', $out->type));
+		}
+
+		return $out;
 	}
 
 	public function registerSection(string $name, callable $callback): void
@@ -375,18 +418,11 @@ class Brindille
 	{
 		$code = $this->compile($tpl_code);
 
-		try {
-			ob_start();
+		ob_start();
 
-			eval('?>' . $code);
+		eval('?>' . $code);
 
-			return ob_get_clean();
-		}
-		catch (\Throwable $e) {
-			$lines = explode("\n", $code);
-			$code = $lines[$e->getLine()-1] ?? $code;
-			throw new Brindille_Exception(sprintf("[%s] Line %d: %s\n%s", get_class($e), $e->getLine(), $e->getMessage(), $code), 0, $e);
-		}
+		return ob_get_clean();
 	}
 
 	/**
@@ -464,8 +500,11 @@ class Brindille
 			// Rename to final compiled cache file
 			@rename($tmp_path, $compiled_path);
 		}
-		finally {
-			@unlink($tmp_path);
+		catch (\Throwable $e) {
+			// Delete temporary file after the exception handler has the time to extract the source code
+			// for reporting
+			register_shutdown_function(fn() => @unlink($tmp_path));
+			throw $e;
 		}
 
 		return $return;
@@ -803,35 +842,176 @@ class Brindille
 		throw new Brindille_Exception('Unknown block: ' . $all);
 	}
 
+	protected function validateModifierParameters(\stdClass $modifier, array &$params)
+	{
+		static $basic_types = ['scalar', 'numeric', 'string', 'array', 'bool', 'int', 'float'];
+		$i = 0;
+
+		if (!property_exists($modifier, 'default_param_type')
+			&& count($params) > count($modifier->types)) {
+			throw new Brindille_Exception(sprintf('Wrong argument count: %d arguments have been supplied, but this modifier only accepts up to %d arguments', count($params), count($modifier->types)));
+		}
+
+		foreach ($params as &$value) {
+			if (array_key_exists($i, $modifier->types)) {
+				$types = $modifier->types[$i];
+			}
+			else {
+				$types = $modifier->default_param_type;
+			}
+
+			$i++;
+
+			// Don't enforce the type
+			if ($types === null) {
+				continue;
+			}
+
+			$ok = false;
+			$types_str = [];
+
+			foreach ($types as $t) {
+				if ($t->nullable && is_null($value)) {
+					$ok = true;
+					break;
+				}
+
+				// Force NULL value as empty string
+				if ($t->type === 'scalar' && $t->force) {
+					$value ??= '';
+				}
+				// Force value as string
+				elseif ($t->type === 'string' && $t->force && (is_null($value) || is_scalar($value))) {
+					$value = (string)$value;
+				}
+				elseif ($t->type === 'bool' && $value == 1) {
+					$value = true;
+				}
+				elseif ($t->type === 'bool' && $value == false) {
+					$value = false;
+				}
+				// Force objects as arrays, but don't return any private/protected properties
+				elseif ($t->type === 'array' && $t->force && is_object($value)) {
+					$value = get_object_vars($value);
+				}
+
+				if ($t->type === 'scalar' && is_scalar($value)) {
+					$ok = true;
+					break;
+				}
+				elseif ($t->type === 'array' && is_array($value)) {
+					$ok = true;
+					break;
+				}
+				elseif ($t->type === 'numeric' && is_numeric($value)) {
+					$ok = true;
+					break;
+				}
+				elseif (get_debug_type($value) === $t->type) {
+					$ok = true;
+					break;
+				}
+				elseif (!in_array($t->type, $basic_types, true)
+					&& is_object($value)
+					&& is_a($value, $t->type, true)) {
+					$ok = true;
+					break;
+				}
+
+				$types_str[] = $t->type;
+			}
+
+			if (!$ok) {
+				throw new Brindille_Exception(sprintf('Type error: argument %d is of type "%s", but expected one of: %s', $i, get_debug_type($value), implode(', ', $types_str)));
+			}
+		}
+
+		unset($value);
+	}
+
 	/**
 	 * Call a modifier from inside compiled code
 	 */
-	public function callModifier(string $name, int $line, ... $params) {
-		if (!$this->checkModifierExists($name)) {
-			throw new Brindille_Exception('This modifier does not exist: ' . $name);
+	public function callModifier(string $name, int $line, ... $params)
+	{
+		// If calling the escape modifier, and auto-escaping is disabled,
+		// just return the first argument as-is
+		if ($name === 'escape' && $this->_escape_type === null) {
+			return $params[0] ?? null;
+		}
+		// Escape is always defined
+		elseif ($name === 'escape') {
+			$modifier = (object) ['callback' => [$this, '_escape']];
+		}
+		else {
+			$modifier = $this->_modifiers[$name] ?? null;
 		}
 
 		try {
-			if (array_key_exists($name, $this->_modifiers)) {
-				$callback = $this->_modifiers[$name];
-
-				// If auto-escaping is disabled, just return the first argument
-				if (null === $callback && $name === 'escape') {
-					return $params[0] ?? null;
-				}
-
-				return $callback(...$params);
+			if (null === $modifier) {
+				throw new Brindille_Exception('This modifier does not exist: ' . $name);
 			}
-			elseif (isset($this->_modifiers_with_instance[$name])) {
-				return $this->_modifiers_with_instance[$name]($this, $line, ...$params);
+
+			// Enforce parameters types
+			if (isset($modifier->types)) {
+				$this->validateModifierParameters($modifier, $params);
 			}
+
+			if (!empty($modifier->pass_object)) {
+				array_unshift($params, $line);
+				array_unshift($params, $this);
+			}
+
+			$callback = $modifier->callback;
+			return $callback(...$params);
 		}
 		catch (\Exception | \ArgumentCountError | \ValueError | \TypeError | \ArgumentCountError | \DivisionByZeroError $e) {
 			$message = preg_replace('/in\s+.*?\son\sline\s\d+|to\s+function\s+.*?,/', '', $e->getMessage());
-			throw new Brindille_Exception(sprintf("line %d: modifier '%s' has returned an error: %s\nParameters: %s", $line, $name, $message, json_encode($params)), 0, $e);
+			throw new Brindille_Exception(sprintf("line %d: modifier '%s' has returned an error: %s\nParameters: %s", $line, $name, $message, self::printVariable($params, false)), 0, $e);
+		}
+		catch (Brindille_Exception $e) {
+			throw new Brindille_Exception(sprintf("line %d: modifier '%s' has returned an error: %s\nParameters: %s", $line, $name, $e->getMessage(), self::printVariable($params, false)), 0, $e);
 		}
 
 		return null;
+	}
+
+	static public function printVariable($var, bool $with_keys = true, int $indent = 0)
+	{
+		if (is_array($var) || is_object($var)) {
+			$out = '';
+
+			if ($with_keys) {
+				$out = "[\n";
+			}
+
+			if (is_object($var)) {
+				$var = get_object_vars($var);
+			}
+
+			foreach ($var as $key => $value) {
+				$value = self::printVariable($value, true, $indent + 1);
+
+				if ($with_keys) {
+					$out .= sprintf("%s%s => %s\n", str_repeat('  ', $indent), var_export($key, true), $value);
+				}
+				else {
+					$out .= $value . ', ';
+				}
+			}
+
+			if ($with_keys) {
+				$out .= str_repeat('  ', max(0, $indent - 1)) . "]\n";
+			}
+			else {
+				$out = substr($out, 0, -2);
+			}
+
+			return $out;
+		}
+		else {
+			return var_export($var, true);
+		}
 	}
 
 	/**
@@ -1085,11 +1265,11 @@ class Brindille
 				}
 
 				// Disable autoescaping
-				if ($mod_name == 'raw') {
+				if ($mod_name === 'raw') {
 					$escape = false;
 					continue;
 				}
-				else if ($mod_name == 'escape') {
+				else if ($mod_name === 'escape') {
 					$escape = false;
 				}
 
@@ -1109,9 +1289,8 @@ class Brindille
 
 		unset($pre, $post, $arguments, $mod_name, $modifier, $modifiers, $pos, $_post);
 
-		// auto escape
-		if ($escape)
-		{
+		// Add auto escaping
+		if ($escape) {
 			$var = '$this->callModifier(\'escape\', ' . $line . ', ' . $var . ')';
 		}
 
@@ -1280,6 +1459,40 @@ class Brindille
 		}
 
 		return $match;
+	}
+
+	public function setEscapeType(?string $type)
+	{
+		$this->_escape_type = $type;
+	}
+
+	public function _escape($value, ?string $type = null)
+	{
+		$type ??= ($this->_escape_type ?? 'html');
+		$value ??= '';
+
+		if ($type !== 'js' && $type !== 'json' && !is_scalar($value)) {
+			throw new Brindille_Exception('Cannot escape an array');
+		}
+
+		switch ($type) {
+			case 'html':
+				return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML401, 'UTF-8');
+			case 'xml':
+				return htmlspecialchars($value, ENT_QUOTES | ENT_XML1 | ENT_SUBSTITUTE, 'UTF-8');
+			case 'cdata':
+				return str_replace(']]>', ']]]]><![CDATA[>', (string)$value);
+			case 'htmlall':
+			case 'entities':
+				return htmlentities($value, ENT_QUOTES, 'UTF-8');
+			case 'url':
+				return rawurlencode($value);
+			case 'js':
+			case 'json':
+				return json_encode($value);
+			default:
+				throw new Brindille_Exception('Unknown escape type: ' . $type);
+		}
 	}
 
 	/**
