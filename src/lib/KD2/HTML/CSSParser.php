@@ -53,7 +53,7 @@ class CSSParser
 		// @media / @import / etc.
 		'at-rule'  => '\s*@' . self::RULE_NAME_TOKEN . '\s+[^\{\};]+?\s*[\{;]\s*',
 		// Properties: border: 1px solid red; padding: 1px }
-		// also: url('data:image/svg+xml;utf8,<svg...')
+		// also: url('data:image/svg+xml;charset=utf8,<svg...')
 		'property' => '\s*-*' . self::RULE_NAME_TOKEN . '\s*:\s*(?:(?:\'[^\']*?\'|"[^"]*?"|[^;]+?))*\s*[;\}]\s*',
 		'open'     => '\s*[^\{\}]+?\s*\{\s*',
 		'close'    => '\s*\}\s*',
