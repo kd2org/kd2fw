@@ -228,8 +228,8 @@ class Mail_Message
 		elseif (preg_match('/\\((.+?)\\)/', $value, $match)) {
 			return $match[1];
 		}
-		elseif (($pos = strpos($value, '<')) > 0) {
-			return trim(substr($value, 0, $pos));
+		elseif (preg_match('/^(.+?)</', $value, $match)) {
+			return $match[1];
 		}
 		elseif (($pos = strpos($value, '@')) > 0) {
 			return trim(substr($value, 0, $pos));
@@ -1361,7 +1361,7 @@ class Mail_Message
 		{
 			return true;
 		}
-		elseif (preg_match('/rejete|rejected|spam\s*detected|as\s+spam|Service\s*refus|greylist|expired|service\s*unavailable|retry\s*timeout|quota|too\s*many|spam\s*policy|unsolicited|denied/i', $error_message))
+		elseif (preg_match('/rejete|rejected|spam\s*detected|as\s+spam|Service\s*refus|greylist|expired|service\s*unavailable|retry\s*timeout|quota|too\s*many|spam\s*policy|unsolicited|denied|^451|^4\d\d /i', trim($error_message)))
 		{
 			return false;
 		}
