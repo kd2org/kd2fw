@@ -37,10 +37,9 @@ class OFXParser
 	];
 
 
-	public function parse(string $str)
+	public function parse(string $str): stdClass
 	{
 		$str = $this->convertSGMLToXML($str);
-		echo $str;
 
 		libxml_clear_errors();
 		libxml_use_internal_errors(true);
@@ -48,13 +47,18 @@ class OFXParser
 		$xml = simplexml_load_string($str, 'SimpleXMLElement', LIBXML_NOENT | LIBXML_DTDLOAD | LIBXML_DTDATTR);
 
 		if ($errors = libxml_get_errors()) {
-			throw new \InvalidArgumentException('Invalid OFX XML: ' . print_r($errors, true));
+			foreach ($errors as &$error) {
+				$error = sprintf('Line %d, column %d: %s', $error->message, $error->line, $error->column);
+			}
+			unset($error);
+
+			throw new \InvalidArgumentException(implode("\n", $errors));
 		}
 
-		return $this->parseAccounts($xml);
+		return (object) ['accounts' => $this->parseAccounts($xml)];
 	}
 
-	public function convertSGMLToXML(string $str)
+	public function convertSGMLToXML(string $str): string
 	{
 		if (str_contains($str, '<?xml')) {
 			return $str;
@@ -113,6 +117,8 @@ class OFXParser
 			'type' => $xml->BANKACCTFROM->ACCTTYPE ?? null,
 			'balance' => $xml->LEDGERBAL->BALAMT ?? null,
 			'balance_date' => $this->parseDateTime($xml->LEDGERBAL->DTASOF ?? null, $currency),
+			'available_balance' => $xml->AVAILBAL->BALAMT ?? null,
+			'available_balance_date' => $this->parseDateTime($xml->AVAILBAL->DTASOF ?? null, $currency),
 			'currency' => $currency,
 			'statement' => (object) [
 				'start' => $this->parseDateTime($xml->BANKTRANLIST->DTSTART ?? null, $currency),
