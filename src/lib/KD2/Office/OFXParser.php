@@ -36,6 +36,10 @@ class OFXParser
 		'OTHER',
 	];
 
+	static public function isOFX(string $str)
+	{
+		return stripos($str, '<ofx>') !== false && stripos($str, '</ofx>') !== false;
+	}
 
 	public function parse(string $str): stdClass
 	{
@@ -218,7 +222,7 @@ class OFXParser
 					$d = [$d[1], $d[0], $d[2]];
 				}
 
-				$out = new DateTime(sprintf('%d-%d-%d', $d[2], $d[1], $d[0]));
+				$out = DateTime::createFromFormat('!Y-m-d', sprintf('%04d-%02d-%02d', $d[2], $d[1], $d[0]));
 			}
 			// ISO format / other
 			else {
