@@ -156,7 +156,7 @@ class OFXParser
 				// <FITID> Transaction ID issued by financial institution.
 				// Used to detect duplicate downloads
 				'id' => $t->FITID ?? null,
-				'name' => $t->NAME ?? null,
+				'label' => $t->NAME ?? null,
 				'memo' => $t->MEMO ?? null,
 				'type' => $t->TRNTYPE ?? null,
 
