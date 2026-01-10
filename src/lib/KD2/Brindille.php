@@ -260,7 +260,7 @@ class Brindille
 			$dump = str_replace('↪', '<span style="background: #ccc; padding: 2px 3px; border-radius: 5px;display: inline-block; line-height: .5em; font-size: 20px">↪</span>', $dump);
 
 			// FIXME: only send back HTML when content-type is text/html, or send raw text
-			$out = '<details class="debug" open style="all: unset; display: flex; flex-direction: column; align-items: stretch; justify-content: stretch; border: 4px dashed darkorange; color: black; border-radius: 10px; overflow: hidden;"><summary style="all: unset; background: yellow; padding: 5px; font-size: 20px; cursor: pointer; position: relative;">DEBUG</summary><pre style="all: unset; border-top: 4px dashed darkorange; display: block; font-family: monospace; white-space: pre; padding: 10px; overflow: auto; max-height: 80vh; background: #ffc; font-size: 14px">';
+			$out = '<details class="debug" open style="all: unset; margin: 1em 0; display: flex; flex-direction: column; align-items: stretch; justify-content: stretch; border: 4px dashed darkorange; color: black; border-radius: 10px; overflow: hidden;"><summary style="all: unset; background: yellow; padding: 5px; font-size: 20px; cursor: pointer; position: relative;">DEBUG</summary><pre style="all: unset; border-top: 4px dashed darkorange; display: block; font-family: monospace; white-space: pre; padding: 10px; overflow: auto; max-height: 80vh; background: #ffc; font-size: 14px">';
 			$out .= $dump;
 			$out .= '</pre></details>';
 
