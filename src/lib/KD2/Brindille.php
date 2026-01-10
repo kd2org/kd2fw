@@ -745,6 +745,14 @@ class Brindille
 
 				$var = $var[$key];
 			}
+			else {
+				// Trying to access a key on a non-array: it cannot work
+				$found = false;
+				strtok('');
+				return null;
+				// Throwing here would be nice, but we don't have the number
+				//throw new Brindille_Exception(sprintf('Cannot access key "%s" on a variable that is not an array', $key, $expr));
+			}
 		}
 		while (false !== ($key = strtok('.')));
 		strtok('');
