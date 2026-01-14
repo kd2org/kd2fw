@@ -1361,7 +1361,7 @@ class Mail_Message
 		{
 			return true;
 		}
-		elseif (preg_match('/rejete|rejected|spam\s*detected|as\s+spam|Service\s*refus|greylist|expired|service\s*unavailable|retry\s*timeout|quota|too\s*many|spam\s*policy|unsolicited|denied|^451|^4\d\d /i', trim($error_message)))
+		elseif (preg_match('/rejete|rejected|spam\s*detected|as\s+spam|contains\s+spam|Service\s*refus|greylist|expired|service\s*unavailable|retry\s*timeout|quota|too\s*many|spam\s*policy|unsolicited|denied|^451|^4\d\d /i', trim($error_message)))
 		{
 			return false;
 		}
