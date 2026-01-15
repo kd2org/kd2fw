@@ -188,7 +188,7 @@ class OFXParser
 		}
 
 		if (strpos($str, ',') > strpos($str, '.')) {
-			return strtr($value, ['.' => '', ',' => '.']);
+			return strtr($str, ['.' => '', ',' => '.']);
 		}
 
 		return str_replace(',', '', $str);

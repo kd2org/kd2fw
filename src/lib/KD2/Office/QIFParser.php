@@ -129,7 +129,7 @@ class QIFParser
 		// International format
 		// 2152,09
 		if (strpos($str, ',') > strpos($str, '.')) {
-			return strtr($value, ['.' => '', ',' => '.']);
+			return strtr($str, ['.' => '', ',' => '.']);
 		}
 
 		// US format
