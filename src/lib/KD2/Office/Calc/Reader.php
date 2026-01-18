@@ -9,7 +9,6 @@ use DateTime;
 
 class Reader
 {
-	protected ?ZipReader $zip = null;
 	protected SimpleXMLElement $xml;
 
 	const NS_TABLE = 'urn:oasis:names:tc:opendocument:xmlns:table:1.0';
@@ -37,17 +36,18 @@ class Reader
 		try {
 			// .ods file
 			if ($magic === 'PK') {
-				$this->zip = new ZipReader;
-				$this->zip->setPointer($fp);
+				$zip = new ZipReader;
+				$zip->setPointer($fp);
 
-				if (!$this->zip->has('content.xml')
-					|| !$this->zip->has('mimetype')
-					|| trim($this->zip->fetch('mimetype')) !== 'application/vnd.oasis.opendocument.spreadsheet') {
-					$this->zip = null;
+				if (!$zip->has('content.xml')
+					|| !$zip->has('mimetype')
+					|| trim($zip->fetch('mimetype')) !== 'application/vnd.oasis.opendocument.spreadsheet') {
+					$zip = null;
 					throw new \InvalidArgumentException('This file is not a valid OpenDocument spreadsheet');
 				}
 
-				$this->xml = simplexml_load_string($this->zip->fetch('content.xml'));
+				$this->xml = simplexml_load_string($zip->fetch('content.xml'));
+				$zip = null;
 			}
 			elseif ($magic === '<?') {
 				$raw = '';
@@ -94,7 +94,9 @@ class Reader
 				$type = (string) ($attributes['value-type'] ?? 'string');
 
 				// FIXME: other currency, percentage…
-				if ($type === 'float') {
+				if ($type === 'float'
+					|| $type === 'percentage'
+					|| $type === 'currency') {
 					$value = (string) $attributes['value'];
 
 					if (ctype_digit($value)) {
@@ -103,6 +105,10 @@ class Reader
 					else {
 						$value = (float) $value;
 					}
+				}
+				elseif ($type === 'boolean') {
+					$type = 'bool';
+					$value = (string) $attributes['value'] === 'true' ? true : false;
 				}
 				elseif ($type === 'date') {
 					$value = new DateTime($attributes['date-value']);

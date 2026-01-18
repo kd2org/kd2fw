@@ -37,8 +37,8 @@ function test_reader(string $str)
 	Test::isInstanceOf(DateTime::class, $rows[0][0]);
 	Test::assert('2026-02-01 00:00:00', $rows[0][0]->format('Y-m-d H:i:s'));
 	Test::assert(3 === $rows[0][1]);
-	Test::assert('1,02 €' === $rows[1][0]);
-	Test::assert('14,03 %' === $rows[2][0]);
+	Test::assert(1.02 === $rows[1][0]);
+	Test::assert(0.1403 === $rows[2][0]);
 	Test::isInstanceOf(DateTime::class, $rows[3][0]);
 	Test::assert('2026-01-01 02:02:01', $rows[3][0]->format('Y-m-d H:i:s'));
 	Test::assert(3 === $rows[4][0]);
