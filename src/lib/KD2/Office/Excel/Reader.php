@@ -139,9 +139,13 @@ class Reader extends \KD2\Office\Calc\Reader
 		$this->date1904 = strval($xml['date1904']) === 'true';
 
 		foreach ($xml->xpath('.//a:sheet') as $sheet) {
+			// Skip hidden sheets
+			if ((string)$sheet['state'] === 'veryHidden') {
+				continue;
+			}
+
 			$attrs = $sheet->attributes('http://schemas.openxmlformats.org/officeDocument/2006/relationships');
 			$id = (string)$attrs['id'];
-
 			$this->sheets[] = [
 				'id'   => $id,
 				'file' => $relationships[$id],
