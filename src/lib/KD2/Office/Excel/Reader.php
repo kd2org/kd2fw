@@ -333,7 +333,7 @@ class Reader extends \KD2\Office\Calc\Reader
 		unset($xml);
 	}
 
-	protected function parseDateTime(float $v): DateTime
+	protected function parseDateTime(float $v): string
 	{
 		$d = floor($v); // days since 1900 or 1904
 		$t = $v - $d;
@@ -344,7 +344,7 @@ class Reader extends \KD2\Office\Calc\Reader
 
 		$ts = (abs($d) > 0) ? ($d - 25569) * 86400 + round($t * 86400) : round($t * 86400);
 
-		return new DateTime('@' . $ts);
+		return gmdate('Y-m-d H:i:s', $ts);
 	}
 
 	protected function loadStrings(): void

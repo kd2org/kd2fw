@@ -111,7 +111,7 @@ class Reader
 					$value = (string) $attributes['value'] === 'true' ? true : false;
 				}
 				elseif ($type === 'date') {
-					$value = new DateTime($attributes['date-value']);
+					$value = $attributes['date-value'];
 				}
 				else {
 					$value = '';
