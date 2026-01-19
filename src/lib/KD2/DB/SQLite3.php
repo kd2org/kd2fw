@@ -297,7 +297,7 @@ class SQLite3 extends DB
 			return $value;
 		}
 
-		return '\'' . $this->escapeString($value) . '\'';
+		return '\'' . $this->escapeString((string)$value) . '\'';
 	}
 
 	public function begin()
