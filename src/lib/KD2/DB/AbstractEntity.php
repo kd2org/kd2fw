@@ -227,7 +227,7 @@ abstract class AbstractEntity
 			case 'bool':
 				return (bool) $value;
 			case 'string':
-				return trim((string) $value);
+				return function_exists('mb_trim') ? mb_trim((string) $value) : trim((string) $value);
 		}
 
 		return $value;
