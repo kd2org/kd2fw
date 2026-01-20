@@ -90,13 +90,15 @@ abstract class AbstractEntity
 				$nullable = true;
 			}
 
+			$type = self::_normalizeType($type);
+
 			$prop = (object) compact('name', 'nullable', 'type');
-			$prop->boolean = $type === 'bool' || $type === 'boolean';
-			$prop->integer = $type === 'int' || $type === 'integer';
-			$prop->float = $type === 'float' || $type === 'double';
+			$prop->bool = $type === 'bool';
+			$prop->int = $type === 'int';
+			$prop->float = $type === 'float';
 			$prop->string = $type === 'string';
 			$prop->array = $type === 'array';
-			$prop->object = !$prop->boolean && !$prop->integer && !$prop->float && !$prop->string && !$prop->array;
+			$prop->object = !$prop->bool && !$prop->int && !$prop->float && !$prop->string && !$prop->array;
 			$prop->class = $prop->object ? $type : null;
 			$prop->stdclass = $prop->class === 'stdClass';
 			$prop->datetime = $prop->class === 'DateTime' || $prop->class === 'DateTimeInterface';
@@ -136,7 +138,7 @@ abstract class AbstractEntity
 
 			$value = $data[$name];
 
-			if (is_int($value) && $prop->boolean) {
+			if (is_int($value) && $prop->bool) {
 				$value = (bool) $value;
 			}
 			elseif (is_string($value) && !$prop->string) {
@@ -209,6 +211,10 @@ abstract class AbstractEntity
 
 		if (is_object($value)) {
 			return $value;
+		}
+
+		if ($key === 'dept') {
+			var_dump($value, $type); exit;
 		}
 
 		switch ($type)
@@ -294,8 +300,22 @@ abstract class AbstractEntity
 
 		$value ??= $this->$key;
 
-		switch (gettype($value)) {
-			case 'object':
+		switch (get_debug_type($value)) {
+			case 'bool':
+				return (int) $value;
+			case 'array':
+				return json_encode($value);
+			case 'int':
+			case 'float':
+				return $value;
+			case 'string':
+			case 'null':
+				return (string) $value;
+			default:
+				if (is_resource($value)) {
+					throw new \LogicException('Entities cannot store resources');
+				}
+
 				if ($value instanceof \stdClass) {
 					return json_encode($value);
 				}
@@ -306,18 +326,6 @@ abstract class AbstractEntity
 					return $value->format('Y-m-d H:i:s');
 				}
 
-				return (string) $value;
-			case 'bool':
-			case 'boolean':
-				return (int) $value;
-			case 'array':
-				return json_encode($value);
-			case 'int':
-			case 'integer':
-			case 'double':
-			case 'float':
-				return $value;
-			default:
 				return (string) $value;
 		}
 	}
@@ -417,7 +425,7 @@ abstract class AbstractEntity
 		if (is_string($value) && trim($value) === '' && $prop->nullable) {
 			$value = null;
 		}
-		elseif (($prop->float || $prop->integer) && is_string($value) && is_numeric($value)) {
+		elseif (($prop->float || $prop->int) && is_string($value) && is_numeric($value)) {
 			$value = (int)$value;
 		}
 		elseif ($prop->datetime && is_string($value) && strlen($value) === 19 && ($d = \DateTime::createFromFormat('!Y-m-d H:i:s', $value))) {
@@ -432,7 +440,7 @@ abstract class AbstractEntity
 		elseif ($prop->date && is_object($value) && $value instanceof \DateTime && !($value instanceof Date)) {
 			$value = Date::createFromInterface($value);
 		}
-		elseif ($prop->boolean && is_numeric($value) && ($value == 0 || $value == 1)) {
+		elseif ($prop->bool && is_numeric($value) && ($value == 0 || $value == 1)) {
 			$value = (bool) $value;
 		}
 		elseif ($prop->array && is_string($value)) {
@@ -570,11 +578,20 @@ abstract class AbstractEntity
 
 	protected function _getValueType($value)
 	{
-		$type = gettype($value);
+		return self::_normalizeType(getttype($value));
+	}
 
-		// Type names are not consistent in PHP...
-		// see https://mlocati.github.io/articles/php-type-hinting.html
-		$type = $type === 'double' ? 'float': $type;
+	static protected function _normalizeType(string $type): string
+	{
+		if ($type === 'double') {
+			return 'float';
+		}
+		elseif ($type === 'boolean') {
+			return 'bool';
+		}
+		elseif ($type === 'integer') {
+			return 'int';
+		}
 
 		return $type;
 	}
