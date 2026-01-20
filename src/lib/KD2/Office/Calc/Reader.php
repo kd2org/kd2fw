@@ -5,7 +5,6 @@ namespace KD2\Office\Calc;
 use KD2\ZipReader;
 use SimpleXMLElement;
 use Generator;
-use DateTime;
 
 class Reader
 {
@@ -111,7 +110,7 @@ class Reader
 					$value = (string) $attributes['value'] === 'true' ? true : false;
 				}
 				elseif ($type === 'date') {
-					$value = $attributes['date-value'];
+					$value = (string) $attributes['date-value'];
 				}
 				else {
 					$value = '';
