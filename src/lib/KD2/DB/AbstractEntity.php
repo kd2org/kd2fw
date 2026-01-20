@@ -213,10 +213,6 @@ abstract class AbstractEntity
 			return $value;
 		}
 
-		if ($key === 'dept') {
-			var_dump($value, $type); exit;
-		}
-
 		switch ($type)
 		{
 			case 'date':
@@ -578,7 +574,7 @@ abstract class AbstractEntity
 
 	protected function _getValueType($value)
 	{
-		return self::_normalizeType(getttype($value));
+		return self::_normalizeType(gettype($value));
 	}
 
 	static protected function _normalizeType(string $type): string
