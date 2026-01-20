@@ -209,11 +209,23 @@ class Reader extends \KD2\Office\Calc\Reader
 		$xml->registerXPathNamespace('a', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
 		$d = $xml->xpath('.//a:dimension');
 
-		if (!isset($d[0]['ref'])) {
-			throw new \LogicException('Cannot find sheet dimensions');
+		// Fast method
+		if (isset($d[0]['ref'])) {
+			$columns_count = $this->getColumnNumber((string) $d[0]['ref']);
+		}
+		// Slow method, for malformed XLSX files
+		else {
+			$columns_count = 0;
+
+			// Selector: 'sheetData row c:last-child'
+			foreach ($xml->xpath('.//a:sheetData//a:row//a:c[not(following-sibling::*)]') as $last_cell) {
+				$columns_count = max($columns_count, $this->getColumnNumber((string)$last_cell['r']));
+			}
 		}
 
-		$columns_count = $this->getColumnNumber((string) $d[0]['ref']);
+		if (!$columns_count) {
+			throw new \LogicException('This sheet has no columns');
+		}
 
 		foreach ($xml->xpath('.//a:sheetData//a:row') as $row) {
 			// Fill empty cells, as Excel doesn't provide <c> elements for empty cells
