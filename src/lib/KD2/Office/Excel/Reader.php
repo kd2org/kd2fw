@@ -13,11 +13,12 @@ class Reader extends \KD2\Office\Calc\Reader
 	protected ?string $workbook_path = null;
 	protected ?string $styles_path = null;
 	protected ?string $strings_path = null;
+	protected ?int $active_sheet_index = null;
 
 	protected bool $date1904 = false;
 	protected ?array $date_styles = null;
 	protected ?array $strings = null;
-	protected array $sheets = [];
+	protected ?array $sheets = null;
 
 	/**
 	 * Default Excel date formats
@@ -136,7 +137,11 @@ class Reader extends \KD2\Office\Calc\Reader
 		$xml->registerXPathNamespace('a', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
 
 		$this->sheets = [];
-		$this->date1904 = strval($xml['date1904']) === 'true';
+		$this->date1904 = isset($xml->workbookPr['date1904']) && strval($xml->workbookPr['date1904']) === 'true';
+
+		if (isset($xml->bookViews->workbookView['activeTab'])) {
+			$this->active_sheet_index = (int) $xml->bookViews->workbookView['activeTab'];
+		}
 
 		foreach ($xml->xpath('.//a:sheet') as $sheet) {
 			// Skip hidden sheets
@@ -169,7 +174,6 @@ class Reader extends \KD2\Office\Calc\Reader
 		}
 	}
 
-
 	public function listSheets(): array
 	{
 		$out = [];
@@ -179,6 +183,11 @@ class Reader extends \KD2\Office\Calc\Reader
 		}
 
 		return $out;
+	}
+
+	public function getActiveSheet(): int
+	{
+		return $this->active_sheet_index ?? 0;
 	}
 
 	protected function getColumnNumber(string $col): int

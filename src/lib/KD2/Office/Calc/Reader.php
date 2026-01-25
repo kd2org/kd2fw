@@ -8,7 +8,9 @@ use Generator;
 
 class Reader
 {
+	protected ?array $sheets = null;
 	protected SimpleXMLElement $xml;
+	protected ?string $active_sheet_name = null;
 
 	const NS_TABLE = 'urn:oasis:names:tc:opendocument:xmlns:table:1.0';
 	const NS_OFFICE = 'urn:oasis:names:tc:opendocument:xmlns:office:1.0';
@@ -45,6 +47,12 @@ class Reader
 					throw new \InvalidArgumentException('This file is not a valid OpenDocument spreadsheet');
 				}
 
+				if ($zip->has('settings.xml')
+					&& ($raw = $zip->fetch('settings.xml'))
+					&& preg_match('!<(?:[a-z]+:)?config-item[^>]*name="ActiveTable"[^>]*>([^<]*)</config:config-item>!U', $raw, $match)) {
+					$this->active_sheet_name = trim(htmlspecialchars_decode($match[1]));
+				}
+
 				$this->xml = simplexml_load_string($zip->fetch('content.xml'));
 				$zip = null;
 			}
@@ -66,19 +74,27 @@ class Reader
 			fclose($fp);
 		}
 
+		$this->sheets = null;
 		$this->xml->registerXPathNamespace('table', self::NS_TABLE);
 		$this->xml->registerXPathNamespace('office', self::NS_OFFICE);
 	}
 
 	public function listSheets(): array
 	{
-		$out = [];
+		if (!isset($this->sheets)) {
+			$this->sheets = [];
 
-		foreach ($this->xml->xpath('.//table:table') as $sheet) {
-			$out[] = (string)$sheet->attributes(self::NS_TABLE)['name'];
+			foreach ($this->xml->xpath('.//table:table') as $sheet) {
+				$this->sheets[] = (string)$sheet->attributes(self::NS_TABLE)['name'];
+			}
 		}
 
-		return $out;
+		return $this->sheets;
+	}
+
+	public function getActiveSheet(): int
+	{
+		return array_search($this->active_sheet_name, $this->listSheets(), true) ?: 0;
 	}
 
 	public function iterate(int $sheet = 0, bool $detailed = false): Generator
