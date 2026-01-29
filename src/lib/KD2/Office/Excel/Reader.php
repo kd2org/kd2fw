@@ -356,6 +356,10 @@ class Reader extends \KD2\Office\Calc\Reader
 
 	protected function parseDateTime(float $v): string
 	{
+		if ((int)$v === 0) {
+			return '';
+		}
+
 		$d = floor($v); // days since 1900 or 1904
 		$t = $v - $d;
 
