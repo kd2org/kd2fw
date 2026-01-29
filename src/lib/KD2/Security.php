@@ -128,17 +128,37 @@ class Security
 		return base64_decode(str_pad(strtr($str, '-_', '+/'), strlen($str) % 4, '=', STR_PAD_RIGHT));
 	}
 
-	static public function checkCaptcha(string $secret, string $hash, string $user_value)
+	static public function checkCaptcha(string $secret, string $hash, string $user_value): bool
 	{
-		$check = sha1(trim($secret) . preg_replace('/\s+/', '', $user_value));
-		return hash_equals($check, $hash);
+		$parts = explode(':', $hash);
+
+		if (count($parts) !== 4) {
+			return false;
+		}
+
+		if ($parts[0] < time()) {
+			return false;
+		}
+
+		$number = preg_replace('/\s+/', '', $user_value);
+		$ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
+		$value = sha1($secret . $number . $ua . $parts[1]);
+
+		$check = hash_hmac('sha1', $value, $secret);
+		return hash_equals($check, $parts[3]);
 	}
 
 	static public function createCaptcha(string $secret, string $locale = 'en_US'): array
 	{
 		$number = random_int(1000, 9999);
 		$spellout = numfmt_create($locale, \NumberFormatter::SPELLOUT)->format((int) $number);
-		$hash = sha1(trim($secret) . $number);
+
+		$expiry = time() + 60*30;
+		$ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
+		$random = sha1(random_bytes(10));
+		$value = sha1($secret . $number . $ua . $random);
+
+		$hash = sprintf('%d:%s:%s:%s', $expiry, $random, $value, hash_hmac('sha1', $value, $secret));
 		return compact('hash', 'spellout');
 	}
 
