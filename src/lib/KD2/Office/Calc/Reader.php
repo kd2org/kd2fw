@@ -174,11 +174,12 @@ class Reader
 				}
 			}
 
-			$repeat = intval($row->attributes(self::NS_TABLE)['number-rows-repeated']) ?: 1;
-
-			for ($i = 0; $i < $repeat; $i++) {
-				yield $out;
+			// Skip empty lines
+			if (!count(array_filter($out))) {
+				continue;
 			}
+
+			yield $out;
 		}
 	}
 }
