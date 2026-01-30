@@ -34,6 +34,8 @@ class Reader
 		$magic = fread($fp, 2);
 		fseek($fp, 0, SEEK_SET);
 
+		libxml_use_internal_errors(true);
+
 		try {
 			// .ods file
 			if ($magic === 'PK') {
@@ -53,7 +55,7 @@ class Reader
 					$this->active_sheet_name = trim(htmlspecialchars_decode($match[1]));
 				}
 
-				$this->xml = simplexml_load_string($zip->fetch('content.xml'));
+				$xml = simplexml_load_string($zip->fetch('content.xml'));
 				$zip = null;
 			}
 			elseif ($magic === '<?') {
@@ -63,7 +65,7 @@ class Reader
 					$raw .= fread($fp, 8192);
 				}
 
-				$this->xml = simplexml_load_string($raw);
+				$xml = simplexml_load_string($raw);
 				unset($raw);
 			}
 			else {
@@ -74,7 +76,12 @@ class Reader
 			fclose($fp);
 		}
 
+		if (false === $xml) {
+			throw new \LogicException(sprintf('Invalid XML in "%s": %s', $path, implode('; ', libxml_get_errors())));
+		}
+
 		$this->sheets = null;
+		$this->xml = $xml;
 		$this->xml->registerXPathNamespace('table', self::NS_TABLE);
 		$this->xml->registerXPathNamespace('office', self::NS_OFFICE);
 	}

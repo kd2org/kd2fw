@@ -83,7 +83,13 @@ class Reader extends \KD2\Office\Calc\Reader
 			return 'missing _rels/.rels file in ZIP';
 		}
 
+		libxml_use_internal_errors(true);
 		$xml = simplexml_load_string($this->zip->fetch('_rels/.rels'));
+
+		if (false === $xml) {
+			throw new \LogicException(sprintf('Invalid XML in "%s": %s', '_rels/.rels', implode('; ', libxml_get_errors())));
+		}
+
 		$xml->registerXPathNamespace('a', 'http://schemas.openxmlformats.org/package/2006/relationships');
 
 		// find workbook.xml file
@@ -110,6 +116,11 @@ class Reader extends \KD2\Office\Calc\Reader
 		}
 
 		$xml = simplexml_load_string($this->zip->fetch($rels_path));
+
+		if (false === $xml) {
+			throw new \LogicException(sprintf('Invalid XML in "%s": %s', $rels_path, implode('; ', libxml_get_errors())));
+		}
+
 		$xml->registerXPathNamespace('a', 'http://schemas.openxmlformats.org/package/2006/relationships');
 
 		$relationships = [];
@@ -134,6 +145,11 @@ class Reader extends \KD2\Office\Calc\Reader
 		unset($xml);
 
 		$xml = simplexml_load_string($this->zip->fetch($this->workbook_path));
+
+		if (false === $xml) {
+			throw new \LogicException(sprintf('Invalid XML in "%s": %s', $this->workbook_path, implode('; ', libxml_get_errors())));
+		}
+
 		$xml->registerXPathNamespace('a', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
 
 		$this->sheets = [];
@@ -215,6 +231,11 @@ class Reader extends \KD2\Office\Calc\Reader
 		$path = $this->sheets[$sheet]['file'];
 
 		$xml = simplexml_load_string($this->zip->fetch($path));
+
+		if (false === $xml) {
+			throw new \LogicException(sprintf('Invalid XML in "%s": %s', $path, implode('; ', libxml_get_errors())));
+		}
+
 		$xml->registerXPathNamespace('a', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
 		$d = $xml->xpath('.//a:dimension');
 
@@ -354,6 +375,11 @@ class Reader extends \KD2\Office\Calc\Reader
 		$date_formats_ids = self::DEFAULT_DATE_FORMAT_IDS;
 
 		$xml = simplexml_load_string($this->zip->fetch($this->styles_path));
+
+		if (false === $xml) {
+			throw new \LogicException(sprintf('Invalid XML in "%s": %s', $this->styles_path, implode('; ', libxml_get_errors())));
+		}
+
 		$xml->registerXPathNamespace('a', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
 
 		foreach ($xml->xpath('.//a:numFmts//a:numFmt') as $format) {
@@ -402,6 +428,11 @@ class Reader extends \KD2\Office\Calc\Reader
 		}
 
 		$xml = simplexml_load_string($this->zip->fetch($this->strings_path));
+
+		if (false === $xml) {
+			throw new \LogicException(sprintf('Invalid XML in "%s": %s', $this->strings_path, implode('; ', libxml_get_errors())));
+		}
+
 		$xml->registerXPathNamespace('a', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
 
 		foreach ($xml->xpath('.//a:si') as $i => $e) {
