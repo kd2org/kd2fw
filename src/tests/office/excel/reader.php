@@ -36,13 +36,11 @@ function test_reader(string $str)
 		Test::assert(2 === count($row));
 	}
 
-	Test::isInstanceOf(DateTime::class, $rows[0][0]);
-	Test::assert('2026-02-01 00:00:00', $rows[0][0]->format('Y-m-d H:i:s'));
+	Test::strictlyEquals('2026-02-01', $rows[0][0]);
 	Test::assert(3 === $rows[0][1]);
 	Test::assert(1.02 === $rows[1][0]);
 	Test::assert(0.1403 === $rows[2][0]);
-	Test::isInstanceOf(DateTime::class, $rows[3][0]);
-	Test::assert('2026-01-01 02:02:01', $rows[3][0]->format('Y-m-d H:i:s'));
+	Test::strictlyEquals('2026-01-01T02:02:01', $rows[3][0]);
 	Test::assert(3 === $rows[4][0]);
 	Test::assert(3.0004 === $rows[4][1]);
 	Test::assert("Line 1\nLine 2" === $rows[5][0]);

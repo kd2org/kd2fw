@@ -412,7 +412,14 @@ class Reader extends \KD2\Office\Calc\Reader
 
 		$ts = (abs($d) > 0) ? ($d - 25569) * 86400 + round($t * 86400) : round($t * 86400);
 
-		return gmdate('Y-m-d H:i:s', $ts);
+		if (!$t) {
+			$format = 'Y-m-d';
+		}
+		else {
+			$format = 'Y-m-d\TH:i:s';
+		}
+
+		return gmdate($format, $ts);
 	}
 
 	protected function loadStrings(): void
