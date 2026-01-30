@@ -236,9 +236,12 @@ class Reader extends \KD2\Office\Calc\Reader
 			throw new \LogicException('This sheet has no columns');
 		}
 
-		foreach ($xml->xpath('.//a:sheetData//a:row') as $row) {
-			// Fill empty cells, as Excel doesn't provide <c> elements for empty cells
-			$out = array_fill(0, $columns_count, '');
+		// Fill empty cells, as Excel doesn't provide <c> elements for empty cells
+		$empty_row = array_fill(0, $columns_count, '');
+		$empty_rows_count = 0;
+
+		foreach ($xml->xpath('.//a:sheetData//a:row') as $i => $row) {
+			$out = $empty_row;
 
 			$row->registerXPathNamespace('a', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
 
@@ -291,6 +294,20 @@ class Reader extends \KD2\Office\Calc\Reader
 
 				$out[$num - 1] = $value;
 			}
+
+			// Skip empty rows
+			if ($out === $empty_row) {
+				// More than 20 empty rows: stop here, the rest of the document is probably empty
+				// (some XLSX documents have 65.000 empty rows… stupid)
+				if ($empty_rows_count > 20) {
+					break;
+				}
+
+				$empty_rows_count++;
+				continue;
+			}
+
+			$empty_rows_count = 0;
 
 			yield $out;
 		}
