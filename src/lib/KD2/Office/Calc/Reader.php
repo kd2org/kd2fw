@@ -106,12 +106,24 @@ class Reader
 
 	public function iterate(int $sheet = 0, bool $detailed = false): Generator
 	{
-		$table = $this->xml->xpath('.//table:table')[$sheet];
+		$tables = $this->xml->xpath('.//table:table');
+
+		if (!isset($tables[$sheet])) {
+			throw new \InvalidArgumentException('There is no sheet at index ' . $sheet);
+		}
+
+		$table = $tables[$sheet];
 
 		foreach ($table->xpath('.//table:table-row') as $row) {
 			$out = [];
 
-			foreach ($row->xpath('.//table:table-cell') as $cell) {
+			foreach ($row->children(self::NS_TABLE) as $cell) {
+				$tag_name = $cell->getName();
+
+				if ($tag_name !== 'table-cell' && $tag_name !== 'covered-table-cell') {
+					continue;
+				}
+
 				$attributes = $cell->attributes(self::NS_OFFICE);
 				$type = (string) ($attributes['value-type'] ?? 'string');
 
@@ -153,10 +165,20 @@ class Reader
 					];
 				}
 
-				$out[] = $value;
+				$attributes = $cell->attributes(self::NS_TABLE);
+				$repeat = intval($attributes['number-columns-repeated']) ?: 1;
+
+				// repeat cell value (n) times
+				for ($j = 0; $j < $repeat; $j++) {
+					$out[] = $value;
+				}
 			}
 
-			yield $out;
+			$repeat = intval($row->attributes(self::NS_TABLE)['number-rows-repeated']) ?: 1;
+
+			for ($i = 0; $i < $repeat; $i++) {
+				yield $out;
+			}
 		}
 	}
 }
