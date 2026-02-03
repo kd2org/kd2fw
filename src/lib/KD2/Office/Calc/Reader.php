@@ -114,13 +114,15 @@ class Reader
 		}
 
 		$table = $tables[$sheet];
-		$non_empty_cells_count = 0;
+		$columns_count = 0;
+		$rows_count = 0;
 		$xpath = $table->xpath('.//table:table-row');
 
 		// Count max number of columns, don't trust what the file says, it might say bullshit
 		// For example one file had <table:table-cell table:number-columns-repeated="1006"/> in each row :-/
 		foreach ($xpath as $row) {
 			$i = 0;
+			$last_non_empty_column = 0;
 
 			foreach ($row->children(self::NS_TABLE) as $cell) {
 				$tag_name = $cell->getName();
@@ -138,15 +140,22 @@ class Reader
 				$attributes = $cell->attributes(self::NS_TABLE);
 				$repeat = intval($attributes['number-columns-repeated']) ?: 1;
 
+				$i += $repeat;
+
 				if ($has_value) {
-					$i += $repeat;
+					$last_non_empty_column = $i;
 				}
 			}
 
-			$non_empty_cells_count = max($non_empty_cells_count, $i);
+			// Max 200k rows in a sheet: this is suspicious
+			if ($rows_count++ >= 200000) {
+				throw new \LogicException('This file has more than 200.000 rows');
+			}
+
+			$columns_count = max($columns_count, $last_non_empty_column);
 		}
 
-		if ($non_empty_cells_count >= 1000) {
+		if ($columns_count >= 1000) {
 			throw new \LogicException('This file has more than 1000 columns');
 		}
 
@@ -204,7 +213,7 @@ class Reader
 				$attributes = $cell->attributes(self::NS_TABLE);
 				$repeat = intval($attributes['number-columns-repeated']) ?: 1;
 
-				$repeat = min($repeat, $non_empty_cells_count - count($out));
+				$repeat = min($repeat, $columns_count - count($out));
 
 				// repeat cell value (n) times
 				for ($j = 0; $j < $repeat; $j++) {
@@ -218,7 +227,7 @@ class Reader
 			}
 
 			// Fill with empty cells, if required
-			for ($i = count($out); $i < $non_empty_cells_count; $i++) {
+			for ($i = count($out); $i < $columns_count; $i++) {
 				$out[] = '';
 			}
 
