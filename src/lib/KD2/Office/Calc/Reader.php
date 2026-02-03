@@ -14,6 +14,7 @@ class Reader
 
 	const NS_TABLE = 'urn:oasis:names:tc:opendocument:xmlns:table:1.0';
 	const NS_OFFICE = 'urn:oasis:names:tc:opendocument:xmlns:office:1.0';
+	const NS_TEXT = 'urn:oasis:names:tc:opendocument:xmlns:text:1.0';
 
 	public function openString(string $str): void
 	{
@@ -113,8 +114,43 @@ class Reader
 		}
 
 		$table = $tables[$sheet];
+		$non_empty_cells_count = 0;
+		$xpath = $table->xpath('.//table:table-row');
 
-		foreach ($table->xpath('.//table:table-row') as $row) {
+		// Count max number of columns, don't trust what the file says, it might say bullshit
+		// For example one file had <table:table-cell table:number-columns-repeated="1006"/> in each row :-/
+		foreach ($xpath as $row) {
+			$i = 0;
+
+			foreach ($row->children(self::NS_TABLE) as $cell) {
+				$tag_name = $cell->getName();
+
+				// Skip
+				if ($tag_name !== 'table-cell' && $tag_name !== 'covered-table-cell') {
+					continue;
+				}
+
+				$attributes = $cell->attributes(self::NS_OFFICE);
+				$has_value = isset($attributes['value'])
+					|| isset($attributes['date-value'])
+					|| count($cell->children(self::NS_TEXT));
+
+				$attributes = $cell->attributes(self::NS_TABLE);
+				$repeat = intval($attributes['number-columns-repeated']) ?: 1;
+
+				if ($has_value) {
+					$i += $repeat;
+				}
+			}
+
+			$non_empty_cells_count = max($non_empty_cells_count, $i);
+		}
+
+		if ($non_empty_cells_count >= 1000) {
+			throw new \LogicException('This file has more than 1000 columns');
+		}
+
+		foreach ($xpath as $row) {
 			$out = [];
 
 			foreach ($row->children(self::NS_TABLE) as $cell) {
@@ -168,6 +204,8 @@ class Reader
 				$attributes = $cell->attributes(self::NS_TABLE);
 				$repeat = intval($attributes['number-columns-repeated']) ?: 1;
 
+				$repeat = min($repeat, $non_empty_cells_count - count($out));
+
 				// repeat cell value (n) times
 				for ($j = 0; $j < $repeat; $j++) {
 					$out[] = $value;
@@ -177,6 +215,11 @@ class Reader
 			// Skip empty lines
 			if (!count(array_filter($out))) {
 				continue;
+			}
+
+			// Fill with empty cells, if required
+			for ($i = count($out); $i < $non_empty_cells_count; $i++) {
+				$out[] = '';
 			}
 
 			yield $out;
