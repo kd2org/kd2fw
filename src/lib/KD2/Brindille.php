@@ -947,7 +947,7 @@ class Brindille
 					$ok = true;
 					break;
 				}
-				elseif (get_debug_type($value) === $t->type) {
+				elseif (self::get_debug_type($value) === $t->type) {
 					$ok = true;
 					break;
 				}
@@ -962,11 +962,46 @@ class Brindille
 			}
 
 			if (!$ok) {
-				throw new Brindille_Exception(sprintf('Type error: argument %d is of type "%s", but expected one of: %s', $i, get_debug_type($value), implode(', ', $types_str)));
+				throw new Brindille_Exception(sprintf('Type error: argument %d is of type "%s", but expected one of: %s', $i, self::get_debug_type($value), implode(', ', $types_str)));
 			}
 		}
 
 		unset($value);
+	}
+
+	/**
+	 * @todo FIXME: replace with native get_debug_type when requiring PHP 8.0+
+	 */
+	static public function get_debug_type($var): string
+	{
+		if (is_object($var)) {
+			return get_class($var);
+		}
+		elseif (is_array($var)) {
+			return 'array';
+		}
+		elseif (is_resource($var)) {
+			return 'resource';
+		}
+		elseif (is_int($var)) {
+			return 'int';
+		}
+		elseif (is_float($var)) {
+			return 'float';
+		}
+		elseif (is_string($var)) {
+			return 'string';
+		}
+		elseif (is_null($var)) {
+			return 'null';
+		}
+		elseif (is_bool($var)) {
+			return 'bool';
+		}
+		else {
+			// Should not happen
+			return gettype($var);
+		}
 	}
 
 	/**
