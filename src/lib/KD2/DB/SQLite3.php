@@ -824,7 +824,7 @@ class SQLite3 extends DB
 	/**
 	 * Runs a query and returns the first column of the first row of the result
 	 * @param  string $query
-	 * @return object
+	 * @return mixed
 	 *
 	 * Accepts one or more arguments for the prepared query
 	 */
@@ -838,6 +838,55 @@ class SQLite3 extends DB
 		return (is_array($row) && count($row) > 0) ? $row[0] : false;
 	}
 
+	public function insert(string $table, $fields, ?string $clause = null): bool
+	{
+		try {
+			return parent::insert($table, $fields, $clause);
+		}
+		catch (DB_Exception $e) {
+			throw $this->catchForeignKeyError($e, $table, $fields);
+		}
+	}
+
+	public function catchForeignKeyError(DB_Exception $e, string $table, array $fields): \Exception
+	{
+		if (false !== strpos($e->getMessage(), 'FOREIGN KEY constraint failed')) {
+			$fk_list = $this->findMissingForeignKeys($table, (array) $fields);
+			$message = [];
+
+			foreach ($fk_list as $key => $value) {
+				$message[] = sprintf('%s = %s', $key, $value);
+			}
+
+			$message = sprintf('FOREIGN KEY constraint failed (%s)', implode(', ', $message));
+			return new DB_Exception($message, $e->getCode(), $e);
+		}
+
+		return $e;
+	}
+
+	/**
+	 * Try to identify which foreign keys are missing when doing an INSERT or REPLACE
+	 * that fails with 'FOREIGN KEY constraint failed' message
+	 */
+	public function findMissingForeignKeys(string $table, array $fields): array
+	{
+		$list = $this->get(sprintf('PRAGMA foreign_key_list(%s);', $this->quoteIdentifier($table)));
+		$missing = [];
+
+		foreach ($list as $row) {
+			if (!isset($fields[$row->from])) {
+				continue;
+			}
+
+			if (!$this->test($row->table, $row->to . ' = ?', $fields[$row->from])) {
+				$missing[$row->from] = $fields[$row->from];
+			}
+		}
+
+		return $missing;
+	}
+
 	public function upsert(string $table, array $params, array $conflict_columns)
 	{
 		$sql = sprintf(
@@ -849,7 +898,12 @@ class SQLite3 extends DB
 			implode(', ', array_map(fn($a) => $a . ' = :' . $a, array_keys($params)))
 		);
 
-		return $this->preparedQuery($sql, $params);
+		try {
+			return $this->preparedQuery($sql, $params);
+		}
+		catch (DB_Exception $e) {
+			throw $this->catchForeignKeyError($e, $table, $fields);
+		}
 	}
 
 	public function countRows(\SQLite3Result $result): int

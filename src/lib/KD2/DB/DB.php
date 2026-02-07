@@ -723,7 +723,7 @@ class DB
 	/**
 	 * Runs a query and returns the first column
 	 * @param  string $query SQL query
-	 * @return object
+	 * @return mixed
 	 *
 	 * Accepts one or more arguments as part of bindings for the statement
 	 */
@@ -741,7 +741,7 @@ class DB
 	 * @param  null|string $clause INSERT clause (eg. 'OR IGNORE' etc.)
 	 * @return boolean
 	 */
-	public function insert(string $table, $fields, ?string $clause = null)
+	public function insert(string $table, $fields, ?string $clause = null): bool
 	{
 		assert(is_array($fields) || is_object($fields));
 
