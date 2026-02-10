@@ -196,7 +196,8 @@ class Reader
 					$value = '';
 
 					foreach ($cell->xpath('.//text:p') as $p) {
-						$value .= (string) $p . "\n";
+						$p = dom_import_simplexml($p);
+						$value .= (string) $p->nodeValue . "\n";
 					}
 
 					$value = rtrim($value);
