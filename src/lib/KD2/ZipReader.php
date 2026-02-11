@@ -366,7 +366,7 @@ class ZipReader
 
 		$header['mtime'] = $this->makeUnixTime($header['mdate'], $header['mtime']);
 
-		if (substr($header['filename'], -1) == '/') {
+		if (substr($header['filename'], -1) === '/') {
 			$header['external'] = 0x41FF0010;
 		}
 
