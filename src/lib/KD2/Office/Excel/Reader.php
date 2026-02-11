@@ -20,6 +20,8 @@ class Reader extends \KD2\Office\Calc\Reader
 	protected ?array $strings = null;
 	protected ?array $sheets = null;
 
+	const NS_MAIN = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
+
 	/**
 	 * Default Excel date formats
 	 * @see https://hexdocs.pm/xlsxir/number_styles.html
@@ -99,7 +101,7 @@ class Reader extends \KD2\Office\Calc\Reader
 			return 'cannot find workbook.xml';
 		}
 
-		$this->workbook_path = (string) $element[0]['Target'];
+		$this->workbook_path = $this->normalizePath((string) $element[0]['Target']);
 
 		if (!$this->zip->has($this->workbook_path)) {
 			return 'workbook.xml is missing';
@@ -128,7 +130,7 @@ class Reader extends \KD2\Office\Calc\Reader
 		$this->styles_path = null;
 
 		foreach ($xml->xpath('.//a:Relationship') as $r) {
-			$path = $dir . '/' . (string) $r['Target'];
+			$path = $this->normalizePath((string) $r['Target'], $dir);
 			$type = (string) $r['Type'];
 
 			if ($type === 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings') {
@@ -150,7 +152,7 @@ class Reader extends \KD2\Office\Calc\Reader
 			throw new \LogicException(sprintf('Invalid XML in "%s": %s', $this->workbook_path, implode('; ', libxml_get_errors())));
 		}
 
-		$xml->registerXPathNamespace('a', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
+		$xml->registerXPathNamespace('a', self::NS_MAIN);
 
 		$this->sheets = [];
 		$this->date1904 = isset($xml->workbookPr['date1904']) && strval($xml->workbookPr['date1904']) === 'true';
@@ -178,6 +180,18 @@ class Reader extends \KD2\Office\Calc\Reader
 		$this->strings = null;
 
 		return null;
+	}
+
+	protected function normalizePath(string $path, ?string $prefix = null): string
+	{
+		$path = str_replace('\\', '/', $path);
+		$path = ltrim($path, '/');
+
+		if ($prefix && 0 !== strpos($path, $prefix . '/')) {
+			$path = $prefix . '/' . $path;
+		}
+
+		return $path;
 	}
 
 	public function setPointer($fp): void
@@ -236,7 +250,7 @@ class Reader extends \KD2\Office\Calc\Reader
 			throw new \LogicException(sprintf('Invalid XML in "%s": %s', $path, implode('; ', libxml_get_errors())));
 		}
 
-		$xml->registerXPathNamespace('a', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
+		$xml->registerXPathNamespace('a', self::NS_MAIN);
 		$d = $xml->xpath('.//a:dimension');
 
 		// Fast method
@@ -264,24 +278,34 @@ class Reader extends \KD2\Office\Calc\Reader
 		foreach ($xml->xpath('.//a:sheetData//a:row') as $i => $row) {
 			$out = $empty_row;
 
-			$row->registerXPathNamespace('a', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
+			$row->registerXPathNamespace('a', self::NS_MAIN);
 
 			foreach ($row->xpath('.//a:c') as $cell) {
 				$num = $this->getColumnNumber((string) $cell['r']);
 
 				$t = (string) $cell['t'];
+				$v = null;
+
+				foreach ($cell->children(self::NS_MAIN) as $tag) {
+					if ($tag->getName() !== 'v') {
+						continue;
+					}
+
+					$v = $tag;
+					break; // there should be only one children here
+				}
 
 				// Datetime float
 				if ($this->isDate($t, (int) $cell['s'])) {
-					$value = $this->parseDateTime((float) $cell->v);
+					$value = $this->parseDateTime((float) $v);
 				}
 				// Boolean
 				elseif ($t === 'b') {
-					$value = (bool) $cell->v;
+					$value = (bool) $v;
 				}
 				// Formula or error
 				elseif ($t === 'str' || $t === 'e') {
-					$value = (string) $cell->v;
+					$value = (string) $v;
 				}
 				// Inline string
 				elseif ($t === 'inlineStr') {
@@ -299,11 +323,11 @@ class Reader extends \KD2\Office\Calc\Reader
 				}
 				// shared string
 				elseif ($t === 's') {
-					$value = $this->strings[(int)$cell->v] ?? null;
+					$value = $this->strings[(int)$v] ?? null;
 				}
 				// Other numbers
 				else {
-					$value = (string) $cell->v;
+					$value = (string) $v;
 
 					if ($value == (int) $value) {
 						$value = (int) $value;
