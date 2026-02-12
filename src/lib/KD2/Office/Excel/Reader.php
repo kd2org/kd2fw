@@ -244,6 +244,17 @@ class Reader extends \KD2\Office\Calc\Reader
 
 		$path = $this->sheets[$sheet]['file'];
 
+		$meta = $this->zip->getMetadata($path);
+
+		if (!$meta) {
+			throw new \LogicException('Missing file: ' . $path);
+		}
+
+		// If the uncompressed file is too large, we probably can't process the millions of cells
+		if ($meta['size'] > 50*1024*1024) {
+			throw new \LogicException(sprintf('Sheet #%d is too big: %d MB (max. allowed = %d MB)', $sheet, $meta['size']/1024/1024, 50));
+		}
+
 		$xml = simplexml_load_string($this->zip->fetch($path));
 
 		if (false === $xml) {

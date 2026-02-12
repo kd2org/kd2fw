@@ -173,6 +173,12 @@ class ZipReader
 		}
 	}
 
+	public function getMetadata(string $path): ?array
+	{
+		$this->_load();
+		return $this->entries[$path] ?? null;
+	}
+
 	public function has(string $file): bool
 	{
 		$this->_load();
