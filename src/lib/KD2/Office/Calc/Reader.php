@@ -56,7 +56,7 @@ class Reader
 					$this->active_sheet_name = trim(htmlspecialchars_decode($match[1]));
 				}
 
-				$meta = $this->zip->getMetadata('content.xml');
+				$meta = $zip->getMetadata('content.xml');
 
 				if (!$meta) {
 					throw new \LogicException('Missing content.xml');
