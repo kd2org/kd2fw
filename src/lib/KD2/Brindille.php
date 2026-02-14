@@ -1049,13 +1049,10 @@ class Brindille
 			$callback = $modifier->callback;
 			return $callback(...$params);
 		}
-		/*
-		// FIXME: This shouldn't be useful anymore (2026-02), modifiers should return their own exceptions
-		catch (\Exception | \ArgumentCountError | \ValueError | \TypeError | \DivisionByZeroError $e) {
+		catch (\Exception $e) {
 			$message = preg_replace('/in\s+.*?\son\sline\s\d+|to\s+function\s+.*?,/', '', $e->getMessage());
 			throw new Brindille_Exception(sprintf("line %d: modifier '%s' has returned an error: %s\nParameters: %s", $line, $name, $message, self::printVariable($params, false)), 0, $e);
 		}
-		*/
 		catch (Brindille_Exception $e) {
 			throw new Brindille_Exception(sprintf("line %d: modifier '%s' has returned an error: %s\nParameters: %s", $line, $name, $e->getMessage(), self::printVariable($params, false)), 0, $e);
 		}
