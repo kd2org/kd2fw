@@ -269,7 +269,16 @@ class Brindille
 
 		$this->registerSection('foreach', [self::class, '_foreach']);
 
-		$this->registerModifier('args', 'sprintf', ['string+', '...' => 'scalar+']);
+		$this->registerModifier('args', function (string $message, ...$params) {
+			try {
+				return sprintf($message, ...$params);
+			}
+			// Correctly return wrong number of arguments
+			catch (\ArgumentCountError $e) {
+				throw new Brindille_Exception($e->getMessage(), 0);
+			}
+		}, ['string+', '...' => 'scalar+']);
+
 		$this->registerModifier('cat', fn (...$args) => implode('', $args), ['...' => 'string+']);
 		$this->registerModifier('count', fn ($var) => is_countable($var) ? count($var) : null);
 		$strftime = fn ($date, $format = '%d/%m/%Y %H:%M') => Translate::strftime($format, $date);
@@ -1040,10 +1049,13 @@ class Brindille
 			$callback = $modifier->callback;
 			return $callback(...$params);
 		}
+		/*
+		// FIXME: This shouldn't be useful anymore (2026-02), modifiers should return their own exceptions
 		catch (\Exception | \ArgumentCountError | \ValueError | \TypeError | \DivisionByZeroError $e) {
 			$message = preg_replace('/in\s+.*?\son\sline\s\d+|to\s+function\s+.*?,/', '', $e->getMessage());
 			throw new Brindille_Exception(sprintf("line %d: modifier '%s' has returned an error: %s\nParameters: %s", $line, $name, $message, self::printVariable($params, false)), 0, $e);
 		}
+		*/
 		catch (Brindille_Exception $e) {
 			throw new Brindille_Exception(sprintf("line %d: modifier '%s' has returned an error: %s\nParameters: %s", $line, $name, $e->getMessage(), self::printVariable($params, false)), 0, $e);
 		}
