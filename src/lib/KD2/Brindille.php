@@ -1040,7 +1040,7 @@ class Brindille
 			$callback = $modifier->callback;
 			return $callback(...$params);
 		}
-		catch (\Exception | \ArgumentCountError | \ValueError | \TypeError | \ArgumentCountError | \DivisionByZeroError $e) {
+		catch (\Exception | \ArgumentCountError | \ValueError | \TypeError | \DivisionByZeroError $e) {
 			$message = preg_replace('/in\s+.*?\son\sline\s\d+|to\s+function\s+.*?,/', '', $e->getMessage());
 			throw new Brindille_Exception(sprintf("line %d: modifier '%s' has returned an error: %s\nParameters: %s", $line, $name, $message, self::printVariable($params, false)), 0, $e);
 		}
