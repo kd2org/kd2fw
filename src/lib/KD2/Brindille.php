@@ -1746,7 +1746,9 @@ class Brindille
 
 				// Empty key: just increment
 				if (!strlen($sub)) {
-					$sub = count($prev);
+					$prev[] = null;
+					end($prev);
+					$sub = key($prev);
 				}
 
 				if (!array_key_exists($sub, $prev)) {
