@@ -58,7 +58,9 @@ class Mailbox
 				$this->request(null, 'EXPUNGE');
 			}
 
-			curl_close($this->curl);
+			if (PHP_VERSION_ID < 80500) {
+				curl_close($this->curl);
+			}
 		}
 	}
 
