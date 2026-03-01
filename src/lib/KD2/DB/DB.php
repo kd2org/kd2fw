@@ -956,29 +956,30 @@ class DB
 			throw new \BadMethodCallException('Method ::where requires 2 or 3 parameters');
 		}
 
-		if (is_array($value))
-		{
+		if (is_array($value)) {
 			$value = array_values($value);
 
 			array_walk($value, function (&$row) {
-				$row = is_int($row) || is_float($row) ? $row : $this->quote((string)$row);
+				// Make sure we avoid error if element is an array or object
+				if (!is_scalar($row)) {
+					$row = null;
+				}
+
+				$row = is_int($row) || is_float($row) || is_null($row) ? $row : $this->quote((string)$row);
 			});
 
 			$value = sprintf('(%s)', implode(', ', $value));
 		}
-		elseif (is_null($value))
-		{
+		elseif (is_null($value)) {
 			$value = 'NULL';
 		}
-		elseif (is_bool($value))
-		{
+		elseif (is_bool($value)) {
 			$value = $value ? 'TRUE' : 'FALSE';
 		}
 		elseif ($operator === 'LIKE') {
 			$value = $this->quote($value) . ' ESCAPE \'\\\'';
 		}
-		elseif (is_string($value))
-		{
+		elseif (is_string($value)) {
 			$value = $this->quote($value);
 		}
 
