@@ -1200,8 +1200,7 @@ class Mail_Message
 
 		list($headers, $body) = $this->_parseHeadersAndBody(array_slice($lines, $start, $end - $start));
 
-		if (empty($headers['content-type']))
-		{
+		if (empty($headers['content-type'])) {
 			$headers['content-type'] = 'text/plain';
 		}
 
@@ -1219,13 +1218,18 @@ class Mail_Message
 		$type = preg_replace('/;.*$/s', '', $headers['content-type']);
 		$type = trim($type);
 
-		if (preg_match('/name=(?:"(.*?)"|([^\s]*))/mi', $headers['content-type'], $match))
-		{
+		if (preg_match('/name=(?:"(.*?)"|([^\s]*))/msi', $headers['content-type'], $match)) {
 			$name = !empty($match[2]) ? $match[2] : $match[1];
 		}
-		elseif (!empty($headers['content-disposition']) && preg_match('/filename=(?:"(.*?)"|([^\s]+))/mi', $headers['content-disposition'], $match))
-		{
+		elseif (!empty($headers['content-disposition'])
+			&& preg_match('/filename=(?:"(.*?)"|([^\s]+))/msi', $headers['content-disposition'], $match)) {
 			$name = !empty($match[2]) ? $match[2] : $match[1];
+		}
+
+		if ($name) {
+			// Note: name value can be folded on multiple lines (important: use 's' flag for regexp)
+			// Delete line breaks but NOT the following whitespace as it might be a space in the file name!
+			$name = preg_replace('/\r\n|\r|\n/', '', $name);
 		}
 
 		if (!empty($headers['content-disposition'])
@@ -1236,8 +1240,7 @@ class Mail_Message
 			$attachment = false;
 		}
 
-		if (!empty($headers['content-id']) && preg_match('/<(.*?)>/m', $headers['content-id'], $match))
-		{
+		if (!empty($headers['content-id']) && preg_match('/<(.*?)>/m', $headers['content-id'], $match)) {
 			$cid = $match[1];
 		}
 

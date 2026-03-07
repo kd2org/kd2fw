@@ -13,6 +13,7 @@ test_encryption();
 test_invalid_multipart();
 test_invalid_multipart_boundary();
 test_multipart_mixed();
+test_multipart_filename();
 test_body_removal();
 
 function test_cc()
@@ -278,4 +279,18 @@ function test_body_removal()
 	$msg->parse(file_get_contents(__DIR__ . '/data/mails/quoted_html.eml'));
 	$msg->removeHTMLBody();
 	Test::strictlyEquals(false, strpos('text/html', $msg->output()));
+}
+
+function test_multipart_filename()
+{
+	$msg = new Mail_Message;
+	$msg->parse(file_get_contents(__DIR__ . '/data/mails/multipart_filename.eml'));
+	$parts = $msg->getParts();
+
+	Test::equals(2, count($parts));
+	Test::strictlyEquals('text/plain', $parts[0]['type']);
+	Test::strictlyEquals('XXXX', trim($parts[0]['content']));
+	Test::strictlyEquals('application/vnd.oasis.opendocument.spreadsheet', $parts[1]['type']);
+	Test::strictlyEquals('abcd', $parts[1]['content']);
+	Test::strictlyEquals('Calcul fonds de caisse.ods', $parts[1]['name']);
 }
