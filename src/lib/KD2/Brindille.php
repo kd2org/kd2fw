@@ -274,7 +274,7 @@ class Brindille
 				return sprintf($message, ...$params);
 			}
 			// Correctly return wrong number of arguments
-			catch (\ArgumentCountError $e) {
+			catch (\ArgumentCountError|\ValueError $e) {
 				throw new Brindille_Exception($e->getMessage(), 0);
 			}
 		}, ['string+', '...' => 'scalar+']);
