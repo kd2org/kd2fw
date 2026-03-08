@@ -76,6 +76,13 @@ class SQLite3 extends DB
 		// ALTER TABLE ... RENAME COLUMN
 		'rename_column' => '3.25.0',
 
+		// ALTER TABLE ... SET NULL / ALTER TABLE ... ADD CONSTRAINT
+		'alter_column_constraint' => '3.52.0',
+
+		// Allow SQL expressions in RAISE argument
+		// https://sqlite.org/lang_createtrigger.html#raise
+		'raise_expression' => '3.47.0',
+
 		// FULL and RIGHT OUTER JOIN
 		// https://www.sqlite.org/lang_select.html#rjoin
 		'right_outer_join' => '3.39.0',
@@ -139,20 +146,30 @@ class SQLite3 extends DB
 		// https://www.sqlite.org/json1.html
 		'jsonb' => '3.45.0-OMIT_JSON',
 
+		// Does this SQLite version considers JSON functions as trusted?
+		// https://sqlite.org/forum/forumpost/c88a671ad083d153
+		'trusted_json' => '3.41.0',
+
+		'json_pretty' => '3.46.0',
+
 		'fts3' => '3.5.0+ENABLE_FTS3',
 		// ENABLE_FTS3 is also enabling FTS4, sometimes ENABLE_FTS4 does not exist but FTS4 is still supported
 		'fts4' => '3.7.4+ENABLE_FTS3|3.7.4+ENABLE_FTS4',
 		'fts5' => '3.9.0+ENABLE_FTS5',
 
+		// https://sqlite.org/fts5.html#the_secure_delete_configuration_option
+		'fts5_secure_delete' => '3.42.0',
+
+		// https://sqlite.org/fts5.html#clssdeltab
+		'fts5_contentless_delete' => '3.43.0',
+
 		'dbstat' => '3.0.0+ENABLE_DBSTAT_VTAB',
 
-		// Support for math functions
-		// https://www.sqlite.org/changes.html#version_3_35_0
-		'math' => '3.35.0+ENABLE_MATH_FUNCTIONS',
+		// https://sqlite.org/lang_corefunc.html#concat
+		'concat_function' => '3.44.0',
 
-		// Does this SQLite version considers JSON functions as trusted?
-		// https://sqlite.org/forum/forumpost/c88a671ad083d153
-		'trusted_json' => '3.41.0',
+		'timediff_function' => '3.43.0',
+
 	];
 
 	public function close(): void
