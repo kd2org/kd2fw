@@ -285,19 +285,30 @@ class Reader extends \KD2\Office\Calc\Reader
 		// Fill empty cells, as Excel doesn't provide <c> elements for empty cells
 		$empty_row = array_fill(0, $columns_count, '');
 		$empty_rows_count = 0;
+		$i = 0;
 
-		foreach ($xml->sheetData[0]->row as $i => $row) {
+		foreach ($xml->sheetData[0]->children(self::NS_MAIN) as $row) {
+			if ($row->getName() !== 'row') {
+				continue;
+			}
+
 			// Stop at 500_000 rows
-			if ($i > 500000) {
+			if ($i++ > 500000) {
 				break;
 			}
 
 			$out = $empty_row;
 
-			foreach ($row->c as $cell) {
-				$num = $this->getColumnNumber((string) $cell['r']);
+			foreach ($row->children(self::NS_MAIN) as $cell) {
+				if ($cell->getName() !== 'c') {
+					continue;
+				}
 
-				$t = (string) $cell['t'];
+				$attributes = $cell->attributes();
+
+				$num = $this->getColumnNumber((string) $attributes['r']);
+
+				$t = (string) $attributes['t'];
 				$v = null;
 
 				foreach ($cell->children(self::NS_MAIN) as $tag) {
@@ -310,7 +321,7 @@ class Reader extends \KD2\Office\Calc\Reader
 				}
 
 				// Datetime float
-				if ($this->isDate($t, (int) $cell['s'])) {
+				if ($this->isDate($t, (int) $attributes['s'])) {
 					$value = $this->parseDateTime((float) $v);
 				}
 				// Boolean
