@@ -61,6 +61,8 @@ class SMTP
 	protected $conn = null;
 	protected $last_line = null;
 
+	protected $log_pointer = null;
+
 	protected int $timeout = 15;
 	protected int $count = 0;
 	protected int $max = 50;
@@ -98,6 +100,11 @@ class SMTP
 		}
 
 		$this->last_line = trim($data);
+
+		if ($this->log_pointer !== null) {
+			fwrite($this->log_pointer, '< ' . $this->last_line);
+		}
+
 		return $this->last_line;
 	}
 
@@ -113,6 +120,10 @@ class SMTP
 	protected function _write(string $data): void
 	{
 		fputs($this->conn, $data . self::EOL);
+
+		if ($this->log_pointer !== null) {
+			fwrite($this->log_pointer, '> ' . $data . self::EOL);
+		}
 	}
 
 	protected function _writeAndGetCode(string $data): int
@@ -176,6 +187,7 @@ class SMTP
 
 	public function connect(): void
 	{
+		$this->log = '';
 		$this->conn = stream_socket_client($this->server . ':' . $this->port, $errno, $errstr, $this->timeout);
 		stream_set_timeout($this->conn, $this->timeout);
 
@@ -493,5 +505,10 @@ class SMTP
 		}
 
 		return checkdnsrr($host, 'MX');
+	}
+
+	public function setLogPointer($pointer)
+	{
+		$this->log_pointer = $pointer;
 	}
 }
