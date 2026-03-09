@@ -286,12 +286,15 @@ class Reader extends \KD2\Office\Calc\Reader
 		$empty_row = array_fill(0, $columns_count, '');
 		$empty_rows_count = 0;
 
-		foreach ($xml->xpath('.//a:sheetData//a:row') as $i => $row) {
+		foreach ($xml->sheetData[0]->row as $i => $row) {
+			// Stop at 500_000 rows
+			if ($i > 500000) {
+				break;
+			}
+
 			$out = $empty_row;
 
-			$row->registerXPathNamespace('a', self::NS_MAIN);
-
-			foreach ($row->xpath('.//a:c') as $cell) {
+			foreach ($row->c as $cell) {
 				$num = $this->getColumnNumber((string) $cell['r']);
 
 				$t = (string) $cell['t'];
@@ -355,11 +358,10 @@ class Reader extends \KD2\Office\Calc\Reader
 			if ($out === $empty_row) {
 				// More than 20 empty rows: stop here, the rest of the document is probably empty
 				// (some XLSX documents have 65.000 empty rows… stupid)
-				if ($empty_rows_count > 20) {
+				if ($empty_rows_count++ > 20) {
 					break;
 				}
 
-				$empty_rows_count++;
 				continue;
 			}
 
