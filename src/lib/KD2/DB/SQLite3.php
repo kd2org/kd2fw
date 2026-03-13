@@ -1263,6 +1263,9 @@ class SQLite3 extends DB
 			$row['columns'] = [];
 
 			while ($row2 = $r2->fetchArray(\SQLITE3_ASSOC)) {
+				if (!isset($row2['name'])) {
+					continue;
+				}
 				$row['columns'][$row2['name']] = $row2;
 			}
 
