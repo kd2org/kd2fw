@@ -7,41 +7,41 @@ require __DIR__ . '/../../_assert.php';
 
 function test_reader(string $str)
 {
-  $r = new Reader;
-  $r->openString($str);
+	$r = new Reader;
+	$r->openString($str);
 
-  $sheets = $r->listSheets();
-  Test::equals(2, count($sheets));
-  Test::assert(in_array('Feuille1', $sheets));
-  Test::assert(in_array('Test <> weird sheet name', $sheets));
-  Test::assert(1 === array_search('Test <> weird sheet name', $sheets, true));
+	$sheets = $r->listSheets();
+	Test::equals(2, count($sheets));
+	Test::assert(in_array('Feuille1', $sheets));
+	Test::assert(in_array('Test <> weird sheet name', $sheets));
+	Test::assert(1 === array_search('Test <> weird sheet name', $sheets, true));
 
-  $rows = iterator_to_array($r->iterate(1));
-  Test::assert(2 === count($rows));
-  Test::assert(3 === count($rows[0]));
-  Test::assert(3 === count($rows[1]));
-  Test::assert('A' === $rows[0][0]);
-  Test::assert('B' === $rows[0][1]);
-  Test::assert('' === $rows[0][2]);
-  Test::assert(1 === $rows[1][0]);
-  Test::assert(2 === $rows[1][1]);
-  Test::assert(3 === $rows[1][2]);
+	$rows = iterator_to_array($r->iterate(1));
+	Test::assert(2 === count($rows));
+	Test::assert(3 === count($rows[0]));
+	Test::assert(3 === count($rows[1]));
+	Test::strictlyEquals('A', $rows[0][0]);
+	Test::strictlyEquals('B', $rows[0][1]);
+	Test::strictlyEquals('', $rows[0][2]);
+	Test::strictlyEquals(1, $rows[1][0]);
+	Test::strictlyEquals(2, $rows[1][1]);
+	Test::strictlyEquals(3, $rows[1][2]);
 
-  $rows = iterator_to_array($r->iterate(0));
-  Test::assert(6 === count($rows));
+	$rows = iterator_to_array($r->iterate(0));
+	Test::assert(6 === count($rows));
 
-  foreach ($rows as $row) {
-    Test::assert(2 === count($row));
-  }
+	foreach ($rows as $row) {
+		Test::assert(2 === count($row));
+	}
 
-  Test::strictlyEquals('2026-02-01', $rows[0][0]);
-  Test::assert(3 === $rows[0][1]);
-  Test::assert(1.02 === $rows[1][0]);
-  Test::assert(0.1403 === $rows[2][0]);
-  Test::strictlyEquals('2026-01-01T02:02:01', $rows[3][0]);
-  Test::assert(3 === $rows[4][0]);
-  Test::assert(3.0004 === $rows[4][1]);
-  Test::assert("Line 1\nLine 2" === $rows[5][0]);
+	Test::strictlyEquals('2026-02-01', $rows[0][0]);
+	Test::strictlyEquals(3, $rows[0][1]);
+	Test::strictlyEquals(1.02, $rows[1][0]);
+	Test::strictlyEquals('14.03%', $rows[2][0]);
+	Test::strictlyEquals('2026-01-01T02:02:01', $rows[3][0]);
+	Test::strictlyEquals(3, $rows[4][0]);
+	Test::strictlyEquals(3.0004, $rows[4][1]);
+	Test::assert("Line 1\nLine 2" === $rows[5][0]);
 }
 
 function test_reader_span(string $str)
@@ -55,18 +55,26 @@ function test_reader_span(string $str)
 
 	$rows = iterator_to_array($r->iterate(0));
 
-  foreach ($rows as $row) {
-    Test::assert(5 === count($row));
-  }
+	foreach ($rows as $row) {
+		Test::assert(5 === count($row));
+	}
 
-  Test::strictlyEquals('2026-01-01', $rows[0][0]);
-  Test::strictlyEquals('2026-01-01', $rows[0][1]);
-  Test::strictlyEquals('Spanned 2 columns', $rows[2][0]);
-  Test::strictlyEquals('', $rows[2][1]);
-  Test::strictlyEquals('Spanned 2 rows', $rows[3][0]);
-  Test::strictlyEquals('Not spanned', $rows[3][1]);
-  Test::strictlyEquals('spanned', $rows[3][2]);
-  Test::strictlyEquals('', $rows[4][0]);
+	Test::strictlyEquals('2026-01-01', $rows[0][0]);
+	Test::strictlyEquals('2026-01-01', $rows[0][1]);
+	Test::strictlyEquals('Spanned 2 columns', $rows[2][0]);
+	Test::strictlyEquals('', $rows[2][1]);
+	Test::strictlyEquals('Spanned 2 rows', $rows[3][0]);
+	Test::strictlyEquals('Not spanned', $rows[3][1]);
+	Test::strictlyEquals('spanned', $rows[3][2]);
+	Test::strictlyEquals('', $rows[4][0]);
+}
+
+function test_number_format()
+{
+	$r = new Reader;
+
+	Test::strictlyEquals(42, $r->formatNumber('42', '42,00'));
+	Test::strictlyEquals('01 02 03 04 05', $r->formatNumber('102030405', '01 02 03 04 05'));
 }
 
 $fods = <<<EOF
@@ -81,74 +89,74 @@ $fods = <<<EOF
    <config:config-item config:name="VisibleAreaWidth" config:type="int">4907</config:config-item>
    <config:config-item config:name="VisibleAreaHeight" config:type="int">3099</config:config-item>
    <config:config-item-map-indexed config:name="Views">
-    <config:config-item-map-entry>
-     <config:config-item config:name="ViewId" config:type="string">view1</config:config-item>
-     <config:config-item-map-named config:name="Tables">
-      <config:config-item-map-entry config:name="Feuille1">
-       <config:config-item config:name="CursorPositionX" config:type="int">1</config:config-item>
-       <config:config-item config:name="CursorPositionY" config:type="int">5</config:config-item>
-       <config:config-item config:name="ActiveSplitRange" config:type="short">2</config:config-item>
-       <config:config-item config:name="PositionLeft" config:type="int">0</config:config-item>
-       <config:config-item config:name="PositionRight" config:type="int">0</config:config-item>
-       <config:config-item config:name="PositionTop" config:type="int">0</config:config-item>
-       <config:config-item config:name="PositionBottom" config:type="int">0</config:config-item>
-       <config:config-item config:name="ZoomType" config:type="short">0</config:config-item>
-       <config:config-item config:name="ZoomValue" config:type="int">100</config:config-item>
-       <config:config-item config:name="PageViewZoomValue" config:type="int">60</config:config-item>
-       <config:config-item config:name="ShowGrid" config:type="boolean">true</config:config-item>
-       <config:config-item config:name="AnchoredTextOverflowLegacy" config:type="boolean">false</config:config-item>
-       <config:config-item config:name="LegacySingleLineFontwork" config:type="boolean">false</config:config-item>
-       <config:config-item config:name="ConnectorUseSnapRect" config:type="boolean">false</config:config-item>
-       <config:config-item config:name="IgnoreBreakAfterMultilineField" config:type="boolean">false</config:config-item>
-      </config:config-item-map-entry>
-      <config:config-item-map-entry config:name="Test &lt;&gt; weird sheet name">
-       <config:config-item config:name="CursorPositionX" config:type="int">2</config:config-item>
-       <config:config-item config:name="CursorPositionY" config:type="int">2</config:config-item>
-       <config:config-item config:name="ActiveSplitRange" config:type="short">2</config:config-item>
-       <config:config-item config:name="PositionLeft" config:type="int">0</config:config-item>
-       <config:config-item config:name="PositionRight" config:type="int">0</config:config-item>
-       <config:config-item config:name="PositionTop" config:type="int">0</config:config-item>
-       <config:config-item config:name="PositionBottom" config:type="int">0</config:config-item>
-       <config:config-item config:name="ZoomType" config:type="short">0</config:config-item>
-       <config:config-item config:name="ZoomValue" config:type="int">100</config:config-item>
-       <config:config-item config:name="PageViewZoomValue" config:type="int">60</config:config-item>
-       <config:config-item config:name="ShowGrid" config:type="boolean">true</config:config-item>
-       <config:config-item config:name="AnchoredTextOverflowLegacy" config:type="boolean">false</config:config-item>
-       <config:config-item config:name="LegacySingleLineFontwork" config:type="boolean">false</config:config-item>
-       <config:config-item config:name="ConnectorUseSnapRect" config:type="boolean">false</config:config-item>
-       <config:config-item config:name="IgnoreBreakAfterMultilineField" config:type="boolean">false</config:config-item>
-      </config:config-item-map-entry>
-     </config:config-item-map-named>
-     <config:config-item config:name="ActiveTable" config:type="string">Feuille1</config:config-item>
-     <config:config-item config:name="HorizontalScrollbarWidth" config:type="int">886</config:config-item>
-     <config:config-item config:name="ZoomType" config:type="short">0</config:config-item>
-     <config:config-item config:name="ZoomValue" config:type="int">100</config:config-item>
-     <config:config-item config:name="PageViewZoomValue" config:type="int">60</config:config-item>
-     <config:config-item config:name="ShowPageBreakPreview" config:type="boolean">false</config:config-item>
-     <config:config-item config:name="ShowZeroValues" config:type="boolean">true</config:config-item>
-     <config:config-item config:name="ShowNotes" config:type="boolean">true</config:config-item>
-     <config:config-item config:name="ShowNoteAuthor" config:type="boolean">true</config:config-item>
-     <config:config-item config:name="ShowFormulasMarks" config:type="boolean">false</config:config-item>
-     <config:config-item config:name="ShowGrid" config:type="boolean">true</config:config-item>
-     <config:config-item config:name="GridColor" config:type="int">12632256</config:config-item>
-     <config:config-item config:name="ShowPageBreaks" config:type="boolean">true</config:config-item>
-     <config:config-item config:name="HasColumnRowHeaders" config:type="boolean">true</config:config-item>
-     <config:config-item config:name="HasSheetTabs" config:type="boolean">true</config:config-item>
-     <config:config-item config:name="IsOutlineSymbolsSet" config:type="boolean">true</config:config-item>
-     <config:config-item config:name="IsValueHighlightingEnabled" config:type="boolean">false</config:config-item>
-     <config:config-item config:name="IsSnapToRaster" config:type="boolean">false</config:config-item>
-     <config:config-item config:name="RasterIsVisible" config:type="boolean">false</config:config-item>
-     <config:config-item config:name="RasterResolutionX" config:type="int">1000</config:config-item>
-     <config:config-item config:name="RasterResolutionY" config:type="int">1000</config:config-item>
-     <config:config-item config:name="RasterSubdivisionX" config:type="int">1</config:config-item>
-     <config:config-item config:name="RasterSubdivisionY" config:type="int">1</config:config-item>
-     <config:config-item config:name="IsRasterAxisSynchronized" config:type="boolean">true</config:config-item>
-     <config:config-item config:name="FormulaBarHeight" config:type="short">1</config:config-item>
-     <config:config-item config:name="AnchoredTextOverflowLegacy" config:type="boolean">false</config:config-item>
-     <config:config-item config:name="LegacySingleLineFontwork" config:type="boolean">false</config:config-item>
-     <config:config-item config:name="ConnectorUseSnapRect" config:type="boolean">false</config:config-item>
-     <config:config-item config:name="IgnoreBreakAfterMultilineField" config:type="boolean">false</config:config-item>
-    </config:config-item-map-entry>
+	<config:config-item-map-entry>
+	 <config:config-item config:name="ViewId" config:type="string">view1</config:config-item>
+	 <config:config-item-map-named config:name="Tables">
+	  <config:config-item-map-entry config:name="Feuille1">
+	   <config:config-item config:name="CursorPositionX" config:type="int">1</config:config-item>
+	   <config:config-item config:name="CursorPositionY" config:type="int">5</config:config-item>
+	   <config:config-item config:name="ActiveSplitRange" config:type="short">2</config:config-item>
+	   <config:config-item config:name="PositionLeft" config:type="int">0</config:config-item>
+	   <config:config-item config:name="PositionRight" config:type="int">0</config:config-item>
+	   <config:config-item config:name="PositionTop" config:type="int">0</config:config-item>
+	   <config:config-item config:name="PositionBottom" config:type="int">0</config:config-item>
+	   <config:config-item config:name="ZoomType" config:type="short">0</config:config-item>
+	   <config:config-item config:name="ZoomValue" config:type="int">100</config:config-item>
+	   <config:config-item config:name="PageViewZoomValue" config:type="int">60</config:config-item>
+	   <config:config-item config:name="ShowGrid" config:type="boolean">true</config:config-item>
+	   <config:config-item config:name="AnchoredTextOverflowLegacy" config:type="boolean">false</config:config-item>
+	   <config:config-item config:name="LegacySingleLineFontwork" config:type="boolean">false</config:config-item>
+	   <config:config-item config:name="ConnectorUseSnapRect" config:type="boolean">false</config:config-item>
+	   <config:config-item config:name="IgnoreBreakAfterMultilineField" config:type="boolean">false</config:config-item>
+	  </config:config-item-map-entry>
+	  <config:config-item-map-entry config:name="Test &lt;&gt; weird sheet name">
+	   <config:config-item config:name="CursorPositionX" config:type="int">2</config:config-item>
+	   <config:config-item config:name="CursorPositionY" config:type="int">2</config:config-item>
+	   <config:config-item config:name="ActiveSplitRange" config:type="short">2</config:config-item>
+	   <config:config-item config:name="PositionLeft" config:type="int">0</config:config-item>
+	   <config:config-item config:name="PositionRight" config:type="int">0</config:config-item>
+	   <config:config-item config:name="PositionTop" config:type="int">0</config:config-item>
+	   <config:config-item config:name="PositionBottom" config:type="int">0</config:config-item>
+	   <config:config-item config:name="ZoomType" config:type="short">0</config:config-item>
+	   <config:config-item config:name="ZoomValue" config:type="int">100</config:config-item>
+	   <config:config-item config:name="PageViewZoomValue" config:type="int">60</config:config-item>
+	   <config:config-item config:name="ShowGrid" config:type="boolean">true</config:config-item>
+	   <config:config-item config:name="AnchoredTextOverflowLegacy" config:type="boolean">false</config:config-item>
+	   <config:config-item config:name="LegacySingleLineFontwork" config:type="boolean">false</config:config-item>
+	   <config:config-item config:name="ConnectorUseSnapRect" config:type="boolean">false</config:config-item>
+	   <config:config-item config:name="IgnoreBreakAfterMultilineField" config:type="boolean">false</config:config-item>
+	  </config:config-item-map-entry>
+	 </config:config-item-map-named>
+	 <config:config-item config:name="ActiveTable" config:type="string">Feuille1</config:config-item>
+	 <config:config-item config:name="HorizontalScrollbarWidth" config:type="int">886</config:config-item>
+	 <config:config-item config:name="ZoomType" config:type="short">0</config:config-item>
+	 <config:config-item config:name="ZoomValue" config:type="int">100</config:config-item>
+	 <config:config-item config:name="PageViewZoomValue" config:type="int">60</config:config-item>
+	 <config:config-item config:name="ShowPageBreakPreview" config:type="boolean">false</config:config-item>
+	 <config:config-item config:name="ShowZeroValues" config:type="boolean">true</config:config-item>
+	 <config:config-item config:name="ShowNotes" config:type="boolean">true</config:config-item>
+	 <config:config-item config:name="ShowNoteAuthor" config:type="boolean">true</config:config-item>
+	 <config:config-item config:name="ShowFormulasMarks" config:type="boolean">false</config:config-item>
+	 <config:config-item config:name="ShowGrid" config:type="boolean">true</config:config-item>
+	 <config:config-item config:name="GridColor" config:type="int">12632256</config:config-item>
+	 <config:config-item config:name="ShowPageBreaks" config:type="boolean">true</config:config-item>
+	 <config:config-item config:name="HasColumnRowHeaders" config:type="boolean">true</config:config-item>
+	 <config:config-item config:name="HasSheetTabs" config:type="boolean">true</config:config-item>
+	 <config:config-item config:name="IsOutlineSymbolsSet" config:type="boolean">true</config:config-item>
+	 <config:config-item config:name="IsValueHighlightingEnabled" config:type="boolean">false</config:config-item>
+	 <config:config-item config:name="IsSnapToRaster" config:type="boolean">false</config:config-item>
+	 <config:config-item config:name="RasterIsVisible" config:type="boolean">false</config:config-item>
+	 <config:config-item config:name="RasterResolutionX" config:type="int">1000</config:config-item>
+	 <config:config-item config:name="RasterResolutionY" config:type="int">1000</config:config-item>
+	 <config:config-item config:name="RasterSubdivisionX" config:type="int">1</config:config-item>
+	 <config:config-item config:name="RasterSubdivisionY" config:type="int">1</config:config-item>
+	 <config:config-item config:name="IsRasterAxisSynchronized" config:type="boolean">true</config:config-item>
+	 <config:config-item config:name="FormulaBarHeight" config:type="short">1</config:config-item>
+	 <config:config-item config:name="AnchoredTextOverflowLegacy" config:type="boolean">false</config:config-item>
+	 <config:config-item config:name="LegacySingleLineFontwork" config:type="boolean">false</config:config-item>
+	 <config:config-item config:name="ConnectorUseSnapRect" config:type="boolean">false</config:config-item>
+	 <config:config-item config:name="IgnoreBreakAfterMultilineField" config:type="boolean">false</config:config-item>
+	</config:config-item-map-entry>
    </config:config-item-map-indexed>
   </config:config-item-set>
   <config:config-item-set config:name="ooo:configuration-settings">
@@ -190,19 +198,19 @@ $fods = <<<EOF
    <config:config-item config:name="ShowZeroValues" config:type="boolean">true</config:config-item>
    <config:config-item config:name="UpdateFromTemplate" config:type="boolean">true</config:config-item>
    <config:config-item-map-named config:name="ScriptConfiguration">
-    <config:config-item-map-entry config:name="Feuille1">
-     <config:config-item config:name="CodeName" config:type="string">Feuille1</config:config-item>
-    </config:config-item-map-entry>
-    <config:config-item-map-entry config:name="Test &lt;&gt; weird sheet name">
-     <config:config-item config:name="CodeName" config:type="string">Feuille2</config:config-item>
-    </config:config-item-map-entry>
+	<config:config-item-map-entry config:name="Feuille1">
+	 <config:config-item config:name="CodeName" config:type="string">Feuille1</config:config-item>
+	</config:config-item-map-entry>
+	<config:config-item-map-entry config:name="Test &lt;&gt; weird sheet name">
+	 <config:config-item config:name="CodeName" config:type="string">Feuille2</config:config-item>
+	</config:config-item-map-entry>
    </config:config-item-map-named>
   </config:config-item-set>
  </office:settings>
  <office:scripts>
   <office:script script:language="ooo:Basic">
    <ooo:libraries xmlns:ooo="http://openoffice.org/2004/office" xmlns:xlink="http://www.w3.org/1999/xlink">
-    <ooo:library-embedded ooo:name="Standard"/>
+	<ooo:library-embedded ooo:name="Standard"/>
    </ooo:libraries>
   </office:script>
  </office:scripts>
@@ -219,7 +227,7 @@ $fods = <<<EOF
   <style:default-style style:family="graphic">
    <style:graphic-properties svg:stroke-color="#3465a4" draw:fill-color="#729fcf" fo:wrap-option="no-wrap" draw:shadow-offset-x="0.3cm" draw:shadow-offset-y="0.3cm" style:writing-mode="page"/>
    <style:paragraph-properties style:text-autospace="ideograph-alpha" style:punctuation-wrap="simple" style:line-break="strict" style:writing-mode="page" style:font-independent-line-spacing="false">
-    <style:tab-stops/>
+	<style:tab-stops/>
    </style:paragraph-properties>
    <style:text-properties style:use-window-font-color="true" loext:opacity="0%" fo:font-family="&apos;Liberation Serif&apos;" style:font-family-generic="roman" style:font-pitch="variable" fo:font-size="12pt" fo:language="fr" fo:country="FR" style:letter-kerning="true" style:font-name-asian="Tahoma" style:font-size-asian="12pt" style:language-asian="zh" style:country-asian="CN" style:font-name-complex="Tahoma" style:font-size-complex="12pt" style:language-complex="hi" style:country-complex="IN"/>
   </style:default-style>
@@ -317,18 +325,18 @@ $fods = <<<EOF
   <draw:marker draw:name="Extrémités_20_de_20_flèche_20_1" draw:display-name="Extrémités de flèche 1" svg:viewBox="0 0 20 30" svg:d="M10 0l-10 30h20z"/>
   <loext:theme loext:name="Office">
    <loext:theme-colors loext:name="LibreOffice">
-    <loext:color loext:name="dark1" loext:color="#000000"/>
-    <loext:color loext:name="light1" loext:color="#ffffff"/>
-    <loext:color loext:name="dark2" loext:color="#000000"/>
-    <loext:color loext:name="light2" loext:color="#ffffff"/>
-    <loext:color loext:name="accent1" loext:color="#18a303"/>
-    <loext:color loext:name="accent2" loext:color="#0369a3"/>
-    <loext:color loext:name="accent3" loext:color="#a33e03"/>
-    <loext:color loext:name="accent4" loext:color="#8e03a3"/>
-    <loext:color loext:name="accent5" loext:color="#c99c00"/>
-    <loext:color loext:name="accent6" loext:color="#c9211e"/>
-    <loext:color loext:name="hyperlink" loext:color="#0000ee"/>
-    <loext:color loext:name="followed-hyperlink" loext:color="#551a8b"/>
+	<loext:color loext:name="dark1" loext:color="#000000"/>
+	<loext:color loext:name="light1" loext:color="#ffffff"/>
+	<loext:color loext:name="dark2" loext:color="#000000"/>
+	<loext:color loext:name="light2" loext:color="#ffffff"/>
+	<loext:color loext:name="accent1" loext:color="#18a303"/>
+	<loext:color loext:name="accent2" loext:color="#0369a3"/>
+	<loext:color loext:name="accent3" loext:color="#a33e03"/>
+	<loext:color loext:name="accent4" loext:color="#8e03a3"/>
+	<loext:color loext:name="accent5" loext:color="#c99c00"/>
+	<loext:color loext:name="accent6" loext:color="#c9211e"/>
+	<loext:color loext:name="hyperlink" loext:color="#0000ee"/>
+	<loext:color loext:name="followed-hyperlink" loext:color="#551a8b"/>
    </loext:theme-colors>
   </loext:theme>
  </office:styles>
@@ -380,52 +388,52 @@ $fods = <<<EOF
   <style:page-layout style:name="pm1">
    <style:page-layout-properties style:writing-mode="lr-tb"/>
    <style:header-style>
-    <style:header-footer-properties fo:min-height="0.75cm" fo:margin-left="0cm" fo:margin-right="0cm" fo:margin-bottom="0.25cm"/>
+	<style:header-footer-properties fo:min-height="0.75cm" fo:margin-left="0cm" fo:margin-right="0cm" fo:margin-bottom="0.25cm"/>
    </style:header-style>
    <style:footer-style>
-    <style:header-footer-properties fo:min-height="0.75cm" fo:margin-left="0cm" fo:margin-right="0cm" fo:margin-top="0.25cm"/>
+	<style:header-footer-properties fo:min-height="0.75cm" fo:margin-left="0cm" fo:margin-right="0cm" fo:margin-top="0.25cm"/>
    </style:footer-style>
   </style:page-layout>
   <style:page-layout style:name="pm2">
    <style:page-layout-properties style:writing-mode="lr-tb"/>
    <style:header-style>
-    <style:header-footer-properties fo:min-height="0.75cm" fo:margin-left="0cm" fo:margin-right="0cm" fo:margin-bottom="0.25cm" fo:border="1.5pt solid #000000" fo:padding="0.018cm" fo:background-color="#c0c0c0">
-     <style:background-image/>
-    </style:header-footer-properties>
+	<style:header-footer-properties fo:min-height="0.75cm" fo:margin-left="0cm" fo:margin-right="0cm" fo:margin-bottom="0.25cm" fo:border="1.5pt solid #000000" fo:padding="0.018cm" fo:background-color="#c0c0c0">
+	 <style:background-image/>
+	</style:header-footer-properties>
    </style:header-style>
    <style:footer-style>
-    <style:header-footer-properties fo:min-height="0.75cm" fo:margin-left="0cm" fo:margin-right="0cm" fo:margin-top="0.25cm" fo:border="1.5pt solid #000000" fo:padding="0.018cm" fo:background-color="#c0c0c0">
-     <style:background-image/>
-    </style:header-footer-properties>
+	<style:header-footer-properties fo:min-height="0.75cm" fo:margin-left="0cm" fo:margin-right="0cm" fo:margin-top="0.25cm" fo:border="1.5pt solid #000000" fo:padding="0.018cm" fo:background-color="#c0c0c0">
+	 <style:background-image/>
+	</style:header-footer-properties>
    </style:footer-style>
   </style:page-layout>
  </office:automatic-styles>
  <office:master-styles>
   <style:master-page style:name="Default" style:page-layout-name="pm1">
    <style:header>
-    <text:p><text:sheet-name>???</text:sheet-name></text:p>
+	<text:p><text:sheet-name>???</text:sheet-name></text:p>
    </style:header>
    <style:header-left style:display="false"/>
    <style:header-first style:display="false"/>
    <style:footer>
-    <text:p>Page <text:page-number>1</text:page-number></text:p>
+	<text:p>Page <text:page-number>1</text:page-number></text:p>
    </style:footer>
    <style:footer-left style:display="false"/>
    <style:footer-first style:display="false"/>
   </style:master-page>
   <style:master-page style:name="Report" style:page-layout-name="pm2">
    <style:header>
-    <style:region-left>
-     <text:p><text:sheet-name>???</text:sheet-name><text:s/>(<text:title>???</text:title>)</text:p>
-    </style:region-left>
-    <style:region-right>
-     <text:p><text:date style:data-style-name="N2" text:date-value="2026-01-18">00/00/0000</text:date>, <text:time>00:00:00</text:time></text:p>
-    </style:region-right>
+	<style:region-left>
+	 <text:p><text:sheet-name>???</text:sheet-name><text:s/>(<text:title>???</text:title>)</text:p>
+	</style:region-left>
+	<style:region-right>
+	 <text:p><text:date style:data-style-name="N2" text:date-value="2026-01-18">00/00/0000</text:date>, <text:time>00:00:00</text:time></text:p>
+	</style:region-right>
    </style:header>
    <style:header-left style:display="false"/>
    <style:header-first style:display="false"/>
    <style:footer>
-    <text:p>Page <text:page-number>1</text:page-number><text:s/>/ <text:page-count>99</text:page-count></text:p>
+	<text:p>Page <text:page-number>1</text:page-number><text:s/>/ <text:page-count>99</text:page-count></text:p>
    </style:footer>
    <style:footer-left style:display="false"/>
    <style:footer-first style:display="false"/>
@@ -435,70 +443,70 @@ $fods = <<<EOF
   <office:spreadsheet>
    <table:calculation-settings table:automatic-find-labels="false" table:use-regular-expressions="false" table:use-wildcards="true"/>
    <table:table table:name="Feuille1" table:style-name="ta1">
-    <table:table-column table:style-name="co1" table:default-cell-style-name="Default"/>
-    <table:table-column table:style-name="co2" table:default-cell-style-name="Default"/>
-    <table:table-row table:style-name="ro1">
-     <table:table-cell table:style-name="ce1" office:value-type="date" office:date-value="2026-02-01" calcext:value-type="date">
-      <text:p>01/02/26</text:p>
-     </table:table-cell>
-     <table:table-cell office:value-type="float" office:value="3" calcext:value-type="float">
-      <text:p>3</text:p>
-     </table:table-cell>
-    </table:table-row>
-    <table:table-row table:style-name="ro1">
-     <table:table-cell table:style-name="ce2" office:value-type="currency" office:currency="EUR" office:value="1.02" calcext:value-type="currency">
-      <text:p>1,02 €</text:p>
-     </table:table-cell>
-     <table:table-cell/>
-    </table:table-row>
-    <table:table-row table:style-name="ro1">
-     <table:table-cell table:style-name="ce3" office:value-type="percentage" office:value="0.1403" calcext:value-type="percentage">
-      <text:p>14,03 %</text:p>
-     </table:table-cell>
-     <table:table-cell/>
-    </table:table-row>
-    <table:table-row table:style-name="ro1">
-     <table:table-cell table:style-name="ce4" office:value-type="date" office:date-value="2026-01-01T02:02:01" calcext:value-type="date">
-      <text:p>01/01/26 02:02</text:p>
-     </table:table-cell>
-     <table:table-cell/>
-    </table:table-row>
-    <table:table-row table:style-name="ro1">
-     <table:table-cell table:formula="of:=SUM([.B1:.B1])" office:value-type="float" office:value="3" calcext:value-type="float">
-      <text:p>3</text:p>
-     </table:table-cell>
-     <table:table-cell office:value-type="float" office:value="3.0004" calcext:value-type="float">
-      <text:p>3,0004</text:p>
-     </table:table-cell>
-    </table:table-row>
-    <table:table-row table:style-name="ro2">
-     <table:table-cell office:value-type="string" calcext:value-type="string"><text:p>Line 1</text:p><text:p>Line 2</text:p>
-     </table:table-cell>
-     <table:table-cell/>
-    </table:table-row>
+	<table:table-column table:style-name="co1" table:default-cell-style-name="Default"/>
+	<table:table-column table:style-name="co2" table:default-cell-style-name="Default"/>
+	<table:table-row table:style-name="ro1">
+	 <table:table-cell table:style-name="ce1" office:value-type="date" office:date-value="2026-02-01" calcext:value-type="date">
+	  <text:p>01/02/26</text:p>
+	 </table:table-cell>
+	 <table:table-cell office:value-type="float" office:value="3" calcext:value-type="float">
+	  <text:p>3</text:p>
+	 </table:table-cell>
+	</table:table-row>
+	<table:table-row table:style-name="ro1">
+	 <table:table-cell table:style-name="ce2" office:value-type="currency" office:currency="EUR" office:value="1.02" calcext:value-type="currency">
+	  <text:p>1,02 €</text:p>
+	 </table:table-cell>
+	 <table:table-cell/>
+	</table:table-row>
+	<table:table-row table:style-name="ro1">
+	 <table:table-cell table:style-name="ce3" office:value-type="percentage" office:value="0.1403" calcext:value-type="percentage">
+	  <text:p>14,03 %</text:p>
+	 </table:table-cell>
+	 <table:table-cell/>
+	</table:table-row>
+	<table:table-row table:style-name="ro1">
+	 <table:table-cell table:style-name="ce4" office:value-type="date" office:date-value="2026-01-01T02:02:01" calcext:value-type="date">
+	  <text:p>01/01/26 02:02</text:p>
+	 </table:table-cell>
+	 <table:table-cell/>
+	</table:table-row>
+	<table:table-row table:style-name="ro1">
+	 <table:table-cell table:formula="of:=SUM([.B1:.B1])" office:value-type="float" office:value="3" calcext:value-type="float">
+	  <text:p>3</text:p>
+	 </table:table-cell>
+	 <table:table-cell office:value-type="float" office:value="3.0004" calcext:value-type="float">
+	  <text:p>3,0004</text:p>
+	 </table:table-cell>
+	</table:table-row>
+	<table:table-row table:style-name="ro2">
+	 <table:table-cell office:value-type="string" calcext:value-type="string"><text:p>Line 1</text:p><text:p>Line 2</text:p>
+	 </table:table-cell>
+	 <table:table-cell/>
+	</table:table-row>
    </table:table>
    <table:table table:name="Test &lt;&gt; weird sheet name" table:style-name="ta1">
-    <table:table-column table:style-name="co2" table:number-columns-repeated="3" table:default-cell-style-name="Default"/>
-    <table:table-row table:style-name="ro1">
-     <table:table-cell office:value-type="string" calcext:value-type="string">
-      <text:p>A</text:p>
-     </table:table-cell>
-     <table:table-cell office:value-type="string" calcext:value-type="string">
-      <text:p>B</text:p>
-     </table:table-cell>
-     <table:table-cell/>
-    </table:table-row>
-    <table:table-row table:style-name="ro1">
-     <table:table-cell office:value-type="float" office:value="1" calcext:value-type="float">
-      <text:p>1</text:p>
-     </table:table-cell>
-     <table:table-cell office:value-type="float" office:value="2" calcext:value-type="float">
-      <text:p>2</text:p>
-     </table:table-cell>
-     <table:table-cell office:value-type="float" office:value="3" calcext:value-type="float">
-      <text:p>3</text:p>
-     </table:table-cell>
-    </table:table-row>
+	<table:table-column table:style-name="co2" table:number-columns-repeated="3" table:default-cell-style-name="Default"/>
+	<table:table-row table:style-name="ro1">
+	 <table:table-cell office:value-type="string" calcext:value-type="string">
+	  <text:p>A</text:p>
+	 </table:table-cell>
+	 <table:table-cell office:value-type="string" calcext:value-type="string">
+	  <text:p>B</text:p>
+	 </table:table-cell>
+	 <table:table-cell/>
+	</table:table-row>
+	<table:table-row table:style-name="ro1">
+	 <table:table-cell office:value-type="float" office:value="1" calcext:value-type="float">
+	  <text:p>1</text:p>
+	 </table:table-cell>
+	 <table:table-cell office:value-type="float" office:value="2" calcext:value-type="float">
+	  <text:p>2</text:p>
+	 </table:table-cell>
+	 <table:table-cell office:value-type="float" office:value="3" calcext:value-type="float">
+	  <text:p>3</text:p>
+	 </table:table-cell>
+	</table:table-row>
    </table:table>
    <table:named-expressions/>
   </office:spreadsheet>
@@ -935,6 +943,7 @@ SwECFAAUAAgICABttz5cnx2KqjIBAAAsBAAAFQAAAAAAAAAAAAAAAABjKQAATUVUQS1JTkYvbWFu
 aWZlc3QueG1sUEsFBgAAAAARABEAZQQAANgqAAAAAA==
 EOF;
 
+test_number_format();
 test_reader($fods);
 test_reader(base64_decode($ods));
 test_reader_span(base64_decode($ods_span_merged));

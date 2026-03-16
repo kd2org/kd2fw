@@ -367,7 +367,7 @@ class Reader extends \KD2\Office\Calc\Reader
 						$formats = $this->number_formats[$s];
 					}
 
-					$value = $this->formatNumber($value, $formats);
+					$value = $this->formatExcelNumber($value, $formats);
 				}
 
 				$out[$num - 1] = $value;
@@ -421,7 +421,7 @@ class Reader extends \KD2\Office\Calc\Reader
 		return true;
 	}
 
-	public function formatNumber(string $number, ?array $formats)
+	public function formatExcelNumber(string $number, ?array $formats)
 	{
 		$value = $this->applyNumberFormat($number, $formats);
 

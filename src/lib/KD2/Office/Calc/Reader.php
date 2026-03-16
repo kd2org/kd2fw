@@ -183,18 +183,14 @@ class Reader
 				$attributes = $cell->attributes(self::NS_OFFICE);
 				$type = (string) ($attributes['value-type'] ?? 'string');
 
-				// FIXME: other currency, percentage…
-				if ($type === 'float'
-					|| $type === 'percentage'
-					|| $type === 'currency') {
-					$value = (string) $attributes['value'];
-
-					if (ctype_digit($value)) {
-						$value = (int) $value;
-					}
-					else {
-						$value = (float) $value;
-					}
+				if ($type === 'float') {
+					$value = $this->formatNumber((string) $attributes['value'], $this->getInnerText($cell));
+				}
+				elseif ($type === 'currency') {
+					$value = (float) $attributes['value'];
+				}
+				elseif ($type === 'percentage') {
+					$value = sprintf('%.2f%%', floatval($attributes['value'])*100);
 				}
 				elseif ($type === 'boolean') {
 					$type = 'bool';
@@ -204,14 +200,7 @@ class Reader
 					$value = (string) $attributes['date-value'];
 				}
 				else {
-					$value = '';
-
-					foreach ($cell->xpath('.//text:p') as $p) {
-						$p = dom_import_simplexml($p);
-						$value .= (string) $p->nodeValue . "\n";
-					}
-
-					$value = rtrim($value);
+					$value = $this->getInnerText($cell);
 				}
 
 				if ($detailed) {
@@ -245,5 +234,81 @@ class Reader
 
 			yield $out;
 		}
+	}
+
+	/**
+	 * Returns a number, either as an integer or float if it is a simple number,
+	 * or as a string if it is specially formatted.
+	 * We are skipping reimplementing the complex number formatting and styling,
+	 * by just reusing the text representation that should be inside the tag.
+	 * @return int|float|string
+	 */
+	public function formatNumber(string $value, string $formatted_value)
+	{
+		if ((int) $value == $value) {
+			$value = (int) $value;
+		}
+		else {
+			$value = (float) $value;
+		}
+
+		// Protect us from bad implementations that would only fill office:value
+		// and not the tag text content
+		if ($formatted_value === '') {
+			return $value;
+		}
+
+		// Try to return early if possible for simple values, eg. 42 == "42"
+		if (is_int($value)
+			&& strlen($value) === strlen($formatted_value)
+			&& $value == $formatted_value) {
+			return $value;
+		}
+
+		$simple = str_replace(' ', '', $formatted_value);
+
+		if (strpos($value, '.') < strpos($value, ',')) {
+			// Remove thousands separator in english format: 1,042.42 -> 1042.42
+			$simple = str_replace(',', '', $simple);
+		}
+		else {
+			// remove thousands separator in international format: 1.042,42
+			$simple = str_replace('.', '', $simple);
+			// replace decimal separator
+			$simple = str_replace(',', '.', $simple);
+		}
+
+		if (false !== strpos($simple, '.')) {
+			// Remove zeros after the decimal separator
+			$simple = preg_replace('/0+$/', '', $simple);
+		}
+
+		$simple = preg_replace('/\.$/', '', $simple);
+
+		// When removing spaces, dots and commas from formatted value,
+		// if it matches the raw value, and has the same length,
+		// it means this is basic number formatting
+		// this shouldn't match "01 02 03 04 05" (phone number)
+		// but should match "1 024,42" (basic number with thousands and decimals separator)
+		// or "208 123 024"
+		if (strlen($value) === strlen($simple)
+			&& ((int) $simple === $value || (float) $simple === $value)) {
+			return $value;
+		}
+
+		// If it isn't simple number formatting, just return the formatted number as a string
+		return $formatted_value;
+	}
+
+	protected function getInnerText(SimpleXMLElement $element): string
+	{
+		$value = '';
+
+		foreach ($element->xpath('.//text:p') as $p) {
+			$p = dom_import_simplexml($p);
+			$value .= (string) $p->nodeValue . "\n";
+		}
+
+		return rtrim($value);
 	}
 }

@@ -56,7 +56,7 @@ function test_number_formats()
 		$formats = $r->parseNumberFormats($raw_format);
 
 		foreach ($tests as $number => $result) {
-			Test::strictlyEquals($result, $r->formatNumber($number, $formats), 'Error in format: ' . $raw_format);
+			Test::strictlyEquals($result, $r->formatExcelNumber($number, $formats), 'Error in format: ' . $raw_format);
 		}
 	}
 }
