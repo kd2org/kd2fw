@@ -11,12 +11,14 @@ class Reader extends \KD2\Office\Calc\Reader
 {
 	protected ?ZipReader $zip = null;
 	protected ?string $workbook_path = null;
-	protected ?string $styles_path = null;
+	protected ?string $formats_path = null;
 	protected ?string $strings_path = null;
+	protected ?string $styles_path = null;
 	protected ?int $active_sheet_index = null;
 
 	protected bool $date1904 = false;
-	protected ?array $date_styles = null;
+	protected ?array $number_formats = null;
+	protected ?array $date_formats = null;
 	protected ?array $strings = null;
 	protected ?array $sheets = null;
 
@@ -24,11 +26,13 @@ class Reader extends \KD2\Office\Calc\Reader
 
 	/**
 	 * Default Excel date formats
-	 * @see https://hexdocs.pm/xlsxir/number_styles.html
+	 * @see https://hexdocs.pm/xlsxir/number_formats.html
 	 */
 	const DEFAULT_DATE_FORMAT_IDS = [14, 15, 16, 17, 18, 19, 20, 21, 22, 27, 30, 36, 45, 46, 47, 50, 57];
 
-	const DATE_TEMPLATE_TOKENS = [
+	const DEFAULT_NUMBER_FORMAT_IDS = [0, 1, 2, 3, 4, 9, 10, 11, 12, 13, 37, 38, 39, 40, 44, 48, 49, 59, 60, 61, 62, 67, 68, 69, 70];
+
+	const DATE_FORMAT_TOKENS = [
 		// Seconds (min two digits). Example: "05".
 		'ss',
 		// Minutes (min two digits). Example: "05". Could also be "Months". Weird.
@@ -176,7 +180,8 @@ class Reader extends \KD2\Office\Calc\Reader
 			];
 		}
 
-		$this->date_styles = null;
+		$this->date_formats = null;
+		$this->number_formats = null;
 		$this->strings = null;
 
 		return null;
@@ -309,6 +314,7 @@ class Reader extends \KD2\Office\Calc\Reader
 				$num = $this->getColumnNumber((string) $attributes['r']);
 
 				$t = (string) $attributes['t'];
+				$s = (int) $attributes['s'];
 				$v = null;
 
 				foreach ($cell->children(self::NS_MAIN) as $tag) {
@@ -321,7 +327,7 @@ class Reader extends \KD2\Office\Calc\Reader
 				}
 
 				// Datetime float
-				if ($this->isDate($t, (int) $attributes['s'])) {
+				if ($this->isDate($t, $s)) {
 					$value = $this->parseDateTime((float) $v);
 				}
 				// Boolean
@@ -353,13 +359,15 @@ class Reader extends \KD2\Office\Calc\Reader
 				// Other numbers
 				else {
 					$value = (string) $v;
+					$formats = null;
 
-					if ($value == (int) $value) {
-						$value = (int) $value;
+					if ($s
+						&& !in_array($s, self::DEFAULT_NUMBER_FORMAT_IDS, true)
+						&& array_key_exists($s, $this->number_formats)) {
+						$formats = $this->number_formats[$s];
 					}
-					elseif ($value == (float) $value) {
-						$value = (float) $value;
-					}
+
+					$value = $this->formatNumber($value, $formats);
 				}
 
 				$out[$num - 1] = $value;
@@ -386,26 +394,26 @@ class Reader extends \KD2\Office\Calc\Reader
 	{
 		if (($t === 'n' || $t === '')
 			&& $s > 0
-			&& in_array($s, $this->date_styles, true)) {
+			&& in_array($s, $this->date_formats, true)) {
 			return true;
 		}
 
 		return false;
 	}
 
-	protected function isDateTemplate(string $template): bool
+	protected function isDateFormat(string $format): bool
 	{
-		$template = strtolower($template);
+		$format = strtolower($format);
 
 		// Remove weird prefix and suffix
 		// see https://stackoverflow.com/questions/4730152/what-indicates-an-office-open-xml-cell-contains-a-date-time-value
-		$template = preg_replace('/^\[\$-\d+\]|;@$/', '', $template);
+		$format = preg_replace('/^\[\$-\d+\]|;@$/', '', $format);
 
 		// Split string
-		$parts = preg_split('/\W+/', $template);
+		$parts = preg_split('/\W+/', $format);
 
 		foreach ($parts as $part) {
-			if (!in_array($part, self::DATE_TEMPLATE_TOKENS)) {
+			if (!in_array($part, self::DATE_FORMAT_TOKENS)) {
 				return false;
 			}
 		}
@@ -413,13 +421,185 @@ class Reader extends \KD2\Office\Calc\Reader
 		return true;
 	}
 
+	public function formatNumber(string $number, ?array $formats)
+	{
+		$value = $this->applyNumberFormat($number, $formats);
+
+		// applyNumberFormat can return NULL if the number is just an int or a float
+		if ($value !== null) {
+			return $value;
+		}
+
+		if ($number == (int) $number) {
+			$number = (int) $number;
+		}
+		elseif ($number == (float) $number) {
+			$number = (float) $number;
+		}
+
+		return $number;
+	}
+
+	public function applyNumberFormat(string $number, ?array $formats)
+	{
+		if (null === $formats) {
+			return null;
+		}
+
+		// String literal
+		if (array_key_exists(3, $formats) && !is_numeric($number)) {
+			$format = $formats[3];
+		}
+		// Zero
+		elseif ($number == 0 && array_key_exists(2, $formats)) {
+			$format = $formats[2];
+		}
+		// Negative number
+		elseif ($number < 0 && array_key_exists(1, $formats)) {
+			$format = $formats[1];
+		}
+		// Positive and other cases
+		else {
+			$format = $formats[0];
+		}
+
+		// Fallback to automatic handling
+		if ($format === null) {
+			return null;
+		}
+		// Text
+		elseif ($format === '@') {
+			return $number;
+		}
+		// Skip complex formatting
+		elseif ($format === '0') {
+			return $number < PHP_INT_MAX ? (int) $number : preg_replace('/\..*$/', '', $number);
+		}
+		elseif ($format === '0.00') {
+			return (float) $number;
+		}
+		// Percentage value, we skip complex stuff, most of the times we just want a simple number
+		elseif ($format === '0.00%') {
+			return sprintf('%.2f%%', ($number * 100));
+		}
+
+		// Replace text literal, eg. "Shipped in "@
+		$count = 0;
+		$out = preg_replace('/(?<!\\\\)@/', $number, $format, -1, $count);
+
+		// If a text literal was replaced, this means it's not a number, we can stop here
+		if ($count) {
+			return $out;
+		}
+
+		$number_parts = explode('.', $number);
+		$format_parts = preg_split('/(?<!\\\\)\./', $format);
+		$decimals = '';
+		$digits = [];
+
+		// Replace decimals: we don't accept any weird decimal format, just copy the decimals here
+		if (count($format_parts) > 1) {
+			$decimals = '.' . ($number_part[1] ?? '0');
+		}
+
+		$format = array_reverse(str_split($format_parts[0], 1));
+		$number = str_split($number_parts[0], 1);
+		end($number);
+
+		// reverse walking of string format
+		foreach ($format as $i => $char) {
+			$prev = $format[$i + 1] ?? '';
+
+			if ($prev !== '\\' && $char === '0') {
+				$value = current($number) ?: '0';
+				prev($number);
+			}
+			elseif ($prev !== '\\' && ($char === '#' || $char === '?')) {
+				$value = current($number);
+				prev($number);
+			}
+			elseif ($char === '\\') {
+				$value = '';
+			}
+			else {
+				$value = $char;
+			}
+
+			$digits[] = $value;
+		}
+
+		return implode('', array_reverse($digits)) . $decimals;
+	}
+
+	public function parseNumberFormats(string $formats): array
+	{
+		// Split parts: positive;negative;zero;text
+		$formats = explode(';', $formats);
+		$formats = array_map([$this, 'parseNumberFormat'], $formats);
+		return $formats;
+	}
+
+	/**
+	 * Prepare a number format code template for later use
+	 * This doesn't parse datetime formats, as this is handled by ::isDateFormat
+	 * @see https://www.ablebits.com/office-addins-blog/custom-excel-number-format/
+	 * @see https://github.com/tealeg/xlsx/blob/master/format_code.go
+	 */
+	public function parseNumberFormat(string $format): ?string
+	{
+		// Replace currency symbols [$<Currency String>-<Language Info>]
+		// Currently unused, as we want to get the actual value, not the currency name
+		//$format = preg_replace('/\[\$(.*?)-\d+\]/', '$1', $format);
+
+		// Remove parts between brackets [$-40C] [Red]...
+		// remove indentation code / repeat with underscore _(
+		// remove left/rightpad with asterisk (*): *= *0
+		// remove thousands separator (,): not interesting
+		// remove scientific notation
+		// remove fractions
+		// remove antislash before a minus sign
+		$format = preg_replace('!\[.*?\]|_.|\*.|,|E\+|/|\\\\(?=-)!u', '', $format);
+
+		// unescape quoted text + quote number literals
+		$format = preg_replace_callback('/"(.*?)"/',
+			fn($match) => preg_replace('/[#\?0]/', '\\\\$0', $match[1]),
+			$format);
+
+		$format = preg_replace('/^(?:[€$£]|EUR|GBP|USD|NZD|AUD)/u', '', $format);
+		$format = preg_replace('/(?:[€$£]|EUR|GBP|USD|NZD|AUD)$/u', '', $format);
+
+		// Remove white spaces, parenthesis and brackets
+		$format = trim($format, ' ()[]\\');
+
+		// Quick way to return integer if there are only numbers and no decimal separator
+		if (preg_match('/^-?[0#?]+$/', $format)) {
+			$format = '0';
+		}
+		// Quick way to return float if format code is only numbers and a decimal separator
+		elseif (preg_match('/^-?[0#?]+\.[0#?]+$/', $format)) {
+			$format = '0.00';
+		}
+		// Quick way to get percentage value
+		elseif (preg_match('/(?<!\\\\)%/', $format)) {
+			$format = '0.00%';
+		}
+		// Don't accept weird decimal formatting, handle any decimal number as a float
+		elseif (preg_match('/(?<!\\\\)\./', $format)) {
+			$format = '0.00';
+		}
+
+		return $format;
+	}
+
 	protected function loadStyles(): void
 	{
-		if (isset($this->date_styles)) {
+		if (isset($this->date_formats, $this->number_formats)) {
 			return;
 		}
 
-		$this->date_styles = [];
+		$this->date_formats = [];
+		$this->number_formats = [];
+
 		$date_formats_ids = self::DEFAULT_DATE_FORMAT_IDS;
 
 		$xml = simplexml_load_string($this->zip->fetch($this->styles_path));
@@ -431,14 +611,29 @@ class Reader extends \KD2\Office\Calc\Reader
 		$xml->registerXPathNamespace('a', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
 
 		foreach ($xml->xpath('.//a:numFmts//a:numFmt') as $format) {
-			if ($this->isDateTemplate((string) $format['formatCode'])) {
-				$date_formats_ids[] = (int) $format['numFmtId'];
+			$id = (int) $format['numFmtId'];
+			$code = (string) $format['formatCode'];
+
+			if ($this->isDateFormat($code)) {
+				$date_formats_ids[] = $id;
+			}
+			// Skip style if it's general
+			elseif (false != strpos($code, 'General')) {
+				continue;
+			}
+			elseif (!in_array($id, self::DEFAULT_NUMBER_FORMAT_IDS, true)) {
+				$number_formats[$id] = $this->parseNumberFormats($code);
 			}
 		}
 
-		foreach ($xml->xpath('.//a:cellXfs//a:xf') as $i => $style) {
-			if (in_array((int) $style['numFmtId'], $date_formats_ids)) {
-				$this->date_styles[] = $i;
+		foreach ($xml->xpath('.//a:cellXfs//a:xf') as $i => $format) {
+			$id = (int) $format['numFmtId'];
+
+			if (in_array($id, $date_formats_ids, true)) {
+				$this->date_formats[] = $i;
+			}
+			elseif (array_key_exists($id, $number_formats)) {
+				$this->number_formats[$i] = $number_formats[$id];
 			}
 		}
 
