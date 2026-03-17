@@ -292,7 +292,9 @@ class Reader extends \KD2\Office\Calc\Reader
 		$empty_rows_count = 0;
 		$i = 0;
 
-		foreach ($xml->sheetData[0]->children(self::NS_MAIN) as $row) {
+		$sheet = $xml->xpath('.//a:sheetData')[0];
+
+		foreach ($sheet->children(self::NS_MAIN) as $row) {
 			if ($row->getName() !== 'row') {
 				continue;
 			}
