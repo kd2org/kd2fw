@@ -612,6 +612,8 @@ class Reader extends \KD2\Office\Calc\Reader
 
 		$xml->registerXPathNamespace('a', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
 
+		$number_formats = [];
+
 		foreach ($xml->xpath('.//a:numFmts//a:numFmt') as $format) {
 			$id = (int) $format['numFmtId'];
 			$code = (string) $format['formatCode'];
