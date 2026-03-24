@@ -284,7 +284,9 @@ class Reader extends \KD2\Office\Calc\Reader
 		}
 
 		if (!$columns_count) {
-			throw new \LogicException('This sheet has no columns');
+			// No columns = empty sheet
+			// Yes this might happen: a sheet with thousands of empty rows... Fuck you Microsoft.
+			return;
 		}
 
 		// Fill empty cells, as Excel doesn't provide <c> elements for empty cells
