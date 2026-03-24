@@ -51,7 +51,9 @@ class OFXParser
 		$xml = simplexml_load_string($str, 'SimpleXMLElement', LIBXML_NOENT | LIBXML_DTDLOAD | LIBXML_DTDATTR);
 
 		if ($errors = libxml_get_errors()) {
+			var_dump($str);
 			foreach ($errors as &$error) {
+				var_dump($error);
 				$error = sprintf('Line %d, column %d: %s', $error->message, $error->line, $error->column);
 			}
 			unset($error);
@@ -64,7 +66,7 @@ class OFXParser
 
 	public function convertSGMLToXML(string $str): string
 	{
-		if (str_contains($str, '<?xml')) {
+		if (false !== strpos($str, '<?xml')) {
 			return $str;
 		}
 
@@ -79,7 +81,7 @@ class OFXParser
 		$str = preg_replace("/\r\n|\r/", "\n", $str);
 
 		// Make sure all the tags are enclosed
-		$str = preg_replace('/<(\w+)>(?:[^<\n]+)(?!<\/\1>)/i', '\0</\1>', $str);
+		$str = preg_replace('/<(\w+)>(?:[^<\n]+)(?!<\/\1>)$/im', '$0</$1>', $str);
 
 		// Escape ampersands
 		$str = preg_replace('/&(?!#?[a-z0-9]+;)/', '&amp;', $str);
@@ -100,10 +102,41 @@ class OFXParser
 		return $out;
 	}
 
-	protected function parseAccount(SimpleXMLElement $xml): \stdClass
+	protected function flattenXML(SimpleXMLElement $xml)
+	{
+		$out = null;
+
+		foreach ($xml->children() as $name => $child) {
+			$out ??= [];
+			$child_array = $this->flattenXML($child);
+
+			if (!isset($out[$name])) {
+				$out[$name] = $child_array;
+				continue;
+			}
+
+            if (!is_array($out[$name]) || !array_is_list($out[$name])) {
+                $out[$name] = [$out[$name]];
+            }
+
+            $out[$name][] = $child_array;
+		}
+
+		if (null !== $out) {
+			return (object) $out;
+		}
+
+		if (empty($xml)) {
+			return null;
+		}
+
+		return (string) $xml;
+	}
+
+	protected function parseAccount(SimpleXMLElement $xml): stdClass
 	{
 		// Convert to object, this avoids having to cast everything as string
-		$xml = json_decode(json_encode($xml));
+		$xml = $this->flattenXML($xml);
 
 		$currency = $xml->CURDEF ?? null;
 
@@ -134,13 +167,9 @@ class OFXParser
 		// Prepend FR76 to get the IBAN in France
 		$account->full_number = (string) $account->bank . (string) $account->branch . (string) $account->number . (string) $account->key;
 
-		if ($list = ($xml->BANKTRANLIST->STMTTRN ?? null)) {
-			// is for making sure that we have an array even if there is only one XML item
-			// this is due to the json_encode/json_decode trick above
-			if (is_object($list)) {
-				$list = [$list];
-			}
-
+		if (!empty($xml->BANKTRANLIST->STMTTRN)) {
+			// Make sure STMTTRN is an array, even if there is only one item
+			$list = is_object($xml->BANKTRANLIST->STMTTRN) ? [$xml->BANKTRANLIST->STMTTRN] : $xml->BANKTRANLIST->STMTTRN;
 			$account->statement->transactions = $this->parseTransactions($list, $currency);
 		}
 
@@ -191,7 +220,7 @@ class OFXParser
 			return strtr($str, ['.' => '', ',' => '.']);
 		}
 
-		return str_replace(',', '', $str);
+		return str_replace([',', '+'], '', $str);
 	}
 
 	protected function parseDateTime(?string $date, ?string $currency): ?DateTimeInterface
