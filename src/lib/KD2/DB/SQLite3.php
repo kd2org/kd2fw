@@ -415,6 +415,28 @@ class SQLite3 extends DB
 		}
 	}
 
+	public function iterateRestricted(?array $allowed, string $query, ...$args)
+	{
+		$st = $this->prepareRestricted($allowed, $query);
+		$res = $this->execute($st, ...$args);
+
+		while ($row = $res->fetchArray(\SQLITE3_ASSOC)) {
+			yield (object) $row;
+		}
+
+		$res->finalize();
+
+		return;
+	}
+
+	/**
+	 * @deprecated use prepareRestricted instead
+	 */
+	public function protectSelect(?array $allowed, string $query): \SQLite3Stmt
+	{
+		return $this->prepareRestricted($allowed, $query);
+	}
+
 	/**
 	 * Returns a statement after having checked a query is a SELECT,
 	 * doesn't seem to contain anything that could help an attacker,
@@ -427,7 +449,7 @@ class SQLite3 extends DB
 	 * @param  string $query   SQL query
 	 * @return \SQLite3Stmt
 	 */
-	public function protectSelect(?array $allowed, string $query)
+	public function prepareRestricted(?array $allowed, string $query): \SQLite3Stmt
 	{
 		$query = trim($query, "\n\t\r ;");
 
@@ -483,6 +505,7 @@ class SQLite3 extends DB
 					return \SQLite3::OK;
 				});
 			}
+			// FIXME: remove when migrating to PHP 8.0+
 			else {
 				static $forbidden = ['ALTER', 'ADD', 'ATTACH', 'CREATE', 'COMMIT', 'CREATE', 'DELETE', 'DETACH', 'DROP', 'INSERT', 'PRAGMA', 'REINDEX', 'RENAME', 'REPLACE', 'ROLLBACK', 'SAVEPOINT', 'SET', 'TRIGGER', 'UPDATE', 'VACUUM', 'WITH'];
 
@@ -1218,13 +1241,18 @@ class SQLite3 extends DB
 		return $fk;
 	}
 
-	public function getTableSchema(string $name): array
+	public function getTableSchema(string $name): ?array
 	{
-		$fk = $this->getTableForeignKeys($name);
 		$table = ['name' => $name, 'comment' => null, 'columns' => []];
 
 		$name = $this->quote($name);
 		$schema = $this->db->querySingle(sprintf('SELECT sql FROM sqlite_master WHERE name = %s AND type = \'table\';', $name));
+
+		if (!$schema) {
+			return null;
+		}
+
+		$fk = $this->getTableForeignKeys($name);
 
 		if (preg_match('/CREATE\s+TABLE\s+(?s:(?!\(|--).*?)--[ ]*(.+)$\s*\(/m', $schema, $match)) {
 			$table['comment'] = trim($match[1]);
