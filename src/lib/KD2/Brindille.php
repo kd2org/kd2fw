@@ -1060,7 +1060,7 @@ class Brindille
 		return null;
 	}
 
-	static public function printVariable($var, bool $with_keys = true, int $indent = 0)
+	static public function printVariable($var, bool $with_keys = true, int $indent = 0): string
 	{
 		static $char = '    ';
 
@@ -1146,8 +1146,8 @@ class Brindille
 		try {
 			return call_user_func($this->_functions[$name], $params, $this, $line);
 		}
-		catch (\Exception $e) {
-			throw new Brindille_Exception(sprintf("line %d: function '%s' has returned an error: %s\nParameters: %s", $line, $name, $e->getMessage(), json_encode($params)));
+		catch (Brindille_Exception $e) {
+			throw new Brindille_Exception(sprintf("line %d: function '%s' has returned an error: %s\nParameters: %s", $line, $name, $e->getMessage(), self::printVariable($params)));
 		}
 	}
 
