@@ -15,6 +15,7 @@ test_invalid_multipart_boundary();
 test_multipart_mixed();
 test_multipart_filename();
 test_body_removal();
+test_extract();
 
 function test_cc()
 {
@@ -293,4 +294,14 @@ function test_multipart_filename()
 	Test::strictlyEquals('application/vnd.oasis.opendocument.spreadsheet', $parts[1]['type']);
 	Test::strictlyEquals('abcd', $parts[1]['content']);
 	Test::strictlyEquals('Calcul fonds de caisse.ods', $parts[1]['name']);
+}
+
+function test_extract()
+{
+	Test::strictlyEquals('Machin', Mail_Message::extractNameFromHeader('Machin <test@machin.fr>'));
+	Test::strictlyEquals('Machin truc', Mail_Message::extractNameFromHeader('"Machin truc" <test@machin.fr>'));
+	Test::strictlyEquals('test', Mail_Message::extractNameFromHeader('<test@machin.fr>'));
+	Test::strictlyEquals('test@machin.fr', Mail_Message::extractAddressFromHeader('Machin <test@machin.fr>'));
+	Test::strictlyEquals('test@machin.fr', Mail_Message::extractAddressFromHeader('"Machin truc" <test@machin.fr>'));
+	Test::strictlyEquals('test@machin.fr', Mail_Message::extractAddressFromHeader('<test@machin.fr>'));
 }

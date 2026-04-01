@@ -223,16 +223,16 @@ class Mail_Message
 	static public function extractNameFromHeader(string $value): string
 	{
 		if (preg_match('/(["\'])(.+?)\1/', $value, $match)) {
-			return $match[2];
+			return trim($match[2]);
 		}
 		elseif (preg_match('/\\((.+?)\\)/', $value, $match)) {
-			return $match[1];
+			return trim($match[1]);
 		}
 		elseif (preg_match('/^(.+?)</', $value, $match)) {
-			return $match[1];
+			return trim($match[1]);
 		}
 		elseif (($pos = strpos($value, '@')) > 0) {
-			return trim(substr($value, 0, $pos));
+			return trim(substr($value, 0, $pos), " \n\r\t<>");
 		}
 		else {
 			return $value;
