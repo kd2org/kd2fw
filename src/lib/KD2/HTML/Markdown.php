@@ -165,7 +165,6 @@ class Markdown extends Parsedown
 				continue;
 			}
 
-			$value = $value ? htmlspecialchars($value) : '';
 			$attributes[$key] = $value;
 		}
 
@@ -182,7 +181,7 @@ class Markdown extends Parsedown
 				return null;
 			}
 
-			$attributes['src'] = htmlspecialchars_decode($attributes['src']);
+			$attributes['src'] = $attributes['src'];
 			$attributes['referrerpolicy'] = 'no-referrer';
 			$attributes['sandbox'] = 'allow-same-origin allow-scripts allow-popups allow-forms allow-modals';
 			$attributes['frameborder'] = 0;
