@@ -290,6 +290,7 @@ class Brindille
 			fn ($in, $else) => empty($in) || (is_string($in) && trim($in) === '') ? $else : $in,
 			[null, null]);
 		$this->registerModifier('rawurlencode', 'rawurlencode', ['string+']);
+		$this->registerModifier('rawurldecode', 'rawurldecode', ['string+']);
 		$this->registerModifier('nl2br', 'nl2br', ['string+']);
 		$this->registerModifier('strip_tags', 'strip_tags', ['string+', 'string|array']);
 
