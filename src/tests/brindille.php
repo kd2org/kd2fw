@@ -122,6 +122,25 @@ function test_if()
 	Test::equals('yep', $b->render('{{if "%s"|args:"lol" == "lol" }}yep{{/if}}'));
 	Test::equals('yep', $b->render('{{if "%s"|args:"lol" === "lol" }}yep{{/if}}'));
 	Test::equals('yep', $b->render('{{if "%s"|args:"lol" !== "nope" }}yep{{/if}}'));
+
+	Test::exception(Brindille_Exception::class, function () use ($b) {
+		$b->render('{{if true && }}yep{{/if}}');
+	});
+	Test::exception(Brindille_Exception::class, function () use ($b) {
+		$b->render('{{if && true }}yep{{/if}}');
+	});
+	Test::exception(Brindille_Exception::class, function () use ($b) {
+		$b->render('{{if 42 42 }}yep{{/if}}');
+	});
+	Test::exception(Brindille_Exception::class, function () use ($b) {
+		$b->render('{{if 42 === }}yep{{/if}}');
+	});
+	Test::exception(Brindille_Exception::class, function () use ($b) {
+		$b->render('{{if 42 === 42 === }}yep{{/if}}');
+	});
+	Test::exception(Brindille_Exception::class, function () use ($b) {
+		$b->render('{{if === 42 }}yep{{/if}}');
+	});
 }
 
 function test_modifiers()

@@ -1247,16 +1247,22 @@ class Brindille
 					throw new Brindille_Exception(sprintf('Error in "if" block: unexpected "%s" after "%s" at position %d', $token->value, $prev->value, $token->offset));
 				}
 			}
+			// '!' must always be followed by a variable or a scalar
 			elseif ($token->type === self::T_OPERATOR && $token->value === '!') {
 				if (!$next || ($next->type !== self::T_VAR && $next->type !== self::T_SCALAR)) {
 					throw new Brindille_Exception(sprintf('Error in "if" block: unexpected operator "%s" before "%s" at position %d', $token->value, $prev->value, $token->offset));
 				}
 			}
-			// a non-scalar/variable can only follow a variable/scalar value
-			// eg. "$var && $var === 1" is correct, but "$var && && 1" is not
-			elseif ($token->type !== self::T_SPACE) {
-				if ($prev && !($prev->type === self::T_SCALAR || $prev->type === self::T_VAR)) {
-					throw new Brindille_Exception(sprintf('Error in "if" block: unexpected "%s" after "%s" at position %d', $token->value, $prev->value, $token->offset));
+			// Other operators and && / || must follow and precede a value
+			elseif ($token->type === self::T_OPERATOR || $token->type === self::T_ANDOR) {
+				// Previous token must be a scalar or a variable
+				$prev_is_valid = $prev && ($prev->type === self::T_SCALAR || $prev->type === self::T_VAR);
+				// Next token must be a scalar, or a variable, or a '!' operator
+				$next_is_valid = $next && ($next->type === self::T_SCALAR || $next->type === self::T_VAR
+					|| ($next->type === self::T_OPERATOR && $next->value === '!'));
+
+				if (!$next_is_valid || !$prev_is_valid) {
+					throw new Brindille_Exception(sprintf('Error in "if" block: unexpected "%s" at position %d', $token->value, $token->offset));
 				}
 			}
 
