@@ -141,6 +141,9 @@ function test_if()
 	Test::exception(Brindille_Exception::class, function () use ($b) {
 		$b->render('{{if === 42 }}yep{{/if}}');
 	});
+	Test::exception(Brindille_Exception::class, function () use ($b) {
+		$b->render('{{if (42)}}yep{{/if}}');
+	});
 }
 
 function test_modifiers()
