@@ -1583,8 +1583,11 @@ class Brindille
 		$type ??= ($this->_escape_type ?? 'html');
 		$value ??= '';
 
+		// Cannot escape an array, just return an empty string
+		// We don't throw an error here, as we might just have some code like {{$_GET.search|escape}}
+		// so it might contain an array
 		if ($type !== 'js' && $type !== 'json' && !is_scalar($value)) {
-			throw new Brindille_Exception('Cannot escape an array');
+			return '';
 		}
 
 		switch ($type) {
