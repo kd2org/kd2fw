@@ -162,6 +162,83 @@ class Security
 		return compact('hash', 'spellout');
 	}
 
+	static public function generateMarkovText(string $text, int $max_words): string
+	{
+		$text = str_replace('‘', '\'', $text);
+		preg_match_all('/[\p{L}\d]+(?:[\'⋅—-][\p{L}\d]+)*[\.,]?/u', $text, $match);
+		$text = $match[0];
+		unset($match);
+
+		array_walk($text, function(string &$word) {
+			if (mb_strtoupper($word) !== $word) {
+				$word = mb_strtolower($word);
+			}
+		});
+
+		$chain = [];
+
+		foreach ($text as $i => $word) {
+			$chain[$word] ??= [];
+
+			$next = $text[$i + 1] ?? null;
+
+			if (null === $next) {
+				break;
+			}
+
+			$chain[$word][$next] ??= 0;
+			$chain[$word][$next]++;
+		}
+
+		$weighAndSelect = function (array $block): ?string {
+			if (!count($block)) {
+				return null;
+			}
+
+			$tmp = [];
+
+			foreach ($block as $key => $weight) {
+				for($i = 1; $i <= $weight; $i++) {
+					$tmp[] = $key;
+				}
+			}
+
+			$rand = array_rand($tmp);
+			return $tmp[$rand];
+		};
+
+		$out = '';
+		$count = 0;
+		$closed = true;
+		$word = array_rand($chain);
+
+		while (($word = $weighAndSelect($chain[$word]))
+			&& $count++ <= $max_words) {
+			$w = $word;
+
+			if ($closed) {
+				$w = mb_strtoupper(mb_substr($w, 0, 1)) . mb_substr($w, 1);
+			}
+
+			$out .= $w;
+			$closed = false;
+
+			if (substr($w, -1) === '.') {
+				$closed = true;
+			}
+
+			if ($closed && $count % random_int(3, 5) == 0) {
+				$out .= "\n\n";
+				$closed = true;
+			}
+			else {
+				$out .= ' ';
+			}
+		}
+
+		return $out;
+	}
+
 	/**
 	 * Protects a URL/URI given as an image/link target against XSS attacks
 	 * (at least it tries)
