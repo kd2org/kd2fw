@@ -232,7 +232,7 @@ class BBCode
 			$str = preg_replace('#(?<!\\\\)\[\*\]#', '<li>', $str);
 		}
 
-		// FIXME:
+		// TODO:
 		// [size=10] (px) [size=10(px|em|ft|cm|mm|%...)]
 		// [align=(center|left|right)], [center]
 		// [font=...]

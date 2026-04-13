@@ -296,20 +296,16 @@ abstract class AbstractEntity
 
 		$value ??= $this->$key;
 
-		switch (gettype($value)) { //FIXME: change for get_debug_type and remove old aliases when requiring PHP 8.0+
+		switch (get_debug_type($value)) {
 			case 'bool':
-			case 'boolean': // old alias
 				return (int) $value;
 			case 'array':
 				return json_encode($value);
 			case 'int':
-			case 'integer': // Old alias
 			case 'float':
-			case 'double': // Old alias
 				return $value;
 			case 'string':
 			case 'null':
-			case 'NULL': // old alias
 				return (string) $value;
 			default:
 				if (is_resource($value)) {

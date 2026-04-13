@@ -159,7 +159,7 @@ class JSONSchema
 			return;
 		}
 
-		if (!$this->array_is_list($object)) {
+		if (!array_is_list($object)) {
 			throw new \RuntimeException(sprintf('%s: is an associative array, but "prefixItems" or "items" properties require an indexed array', $name, strtolower(gettype($object))));
 		}
 
@@ -279,23 +279,7 @@ class JSONSchema
 	protected function isAssociativeArrayOrObject($var): bool
 	{
 		return is_object($var)
-			|| (is_array($var) && (!count($var) || !$this->array_is_list($var)));
-	}
-
-	/**
-	 * Poly-fill for array_is_list (PHP 8.1)
-	 */
-	protected function array_is_list(array $array): bool
-	{
-		$i = 0;
-
-		foreach ($array as $k => $v) {
-			if ($k !== $i++) {
-				return false;
-			}
-		}
-
-		return true;
+			|| (is_array($var) && (!count($var) || !array_is_list($var)));
 	}
 
 	protected function validateFormat(string $format, string $object, string $name): void
