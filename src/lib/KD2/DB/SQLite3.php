@@ -496,9 +496,7 @@ class SQLite3 extends DB
 	 * Returns a statement after having checked a query is a SELECT,
 	 * doesn't seem to contain anything that could help an attacker,
 	 * and if $allowed is not NULL, will try to restrict the query to tables
-	 * specified as array keys, and to columns (PHP8+ only) of these tables.
-	 *
-	 * Note that before PHP8+ this is less secure and doesn't restrict columns.
+	 * specified as array keys, and to columns of these tables.
 	 *
 	 * @param  array  $allowed List of allowed tables and columns
 	 * @param  string $query   SQL query
@@ -521,36 +519,7 @@ class SQLite3 extends DB
 		}
 
 		if (null !== $allowed) {
-			// PHP 8+
-			if (method_exists($this->db, 'setAuthorizer')) {
-				$this->setAuthorizer(fn(int $action, ...$args) => self::restrictedAuthorizer($allowed, $action, ...$args));
-			}
-			// FIXME: remove when migrating to PHP 8.0+
-			else {
-				static $forbidden = ['ALTER', 'ADD', 'ATTACH', 'CREATE', 'COMMIT', 'CREATE', 'DELETE', 'DETACH', 'DROP', 'INSERT', 'PRAGMA', 'REINDEX', 'RENAME', 'REPLACE', 'ROLLBACK', 'SAVEPOINT', 'SET', 'TRIGGER', 'UPDATE', 'VACUUM', 'WITH'];
-
-				$parsed = $this->parseQuery($query);
-
-				foreach ($parsed as $keyword) {
-					if (in_array($keyword, $forbidden)) {
-						throw new DB_Exception('Unauthorized keyword: ' . $keyword);
-					}
-
-					foreach ($keyword->tables as $table) {
-						if (!array_key_exists($table, $allowed) && !array_key_exists('*', $allowed)) {
-							throw new DB_Exception('Unauthorized table: ' . $table);
-						}
-
-						if (array_key_exists('!' . $table, $allowed)) {
-							throw new DB_Exception('Unauthorized table: ' . $table);
-						}
-
-						//if (null !== $allowed[$table]) {
-						//	throw new \InvalidArgumentException('Cannot protect columns without PHP 8+');
-						//}
-					}
-				}
-			}
+			$this->setAuthorizer(fn(int $action, ...$args) => self::restrictedAuthorizer($allowed, $action, ...$args));
 		}
 
 		try {
@@ -1017,19 +986,7 @@ class SQLite3 extends DB
 
 	public function openBlob(string $table, string $column, int $rowid, string $dbname = 'main', int $flags = \SQLITE3_OPEN_READONLY)
 	{
-		if (\PHP_VERSION_ID >= 70200)
-		{
-			return $this->db->openBlob($table, $column, $rowid, $dbname, $flags);
-		}
-		else
-		{
-			if ($flags != \SQLITE3_OPEN_READONLY)
-			{
-				throw new \Exception('Cannot open blob with read/write. Only available from PHP 7.2.0');
-			}
-
-			return $this->db->openBlob($table, $column, $rowid, $dbname);
-		}
+		return $this->db->openBlob($table, $column, $rowid, $dbname, $flags);
 	}
 
 	/**
