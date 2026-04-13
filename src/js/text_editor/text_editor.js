@@ -9,14 +9,13 @@
 		this.id = id;
 		this.textarea = document.getElementById(id);
 		this.shortcuts = [];
+		this.supportsExecCommand = null;
 
 		// Browser too old
 		if (!('selectionStart' in this.textarea))
 		{
 			return false;
 		}
-
-		this.preventKeyPress = false;
 
 		this.textarea.addEventListener('keydown', this.keyEvent.bind(this), true);
 		this.textarea.addEventListener('keypress', this.keyEvent.bind(this), true);
@@ -26,14 +25,6 @@
 
 	textEditor.prototype.keyEvent = function (e) {
 		var e = e || window.event;
-		// Event propagation cancellation between keydown/keypress
-		// Firefox/Gecko has a bug here where it's not stopping propagation
-		// to keypress when keydown asks cancellation
-		if (this.preventKeyPress && e.type == 'keypress')
-		{
-			this.preventKeyPress = false;
-			return this.preventDefault(e);
-		}
 
 		for (var key in this.shortcuts)
 		{
@@ -65,11 +56,6 @@
 
 			var r = shortcut.callback.call(this, e, key);
 
-			if (e.type == 'keydown' && r)
-			{
-				this.preventKeyPress = true;
-			}
-
 			return r ? this.preventDefault(e) : true;
 		}
 
@@ -81,15 +67,18 @@
 		if (e.defaultPrevented || !e.key) {
 			// Do nothing if the event was already processed
 			// or if KeyboardEvent is not supported
-			return;
+			return false;
 		}
 
-		return (e.key.toLowerCase() == key.toLowerCase());
+		key = key.toLowerCase();
+
+		return (e.key.toLowerCase() == key) ? key : false;
 	};
 
 	textEditor.prototype.preventDefault = function (e) {
        	if (e.preventDefault) e.preventDefault();
        	if (e.stopPropagation) e.stopPropagation();
+       	if (e.stopImmediatePropagation) e.stopImmediatePropagation();
       	e.returnValue = false;
       	e.cancelBubble = true;
 		return false;
@@ -105,19 +94,45 @@
 
 	textEditor.prototype.replaceSelection = function (selection, replace_str)
 	{
-		var e = this.textarea;
 		var start_pos = selection.start;
 		var end_pos = start_pos + replace_str.length;
-		e.value = e.value.substr(0, start_pos) + replace_str + e.value.substr(selection.end, e.value.length);
+
+		this.setSelection(start_pos, selection.end);
+
+		this.insert(replace_str);
+
 		this.setSelection(start_pos, end_pos);
+
 		return {start: start_pos, end: end_pos, length: replace_str.length, text: replace_str};
+	};
+
+	textEditor.prototype.insert = function (text) {
+		if (this.supportsExecCommand === true) {
+			document.execCommand("insertText", false, text);
+		}
+		else if (this.supportsExecCommand === null) {
+			// We still don't know if document.execCommand("insertText") is supported
+			let value = this.textarea.value;
+
+			document.execCommand("insertText", false, text);
+
+			this.supportsExecCommand = value !== this.textarea.value;
+		}
+
+		if (this.supportsExecCommand === false) {
+			this.textarea.setRangeText(text, this.textarea.selectionStart, this.textarea.selectionEnd, "end");
+		}
+
+		return this.supportsExecCommand;
 	};
 
 	textEditor.prototype.insertAtPosition = function (start_pos, str, new_pos)
 	{
 		var end_pos = start_pos + str.length;
-		var e = this.textarea;
-		e.value = e.value.substr(0, start_pos) + str + e.value.substr(start_pos, e.value.length - start_pos);
+
+		this.setSelection(start_pos, start_pos);
+		this.insert(str);
+
 		if (!new_pos) new_pos = end_pos;
 		return this.setSelection(new_pos, new_pos);
 	};

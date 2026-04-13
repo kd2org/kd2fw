@@ -1,0 +1,153 @@
+Received: from smtp.***.*** ([89.234.186.111])
+	by mail.***.org with esmtps  (TLS1.3) tls TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+	(Exim 4.94.2)
+	(envelope-from <***@***.***>)
+	id 1oqcB2-00ERyK-6o
+	for dev@***.eu; Thu, 03 Nov 2022 16:30:48 +0100
+Received: by smtp.***.*** (Postfix, from userid 5001)
+	id DC2061F28EBB; Thu,  3 Nov 2022 16:30:36 +0100 (CET)
+Date: Thu, 3 Nov 2022 16:30:28 +0100
+From: "MPL ***" <***@***.***>
+To: dev@***.eu
+Subject: Re: [dev] Gestion des envois collectifs
+Message-Id: <20221103163028.6b7e1dc9@kzh.***>
+In-Reply-To: <20221103150948.07e55ae7@platypus>
+References: <20221103102850.61f8050a@kzh.***>
+	<20221103132300.476d2756@platypus>
+	<20221103145053.0347cd99@kzh.***>
+	<20221103150948.07e55ae7@platypus>
+Organization: Miniprogslane
+Mime-Version: 1.0
+Content-Type: multipart/mixed; boundary="MP_/Xw5i1fYz.YXlSK=eetjeHYV"
+X-Sender-Verify: SUCCEEDED (sender exists & accepts mail)
+X-Spam-Score: -2.0
+X-Spam-Score-Int: -19
+X-Spam-Bar: --
+X-Spam-Report: score                  = -2.0
+ bayes-score            = 0.0000
+ bayes-token-summary    = Tokens: new, 32; hammy, 150; neutral, 299; spammy, 0.
+ bayes-token-spam-count = 0
+ bayes-token-ham-count  = 150
+ bayes-token-spam       = 
+ bayes-token-ham        = ***, DELETE, UD:fossil.***.org, fossil***org, fossil.***.org, UD:log, manip, n'aurait, provisoire, HTo:U*dev, lexport, errorlog, l'export, lutilise, supprimes, l'utilise
+ bayes-auto-learned     = ham autolearn_force=no -0.098
+ last-external-host     = smtp.***.*** [89.234.186.111] HELO=smtp.***.***
+ possible-languages     = fr
+ relayed-countries      = _RELAYCOUNTRY_
+ ---- ---------------------- --------------------------------------------------
+ -1.9 BAYES_00               BODY: L'algorithme Bayésien a évalué la probabilité de
+                             spam entre 0 et 1%
+                             [score: 0.0000]
+  0.0 SPF_HELO_NONE          SPF: HELO does not publish an SPF Record
+ -0.0 SPF_PASS               SPF: sender matches SPF record
+  0.1 URI_HEX                URI: URI hostname has long hexadecimal sequence
+  0.0 MIME_QP_LONG_LINE      RAW: Ligne quoted-printable de plus de 76
+                             caractères
+ -0.1 DKIM_VALID             Message has at least one valid DKIM or DK signature
+ -0.1 DKIM_VALID_AU          Message has a valid DKIM or DK signature from
+                             author's domain
+ -0.1 DKIM_VALID_EF          Message has a valid DKIM or DK signature from
+                             envelope-from domain
+  0.1 DKIM_SIGNED            Message has a DKIM or DK signature, not necessarily
+                             valid
+List-Id: <dev@***.eu>
+List-Unsubscribe: <https://admin.***.org/lists/?l=q>, <mailto:dev-leave@***.eu>
+List-Post: <mailto:dev@***.eu>
+List-Help: <mailto:dev-help@***.eu>
+X-Loop: dev@***.eu
+Precedence: list
+Reply-To: dev@***.eu
+Errors-To: <dev-bounces-n52@***.eu>
+Return-Path: <dev-bounces-n52@***.eu>
+List-Unsubscribe-Post: auto=n52
+
+Bonjour ***/*** ***/***,
+
+En PJ la BDD défaillante !
+
+La requête rejetée :
+
+curl https://u5kvcxa8mm:rplUgI9e7aosenbNM8Tpyw@miniprogslane-***.***.***/api/sql/ -d 'DELETE FROM emails_queue;'
+
+> Il faut configurer *** pour que ça soit lui qui reçoive les bounces, tout est décrit dans la doc :
+> https://fossil.***.org/***/wiki?name=Configuration
+
+Oui, mais *** ne donne pas accès a ces paramétrages. J'ai installé un *** de démo pour l'association et je n'ai eu aucun de ces problèmes mais je ne veux pas qu'ils soient hébergés chez moi car j'ai eu des ennuis de santé et je ne suis plus tout jeune. Je dois donc tout doucement laisser la place aux jeunes !
+
+Encore merci pour tes réponses.
+
+Michel-Patrick
+
+Le Thu, 3 Nov 2022 15:09:48 +0100, ***/*** ***/*** à écrit:
+
+> > En fait, c'est bien tout le problème. Chez ***, je n'ai accès à rien
+> > ni aux logs ni à quoique ce soit d'autre donc que des suppositions.  
+> 
+> Ah ! OK, je pensais que tu étais un sysadmin chez *** :)
+> 
+> > Le système renvoyait systématiquement les adresses en erreur (elles
+> > étaient valides mais n'existaient pas)  
+> 
+> Si c'est toi qui reçois les bounces, c'est que *** ne les reçois
+> pas et que donc il n'y a aucun moyen que ton *** sache qu'une
+> adresse est invalide.
+> 
+> Il faut configurer *** pour que ça soit lui qui reçoive les
+> bounces, tout est décrit dans la doc :
+> https://fossil.***.org/***/wiki?name=Configuration
+> 
+> La doc décrit plusieurs manières de router les bounces vers ***,
+> selon les possibilités que tu as.
+> 
+> > Le système renvoyait en boucle le contenu de la liste d'attente.
+> > Certains se sont lassés au bout de 13 envois et ont commencé à se
+> > manifester auprès de moi et donc j'ai du trouver une parade pour
+> > arrêter le désastre.  
+> 
+> Là c'est pas normal, j'imagine que si le SMTP coupe lors d'un envoi
+> cela peut causer ce souci, mais je n'ai encore jamais rencontré ce
+> souci, mais normalement ça génère une erreur dans le fichier
+> data/error.log, si tu as une copie de ce fichier ça m'aidera à
+> comprendre ce qui se passe.
+> 
+> > La seule solution pour arrêter cela a été d'exporter la BDD, de vider
+> > la table et de la réimporter.  
+> 
+> Si tu as l'export avant modif, envoie-le moi et je regarderais.
+> 
+> > J'ai l'habitude de me sortir de situations plus ou moins bizarres
+> > mais dans ce cas, je cherche un hébergement *** facile a
+> > utiliser par une petite association et qui n'aurait pas besoin de mes
+> > services. C'est pour cela que dans ce cas, il faudrait une solution
+> > pour s'en sortir sans sortir ce type de manip qui est scabreuse.  
+> 
+> Oui tout à fait :)
+> 
+> > J'ai une autre question (j'en profite :-) Pourquoi alors que lorsque
+> > je crée un user sur l'API en Lecture/Ecriture il n'est qu'en lecture.
+> > Si l'écriture est interdite, il ne faut pas proposer l'option à la
+> > création du compte non ?  
+> 
+> Je te confirme que l'accès API en écriture fonctionne, je l'utilise
+> tous les jours :)
+> 
+> Quel est le souci rencontré, sur quelle URL ?
+> 
+
+
+~~ PJ-*** !
+______________________________________________________________________________
+(conservez cette partie intacte dans votre réponse si vous voulez transmettre les documents précédents)
+
+Attention : *** a dépollué ce message. Les pièces jointes ont été retirées et placées dans un dépôt provisoire. Elles seront automatiquement supprimées dans 1 mois. Si elles sont importantes et que vous souhaitez les conserver, vous devez utiliser les liens ci-dessous. Pour mieux comprendre la politique de nos services visitez ***.***
+
+Vos pièces jointes sont à télécharger individuellement ici :
+  * "U-221103163036-0.zip" <https://depot.***.***/f.php?d=1&h=0DDaqXPP&k=b58f02377c7f49bb4b439b08f7a36152>
+
+
+https://***.***/
+______________________________________________________________________________
+~~ PJ-*** ! ~~
+
+-- 
+Liste de discussion entre développeur⋅se⋅s

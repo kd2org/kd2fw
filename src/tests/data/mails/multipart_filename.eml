@@ -1,0 +1,21 @@
+Content-Type: multipart/mixed; boundary="------------pZZ70JPJQjXWBuiQSO6xOzaw"
+MIME-Version: 1.0
+User-Agent: Mozilla Thunderbird
+
+This is a multi-part message in MIME format.
+--------------pZZ70JPJQjXWBuiQSO6xOzaw
+Content-Type: text/plain; charset=UTF-8; format=flowed
+Content-Transfer-Encoding: quoted-printable
+
+XXXX
+
+--------------pZZ70JPJQjXWBuiQSO6xOzaw
+Content-Type: application/vnd.oasis.opendocument.spreadsheet; name="Calcul
+ fonds de caisse.ods"
+Content-Disposition: attachment; filename="Calcul fonds de caisse.ods"
+Content-Transfer-Encoding: base64
+
+YWJjZA==
+
+--------------pZZ70JPJQjXWBuiQSO6xOzaw--
+

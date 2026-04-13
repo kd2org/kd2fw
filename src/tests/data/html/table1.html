@@ -1,0 +1,88 @@
+<html>
+<body>
+<style type="text/css" media="screen,print,spreadsheet">
+table {
+	-spreadsheet-locale: 'fr_FR';
+}
+
+.date1 {
+	-spreadsheet-cell-type: auto;
+	font-size: 24pt;
+}
+
+.date2 {
+	-spreadsheet-cell-type: date;
+	padding: 5mm;
+}
+
+.date3 {
+	-spreadsheet-date-format: long;
+}
+
+.currency1 {
+	-spreadsheet-cell-type: number;
+	-spreadsheet-number-format: float;
+	-spreadsheet-number-negative-color: red;
+}
+
+.currency2 {
+	-spreadsheet-cell-type: number;
+	-spreadsheet-number-format: integer;
+	-spreadsheet-number-negative-color: none;
+}
+
+.currency3 {
+	-spreadsheet-cell-type: currency;
+}
+
+.color {
+	color: #999900;
+}
+
+.bgcolor {
+	background-color: #ff0000;
+}
+
+.rotate {
+	transform: rotate(90deg);
+	border: 2px solid #000000;
+}
+
+tbody td {
+	border: 5px solid #999999;
+}
+</style>
+
+<table>
+	<caption>Compte de résultat</caption>
+	<thead>
+		<tr>
+			<th class="rotate">Titre</th>
+			<td>Date</td>
+			<td>Montant</td>
+		</tr>
+	</thead>
+	<tbody>
+		<tr>
+			<th class="color">Couleur</th>
+			<td class="date1">01/01/2022</td>
+			<td class="currency1">-0,10</td>
+		</tr>
+		<tr>
+			<th class="bgcolor">Fond coloré</th>
+			<td class="date2">01/01/2022</td>
+			<td class="currency2">-0,10</td>
+		</tr>
+		<tr>
+			<th class="bgcolor">Deux<br />lignes</th>
+			<td class="date3">01/01/2022</td>
+			<td class="currency3">-422223,01</td>
+		</tr>
+		<tr>
+			<th colspan="2">Span</th>
+			<td class="currency3">-422223,01</td>
+		</tr>
+	</tbody>
+</table>
+</body>
+</html>

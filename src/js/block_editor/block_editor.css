@@ -1,0 +1,125 @@
+.block-editor, .block-editor * {
+	margin: 0;
+	padding: 0;
+}
+
+.block-editor {
+	font-family: sans-serif;
+	position: relative;
+	user-select: none;
+}
+
+.block-editor .editor {
+	background: #ccc;
+	border: 5px solid #ccc;
+	border-radius: .2em;
+	overflow-y: auto;
+	max-height: 500px;
+}
+
+.block-editor .grid {
+    /* Default grid template: just auto sized columns */;
+    --grid-template: none / repeat(auto-fit, minmax(100px, 1fr));
+    display: grid;
+    grid-template: var(--grid-template);
+    grid-gap: .2rem;
+}
+
+.block-editor .block {
+	margin: .3rem;
+}
+
+.block-editor .block.focus {
+	box-shadow: 0 0 .2rem .1rem blue;
+}
+
+.block-editor .column {
+	margin: 0;
+	min-height: 2rem;
+	background: #ddd;
+	padding-bottom: .8rem;
+}
+
+.block-editor .block input, .block-editor .block textarea {
+	border: none;
+	padding: .2rem .4rem;
+	width: calc(100% - .4rem*2 - 4px);
+	border: 1px solid #999;
+	border-radius: .2rem;
+}
+
+.block-editor .block input:focus, .block-editor .block textarea:focus {
+    box-shadow: 0 0 .2rem .1rem orange;
+    outline: 0;
+}
+
+.block-editor .heading input {
+	font-size: 2em;
+}
+
+.block-editor .text textarea {
+	font-family: sans-serif;
+	overflow: hidden;
+	resize: none;
+}
+
+.block-editor dialog {
+	border: none;
+	box-shadow: 0 0 .2rem .1rem orange;
+	border-radius: .2em;
+	text-align: center;
+	padding: 1rem;
+	position: absolute;
+	margin: auto;
+}
+
+.block-editor dialog button {
+	padding: .2rem .4rem;
+	border: none;
+	border-radius: .2em;
+	font-size: 1.2em;
+	display: block;
+	margin: .3rem;
+	width: calc(100% - .3rem);
+	text-align: left;
+	background: #ccc;
+	cursor: pointer;
+}
+
+.block-editor dialog button:hover {
+	background: #eee;
+	color: darkred;
+}
+
+.block-editor .new-grid .grid {
+	width: 5rem;
+	height: 4rem;
+}
+
+.block-editor .new-grid .buttons {
+	display: flex;
+	flex-direction: row;
+	justify-content: center;
+}
+
+.block-editor .new-grid .grid span {
+	display: block;
+	background: #666;
+	margin: .2rem;
+	height: calc(100% - .4rem);
+}
+
+.block-editor .new-grid .grid:hover span {
+	background: darkred;
+}
+
+.block-editor .toolbar button {
+	margin: 0 .2rem .2rem 0;
+	background: #ccc;
+	cursor: pointer;
+	padding: .2rem .4rem;
+	border: none;
+	border-radius: .2em;
+	font-size: 1.2em;
+
+}

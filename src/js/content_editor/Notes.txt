@@ -1,0 +1,33 @@
+Editeur de contenu de page par blocs en utilisant n'importe quel entrée en HTML
+
+L'idée n'est pas d'avoir du WYSIWYG mais du WYSIWYM
+
+Blocs reconnus :
+* Entêtes <h1-6>
+* Figures -> img
+* Paragraphe de texte
+* Citation (blockquote)
+* Code (pre)
+* Tableaux (reprendre éditeur de tableau de RL.org)
+* Listes ordonnées et non ordonnées
+* Blocs custom (par exemple tableau de résultat d'une requête SQL)
+
+Import depuis un arbre DOM
+Export : skrivML
+
+Le formatage en ligne (gras, italique, lien, etc.) se fait depuis le contenu du bloc paragraphe
+
+Possibilité de drag-drop les blocs
+Possibilité de changer le type de bloc
+
+Design explicite (pas d'icône qui n'évoque rien)
+
+Bloc fantôme à la fin qui propose d'insérer un nouveau bloc (intuitif)
+
+Utilisation de templates HTML : https://developer.mozilla.org/en-US/docs/Web/Web_Components
+
+L'idée est d'avoir un truc entre Content Tools : http://getcontenttools.com/ et TypeMill https://typemill.net/
+
+https://dev.to/trendschau/creating-a-block-editor-with-markdown-and-vuejs-o14
+
+TypeMill est pas mal mais un peu bugué

@@ -1,0 +1,93 @@
+X-Auth-Id: ****@***.com
+From: "tresorier ***** Roland" <****@***.com>
+Content-Type: multipart/alternative;
+	boundary="Apple-Mail=_C2E9024A-0838-4346-979E-69ECA74FB240"
+Mime-Version: 1.0 (Mac OS X Mail 16.0 \(3696.120.41.1.1\))
+Date: Sun, 6 Nov 2022 11:18:04 +0100
+Subject: Anomalie sur =?UTF-8?B?QXJkw6hjaGUgQWZyaXF1ZSBTb2xpZGFpcmVz?=
+Message-Id: <591B665A-FAF8-49B4-AFCE-****@***.com>
+To: "*****" <****@***.eu>
+X-Mailer: Apple Mail (2.3696.120.41.1.1)
+X-Classification-Id: 947affe2-403d-4b06-b3d4-76b333398ddd-1-1
+X-Sender-Verify: SUCCEEDED (sender exists & accepts mail)
+X-Spam-Score: -1.8
+X-Spam-Score-Int: -17
+X-Spam-Bar: -
+X-Spam-Report: score                  = -1.8
+ bayes-score            = 0.0000
+ bayes-token-summary    = Tokens: new, 27; hammy, 41; neutral, 73; spammy, 0.
+ bayes-token-spam-count = 0
+ bayes-token-ham-count  = 41
+ bayes-token-spam       = 
+ bayes-token-ham        = H*ct:MHil, H*ct:HpplH, un-e, H*F:U*tresorier, HMime-Version:16.0, H*x:sk:2.3696., H*UA:sk:2.3696., corrigÃ©e, HMime-Version:3696.120.41.1.1, rÃ©-essayer, *****, *****, notifiÃ©-e, dÃ©solÃ©, H*ct:HHHHHHHHHHHH, H*RU:sk:tresori
+ bayes-auto-learned     = no autolearn_force=no 0.1
+ possible-languages     = fr
+ relayed-countries      = _RELAYCOUNTRY_
+ ---- ---------------------- --------------------------------------------------
+ -1.9 BAYES_00               BODY: L'algorithme Bayésien a évalué la probabilité de
+                             spam entre 0 et 1%
+                             [score: 0.0000]
+ -0.0 RCVD_IN_MSPIKE_H2      RBL: Average reputation (+2)
+                             [173.203.187.90 listed in wl.mailspike.net]
+  0.0 SPF_HELO_NONE          SPF: HELO does not publish an SPF Record
+ -0.0 SPF_PASS               SPF: sender matches SPF record
+  0.1 HTML_MESSAGE           BODY: HTML inclus dans le message
+List-Id: <****@***.eu>
+List-Unsubscribe: <https://admin.*****.org/lists/?l=o>, <mailto:*****-****@***.eu>
+List-Post: <mailto:****@***.eu>
+List-Help: <mailto:*****-****@***.eu>
+X-Loop: ****@***.eu
+Precedence: list
+Reply-To: ****@***.com, ****@***.eu
+Errors-To: <*****-bounces-****@***.eu>
+Return-Path: <*****-bounces-****@***.eu>
+List-Unsubscribe-Post: auto=flx
+
+This is a message in multipart MIME format. 
+Your mail client should not be displaying this. 
+Consider upgrading your mail client to view this message correctly.
+
+--==_=_636789e485ed7-f057e091cb
+Content-Type: multipart/alternative; boundary="alt=_-===_=_636789e485ed7-f057e091cb"
+
+
+--alt=_-===_=_636789e485ed7-f057e091cb
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+Roland *****
+
+
+D=C3=A9sol=C3=A9 mais le serveur a rencontr=C3=A9 une erreur interne et ne =
+peut r=C3=A9pondre =C3=A0 votre requ=C3=AAte. Merci de r=C3=A9-essayer plus=
+ tard.
+
+Un-e responsable a =C3=A9t=C3=A9 notifi=C3=A9-e et cette erreur sera corrig=
+=C3=A9e d=C3=A8s que possible.
+
+R=C3=A9f=C3=A9rence de l'erreur : d7ks6284
+
+--alt=_-===_=_636789e485ed7-f057e091cb
+Content-Type: text/html; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+<html><head><meta http-equiv=3D"Content-Type" content=3D"text/html; charset=
+=3Dutf-8"></head><body style=3D"word-wrap: break-word; -webkit-nbsp-mode: s=
+pace; line-break: after-white-space;" class=3D""><br class=3D""><div class=
+=3D"">
+<meta charset=3D"UTF-8" class=3D""><div>Roland *****</div><div class=3D"">=
+<br class=3D""></div></div><div class=3D""><br class=3D"webkit-block-placeh=
+older"></div><div class=3D""><p style=3D"max-width: 400px; margin: 1em auto=
+; font-family: sans-serif;" class=3D"">D=C3=A9sol=C3=A9 mais le serveur a r=
+encontr=C3=A9 une erreur interne et ne peut r=C3=A9pondre =C3=A0 votre requ=
+=C3=AAte. Merci de r=C3=A9-essayer plus tard.</p><p style=3D"max-width: 400=
+px; margin: 1em auto; font-family: sans-serif;" class=3D"">Un-e responsable=
+ a =C3=A9t=C3=A9 notifi=C3=A9-e et cette erreur sera corrig=C3=A9e d=C3=
+=A8s que possible.</p><code style=3D"max-width: 400px; margin: 1em auto; di=
+splay: block; text-align: right; color: rgb(102, 102, 102);" class=3D"">R=
+=C3=A9f=C3=A9rence de l'erreur :&nbsp;<b class=3D"">d7ks6284</b></code></di=
+v></body></html>
+
+--alt=_-===_=_636789e485ed7-f057e091cb--
+
+--==_=_636789e485ed7-f057e091cb--

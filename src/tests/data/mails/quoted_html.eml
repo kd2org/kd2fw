@@ -1,0 +1,99 @@
+Received-SPF: pass (mail.kd2.org: domain of xxx.xxx designates A.B.C.D as permitted sender) client-ip=A.B.C.D; envelope-from=XXXX@xxx.xxx; helo=6.mo576.mail-out.ovh.net;
+Received: from 6.mo576.mail-out.ovh.net ([A.B.C.D])
+	by mail.kd2.org with esmtps  (TLS1.3) tls TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+	(Exim 4.96)
+	(envelope-from <XXXX@xxx.xxx>)
+	id 1uCebe-00BaHu-2h
+	for aide@paheko.cloud;
+	Wed, 07 May 2025 15:14:39 +0200
+Received: from director9.ghost.mail-out.ovh.net (unknown [A.B.C.D])
+	by mo576.mail-out.ovh.net (Postfix) with ESMTP id 4Zswhk5YhKz2GvG
+	for <aide@paheko.cloud>; Wed,  7 May 2025 13:14:30 +0000 (UTC)
+Received: from ghost-submission-5b5ff79f4f-mxqss (unknown [A.B.C.D])
+	by director9.ghost.mail-out.ovh.net (Postfix) with ESMTPS id 938271FE98
+	for <aide@paheko.cloud>; Wed,  7 May 2025 13:14:30 +0000 (UTC)
+Received: from xxx.xxx ([A.B.C.D])
+	by ghost-submission-5b5ff79f4f-mxqss with ESMTPSA
+	id YGCeELZcG2jTvwAA/RtnFA
+	(envelope-from <XXXX@xxx.xxx>)
+	for <aide@paheko.cloud>; Wed, 07 May 2025 13:14:30 +0000
+Authentication-Results:garm.ovh; auth=pass (GARM-100R00326c6a6d9-1014-4458-8a65-068ca2e2e973,
+                    927F229C01DE14474461141584D695CD149A8890) smtp.auth=XXXX@xxx.xxx
+X-OVh-ClientIp:A.B.C.D
+Subject: pas d'utilisateur administrateur ?
+Mime-Version: 1.0 (Mac OS X Mail 12.4 \(3445.104.21\))
+Content-Type: text/html;
+	charset=utf-8
+X-Apple-Base-Url: x-msg://59/
+X-Apple-Mail-Remote-Attachments: NO
+From: XXX <XXXX@xxx.xxx>
+X-Apple-Auto-Saved: 1
+X-Apple-Windows-Friendly: 1
+Date: Wed, 7 May 2025 15:13:50 +0200
+X-Apple-Mail-Signature: SKIP_SIGNATURE
+Content-Transfer-Encoding: quoted-printable
+Message-Id: <FDEDDD24-AC7B-4C71-910F-BB8D663094D8@xxx.xxx>
+X-Uniform-Type-Identifier: com.apple.mail-draft
+To: aide@paheko.cloud
+X-Mailer: Apple Mail (A.B.C.D)
+X-Ovh-Tracer-Id: 6680527099766278784
+X-VR-SPAMSTATE: OK
+X-VR-SPAMSCORE: 0
+X-VR-SPAMCAUSE: gggruggvucftvghtrhhoucdtuddrgeefvddrtddtgddvkeeileehucetufdoteggodetrfdotffvucfrrhhofhhilhgvmecuqfggjfdpvefjgfevmfevgfenuceurghilhhouhhtmecuhedttdenucenucfjughrpefugggthfffgffkvffosehhqhhmtdhhtdejnecuhfhrohhmpefgrhifrghnucdssdcunfhgughguceovghrfigrnheslhhgughgrdhfrheqnecuggftrfgrthhtvghrnhepiefgfffhgeejveduffevueekheeltdefleehtdfgueegieekffevfedvledvffeknecukfhppeduvdejrddtrddtrddupdegiedrudekrdelkedrjedtpdefjedrheelrddugedvrddutddtnecuvehluhhsthgvrhfuihiivgeptdenucfrrghrrghmpehinhgvthepuddvjedrtddrtddruddpmhgrihhlfhhrohhmpegvrhifrghnsehlghgughdrfhhrpdhnsggprhgtphhtthhopedupdhrtghpthhtoheprghiuggvsehprghhvghkohdrtghlohhuugdpoffvtefjohhsthepmhhoheejiegmpdhmohguvgepshhmthhpohhuth
+DKIM-Signature: a=rsa-sha256; bh=hCfyM1tobFsgOzytQ/Iu00Ui/J5XJFW8dY2IAp4xNaU=;
+ c=relaxed/relaxed; d=xxx.xxx; h=From; s=ovhmo2770380-selector1;
+ t=1746623670; v=1;
+ b=ZSoMEtY2H5JIXzHFg7VCN+ZgZnbgqEMm+TNIsu1AjXQvtVv84oq5DiwbWo+EwWkeU7p4TYOI
+ KlyxuWQv5wmBpiwHZTFTKCMG7oFhGBYzWFinrwBcpCGUVFaSIzcES0ScUz/qUsf2QOkb/pC95gg
+ roH6dLzqMdY/AOiCwTg7q3768Yy7BrkQy2Ixn6duIIQTE0LQIHYej+za8H3TDpaEO6e3IeJobKG
+ eLScKOB5hHiEQn+Vd5vZCvWrF1JHqDCn5gDKu5tqf5dlRY7vufoOR7qnBsAtaXkKDm3Boc4JSHO
+ IiFJQKwVMeok9taCjtFhBhsS1qOEVGIX1JXlZkXSO79mA==
+X-Sender-Verify: FAILED ()
+X-Sender-Verify: SUCCEEDED (sender exists & accepts mail)
+X-Spam-Score: 0.8
+X-Spam-Score-Int: 8
+X-Spam-Bar: /
+X-Spam-Report: score                  = 0.8
+ bayes-score            = 0.5
+ bayes-token-summary    = 
+ bayes-token-spam-count = 
+ bayes-token-ham-count  = 
+ bayes-token-spam       = 
+ bayes-token-ham        = 
+ bayes-auto-learned     = no autolearn_force=no 0.801
+ last-external-host     = 6.mo576.mail-out.ovh.net [A.B.C.D] HELO=6.mo576.mail-out.ovh.net
+ possible-languages     = 
+ relayed-countries      = _RELAYCOUNTRY_
+ ---- ---------------------- --------------------------------------------------
+ -0.0 SPF_PASS               SPF: sender matches SPF record
+  0.0 SPF_HELO_NONE          SPF: HELO does not publish an SPF Record
+  0.1 DKIM_SIGNED            Message has a DKIM or DK signature, not necessarily valid
+ -0.1 DKIM_VALID_EF          Message has a valid DKIM or DK signature from
+                             envelope-from domain
+ -0.1 DKIM_VALID_AU          Message has a valid DKIM or DK signature from author's
+                             domain
+ -0.1 DKIM_VALID             Message has at least one valid DKIM or DK signature
+  0.1 HTML_MESSAGE           BODY: HTML inclus dans le message
+  0.1 MIME_HTML_ONLY         BODY: Le message possède uniquement des parties MIME
+                             text/html
+  0.3 DMARC_MISSING          Missing DMARC policy
+  0.5 RCVD_IN_VALIDITY_RPBL  RBL: Relay in Validity RPBL,
+                             https://senderscore.org/blocklistlookup/
+                             [A.B.C.D listed in bl.score.senderscore.com]
+
+<html><head></head><body dir=3D"auto" style=3D"word-wrap: break-word; =
+-webkit-nbsp-mode: space; line-break: after-white-space;"><div =
+class=3D"ApplePlainTextBody">Salutations !<br><br>je ne sais pas si je =
+m=E2=80=99adresse au bon endroit : nous utilisons paheko cloud =
+actuellement<br>et je pr=C3=A9pare &nbsp;la migration sur paheko via =
+framaspace puisque framasoft a int=C3=A9gr=C3=A9 paheko dans cette =
+solution<br><br>seulement je ne sais pas comment cela s=E2=80=99est =
+pass=C3=A9, mais nous n=E2=80=99avons pas d=E2=80=99utilisateur =
+administrateur dans paheko sur framasoft =E2=80=A6 :(<br><br>Nous =
+g=C3=A9rons d=C3=A9j=C3=A0 les adh=C3=A9rents via paheko sur le =
+framaspace, peut-=C3=AAtre y a t'il eu confusion =C3=A0 un moment et le =
+membre administrateur aurait =C3=A9t=C3=A9 supprim=C3=A9 ?<br>En tout =
+cas je vois pas trop comment avancer j=E2=80=99avoue <br><br>quelqu=E2=80=99=
+un aurait-il une piste de r=C3=A9solution ?<br><br>merci =
+d=E2=80=99avance<br>XXXX<br><br></div></body></html>=
+

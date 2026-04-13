@@ -10,6 +10,19 @@
 
 	delete canvas;
 
+	var default_options = {
+		resize: /image\/jpeg/,
+		max_file_size: null,
+		max_width: 800,
+		jpeg_quality: 0.87,
+		thumb_upload: /image\/(jpeg|png|gif|svg+xml)/,
+		thumb_max_width: 300,
+		thumb_jpeg_quality: 0.80,
+		bytes: "B",
+		size_error_msg: "The file %file has a size of %size, more than the allowed %max_size allowed.",
+		edit_name_field: false
+	};
+
 	function getByteSize(size, bytes)
 	{
 		if (size < 1024)
@@ -76,33 +89,28 @@
 		var form = fileInput.form;
 
 		var files = [];
-		
+
 		var upload_queue = false;
 		var hash_queue = false;
+		var resize_queue = [];
 
 		var progress_status = false;
 		var progress_bar = false;
 
 		var options = options || {};
 
-		options.width = options.width || false;
-		options.jpeg_quality = options.jpeg_quality || 0.87;
-		options.thumb_width = options.thumb_width || 250;
-		options.thumb_quality = options.thumb_quality || 0.80;
-		options.thumb_upload = !!options.thumb_upload;
-		options.resize = (options.width && options.resize) ? true : false;
-		options.bytes = options.bytes || 'B';
-		options.check_hash = options.check_hash || false;
-		options.edit_name_field = options.edit_name_field || false;
-		options.size_error_msg = options.size_error_msg 
-			|| 'The file %file has a size of %size, more than the allowed %max_size allowed.';
-
-		var max_size = null;
+		for (var i in default_options)
+		{
+			if (!(i in options))
+			{
+				options[i] = default_options[i];
+			}
+		}
 
 		// Get the maximum file size, the standard way
-		if (i = form.querySelector('input[name=MAX_FILE_SIZE]'))
+		if (null === options.max_file_size && (i = form.querySelector('input[name=MAX_FILE_SIZE]')))
 		{
-			var max_size = i.value;
+			options.max_file_size = parseInt(i.value, 10);
 		}
 
 		source.classList.toggle('uploadHelper');
@@ -155,14 +163,15 @@
 
 		function makePreview(file, parent)
 		{
-			if (file.type.match(/^image\/(jpe?g|gif|svg|png)$/))
+			if (file.type.match(/^image\/(jpe?g|gif|svg\+xml|png)$/))
 			{
-				resize(file, options.thumb_width, options.thumb_height, 'image/png', 9, function(blob) {
+				resize_queue.push([file, options.thumb_width, options.thumb_height, 'image/png', 9, function(blob) {
 					file.url = URL.createObjectURL(blob);
 					var img = new Image;
 					img.src = file.url;
 					parent.appendChild(img);
-				});
+					runResizeQueue();
+				}]);
 			}
 			else
 			{
@@ -199,7 +208,7 @@
 				var file = this.files[i];
 
 				// Check file size
-				if (file.size > max_size && (!options.resize || !file.type.match(/^image\/jpe?g/)))
+				if (file.size > options.max_file_size && (!file.type.match(options.resize)))
 				{
 					this.value = '';
 					var args = {
@@ -218,6 +227,7 @@
 			}
 
 			this.value = '';
+			runResizeQueue();
 			runHashQueue();
 		}, false);
 
@@ -331,6 +341,18 @@
 			};
 
 			fr.readAsArrayBuffer(file);
+		}
+
+		function runResizeQueue()
+		{
+			var r = resize_queue.shift();
+
+			if (!r)
+			{
+				return;
+			}
+
+			resize.apply(this,r);
 		}
 
 		function runUploadQueue()
@@ -536,7 +558,7 @@
 			upload_queue = false;
 		}
 
-		function resize(file, max_width, max_height, format, quality, callback, orientation = null)
+		function resize(file, max_width, max_height, format, quality, callback, orientation)
 		{
 			if (null === orientation)
 			{
@@ -552,24 +574,27 @@
 			img.src = (window.URL || window.webkitURL).createObjectURL(file);
 
 			img.onload = function() {
+				var image = {width: img.width, height: img.height};
+
 				// Flip/rotate following orientation
 				if (orientation && orientation <= 8)
 				{
-					var canvas1 = document.createElement("canvas");
+					var canvas = document.createElement("canvas");
 
 					if ([5,6,7,8].indexOf(orientation) > -1)
 					{
-						canvas1.width = img.height;
-						canvas1.height = img.width;
+						canvas.width = img.height;
+						canvas.height = img.width;
 					}
 					else
 					{
-						canvas1.width = img.width;
-						canvas1.height = img.height;
+						canvas.width = img.width;
+						canvas.height = img.height;
 					}
 
-					var ctx = canvas1.getContext('2d');
-					
+					var ctx = canvas.getContext('2d');
+					ctx.imageSmoothingQuality = 'high';
+
 					switch (orientation) {
 						case 2: ctx.transform(-1, 0, 0, 1, img.width, 0); break;
 						case 3: ctx.transform(-1, 0, 0, -1, img.width, img.height); break;
@@ -582,12 +607,21 @@
 					}
 
 					ctx.drawImage(img, 0, 0);
+
+					// Free up memory by removing image
+					(window.URL || window.webkitURL).revokeObjectURL(img.src);
+					img.width = 1;
+					img.height = 1;
+					delete img;
+
+					// Source image is now a canvas
+					img = canvas;
 				}
 
 				var width = max_width,
 					height = max_height;
 
-				in_ratio = (canvas1 || img).width / (canvas1 || img).height;
+				in_ratio = img.width / img.height;
 				out_ratio = max_width / max_height;
 
 				if (in_ratio >= out_ratio)
@@ -603,57 +637,71 @@
 				height = Math.abs(height);
 
 				// Two-step downscaling for better quality
-				var canvas2 = document.createElement("canvas");
+				var canvas = document.createElement("canvas");
 				var factor = 1;
+				var ctx = canvas.getContext('2d');
+				ctx.imageSmoothingQuality = 'high';
 
-				if (width < (canvas1 || img).width || height < (canvas1 || img).height)
+				// use two-step scaling down for better quality
+				if (width < img.width || height < img.height)
 				{
 					factor = 2;
 				}
 
-				canvas2.width = width*factor;
-				canvas2.height = height*factor;
+				canvas.width = width*factor;
+				canvas.height = height*factor;
 
-				canvas2.getContext('2d').drawImage(
-					(canvas1 || img), // original image
+				ctx.drawImage(
+					img, // original image
 					0, // starting x point
 					0, // starting y point
-					(canvas1 || img).width, // image width
-					(canvas1 || img).height, // image height
+					img.width, // image width
+					img.height, // image height
 					0, // destination x point
 					0, // destination y point
 					width*factor, // destination width
 					height*factor // destination height
 				);
 
-				(window.URL || window.webkitURL).revokeObjectURL(img.src);
-				delete img, canvas1;
+				if (img instanceof Image)
+				{
+					// Clear up image from memory
+					(window.URL || window.webkitURL).revokeObjectURL(img.src);
+					img.width = 1;
+					img.height = 1;
+				}
+
+				delete img;
 
 				// Second step down scaling
 				if (factor > 1)
 				{
-					var canvas3 = document.createElement("canvas");
+					img = canvas;
+					var canvas = document.createElement("canvas");
+					var ctx = canvas.getContext('2d');
+					ctx.imageSmoothingQuality = 'high';
 
-					canvas3.width = width;
-					canvas3.height = height;
+					canvas.width = width;
+					canvas.height = height;
 
-					canvas3.getContext('2d').drawImage(
-						canvas2, // original image
+					ctx.drawImage(
+						img, // original image
 						0, // starting x point
 						0, // starting y point
-						canvas2.width, // image width
-						canvas2.height, // image height
+						img.width, // image width
+						img.height, // image height
 						0, // destination x point
 						0, // destination y point
 						width, // destination width
 						height // destination height
 					);
+
+					delete img;
 				}
 
-				(canvas3 || canvas2).toBlob(callback, format, quality);
+				canvas.toBlob(callback, format, quality);
 
-				delete canvas2;
-				delete canvas3;
+				delete canvas;
 			};
 		}
 	};
