@@ -438,6 +438,61 @@ class SQLite3 extends DB
 	}
 
 	/**
+	 * Restricted read-only authorizer
+	 * In $allowed is a list of tables and columns:
+	 * 'mytable' => ['!not_this_column_return_error', '~other_column_return_null']
+	 * '!mytable' => null // table returns error
+	 * '*' => null // allow access to any table, except the restricted ones
+	 *
+	 * ~column means the column will always be returned as NULL
+	 * -column or !table means trying to access this column or table will return an error
+	 */
+	static public function restrictedAuthorizer(?array $allowed, int $action, ...$args): int
+	{
+		if ($action === \SQLite3::SELECT || $action === \SQLite3::FUNCTION) {
+			return \SQLite3::OK;
+		}
+
+		// There is a bug in SQLite3 < 3.41.0 where the authorizer sees sqlite_master UPDATEs
+		// when virtual tables (eg. FTS4) are modified, or when json_each is used
+		// (because it's a virtual table)
+		// So we will allow this to pass. This is a security issue, but there is no other way.
+		// @see https://sqlite.org/forum/forumpost/e86edcafc4ea6fcf
+		if ($action === \SQLite3::UPDATE
+			&& $args[0] === 'sqlite_master'
+			&& \SQLite3::version()['versionNumber'] < 3041000) {
+			return \SQLite3::OK;
+		}
+
+		if ($action !== \SQLite3::READ) {
+			return \SQLite3::DENY;
+		}
+
+		list($table, $column) = $args;
+
+		if (!array_key_exists($table, $allowed)
+			&& !array_key_exists('*', $allowed)) {
+			return \SQLite3::DENY;
+		}
+
+		if (array_key_exists('!' . $table, $allowed)) {
+			return \SQLite3::DENY;
+		}
+
+		if (isset($allowed[$table])
+			&& in_array('~' . $column, $allowed[$table])) {
+			return \SQLite3::IGNORE;
+		}
+
+		if (isset($allowed[$table])
+			&& in_array('-' . $column, $allowed[$table])) {
+			return \SQLite3::DENY;
+		}
+
+		return \SQLite3::OK;
+	}
+
+	/**
 	 * Returns a statement after having checked a query is a SELECT,
 	 * doesn't seem to contain anything that could help an attacker,
 	 * and if $allowed is not NULL, will try to restrict the query to tables
@@ -468,42 +523,7 @@ class SQLite3 extends DB
 		if (null !== $allowed) {
 			// PHP 8+
 			if (method_exists($this->db, 'setAuthorizer')) {
-				$this->setAuthorizer(function (int $action, ...$args) use ($allowed) {
-					if ($action === \SQLite3::SELECT || $action === \SQLite3::FUNCTION) {
-						return \SQLite3::OK;
-					}
-
-					// SQLite is triggering UPDATEs in Authorizer before version 3.41
-					// when using json_each for example, allow for this case
-					// @see https://sqlite.org/forum/forumpost/e86edcafc4ea6fcf
-					if ($action === \SQLite3::UPDATE && $args[0] === 'sqlite_master') {
-						return \SQLite3::OK;
-					}
-
-					if ($action !== \SQLite3::READ) {
-						return \SQLite3::DENY;
-					}
-
-					list($table, $column) = $args;
-
-					if (!array_key_exists($table, $allowed) && !array_key_exists('*', $allowed)) {
-						return \SQLite3::DENY;
-					}
-
-					if (array_key_exists('!' . $table, $allowed)) {
-						return \SQLite3::DENY;
-					}
-
-					if (isset($allowed[$table]) && in_array('~' . $column, $allowed[$table])) {
-						return \SQLite3::IGNORE;
-					}
-
-					if (isset($allowed[$table]) && in_array('-' . $column, $allowed[$table])) {
-						return \SQLite3::DENY;
-					}
-
-					return \SQLite3::OK;
-				});
+				$this->setAuthorizer(fn(int $action, ...$args) => self::restrictedAuthorizer($allowed, $action, ...$args));
 			}
 			// FIXME: remove when migrating to PHP 8.0+
 			else {
