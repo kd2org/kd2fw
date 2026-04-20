@@ -944,6 +944,10 @@ class Brindille
 				elseif ($t->type === 'array' && $t->force && is_object($value)) {
 					$value = get_object_vars($value);
 				}
+				// Force empty string values as zero
+				elseif ($t->type === 'numeric' && $value === '') {
+					$value = 0;
+				}
 
 				if ($t->type === 'scalar' && is_scalar($value)) {
 					$ok = true;
