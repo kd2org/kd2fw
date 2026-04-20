@@ -898,6 +898,10 @@ abstract class NextCloud
 
 			$this->server->log('Assembling chunks to: %s', $dest);
 
+			if (!isset($_SERVER['HTTP_X_OC_MTIME'])) {
+				throw new Exception('Invalid client');
+			}
+
 			$mtime = (int) $_SERVER['HTTP_X_OC_MTIME'] ?: null;
 
 			header('X-OC-MTime: accepted');
