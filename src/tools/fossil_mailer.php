@@ -43,6 +43,9 @@ repository="/home/fossil/myrepo.fossil"
 ; like this: "https://user:password@fossil.project.tld/"
 url="https://fossil.project.tld/"
 
+; String to append to URL query string to bypass Fossil robot protection (robot-exception setting)
+robot_exception="localhostOnly"
+
 ; Location of a text file that will contain the hash of the last
 ; change processed by this script. If this file doesn't exist,
 ; then the last change in the timeline will be sent.
@@ -71,7 +74,7 @@ if (empty($argv[1]) || !is_readable($argv[1])) {
 
 $config = (object) parse_ini_file($argv[1], false);
 
-$f = new FossilMonitor($config->repository, $config->url);
+$f = new FossilMonitor($config->repository, $config->url, $config->robot_exception ?? null);
 $f->from_email = $config->from;
 $f->to = $config->to;
 
@@ -120,10 +123,11 @@ class FossilMonitor
 	public string $from_email = 'fossil@localhost';
 	public string $to;
 
-	public function __construct(string $repo, string $url)
+	public function __construct(string $repo, string $url, ?string $robot_exception = null)
 	{
 		$this->repo = $repo;
 		$this->url = rtrim($url, '/') . '/';
+		$this->robot_query_string = $robot_exception;
 
 		$this->user = parse_url($this->url, PHP_URL_USER) ?? null;
 		$this->password = parse_url($this->url, PHP_URL_PASS) ?? null;
@@ -156,6 +160,17 @@ class FossilMonitor
 
 		if (!$login && $this->user && !$this->cookie) {
 			$this->http($this->url . 'login');
+		}
+
+		if ($this->robot_query_string) {
+			if (false === strpos($url, '?')) {
+				$url .= '?';
+			}
+			else {
+				$url .= '&';
+			}
+
+			$url .= $this->robot_query_string;
 		}
 
 		if (function_exists('curl_init')) {
