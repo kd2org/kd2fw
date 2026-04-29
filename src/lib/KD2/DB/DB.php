@@ -968,6 +968,7 @@ class DB
 				$row = is_int($row) || is_float($row) || is_null($row) ? $row : $this->quote((string)$row);
 			});
 
+			$value = array_filter($value, fn($a) => !is_null($a));
 			$value = sprintf('(%s)', implode(', ', $value));
 		}
 		elseif (is_null($value)) {
