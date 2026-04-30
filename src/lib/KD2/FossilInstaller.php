@@ -26,6 +26,7 @@ class FossilInstaller
 	protected string $fossil_url;
 	protected string $release_name_regexp;
 	protected array $ignored_paths = [];
+	protected array $managed_paths = [];
 	protected string $gpg_pubkey_file;
 
 	public function __construct(string $fossil_repo_url, string $app_path, string $tmp_path, ?string $release_name_regexp = null)
@@ -53,6 +54,11 @@ class FossilInstaller
 	public function addIgnoredPath(string $path)
 	{
 		$this->ignored_paths[] = $path;
+	}
+
+	public function addManagedPath(string $path)
+	{
+		$this->managed_paths[] = $path;
 	}
 
 	public function listReleases(): array
@@ -292,10 +298,8 @@ class FossilInstaller
 			$file = substr($path, $l + 1);
 
 			// Skip ignored paths
-			foreach ($this->ignored_paths as $ignored_path) {
-				if (0 === strpos($file, $ignored_path)) {
-					continue(2);
-				}
+			if ($this->isIgnoredPath($file)) {
+				continue;
 			}
 
 			$existing_files[$file] = $path;
@@ -318,16 +322,7 @@ class FossilInstaller
 			$relative_path = substr($path, $parent_l + 1);
 			$release_files[$relative_path] = $path;
 
-			$is_ignored = false;
-
-			// Skip ignored paths
-			foreach ($this->ignored_paths as $ignored_path) {
-				if (0 === strpos($relative_path, $ignored_path)) {
-					$is_ignored = true;
-					break;
-				}
-			}
-
+			$is_ignored = $this->isPublic($relative_path);
 			$local_path = $this->app_path . DIRECTORY_SEPARATOR . $relative_path;
 
 			// Skip if file doesn't exist, it will be marked as to be created
@@ -352,6 +347,23 @@ class FossilInstaller
 		ksort($update);
 
 		return (object) compact('delete', 'create', 'update');
+	}
+
+	protected function isPathIgnored(string $relative_path): bool
+	{
+		foreach ($this->managed_paths as $managed_path) {
+			if (0 === strpos($relative_path, $managed_path)) {
+				return false;
+			}
+		}
+
+		foreach ($this->ignored_paths as $ignored_path) {
+			if (0 === strpos($relative_path, $ignored_path)) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	public function upgrade(string $version): void
