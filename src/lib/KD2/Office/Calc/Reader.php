@@ -64,7 +64,7 @@ class Reader
 
 				// If the uncompressed file is too large, we probably can't load the cells
 				if ($meta['size'] > 50*1024*1024) {
-					throw new \LogicException(sprintf('XML file is too big: %d MB (max. allowed = %d MB)', $sheet, $meta['size']/1024/1024, 50));
+					throw new \LogicException(sprintf('XML file is too big: %d MB (max. allowed = %d MB)', $meta['size']/1024/1024, 50));
 				}
 
 				$xml = simplexml_load_string($zip->fetch('content.xml'));
