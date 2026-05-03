@@ -187,7 +187,6 @@ class SMTP
 
 	public function connect(): void
 	{
-		$this->log = '';
 		$this->conn = stream_socket_client($this->server . ':' . $this->port, $errno, $errstr, $this->timeout);
 		stream_set_timeout($this->conn, $this->timeout);
 
