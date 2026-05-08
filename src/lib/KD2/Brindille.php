@@ -1724,7 +1724,7 @@ class Brindille
 			$has_bracket = false !== strpos($var, '[');
 
 			if ($has_period && $has_bracket) {
-				throw new \InvalidArgumentException(sprintf('Invalid variable name "%s": you can only use period or brackets, but not both', $var));
+				throw new Brindille_Exception(sprintf('Invalid variable name "%s": you can only use period or brackets, but not both', $var));
 			}
 			elseif ($has_bracket) {
 				$separator = '[';
@@ -1738,7 +1738,7 @@ class Brindille
 			$var_name = array_shift($parts);
 
 			if (!preg_match(self::RE_VALID_VARIABLE_NAME, $var_name)) {
-				throw new \InvalidArgumentException(sprintf('Invalid variable name "%s": invalid characters found', $var));
+				throw new Brindille_Exception(sprintf('Invalid variable name "%s": invalid characters found', $var));
 			}
 
 			$unset[] = $var_name;
@@ -1805,7 +1805,7 @@ class Brindille
 			try {
 				$tpl->assignArray($params, 0);
 			}
-			catch (\InvalidArgumentException $e) {
+			catch (\InvalidArgumentException | Brindille_Exception $e) {
 				throw new Brindille_Exception(sprintf('line %d: %s', $line, $e->getMessage()));
 			}
 		}
