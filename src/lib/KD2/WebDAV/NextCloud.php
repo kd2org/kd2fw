@@ -432,6 +432,11 @@ abstract class NextCloud
 		$out = '';
 
 		foreach ($array as $key => $v) {
+			if (is_int($key)) {
+				// For list arrays, as <0> is not valid XML
+				$key = 'element';
+			}
+
 			$out .= '<' . $key .'>';
 
 			if (is_array($v)) {
