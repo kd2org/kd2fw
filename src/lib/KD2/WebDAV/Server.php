@@ -695,6 +695,7 @@ class Server
 			throw new Exception('This does not exist', 404);
 		}
 
+		// Fill all the various time properties (for compatibility)
 		if (isset($properties['DAV::getlastmodified'])) {
 			foreach (self::MODIFICATION_TIME_PROPERTIES as $name) {
 				$properties[$name] = $properties['DAV::getlastmodified'];
@@ -732,7 +733,7 @@ class Server
 		$requested ??= [];
 
 		foreach ($requested as $prop) {
-			if ($prop['ns_url'] == 'DAV:' || !$prop['ns_url']) {
+			if ($prop['ns_url'] === 'DAV:' || !$prop['ns_url']) {
 				continue;
 			}
 
