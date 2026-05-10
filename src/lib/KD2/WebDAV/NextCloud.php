@@ -103,8 +103,8 @@ abstract class NextCloud
 		'logo'                 => 'https://upload.wikimedia.org/wikipedia/commons/6/60/Nextcloud_Logo.svg',
 		'background'           => '#333333',
 		'background-text'      => '#ffffff',
-		'background-plain'     => '',
-		'background-default'   => '',
+		'background-plain'     => false,
+		'background-default'   => false,
 		'logoheader'           => 'https://upload.wikimedia.org/wikipedia/commons/6/60/Nextcloud_Logo.svg',
 		'favicon'              => 'https://upload.wikimedia.org/wikipedia/commons/6/60/Nextcloud_Logo.svg'
 	];
@@ -312,9 +312,15 @@ abstract class NextCloud
 		'ocs/v1.php/cloud/user' => 'user',
 		'v1.php/cloud/user' => 'user',
 		'ocs/v1.php/config' => 'config',
+		// direct_editing route is required for iOS apps
+		'ocs/v2.php/apps/files/api/v1/directEditing' => 'direct_editing',
 		'ocs/v2.php/apps/files_sharing/api/v1/shares' => 'shares',
 		'ocs/v2.php/apps/user_status' => 'empty',
 		'ocs/v2.php/core/navigation/apps' => 'empty',
+		// the following 3 routes are required for iOS apps apparently
+		'ocs/v2.php/apps/notifications/api/v2/push' => 'empty',
+		'ocs/v2.php/apps/dashboard/api/v1/widgets' => 'empty',
+		'ocs/v2.php/apps/activity/api/v2/activity/all' => 'empty',
 		// OpenCloud spaces, see https://github.com/opencloud-eu/android/blob/80764e22f50ab38411b7230c71709430514079e9/opencloudComLibrary/src/main/java/eu/opencloud/android/lib/resources/spaces/GetRemoteSpacesOperation.kt#L96
 		'graph/v1.0/me/drives' => 'opencloud_graph',
 		'index.php/avatar' => 'avatar',
@@ -691,6 +697,14 @@ abstract class NextCloud
 	protected function nc_opencloud_graph(): string
 	{
 		return '{"value":[]}';
+	}
+
+	protected function nc_direct_editing(): array
+	{
+		return $this->nc_ocs([
+			'editors' => new \stdClass,
+			'creators' => new \stdClass,
+		]);
 	}
 
 	protected function nc_avatar(): void
