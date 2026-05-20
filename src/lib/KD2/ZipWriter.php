@@ -23,6 +23,7 @@ namespace KD2;
 
 use LogicException;
 use RuntimeException;
+use DateTime;
 
 /**
  * Very simple ZIP Archive writer
@@ -95,22 +96,21 @@ class ZipWriter
 		$this->close();
 	}
 
-	public function addFromPath(string $file, string $path): void
+	public function addFromPath(string $file, string $path, ?DateTime $date = null): void
 	{
-		$this->add($file, null, $path);
+		$this->add($file, null, $path, null, $date);
 	}
 
-	public function addFromPointer(string $file, $pointer): void
+	public function addFromPointer(string $file, $pointer, ?DateTime $date = null): void
 	{
-		$this->add($file, null, null, $pointer);
+		$this->add($file, null, null, $pointer, $date);
 	}
 
 
-	public function addFromString(string $file, string $data): void
+	public function addFromString(string $file, string $data, ?DateTime $date = null): void
 	{
-		$this->add($file, $data);
+		$this->add($file, $data, null, null, $date);
 	}
-
 
 	/**
 	 * Add a file to the current Zip archive using the given $data as content
@@ -121,7 +121,7 @@ class ZipWriter
 	 * @throws LogicException
 	 * @throws RuntimeException
 	 */
-	public function add(string $file, ?string $data = null, ?string $source = null, $pointer = null): void
+	public function add(string $file, ?string $data = null, ?string $source = null, $pointer = null, ?DateTime $date = null): void
 	{
 		if ($this->closed)
 		{
@@ -159,9 +159,9 @@ class ZipWriter
 				if ($this->compression) {
 					$filter = stream_filter_append($tmp,
 						'zlib.deflate',
-                    	\STREAM_FILTER_WRITE,
-                    	['level' => $this->compression]
-                    );
+						\STREAM_FILTER_WRITE,
+						['level' => $this->compression]
+					);
 				}
 
 				while (!feof($pointer)) {
@@ -191,7 +191,7 @@ class ZipWriter
 			$offset = $this->pos;
 
 			// write local file header
-			$this->write($this->makeRecord(false, $file, $size, $csize, $crc, null));
+			$this->write($this->makeRecord(false, $file, $size, $csize, $crc, null, $date));
 
 			// we store no encryption header
 
@@ -215,8 +215,8 @@ class ZipWriter
 
 		// we store no data descriptor
 
-		// add info to central file directory
-		$this->directory[] = $this->makeRecord(true, $file, $size, $csize, $crc, $offset);
+		// add info to central file directorymakeRec
+		$this->directory[] = $this->makeRecord(true, $file, $size, $csize, $crc, $offset, $date);
 	}
 
 	/**
@@ -278,17 +278,20 @@ class ZipWriter
 	 * @param  integer|null  $offset
 	 * @return string
 	 */
-	protected function makeRecord(bool $central, string $filename, int $size, int $compressed_size, string $crc, ?int $offset): string
+	protected function makeRecord(bool $central, string $filename, int $size, int $compressed_size, string $crc, ?int $offset, ?DateTime $date = null): string
 	{
 		$header = ($central ? "\x50\x4b\x01\x02\x0e\x00" : "\x50\x4b\x03\x04");
 
 		list($filename, $extra) = $this->encodeFilename($filename);
 
+		$date ??= new DateTime;
+		$dostime = $this->unixDateToDos($date);
+
 		$header .=
 			"\x14\x00" // version needed to extract - 2.0
 			. "\x00\x08" // general purpose flag - bit 11 set = enable UTF-8 support
 			. ($this->compression ? "\x08\x00" : "\x00\x00") // compression method - none
-			. "\x01\x80\xe7\x4c" //  last mod file time and date
+			. $dostime //  last mod file time and date
 			. pack('V', $crc) // crc-32
 			. pack('V', $compressed_size) // compressed size
 			. pack('V', $size) // uncompressed size
@@ -309,6 +312,25 @@ class ZipWriter
 		$header .= $extra;
 
 		return $header;
+	}
+
+	protected function unixDateToDos(DateTime $date): string
+	{
+		$out = (
+			(($date->format('Y') - 1980) << 25)
+			| ($date->format('m') << 21)
+			| ($date->format('d') << 16)
+			| ($date->format('H') << 11)
+			| ($date->format('i') << 5)
+			| ($date->format('s') >> 1)
+		);
+
+		// Smallest supported DOS date/time value in a ZIP file, which is January 1st, 1980 AD 00:00:00 local time.
+		if ($out <= ((1 << 21) | (1 << 16))) {
+			$out = 0;
+		}
+
+		return pack('V', $out);
 	}
 
 	protected function encodeFilename(string $original): array
