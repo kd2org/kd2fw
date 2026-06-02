@@ -390,7 +390,7 @@ class Reader extends \KD2\Office\Calc\Reader
 
 			$empty_rows_count = 0;
 
-			yield $out;
+			yield $i => $out;
 		}
 	}
 
@@ -468,7 +468,8 @@ class Reader extends \KD2\Office\Calc\Reader
 		}
 
 		// Fallback to automatic handling
-		if ($format === null) {
+		if ($format === null
+			|| $format === 'General') {
 			return null;
 		}
 		// Text
@@ -532,7 +533,13 @@ class Reader extends \KD2\Office\Calc\Reader
 			$digits[] = $value;
 		}
 
-		return implode('', array_reverse($digits)) . $decimals;
+		$out = implode('', array_reverse($digits)) . $decimals;
+
+		if (trim($out, ' 0') === '') {
+			return '';
+		}
+
+		return $out;
 	}
 
 	public function parseNumberFormats(string $formats): array
