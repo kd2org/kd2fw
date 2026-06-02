@@ -170,8 +170,11 @@ class Reader
 			throw new \LogicException('This file has more than 1000 columns');
 		}
 
+		$line = 0;
+
 		foreach ($xpath as $row) {
 			$out = [];
+			$line++;
 
 			foreach ($row->children(self::NS_TABLE) as $cell) {
 				$tag_name = $cell->getName();
@@ -232,7 +235,7 @@ class Reader
 				$out[] = '';
 			}
 
-			yield $out;
+			yield $line => $out;
 		}
 	}
 
