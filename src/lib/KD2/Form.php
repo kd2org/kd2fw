@@ -200,6 +200,189 @@ class Form
 		return isset($_POST[$key]);
 	}
 
+	static public function getBotProtectionHTML(
+		#[\SensitiveParameter]
+		string $secret_key,
+		bool $require_captcha = false,
+		string $language = 'en'): string
+	{
+		$value = self::createBotProtection($secret_key, $require_captcha, $language, $created, $random);
+		$name = sprintf('bp[%s]', $random);
+
+		self::setBotProtectionCookie($random, $value);
+
+		$out = sprintf('<input type="hidden" name="%s[k]" value="%s" />', $name, $value);
+
+		// Add JS interaction field
+		// See https://www.buchodi.com/chatgpt-wont-let-you-type-until-cloudflare-reads-your-react-state-i-decrypted-the-program-that-does-it/
+		//$out = sprintf('<input type="hidden" name="%s[j]" value="0" />', $name);
+
+		// Add hidden honeypot field
+		$out .= sprintf('<div style="all: unset; display: block; overflow: hidden; width: 0px; height: 0px;" aria-hidden="true"><label for="___bph">Remplissez ce champ SVP:</label> <input id="__bph"  type="text" name="%s[h]" value=""   /></div>', $name);
+
+		if ($require_captcha) {
+			$out .= '<div style="all: unset; border: 1px solid #ccc; background: #eee; color: #000; padding: 5px; border-radius: 4px; text-align: center; display: block; margin: 12px;"><label for="__bpc" style="all: unset; font-size: .9em">';
+
+			if ($language === 'en') {
+				$out .= 'Please write the following number as digits:';
+				$captcha = Security::createCaptcha($secret_key, 'en_US');
+			}
+			else {
+				$out .= 'Merci de recopier le nombre suivant sous forme de chiffres&nbsp;:';
+				$captcha = Security::createCaptcha($secret_key, 'fr_FR');
+			}
+
+			$out .= '</label>';
+			$out .= '<samp style="all: unset; font-weight: bold; display: block; margin: 5px 0;">';
+			$out .= htmlspecialchars($captcha['spellout']);
+			$out .= '</samp>';
+			$out .= sprintf('<input type="text" name="%s[c]" id="__bpc" pattern="[0-9]*" inputmode="numeric" style="all: unset; padding: 4px; border: 1px solid #999; background: #fff; border-radius: 3px; font-family: monospace; font-size: 16px;" placeholder="1234" />', $name);
+			$out .= sprintf('<input type="hidden" name="%s[ch]" value="%s" />', $name, $captcha['hash']);
+			$out .= '</div>';
+		}
+
+		return $out;
+	}
+
+	static public function setBotProtectionCookie(string $key, ?string $value = null): void
+	{
+		setcookie('bp_' . $key, $value, [
+			'expires'  => 0,
+			'path'     => '/',
+			'secure'   => !empty($_SERVER['HTTPS']),
+			'httponly' => true,
+			'samesite' => 'strict',
+		]);
+	}
+
+	static protected function createBotProtection(
+		#[\SensitiveParameter]
+		string $secret_key,
+		bool &$require_captcha,
+		string $language,
+		?int &$created = null,
+		?string &$random = null): string
+	{
+		$score = Security::getUserAgentScore($language);
+
+		if ($score < 15) {
+			$require_captcha = true;
+		}
+
+		$hash = null;
+
+		// Re-use previous session if it's still valid
+		if (null === $random
+			&& null === $created
+			&& self::verifyBotProtection($secret_key)) {
+			extract(self::getReceivedBotProtection());
+		}
+
+		$created ??= time();
+		$random ??= md5(random_bytes(10));
+
+		if (null === $hash) {
+			$data = [(int)$require_captcha, $language, $random, $created, $_SERVER['REMOTE_ADDR'] ?? '', $_SERVER['HTTP_USER_AGENT'] ?? ''];
+			$data = implode(':', $data);
+
+			$hash = hash_hmac('sha256', $data, $secret_key);
+		}
+
+		$out = [(int)$require_captcha, $language, $created, $hash];
+
+		return implode(':', $out);
+	}
+
+	static protected function getReceivedBotProtection(): ?array
+	{
+		if (!isset($_POST['bp'])
+			|| !is_array($_POST['bp'])
+			|| count($_POST['bp']) !== 1) {
+			return null;
+		}
+
+		$random = key($_POST['bp']);
+		$bp = current($_POST['bp']);
+
+		if (strlen($random) !== strlen(md5(' '))) {
+			die('a');
+			return null;
+		}
+
+		// honeypot field should not be filled
+		if (!empty($bp['h'])) {
+			die('b');
+			return null;
+		}
+
+		if (!isset($bp['k'])
+			|| !is_array($bp)
+			|| count($bp) < 1) {
+			die('c');
+			return null;
+		}
+
+		$cookie = $_COOKIE['bp_' . $random] ?? null;
+
+		if (empty($cookie)) {
+			return null;
+		}
+
+		$require_captcha = (bool) strtok($cookie, ':');
+		$language = strtok(':');
+		$created = (int) strtok(':');
+		$hash = strtok('');
+
+		if (strlen($language) !== 2) {
+			die('e');
+			return null;
+		}
+
+		$captcha_hash = $bp['ch'] ?? '';
+		$captcha_response = $bp['c'] ?? '';
+
+		return compact('require_captcha', 'language', 'random', 'created', 'hash', 'cookie', 'captcha_hash', 'captcha_response');
+	}
+
+	static public function verifyBotProtection(
+		#[\SensitiveParameter]
+		string $secret_key): bool
+	{
+		$received = self::getReceivedBotProtection();
+
+		if (!$received) {
+			//die('1');
+			return false;
+		}
+
+		extract($received);
+
+		$verifier = self::createBotProtection($secret_key, $require_captcha, $language, $created, $random);
+
+		if (!hash_equals($verifier, $cookie)) {
+			return false;
+		}
+
+		// Make sure the token was created in the last 5 seconds, you need at least 5 seconds
+		// to fill out a form for a human, even if very fast
+		if ($created + 5 > time()) {
+			return false;
+		}
+
+		// You can fill a form in less than 12 hours right?
+		if ($created < time() - 3600*12) {
+			die('4');
+			return false;
+		}
+
+		if ($require_captcha
+			&& !Security::checkCaptcha($secret_key, $captcha_hash, $captcha_response)) {
+			return false;
+		}
+
+		return true;
+	}
+
 	/**
 	 * Parses rules for form validation
 	 * @param  string $str Rule description

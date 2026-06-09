@@ -162,6 +162,143 @@ class Security
 		return compact('hash', 'spellout');
 	}
 
+	static public function getUserAgentScore(?string $language = null, ?string $ua = null, ?array $headers = null): int
+	{
+		$score = 0;
+		$ua ??= $_SERVER['HTTP_USER_AGENT'] ?? '';
+
+		// Old user agents that are commonly used by bots
+		$bad_agents = '/BonEcho|Gecko\/200|MSIE\s+[2-9]|Trident|Camino|Amiga|Arora|Cheshire|python|gpt|curl|wget/i';
+
+		$is_modern_browser = false;
+
+		$headers ??= apache_request_headers();
+		$headers = array_change_key_case($headers);
+
+		if (preg_match($bad_agents, $ua)) {
+			$score -= 50;
+		}
+		elseif (preg_match('!Firefox/(\d+)!', $ua, $match)) {
+			// Firefox 151 was released on May 19, 2026
+			$weeks_count = (time() - strtotime('2026-05-19')) / 3600 / 24 / 7;
+			// There is a new version every 4 weeks
+			$last_firefox_version = floor(151 + ($weeks_count / 4));
+
+			// Recent version
+			if ($match[1] >= ($last_firefox_version - 2)) {
+				$score += 10;
+			}
+			// A little bit less recent version
+			elseif ($match[1] >= ($last_firefox_version - 5)) {
+				$score += 5;
+			}
+			// More than a year-old is unusual
+			elseif ($match[1] >= ($last_firefox_version - 12)) {
+				$score -= 2;
+			}
+			else {
+				$score -= 10;
+			}
+
+			$is_modern_browser = true;
+		}
+		elseif (preg_match('!Chrome/(\d+)!', $ua, $match)) {
+			$weeks_count = (time() - strtotime('2026-08-12')) / 3600 / 24 / 7;
+
+			// Chrome has a new version every 4 weeks until 152 then every 2 weeks (from August 12, 2026)
+			$release_cycle = time() >= strtotime('2026-08-20') ? 2 : 4;
+
+			$last_chrome_version = floor(162 + ($weeks_count / $release_cycle));
+
+			// Recent version
+			if ($match[1] >= ($last_chrome_version - $release_cycle/2)) {
+				$score += 10;
+			}
+			// A little bit less recent version
+			elseif ($match[1] >= ($last_chrome_version - $release_cycle)) {
+				$score += 5;
+			}
+			elseif ($match[1] >= ($last_chrome_version - $release_cycle*2)) {
+				$score -= 2;
+			}
+			else {
+				$score -= 10;
+			}
+
+			// Version doesn't match between Sec-Ch-Ua and User-Agent: this is a bot
+			if (!strpos($headers['sec-ch-ua'] ?? '', 'v="' . $match[1] . '"')) {
+				$score -= 100;
+			}
+
+			$is_modern_browser = true;
+		}
+		elseif (preg_match('!Version/(\d+)\.\d+ Safari/!', $ua, $match)) {
+			// Safari version is the year following the release since 2025
+			if ($match[1] == date('y') - 1) {
+				$score += 10;
+			}
+			elseif ($match[1] == date('y') - 2) {
+				$score += 5;
+			}
+			// Old versions from 2023 and 2024
+			elseif (date('Y') < 2028 && ($match[1] == 17 || $match[1] == 18)) {
+				$score += 2;
+			}
+			else {
+				$score -= 10;
+			}
+		}
+
+		if (($headers['sec-fetch-mode'] ?? '') !== 'navigate') {
+			if ($is_modern_browser) {
+				$score -= 20;
+			}
+			else {
+				$score -= 5;
+			}
+		}
+
+		// If platform is not in user-agent, it probably means this is a bot
+		if (isset($headers['sec-ch-ua-platform'])) {
+			if ($headers['sec-ch-ua-platform'] === '"Linux"'
+				&& false === strpos($ua, 'Linux')) {
+				$score -= 20;
+			}
+			elseif ($headers['sec-ch-ua-platform'] === '"Windows"'
+				&& false === strpos($ua, 'Windows')) {
+				$score -= 20;
+			}
+		}
+
+		$good_headers = [
+			'accept-encoding',
+			'priority',
+			'origin',
+			'accept',
+			'accept-language',
+			'sec-fetch-dest',
+			'sec-fetch-mode',
+			'sec-fetch-site',
+			'sec-ch-ua',
+			'upgrade-insecure-requests',
+		];
+
+		foreach ($good_headers as $name) {
+			if (array_key_exists($name, $headers)) {
+				$score++;
+			}
+		}
+
+		if (!isset($headers['accept-language'])) {
+			$score -= 10;
+		}
+		elseif ($language && strtolower(substr($headers['accept-language'], 0, 2)) !== $language) {
+			$score -= 10;
+		}
+
+		return $score;
+	}
+
 	static public function generateMarkovText(string $text, int $max_words): string
 	{
 		$text = str_replace('‘', '\'', $text);
