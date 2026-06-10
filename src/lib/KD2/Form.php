@@ -246,8 +246,8 @@ class Form
 
 	static public function setBotProtectionCookie(string $key, ?string $value = null): void
 	{
-		setcookie('bp_' . $key, $value, [
-			'expires'  => 0,
+		setcookie('bp_' . $key, $value ?? '', [
+			'expires'  => $value ? 0 : -1,
 			'path'     => '/',
 			'secure'   => !empty($_SERVER['HTTPS']),
 			'httponly' => true,
@@ -305,20 +305,17 @@ class Form
 		$bp = current($_POST['bp']);
 
 		if (strlen($random) !== strlen(md5(' '))) {
-			die('a');
 			return null;
 		}
 
 		// honeypot field should not be filled
 		if (!empty($bp['h'])) {
-			die('b');
 			return null;
 		}
 
 		if (!isset($bp['k'])
 			|| !is_array($bp)
 			|| count($bp) < 1) {
-			die('c');
 			return null;
 		}
 
@@ -334,7 +331,6 @@ class Form
 		$hash = strtok('');
 
 		if (strlen($language) !== 2) {
-			die('e');
 			return null;
 		}
 
@@ -346,12 +342,13 @@ class Form
 
 	static public function verifyBotProtection(
 		#[\SensitiveParameter]
-		string $secret_key): bool
+		string $secret_key,
+		bool $remove_cookie = true
+	): bool
 	{
 		$received = self::getReceivedBotProtection();
 
 		if (!$received) {
-			//die('1');
 			return false;
 		}
 
@@ -371,13 +368,16 @@ class Form
 
 		// You can fill a form in less than 12 hours right?
 		if ($created < time() - 3600*12) {
-			die('4');
 			return false;
 		}
 
 		if ($require_captcha
 			&& !Security::checkCaptcha($secret_key, $captcha_hash, $captcha_response)) {
 			return false;
+		}
+
+		if ($remove_cookie) {
+			self::setBotProtectionCookie($random, null);
 		}
 
 		return true;
