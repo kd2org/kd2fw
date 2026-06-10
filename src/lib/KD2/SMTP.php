@@ -487,7 +487,17 @@ class SMTP
 
 	public static function checkEmailIsValid(string $email, bool $validate_mx = true): bool
 	{
-		$host = substr($email, strpos($email, '@') + 1);
+		$pos = strpos($email, '@');
+
+		if (!$pos) {
+			return false;
+		}
+
+		$host = substr($email, $pos + 1);
+
+		if (strlen($host) < 3) {
+			return false;
+		}
 
 		// Compatibility with IDN domains
 		if (function_exists('idn_to_ascii')) {
