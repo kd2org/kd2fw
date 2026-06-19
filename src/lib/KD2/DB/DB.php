@@ -515,7 +515,7 @@ class DB
 		}
 	}
 
-	public function escapeLike(string $value, string $escape_character): string
+	public function escapeLike(string $value, string $escape_character = '\\\\'): string
 	{
 		return strtr($value, [
 			$escape_character => $escape_character . $escape_character,
