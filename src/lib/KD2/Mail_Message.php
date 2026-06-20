@@ -1360,7 +1360,7 @@ class Mail_Message
 	 */
 	public function isPermanentRejection(string $error_message): ?bool
 	{
-		if (preg_match('/(?:user|mailbox)\s+(?:is\s+)?unavailable|doesn\'t\s*have|does\s*not\s*exist|invalid|Unrouteable|unknown|illegal|no\s*such\s*user|disabled|Relay\s*access\s*denied|not\s*found|Amazon SES did not send the message|relay not permitted/i', $error_message))
+		if (preg_match('/(?:user|mailbox)\s+(?:is\s+)?unavailable|doesn\'t\s*have|does\s*not\s*exist|invalid|Unrouteable|unknown|illegal|no\s*such\s*user|disabled|Relay\s*access\s*denied|not\s*found|Amazon SES did not send the message|relay not permitted|recently deleted|access denied|not configured to receive emails|out of storage space and inactive/i', $error_message))
 		{
 			return true;
 		}
