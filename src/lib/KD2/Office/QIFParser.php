@@ -14,7 +14,7 @@ class QIFParser
 {
 	static public function isQIF(string $str): bool
 	{
-		return preg_match('/^D[\d/-]+$/', $str) && preg_match('/^T-?[\d,.]+$/', $str);
+		return preg_match('/^D[\d/-]+$/m', $str) && preg_match('/^T-?[\d,.]+$/m', $str);
 	}
 
 	public function parse(string $str): array
@@ -32,19 +32,31 @@ class QIFParser
 				continue;
 			}
 
-			$out[] = $this->parseBlock($block);
+			$block = $this->parseBlock($block);
+
+			if (null === $block) {
+				continue;
+			}
+
+			$out[] = $block;
 		}
 
 		return array_filter($out);
 	}
 
-	protected function parseBlock(string $str): stdClass
+	protected function parseBlock(string $str): ?stdClass
 	{
 		$lines = explode("\n", $str);
 		$data = [];
 
 		foreach ($lines as $line) {
 			$code = substr($line, 0, 1);
+
+			// Ignore !Type: lines
+			if ($code === '!') {
+				continue;
+			}
+
 			$value = trim(substr($line, 1));
 
 			if (array_key_exists($code, $data)) {
@@ -53,6 +65,10 @@ class QIFParser
 			else {
 				$data[$code] = $value;
 			}
+		}
+
+		if (!count($data)) {
+			return null;
 		}
 
 		$clear = strtoupper($data['C'] ?? '');
@@ -120,7 +136,7 @@ class QIFParser
 		}
 	}
 
-	protected function parseAmount(?string $str): string
+	protected function parseAmount(?string $str): ?string
 	{
 		if ($str === '' || $str === null) {
 			return null;
