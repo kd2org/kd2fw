@@ -4,17 +4,26 @@ use KD2\Test;
 use KD2\Office\OFXParser;
 use KD2\Brindille_Exception;
 
-require __DIR__ . '/_assert.php';
+require __DIR__ . '/../_assert.php';
 
 function test_basic(string $str)
 {
-	$o = new OFXParser;
-	$r = $o->parse($str);
-  Test::assert(isset($r->accounts[0]->statement->start));
-  Test::assert(isset($r->accounts[0]->statement->end));
-  Test::assert(isset($r->accounts[0]->statement->transactions[0]));
-  Test::assert(isset($r->accounts[0]->statement->transactions[0]->date));
-  Test::assert(isset($r->accounts[0]->statement->transactions[0]->amount));
+    $o = new OFXParser;
+    $r = $o->parse($str);
+    Test::assert(isset($r->accounts[0]->statement->start));
+    Test::assert(isset($r->accounts[0]->statement->end));
+    Test::assert(isset($r->accounts[0]->statement->transactions[0]));
+    Test::assert(isset($r->accounts[0]->statement->transactions[0]->date));
+    Test::assert(isset($r->accounts[0]->statement->transactions[0]->amount));
+}
+
+function test_empty(string $str)
+{
+    $o = new OFXParser;
+    $r = $o->parse($str);
+    Test::assert(isset($r->accounts[0]->statement->start));
+    Test::assert(isset($r->accounts[0]->statement->end));
+    Test::assert(count($r->accounts[0]->statement->transactions) === 0);
 }
 
 $test1 = <<<EOF
@@ -251,3 +260,60 @@ $test2 = <<<EOF
 EOF;
 
 test_basic($test2);
+
+$test3 = <<<EOF
+OFXHEADER:100
+DATA:OFXSGML
+VERSION:102
+SECURITY:NONE
+ENCODING:USASCII
+CHARSET:1252
+COMPRESSION:NONE
+OLDFILEUID:NONE
+NEWFILEUID:NONE
+
+<OFX>
+<SIGNONMSGSRSV1>
+  <SONRS>
+    <STATUS>
+      <CODE>0
+      <SEVERITY>INFO
+    </STATUS>
+    <DTSERVER>20260630000000
+    <LANGUAGE>FRA
+  </SONRS>
+</SIGNONMSGSRSV1>
+<BANKMSGSRSV1>
+  <STMTTRNRS>
+    <TRNUID>20260630000000
+    <STATUS>
+      <CODE>0
+      <SEVERITY>INFO
+    </STATUS>
+    <STMTRS>
+      <CURDEF>EUR
+      <BANKACCTFROM>
+        <BANKID>XXXXX
+        <BRANCHID>XXXXX
+        <ACCTID>XXXXXX
+        <ACCTTYPE>CHECKING
+      </BANKACCTFROM>
+      <BANKTRANLIST>
+        <DTSTART>20260630000000
+        <DTEND>20260630000000
+      </BANKTRANLIST>
+      <LEDGERBAL>
+        <BALAMT>2743.05
+        <DTASOF>20260630000000
+      </LEDGERBAL>
+      <AVAILBAL>
+        <BALAMT>0.00
+        <DTASOF>20260630000000
+      </AVAILBAL>
+    </STMTRS>
+  </STMTTRNRS>
+</BANKMSGSRSV1>
+</OFX>
+EOF;
+
+test_empty($test3);
