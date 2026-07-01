@@ -8,6 +8,8 @@ use KD2\ZipWriter;
 use DOMDocument;
 use DOMNode;
 
+use DateTimeInterface;
+use DateTime;
 
 /**
  * This class takes one or more HTML tables, and convert them to a single ODS document.
@@ -239,7 +241,7 @@ class TableToODS extends AbstractTable
 		$this->openRow($row_styles);
 
 		foreach ($row as $key => $cell) {
-			if (is_object($cell) && $cell instanceof \DateTimeInterface) {
+			if (is_object($cell) && $cell instanceof DateTimeInterface) {
 				$cell = [
 					'attributes' => [
 						'type' => 'date',
@@ -493,7 +495,7 @@ class TableToODS extends AbstractTable
 		if (!$type || $type === 'auto') {
 			$number_value = str_replace([' ', "\xC2\xA0"], '', trim($value));
 
-			if (is_object($value) && $value instanceof \DateTimeInterface) {
+			if (is_object($value) && $value instanceof DateTimeInterface) {
 				$type = 'date';
 			}
 			elseif (is_int($value)) {
@@ -533,9 +535,9 @@ class TableToODS extends AbstractTable
 
 		// Check for valid date
 		if ($type === 'date') {
-			if ($date = strtotime($attributes['date'] ?? $value)) {
-				$format = !intval(date('His', $date)) ? 'Y-m-d' : 'Y-m-d\TH:i:s';
-				$date = date($format, $date);
+			if ($date = $this->parseDate($attributes['date'] ?? $value)) {
+				$format = !intval($date->format('His')) ? 'Y-m-d' : 'Y-m-d\TH:i:s';
+				$date = $date->format($format);
 			}
 			else {
 				$type = 'string';
@@ -556,6 +558,39 @@ class TableToODS extends AbstractTable
 		}
 
 		return $type;
+	}
+
+	protected function parseDate(?string $date): ?DateTimeInterface
+	{
+		if ($date === null || $date === '') {
+			return null;
+		}
+
+		try {
+			// YYYYMMDD
+			if (is_numeric($date) && strlen($date) === strlen(date('Ymd'))) {
+				$out = DateTime::createFromFormat('!Ymd', $date);
+			}
+			// DD/MM/YYYY (US format is not supported)
+			elseif (substr_count($date, '/') === 2 && strlen($date) === strlen(date('d/m/Y'))) {
+				$d = explode('/', $date);
+				$out = DateTime::createFromFormat('!Y-m-d', sprintf('%04d-%02d-%02d', $d[2], $d[1], $d[0]));
+			}
+			// DD/MM/YY (US format is not supported)
+			elseif (substr_count($date, '/') === 2 && strlen($date) === strlen(date('d/m/y'))) {
+				$d = explode('/', $date);
+				$out = DateTime::createFromFormat('!y-m-d', sprintf('%02d-%02d-%02d', $d[2], $d[1], $d[0]));
+			}
+			// ISO format / other
+			else {
+				$out = new DateTime($date);
+			}
+
+			return $out ?: null;
+		}
+		catch (\Exception $e) {
+			return null;
+		}
 	}
 
 	public function save(string $filename): void
