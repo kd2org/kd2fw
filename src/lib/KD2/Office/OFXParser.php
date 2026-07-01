@@ -51,11 +51,10 @@ class OFXParser
 		$xml = simplexml_load_string($str, 'SimpleXMLElement', LIBXML_NOENT | LIBXML_DTDLOAD | LIBXML_DTDATTR);
 
 		if ($errors = libxml_get_errors()) {
-			var_dump($str);
 			foreach ($errors as &$error) {
-				var_dump($error);
 				$error = sprintf('Line %d, column %d: %s', $error->message, $error->line, $error->column);
 			}
+
 			unset($error);
 
 			throw new \InvalidArgumentException(implode("\n", $errors));
