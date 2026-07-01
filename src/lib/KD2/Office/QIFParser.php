@@ -50,6 +50,11 @@ class QIFParser
 		$data = [];
 
 		foreach ($lines as $line) {
+			// Ignore empty lines
+			if (trim($line) === '') {
+				continue;
+			}
+
 			$code = substr($line, 0, 1);
 
 			// Ignore !Type: lines
@@ -73,6 +78,16 @@ class QIFParser
 
 		$clear = strtoupper($data['C'] ?? '');
 
+		$label = $data['P'] ?? null;
+
+		// In some cases the label is doubled (eg. Boursobank), remove the duplicate part
+		// -> Prlv Sepa Direction Generale Des Finance | PRLV SEPA DIRECTION GENERALE DES FINANCE
+		if (null !== $label
+			&& ($pos = strpos($label, '|'))
+			&& mb_strtoupper(trim(substr($label, 0, $pos-1))) === mb_strtoupper(trim(substr($label, $pos+1)))) {
+			$label = trim(substr($label, 0, $pos-1));
+		}
+
 		return (object) [
 			// Date. Leading zeroes on month and day can be skipped. Year can be either 4 digits or 2 digits or '6 (=2006).	All	D25 December 2006
 			'date' => $this->parseDate($data['D'] ?? null),
@@ -83,7 +98,7 @@ class QIFParser
 			'amount' => $this->parseAmount($data['T'] ?? ($data['U'] ?? null)),
 
 			// Payee. Or a description for deposits, transfers, etc.
-			'label' => $data['P'] ?? null,
+			'label' => $label,
 
 			// Memo—any text you want to record about the item.
 			'memo' => $data['M'] ?? null,
