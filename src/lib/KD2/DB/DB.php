@@ -852,7 +852,7 @@ class DB
 	 */
 	public function delete(string $table, string $where, ...$args)
 	{
-		$query = sprintf('DELETE FROM %s WHERE %s;', $table, $where);
+		$query = sprintf('DELETE FROM %s WHERE %s;', $this->quoteIdentifier($table), $where);
 		return (bool) $this->preparedQuery($query, ...$args);
 	}
 
