@@ -368,12 +368,13 @@ class UserSession
 			}
 
 			// Only start session if it exists
-			if ($write || $session_id)
-			{
+			if ($write || $session_id) {
 				// Check session ID value, in case it is invalid/corrupted
 				// see https://stackoverflow.com/questions/3185779/the-session-id-is-too-long-or-contains-illegal-characters-valid-characters-are
-				if (!$session_url && isset($_COOKIE[$this->cookie_name]) && !preg_match('/^[a-zA-Z0-9-]{1,64}$/', $_COOKIE[$this->cookie_name])) {
-					@session_regenerate_id();
+				if (!$session_url
+					&& isset($_COOKIE[$this->cookie_name])
+					&& !preg_match('/^[a-zA-Z0-9-]{1,64}$/', $_COOKIE[$this->cookie_name])) {
+					@session_regenerate_id(true);
 				}
 
 				if ($session_url) {
@@ -610,12 +611,15 @@ class UserSession
 			throw new \LogicException('Cannot create a session for a user that does not exists.');
 		}
 
-		if ($regenerate && session_id()) {
-			// Make sure that the session ID is re-created to avoid any risk of session fixation
-			session_regenerate_id(true);
-		}
+		$has_session_id = isset($_COOKIE[$this->cookie_name]);
 
 		$this->start(true);
+
+		// Make sure that the session ID is regenerated to avoid any risk of session fixation attack
+		if ($has_session_id && $regenerate && session_id()) {
+			@session_regenerate_id(true);
+		}
+
 		$this->user = $_SESSION['userSession'] = $user;
 
 		// Make sure the password is in the session, and the session should be closed if it changes
