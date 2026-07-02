@@ -217,8 +217,7 @@ class ZipReader
 		$count = 0;
 
 		foreach ($this->iterate() as $file) {
-			$dest = $destination . str_replace('/', DIRECTORY_SEPARATOR, $file['filename']);
-			$this->extract($file, $dest);
+			$this->extract($file, $destination . $file['filename']);
 			$count++;
 		}
 
@@ -273,6 +272,19 @@ class ZipReader
 
 		if (is_string($destination)) {
 			$is_file = true;
+
+			$destination = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $destination);
+
+			$destination = rtrim($name, DIRECTORY_SEPARATOR);
+			$parts = explode(DIRECTORY_SEPARATOR, $destination);
+
+			foreach ($parts as $part) {
+				// Ignore invalid filenames / path traversal attempts
+				if ($part === '' || $part === '.' || $part === '..') {
+					return null;
+				}
+			}
+
 			$destination = fopen($destination, 'wb');
 		}
 		elseif (null !== $destination && !is_resource($destination)) {
