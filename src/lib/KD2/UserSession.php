@@ -469,7 +469,7 @@ class UserSession
 		}
 
 		try {
-			return $this->create($this->getUser()->id, false);
+			return $this->create($this->getUser()->id);
 		}
 		catch (\LogicException $e) {
 			$this->logout();
@@ -602,7 +602,7 @@ class UserSession
 		}
 	}
 
-	protected function create($user_id, bool $regenerate = true): bool
+	protected function create($user_id): bool
 	{
 		$user = $this->getUserDataForSession($user_id);
 
@@ -614,12 +614,6 @@ class UserSession
 		$has_session_id = isset($_COOKIE[$this->cookie_name]);
 
 		$this->start(true);
-
-		// Make sure that the session ID is regenerated to avoid any risk of session fixation attack
-		if ($has_session_id && $regenerate && session_id()) {
-			@session_regenerate_id(true);
-		}
-
 		$this->user = $_SESSION['userSession'] = $user;
 
 		// Make sure the password is in the session, and the session should be closed if it changes
