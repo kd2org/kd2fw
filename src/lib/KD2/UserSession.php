@@ -468,7 +468,7 @@ class UserSession
 		}
 
 		try {
-			return $this->create($this->getUser()->id);
+			return $this->create($this->getUser()->id, false);
 		}
 		catch (\LogicException $e) {
 			$this->logout();
@@ -601,7 +601,7 @@ class UserSession
 		}
 	}
 
-	protected function create($user_id): bool
+	protected function create($user_id, bool $regenerate = true): bool
 	{
 		$user = $this->getUserDataForSession($user_id);
 
@@ -610,7 +610,7 @@ class UserSession
 			throw new \LogicException('Cannot create a session for a user that does not exists.');
 		}
 
-		if (session_id()) {
+		if ($regenerate && session_id()) {
 			// Make sure that the session ID is re-created to avoid any risk of session fixation
 			session_regenerate_id(true);
 		}
