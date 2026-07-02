@@ -276,7 +276,7 @@ class ZipReader
 			$destination = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $destination);
 
 			$destination = rtrim($destination, DIRECTORY_SEPARATOR);
-			$parts = explode(DIRECTORY_SEPARATOR, $destination);
+			$parts = explode(DIRECTORY_SEPARATOR, ltrim($destination, DIRECTORY_SEPARATOR));
 
 			foreach ($parts as $part) {
 				// Ignore invalid filenames / path traversal attempts
