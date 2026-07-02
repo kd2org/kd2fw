@@ -610,6 +610,11 @@ class UserSession
 			throw new \LogicException('Cannot create a session for a user that does not exists.');
 		}
 
+		if (session_id()) {
+			// Make sure that the session ID is re-created to avoid any risk of session fixation
+			session_regenerate_id(true);
+		}
+
 		$this->start(true);
 		$this->user = $_SESSION['userSession'] = $user;
 
