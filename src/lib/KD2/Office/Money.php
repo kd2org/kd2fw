@@ -4,10 +4,63 @@ namespace KD2\Office;
 
 class Money
 {
+	static public function toInteger(string $value, int $decimals = 2): int
+	{
+		$int = strtok(' ' . $value, '.');
+		$dec = strtok('');
+
+		$dec = substr($dec, 0, $decimals);
+
+		if (strlen($dec) < $decimals) {
+			$dec = str_pad($dec, $decimals, '0', STR_PAD_RIGHT);
+		}
+
+		return intval($int . $dec);
+	}
+
+	/**
+	 * @return null|int NULL if input value is not a valid number
+	 */
+	static public function fromUserEntry($value, int $decimals = 2): ?int
+	{
+		if (!is_scalar($value)
+			&& !is_null($value)) {
+			throw new \InvalidArgumentException('Invalid argument type: ' . gettype($value));
+		}
+
+		if (null === $value
+			|| 0 === $value
+			|| 0.0 === $value
+			|| trim($value, "0.\r\n\t ") === '') {
+			return 0;
+		}
+
+		// Remove whitespace characters
+		$value = preg_replace('/\h/u', '', $value);
+
+		// Remove plus sign
+		$value = ltrim($value, '+');
+
+		// Replace international decimal notation: ,12 ; 123,45 ; 1.043,12
+		if (substr($value, 0, 1) === ','
+			|| strpos($value, ',') > strpos($value, '.')) {
+			$value = strtr($value, ['.' => '', ',' => '.']);
+		}
+
+		// Remove US thousands separator
+		$value = str_replace(',', '', $value);
+
+		if (!preg_match('/^-?(?:\d+|\d*\.\d+)$/', $value)) {
+			return null;
+		}
+
+		return self::toInteger($value);
+	}
+
 	/**
 	 * Parse "123.456" → [123456, 3]
 	 */
-	static public function parse(string $value): array
+	static public function parseScale(string $value): array
 	{
 		if (strpos($value, ',') !== false) {
 			throw new \InvalidArgumentException('Comma in monetary value: ' . $value);
@@ -67,8 +120,8 @@ class Money
 			return rtrim($r, '0.');
 		}
 
-		[$a_value, $a_scale] = self::parse($a);
-		[$b_value, $b_scale] = self::parse($b);
+		[$a_value, $a_scale] = self::parseScale($a);
+		[$b_value, $b_scale] = self::parseScale($b);
 
 		// Align scales for + and -
 		if ($op === '+' || $op === '-') {
@@ -135,12 +188,11 @@ class Money
 		}
 
 		$digits = strtok($value, '.');
+		$decimals = substr(strtok(''), 0, 3);
 
 		if (!ctype_digit($digits)) {
 			throw new \InvalidArgumentException('Invalid digits value: ' . $value);
 		}
-
-		$decimals = substr(strtok(''), 0, 3);
 
 		if (!ctype_digit($decimals)) {
 			throw new \InvalidArgumentException('Invalid decimals value: ' . $value);

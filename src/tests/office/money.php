@@ -5,6 +5,42 @@ use KD2\Office\Money;
 
 require __DIR__ . '/../_assert.php';
 
+function test_toint()
+{
+    Test::strictlyEquals(12, Money::toInteger('.12', 2));
+    Test::strictlyEquals(1004, Money::toInteger('1.004', 3));
+    Test::strictlyEquals(100, Money::toInteger('1.004', 2));
+    Test::strictlyEquals(1005, Money::toInteger('1.005', 3));
+    Test::strictlyEquals(100, Money::toInteger('1.005', 2));
+    Test::strictlyEquals(-100, Money::toInteger('-1.005', 2));
+    Test::strictlyEquals(444999, Money::toInteger('444.9999', 3));
+    Test::strictlyEquals(444999, Money::toInteger('444.9999', 3));
+}
+
+test_toint();
+
+function test_from_user_entry()
+{
+	Test::strictlyEquals(500, Money::fromUserEntry('5'));
+	Test::strictlyEquals(442, Money::fromUserEntry('4,42'));
+	Test::strictlyEquals(442, Money::fromUserEntry('4.42'));
+	Test::strictlyEquals(4, Money::fromUserEntry('0,04'));
+	Test::strictlyEquals(30, Money::fromUserEntry('0,3'));
+	Test::strictlyEquals(202034, Money::fromUserEntry('2020,34'));
+	Test::strictlyEquals(202034, Money::fromUserEntry('2.020,34'));
+	Test::strictlyEquals(202034, Money::fromUserEntry('2,020.34'));
+	Test::strictlyEquals(202034, Money::fromUserEntry('2 020,34'));
+	Test::strictlyEquals(202034, Money::fromUserEntry('2 020.34'));
+	Test::strictlyEquals(202034, Money::fromUserEntry('2020.34'));
+	Test::strictlyEquals(202034, Money::fromUserEntry('+2020.34'));
+	Test::strictlyEquals(-202034, Money::fromUserEntry('-2020.34'));
+	Test::strictlyEquals(-34, Money::fromUserEntry('-,34'));
+	Test::strictlyEquals(12, Money::fromUserEntry(',12'));
+	Test::strictlyEquals(null, Money::fromUserEntry('0,0,12'));
+}
+
+test_from_user_entry();
+
 function test_round2()
 {
     Test::strictlyEquals('1.00', Money::round2('1.004'));
