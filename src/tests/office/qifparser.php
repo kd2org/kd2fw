@@ -2,7 +2,6 @@
 
 use KD2\Test;
 use KD2\Office\QIFParser;
-use KD2\Brindille_Exception;
 
 require __DIR__ . '/../_assert.php';
 
