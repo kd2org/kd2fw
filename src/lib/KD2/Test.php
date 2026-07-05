@@ -116,17 +116,22 @@ class Test
 		);
 	}
 
-	static public function exception($name, callable $callback, string $message = '')
+	static public function exception($expected, callable $callback, string $message = '')
 	{
 		try
 		{
 			$callback();
+			$result = 'no exception!';
+			$message = null;
 		}
 		catch (\Exception $e)
 		{
-			self::equals($name, get_class($e),
-				sprintf("Exception '%s' doesn't match expected '%s':\n%s", get_class($e), $name, $e->getMessage()));
+			$result = get_class($e);
+			$message = $e->getMessage();
 		}
+
+		self::equals($expected, $result,
+			sprintf("Exception '%s' doesn't match expected '%s':\n%s", $result, $expected, $message));
 	}
 
 	static public function run($target, $pattern = '/^.*Test\.php$/')
