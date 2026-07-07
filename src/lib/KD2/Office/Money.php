@@ -182,6 +182,10 @@ class Money
 	 */
 	public static function round2(string $value): string
 	{
+		if (trim($value, '0.') === '') {
+			return '0';
+		}
+
 		if (function_exists('bcround')) {
 			// Half towards zero in PHP is half-up
 			return bcround($value, 2, \RoundingMode::HalfTowardsZero);
@@ -190,11 +194,11 @@ class Money
 		$digits = strtok($value, '.');
 		$decimals = substr(strtok(''), 0, 3);
 
-		if (!ctype_digit($digits)) {
+		if (strlen($digits) && !ctype_digit($digits)) {
 			throw new \InvalidArgumentException('Invalid digits value: ' . $value);
 		}
 
-		if (!ctype_digit($decimals)) {
+		if (strlen($decimals) && !ctype_digit($decimals)) {
 			throw new \InvalidArgumentException('Invalid decimals value: ' . $value);
 		}
 
