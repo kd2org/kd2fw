@@ -248,6 +248,25 @@ class EntityManager
 		return $return;
 	}
 
+	public function saveOnly(AbstractEntity $entity, array $fields): bool
+	{
+		$db = $this->DB();
+
+		if (!$entity->exists()) {
+			throw new \LogicException('Cannot use saveOnly with a non-existing entity');
+		}
+
+		if (!$entity->isModified()) {
+			return true;
+		}
+
+		$data = array_intersect_key($entity->asArray(true), array_flip($fields));
+		$return = $db->update($entity::TABLE, $data, $db->where('id', $entity->id()));
+		$entity->clearModifiedProperties($fields);
+
+		return $return;
+	}
+
 	public function delete(AbstractEntity $entity): bool
 	{
 		$db = $this->DB();

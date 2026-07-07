@@ -602,6 +602,11 @@ abstract class AbstractEntity
 		return EntityManager::getInstance(static::class)->save($this, $selfcheck);
 	}
 
+	public function saveOnly(array $fields): bool
+	{
+		return EntityManager::getInstance(static::class)->saveOnly($this, $fields);
+	}
+
 	public function delete(): bool
 	{
 		return EntityManager::getInstance(static::class)->delete($this);
