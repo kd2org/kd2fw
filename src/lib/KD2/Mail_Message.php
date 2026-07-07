@@ -255,48 +255,42 @@ class Mail_Message
 		}
 	}
 
-	public function getTo()
+	public function getTo(): array
 	{
 		return $this->getMultipleAddressHeader('to');
 	}
 
-	public function getCc()
+	public function getCc(): array
 	{
 		return $this->getMultipleAddressHeader('cc');
 	}
 
-	public function getBcc()
+	public function getBcc(): array
 	{
 		return $this->getMultipleAddressHeader('bcc');
 	}
 
-	public function getMultipleAddressHeader(string $header): array
+	public function getMultipleAddressHeader(string $header, ?string $value = null): array
 	{
-		$value = $this->getHeader($header);
+		$value ??= $this->getHeader($header);
 
 		if (!$value) {
 			return [];
 		}
 
-		return self::splitMultipleAddressHeaderValue($value);
-	}
+		$out = [];
 
-	static public function splitMultipleAddressHeaderValue($value): array
-	{
-		if (is_array($value)) {
-			$value = implode(', ', $value);
+		foreach ($this->parseAddressList($value) as $item) {
+			if ($item['type'] === 'mailbox') {
+				$item['members'] = [$item];
+			}
+
+			foreach ($item['members'] as $member) {
+				$out[] = isset($member['name']) ? sprintf('"%s" <%s>', $member['name'], $member['address']) : sprintf('<%s>', $member['address']);
+			}
 		}
 
-		if (!trim($value)) {
-			return [];
-		}
-
-		// Remove grouping, see RFC 2822 § section 3.4
-		$value = preg_replace('/(?:[^:"<>,]+)\s*:\s*(.*?);/', '$1', $value);
-
-		// Extract addresses
-		preg_match_all('/(?:"(?!\\").*"\s*|[^"<>,]+)?<.*?>|[^<>",\s]+/s', $value, $match, PREG_PATTERN_ORDER);
-		return array_map('trim', $match[0]);
+		return $out;
 	}
 
 	public function setHeader($key, $value)
@@ -903,8 +897,8 @@ class Mail_Message
 			$glue = in_array($key, ['From', 'Cc', 'To', 'Bcc', 'Reply-To']) ? ', ' : '';
 			$value = implode($glue, $value);
 		}
-		elseif (in_array($key, ['From', 'Cc', 'To', 'Bcc', 'Reply-To'])) {
-			return $this->_encodeHeader($key, self::splitMultipleAddressHeaderValue($value));
+		elseif (in_array($key, ['From', 'Cc', 'To', 'Bcc', 'Reply-To'], true)) {
+			return $this->_encodeHeader($key, self::getMultipleAddressHeader($key, $value));
 		}
 		else {
 			$value = $this->_encodeHeaderValue($value, $key);
@@ -1080,18 +1074,24 @@ class Mail_Message
 		}
 
 		// Decode headers
-		foreach ($headers as &$value)
+		foreach ($headers as $key => &$value)
 		{
-			if (is_array($value))
+			// Don't decode address headers, or we might not be able
+			// to correctly parse the address list
+			if ($key === 'cc' || $key === 'to' || $key === 'bcc' || $key === 'from') {
+				continue;
+			}
+
+			elseif (is_array($value))
 			{
 				foreach ($value as &$subvalue)
 				{
-					$subvalue = $this->_decodeHeader($subvalue);
+					$subvalue = $this->_decodeHeaderValue($subvalue);
 				}
 			}
 			else
 			{
-				$value = $this->_decodeHeader($value);
+				$value = $this->_decodeHeaderValue($value);
 			}
 		}
 
@@ -1118,22 +1118,147 @@ class Mail_Message
 		return $body;
 	}
 
-	protected function _decodeHeader($value)
+	protected function _tokenizeAddressList(string $s)
+	{
+		$tokens = [];
+		$current = '';
+		$len = strlen($s);
+
+		$in_quote = false;
+		$in_comment = 0;
+		$in_group = false;
+
+		for ($i = 0; $i < $len; $i++) {
+			$c = $s[$i];
+
+			if ($c === '"' && $in_comment === 0) {
+				// Toggle quoted string
+				$in_quote = !$in_quote;
+			}
+			elseif ($c === '(' && !$in_quote) {
+				// Enter comment nesting
+				$in_comment++;
+			}
+			elseif ($c === ')' && $in_comment > 0 && !$in_quote) {
+				// Exit comment nesting
+				$in_comment--;
+			}
+			elseif (!$in_comment && !$in_quote && !$in_group && $c === ':') {
+				$in_group = true;
+			}
+			// Split only when NOT inside quotes or comments
+			elseif ($c === ';' && !$in_quote && $in_comment === 0) {
+				// keep trailing characters to recognize groups
+				$current .= $c;
+				$in_group = false;
+
+				$tokens[] = trim($current);
+				$current = '';
+				continue;
+			}
+			elseif ($c === ',' && !$in_group && !$in_quote && $in_comment === 0) {
+				$tokens[] = trim($current);
+				$current = '';
+				continue;
+			}
+
+			$current .= $c;
+		}
+
+		if (trim($current) !== '') {
+			$tokens[] = trim($current);
+		}
+
+		return $tokens;
+	}
+
+	public function parseAddressList(string $value): array
+	{
+		// Tokenize into top-level items (addresses or groups)
+		$tokens = $this->_tokenizeAddressList($value);
+
+		$result = [];
+
+		foreach ($tokens as $token) {
+			$token = trim($token);
+
+			// GROUP: name: addr1, addr2;
+			if (preg_match('/^([^:]+):(.*);$/s', $token, $m)) {
+				$group_name = trim($m[1]);
+				$group_body = trim($m[2]);
+
+				$members = $this->_tokenizeAddressList($group_body);
+
+				$parsed_members = [];
+				foreach ($members as $member) {
+					$parsed_members[] = $this->parseAddress(trim($member));
+				}
+
+				$result[] = [
+					'type'    => 'group',
+					'name'    => $this->_decodeHeaderValue($group_name),
+					'address' => null,
+					'members' => $parsed_members
+				];
+			} else {
+				// Single mailbox
+				$result[] = $this->parseAddress($token);
+			}
+		}
+
+		return $result;
+	}
+
+	/**
+	 * Parse a single mailbox: "Name" <email@example.com>
+	 */
+	public function parseAddress(string $s): array
+	{
+		// Remove comments
+		$s = preg_replace('/\([^)]*?\)/', '', $s);
+
+		// Extract name + email
+		if (preg_match('/^(?:(?<!\\\\)"(.*?)(?!\\\\)"|(.+?))?\s*<([^>]+)>$/', $s, $m)) {
+			$name  = $this->_decodeHeaderValue($m[1] ?: ($m[2] ?? ''));
+			$email = trim($m[3]);
+
+			return [
+				'type'    => 'mailbox',
+				'name'    => $name,
+				'address' => $email,
+				'members' => null
+			];
+		}
+
+		// Bare email
+		return [
+			'type'    => 'mailbox',
+			'name'    => null,
+			'address' => trim($s),
+			'members' => null
+		];
+	}
+
+	protected function _decodeHeaderValue(string $value): string
 	{
 		$value = rtrim($value);
+
+		if ($value === '') {
+			return '';
+		}
 
 		if (strpos($value, '=?') === false)
 		{
 			return $this->utf8_encode($value);
 		}
 
-		if (function_exists('iconv_mime_decode'))
-		{
-			$value = $this->utf8_encode(iconv_mime_decode($value, ICONV_MIME_DECODE_CONTINUE_ON_ERROR));
-		}
-		elseif (function_exists('mb_decode_mimeheader'))
+		if (function_exists('mb_decode_mimeheader'))
 		{
 			$value = $this->utf8_encode(mb_decode_mimeheader($value));
+		}
+		elseif (function_exists('iconv_mime_decode'))
+		{
+			$value = $this->utf8_encode(iconv_mime_decode($value, ICONV_MIME_DECODE_CONTINUE_ON_ERROR));
 		}
 		elseif (function_exists('imap_mime_header_decode'))
 		{
@@ -1273,37 +1398,37 @@ class Mail_Message
 		return $str;
 	}
 
-    /**
-     * Poly-fill to encode a ISO-8859-1 string to UTF-8 for PHP >= 9.0
-     * @see https://php.watch/versions/8.2/utf8_encode-utf8_decode-deprecated
-     */
-    static public function iso8859_1_to_utf8(string $s): string
-    {
-        if (function_exists('utf8_encode')) {
-            return @utf8_encode($s);
-        }
+	/**
+	 * Poly-fill to encode a ISO-8859-1 string to UTF-8 for PHP >= 9.0
+	 * @see https://php.watch/versions/8.2/utf8_encode-utf8_decode-deprecated
+	 */
+	static public function iso8859_1_to_utf8(string $s): string
+	{
+		if (function_exists('utf8_encode')) {
+			return @utf8_encode($s);
+		}
 
-        $s .= $s;
-        $len = strlen($s);
+		$s .= $s;
+		$len = strlen($s);
 
-        for ($i = $len >> 1, $j = 0; $i < $len; ++$i, ++$j) {
-            switch (true) {
-                case $s[$i] < "\x80":
-                    $s[$j] = $s[$i];
-                    break;
-                case $s[$i] < "\xC0":
-                    $s[$j] = "\xC2";
-                    $s[++$j] = $s[$i];
-                    break;
-                default:
-                    $s[$j] = "\xC3";
-                    $s[++$j] = chr(ord($s[$i]) - 64);
-                    break;
-            }
-        }
+		for ($i = $len >> 1, $j = 0; $i < $len; ++$i, ++$j) {
+			switch (true) {
+				case $s[$i] < "\x80":
+					$s[$j] = $s[$i];
+					break;
+				case $s[$i] < "\xC0":
+					$s[$j] = "\xC2";
+					$s[++$j] = $s[$i];
+					break;
+				default:
+					$s[$j] = "\xC3";
+					$s[++$j] = chr(ord($s[$i]) - 64);
+					break;
+			}
+		}
 
-        return substr($s, 0, $j);
-    }
+		return substr($s, 0, $j);
+	}
 
 	/**
 	 * @see https://www.php.net/manual/en/function.mb-detect-encoding.php#68607

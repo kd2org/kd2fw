@@ -5,6 +5,7 @@ use KD2\Mail_Message;
 
 require __DIR__ . '/_assert.php';
 
+test_address_parser();
 test_cc();
 test_headers();
 test_headers_multiline();
@@ -17,6 +18,40 @@ test_multipart_filename();
 test_body_removal();
 test_extract();
 
+function test_address_parser()
+{
+	$msg = new Mail_Message;
+	$r = $msg->parseAddressList('"A" <a@email.org>');
+	Test::equals(1, count($r));
+	Test::equals('mailbox', $r[0]['type']);
+	Test::equals('A', $r[0]['name']);
+	Test::equals('a@email.org', $r[0]['address']);
+
+	$r = $msg->parseAddressList('"A" <a@email.org>, B <b@email.org>, c@email.org');
+	Test::equals(3, count($r));
+	Test::equals('mailbox', $r[0]['type']);
+	Test::equals('A', $r[0]['name']);
+	Test::equals('a@email.org', $r[0]['address']);
+	Test::equals('mailbox', $r[1]['type']);
+	Test::equals('B', $r[1]['name']);
+	Test::equals('b@email.org', $r[1]['address']);
+	Test::equals('mailbox', $r[2]['type']);
+	Test::strictlyEquals(null, $r[2]['name']);
+	Test::equals('c@email.org', $r[2]['address']);
+
+	$r = $msg->parseAddressList('Undisclosed-recipients: ;');
+	Test::equals(1, count($r));
+	Test::equals('group', $r[0]['type']);
+	Test::equals('Undisclosed-recipients', $r[0]['name']);
+	Test::strictlyEquals(null, $r[0]['address']);
+	Test::equals(0, count($r[0]['members']));
+
+	$r = $msg->parseAddressList('A Group:Ed Jones <c@a.test>,joe@where.test,John <jdoe@one.test>;B Group: xx@example.org, zz@example.org;');
+	Test::equals(2, count($r));
+	Test::equals('group', $r[0]['type']);
+	Test::equals('group', $r[1]['type']);
+}
+
 function test_cc()
 {
 	$msg = new Mail_Message;
@@ -28,7 +63,7 @@ Cc: =?UTF-8?Q?Fran=C3=A7ois?= <f@email.fr>, Bruno
 	$headers = $msg->outputHeaders();
 
 	Test::equals('From: "A" <a@email.org>
-To: b@email.org
+To: <b@email.org>
 Cc: "=?UTF-8?B?RnJhbsOnb2lz?=" <f@email.fr>, "Bruno" <b@email.com>
 Content-Type: text/plain; charset=utf-8
 Content-Transfer-Encoding: quoted-printable', str_replace("\r", "", $headers));
@@ -138,7 +173,7 @@ Message-ID: <1234@local.machine.example>';
 	$msg->parse($raw);
 
 	Test::equals('John Doe <jdoe@machine.example>', $msg->getHeader('From'));
-	Test::equals('Mary Smith <mary@example.net>', implode('', $msg->getTo()));
+	Test::equals('"Mary Smith" <mary@example.net>', implode('', $msg->getTo()));
 	Test::equals('Saying Hello', $msg->getHeader('subject'));
 	Test::equals('Fri, 21 Nov 1997 09:55:06 -0600', $msg->getHeader('Date'));
 	Test::equals('<1234@local.machine.example>', $msg->getHeader('Message-id'));
@@ -156,7 +191,7 @@ Message-ID: <5678.21-Nov-1997@example.com>';
 
 	Test::equals('"Joe Q. Public" <john.q.public@example.com>', $msg->getHeader('From'));
 	Test::equals('Mary Smith <mary@x.test>, jdoe@example.org, "Who?, not me?" <one@y.test>', $msg->getHeader('To'));
-	Test::equals('Mary Smith <mary@x.test>##jdoe@example.org##"Who?, not me?" <one@y.test>', implode('##', $msg->getTo()));
+	Test::equals('"Mary Smith" <mary@x.test>##<jdoe@example.org>##"Who?, not me?" <one@y.test>', implode('##', $msg->getTo()));
 	Test::equals('<boss@nil.test>, "Giant; \"Big\" Box" <sysservices@example.net>', $msg->getHeader('cc'));
 	Test::equals('Tue, 1 Jul 2003 10:52:37 +0200', $msg->getHeader('Date'));
 	Test::equals('<5678.21-Nov-1997@example.com>', $msg->getHeader('Message-id'));
@@ -174,7 +209,7 @@ Message-ID: <testabcd.1234@silly.example>';
 
 	Test::equals('Pete <pete@silly.example>', $msg->getHeader('From'));
 	Test::equals('A Group:Ed Jones <c@a.test>,joe@where.test,John <jdoe@one.test>;', $msg->getHeader('To'));
-	Test::equals('Ed Jones <c@a.test>##joe@where.test##John <jdoe@one.test>', implode('##', $msg->getTo()));
+	Test::equals('"Ed Jones" <c@a.test>##<joe@where.test>##"John" <jdoe@one.test>', implode('##', $msg->getTo()));
 	Test::equals('Undisclosed recipients:;', $msg->getHeader('cc'));
 	Test::equals(0, count($msg->getCc()));
 	Test::equals('<testabcd.1234@silly.example>', $msg->getHeader('Message-id'));
@@ -214,10 +249,21 @@ Subject: =?ISO-8859-1?B?SWYgeW91IGNhbiByZWFkIHRoaXMgeW8=?=
 	$msg = new Mail_Message;
 	$msg->parse($raw);
 
-	Test::equals('Keith Moore <moore@cs.utk.edu>', $msg->getHeader('from'));
-	Test::equals('Keld Jørn Simonsen <keld@dkuug.dk>', $msg->getHeader('to'));
-	Test::equals('André Pirard <PIRARD@vm1.ulg.ac.be>', $msg->getHeader('cc'));
+	// Should stay un-encoded
+	Test::equals('=?US-ASCII?Q?Keith_Moore?= <moore@cs.utk.edu>', $msg->getHeader('from'));
+	Test::equals('"Keld Jørn Simonsen" <keld@dkuug.dk>', $msg->getTo()[0]);
+	Test::equals('"André Pirard" <PIRARD@vm1.ulg.ac.be>', $msg->getCc()[0]);
 	Test::equals('If you can read this you understand the example.', $msg->getHeader('subject'));
+
+	$raw = 'From: =?ISO-8859-1?Q?Jub=E9_-_Le_Xt=FCck=2C_monnaie_locale_du_Bas-Rhin?= <jube.machin@truc.eu>';
+
+	$msg = new Mail_Message;
+	$msg->parse($raw);
+
+	// Should stay encoded
+	Test::equals('=?ISO-8859-1?Q?Jub=E9_-_Le_Xt=FCck=2C_monnaie_locale_du_Bas-Rhin?= <jube.machin@truc.eu>', $msg->getHeader('from'));
+	Test::equals('"Jubé - Le Xtück, monnaie locale du Bas-Rhin" <jube.machin@truc.eu>', $msg->getFrom()[0]);
+	Test::equals('Jubé - Le Xtück, monnaie locale du Bas-Rhin', $msg->getFromName());
 }
 
 function test_encryption()
