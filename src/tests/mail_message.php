@@ -63,7 +63,7 @@ Cc: =?UTF-8?Q?Fran=C3=A7ois?= <f@email.fr>, Bruno
 	$headers = $msg->outputHeaders();
 
 	Test::equals('From: "A" <a@email.org>
-To: <b@email.org>
+To: b@email.org
 Cc: "=?UTF-8?B?RnJhbsOnb2lz?=" <f@email.fr>, "Bruno" <b@email.com>
 Content-Type: text/plain; charset=utf-8
 Content-Transfer-Encoding: quoted-printable', str_replace("\r", "", $headers));
@@ -191,7 +191,7 @@ Message-ID: <5678.21-Nov-1997@example.com>';
 
 	Test::equals('"Joe Q. Public" <john.q.public@example.com>', $msg->getHeader('From'));
 	Test::equals('Mary Smith <mary@x.test>, jdoe@example.org, "Who?, not me?" <one@y.test>', $msg->getHeader('To'));
-	Test::equals('"Mary Smith" <mary@x.test>##<jdoe@example.org>##"Who?, not me?" <one@y.test>', implode('##', $msg->getTo()));
+	Test::equals('"Mary Smith" <mary@x.test>##jdoe@example.org##"Who?, not me?" <one@y.test>', implode('##', $msg->getTo()));
 	Test::equals('<boss@nil.test>, "Giant; \"Big\" Box" <sysservices@example.net>', $msg->getHeader('cc'));
 	Test::equals('Tue, 1 Jul 2003 10:52:37 +0200', $msg->getHeader('Date'));
 	Test::equals('<5678.21-Nov-1997@example.com>', $msg->getHeader('Message-id'));
@@ -209,7 +209,7 @@ Message-ID: <testabcd.1234@silly.example>';
 
 	Test::equals('Pete <pete@silly.example>', $msg->getHeader('From'));
 	Test::equals('A Group:Ed Jones <c@a.test>,joe@where.test,John <jdoe@one.test>;', $msg->getHeader('To'));
-	Test::equals('"Ed Jones" <c@a.test>##<joe@where.test>##"John" <jdoe@one.test>', implode('##', $msg->getTo()));
+	Test::equals('"Ed Jones" <c@a.test>##joe@where.test##"John" <jdoe@one.test>', implode('##', $msg->getTo()));
 	Test::equals('Undisclosed recipients:;', $msg->getHeader('cc'));
 	Test::equals(0, count($msg->getCc()));
 	Test::equals('<testabcd.1234@silly.example>', $msg->getHeader('Message-id'));

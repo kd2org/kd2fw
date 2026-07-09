@@ -286,7 +286,7 @@ class Mail_Message
 			}
 
 			foreach ($item['members'] as $member) {
-				$out[] = isset($member['name']) ? sprintf('"%s" <%s>', $member['name'], $member['address']) : sprintf('<%s>', $member['address']);
+				$out[] = isset($member['name']) ? sprintf('"%s" <%s>', $member['name'], $member['address']) : $member['address'];
 			}
 		}
 
