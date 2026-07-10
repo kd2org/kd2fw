@@ -260,6 +260,8 @@ class EntityManager
 			return true;
 		}
 
+		$entity->selfCheck();
+
 		$data = array_intersect_key($entity->asArray(true), array_flip($fields));
 		$return = $db->update($entity::TABLE, $data, $db->where('id', $entity->id()));
 		$entity->clearModifiedProperties($fields);
