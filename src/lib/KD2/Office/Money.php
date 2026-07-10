@@ -193,6 +193,12 @@ class Money
 
 		$digits = strtok($value, '.');
 		$decimals = substr(strtok(''), 0, 3);
+		$sign = '';
+
+		if (substr($digits, 0, 1) === '-') {
+			$sign = '-';
+			$digits = substr($digits, 1);
+		}
 
 		if (strlen($digits) && !ctype_digit($digits)) {
 			throw new \InvalidArgumentException('Invalid digits value: ' . $value);
@@ -225,6 +231,6 @@ class Money
 
 		$decimals = str_pad($decimals, 2, '0', STR_PAD_LEFT);
 
-		return $digits . '.' . $decimals;
+		return $sign . $digits . '.' . $decimals;
 	}
 }
