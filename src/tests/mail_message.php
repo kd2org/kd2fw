@@ -27,6 +27,12 @@ function test_address_parser()
 	Test::equals('A', $r[0]['name']);
 	Test::equals('a@email.org', $r[0]['address']);
 
+	$r = $msg->parseAddressList('<a@email.org>');
+	Test::equals(1, count($r));
+	Test::equals('mailbox', $r[0]['type']);
+	Test::strictlyEquals(null, $r[0]['name']);
+	Test::equals('a@email.org', $r[0]['address']);
+
 	$r = $msg->parseAddressList('"A" <a@email.org>, B <b@email.org>, c@email.org');
 	Test::equals(3, count($r));
 	Test::equals('mailbox', $r[0]['type']);

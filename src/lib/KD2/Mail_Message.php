@@ -1229,7 +1229,7 @@ class Mail_Message
 
 			return [
 				'type'    => 'mailbox',
-				'name'    => $name,
+				'name'    => $name ?: null,
 				'address' => $email,
 				'members' => null
 			];
