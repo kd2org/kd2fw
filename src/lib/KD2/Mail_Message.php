@@ -278,6 +278,11 @@ class Mail_Message
 			return [];
 		}
 
+		if (is_array($value)) {
+			$value = array_unique($value);
+			$value = implode(', ', $value);
+		}
+
 		$out = [];
 
 		foreach ($this->parseAddressList($value) as $item) {
