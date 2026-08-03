@@ -475,11 +475,17 @@ class SQLite3 extends DB
 			return \SQLite3::OK;
 		}
 
+		list($table, $column, $db) = $args;
+
+		// Allow to do stuff in the temp database
+		if (array_key_exists('temp.', $allowed)
+			&& ($db === 'temp' || $action === \SQLite3::TRANSACTION)) {
+			return \SQLite3::OK;
+		}
+
 		if ($action !== \SQLite3::READ) {
 			return \SQLite3::DENY;
 		}
-
-		list($table, $column) = $args;
 
 		if (!array_key_exists($table, $allowed)
 			&& !array_key_exists('*', $allowed)) {
