@@ -42,6 +42,17 @@ class SQLite3 extends DB
 
 	protected ?int $flags = null;
 
+	/**
+	 * Please note that the SQLite 'localtime' modifier in its datetime()
+	 * function relies on the OS-level localtime function. This means that
+	 * the PHP function date_default_timezone_set doesn't change the timezone
+	 * used by SQLite. For this you need to also set the TZ environment variable:
+	 * putenv('TZ=Pacific/Kiritimati');
+	 *
+	 * If not, calling the datetime SQLite function with the 'localtime' modifier
+	 * will not return the same time as the one set by date_default_timezone_set
+	 * (unless they are the same of course).
+	 */
 	const DATE_FORMAT = 'Y-m-d';
 	const DATETIME_FORMAT = 'Y-m-d H:i:s';
 
@@ -508,8 +519,7 @@ class SQLite3 extends DB
 	{
 		$query = trim($query, "\n\t\r ;");
 
-		if (preg_match('/;\s*(.+?)$/', $query, $match))
-		{
+		if (preg_match('/;\s*(.+?)$/', $query, $match)) {
 			throw new DB_Exception('Only one single statement can be executed at the same time: ' . $match[0]);
 		}
 
@@ -522,7 +532,7 @@ class SQLite3 extends DB
 
 		if (null !== $allowed) {
 			// PHP 8+
-			if (method_exists($this->db, 'setAuthorizer')) {
+			if (method_exists(\SQLite3::class, 'setAuthorizer')) {
 				$this->setAuthorizer(fn(int $action, ...$args) => self::restrictedAuthorizer($allowed, $action, ...$args));
 			}
 			// FIXME: remove when migrating to PHP 8.0+
@@ -554,10 +564,13 @@ class SQLite3 extends DB
 		}
 
 		try {
+			// This doesn't use ::preparedQuery on purpose: we don't want to use statements cache
 			$st = $this->prepare($query);
 		}
 		finally {
-			$this->setAuthorizer(null);
+			// Disable getting back to NULL authorizer by default as this can have unexpected results
+			// see https://sqlite.org/forum/forumpost/c2e6285c7ad01d2f3316a8607f4c5eb5519044a170d4b8bf7abdd1d0ac28c9e5
+			//$this->setAuthorizer(null);
 		}
 
 		if (!$st->readOnly())
@@ -573,6 +586,12 @@ class SQLite3 extends DB
 		if (method_exists(\SQLite3::class, 'setAuthorizer')) {
 			$this->connect();
 			$this->db->setAuthorizer($fn);
+
+			// Make sure  we clear the statements cache, just in case
+			// see https://sqlite.org/src/info/5c0468acd1a12f7f
+			// and https://sqlite.org/forum/forumpost/745ffe0c59ec0efb393f02424ff60b001b2434a824bca437d0260d0b255d8d38
+			$this->statements = [];
+
 			return true;
 		}
 
