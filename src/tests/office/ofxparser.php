@@ -25,6 +25,32 @@ function test_empty(string $str)
     Test::assert(count($r->accounts[0]->statement->transactions) === 0);
 }
 
+function test_xxe()
+{
+    $str = '<?xml version="1.0" encoding="UTF-8"?>' . PHP_EOL
+      . '<!DOCTYPE OFX [<!ENTITY xxe SYSTEM "php://filter/convert.base64-encode/resource=/etc/passwd2">]>' . PHP_EOL
+      . '<OFX><BANKMSGSRSV1><STMTTRNRS><STMTRS>' . PHP_EOL
+      . '<CURDEF>EUR</CURDEF>' . PHP_EOL
+      . '<BANKACCTFROM><BANKID>1</BANKID><ACCTID>1</ACCTID><ACCTTYPE>CHECKING</ACCTTYPE></BANKACCTFROM>' . PHP_EOL
+      . '<BANKTRANLIST><DTSTART>20250101</DTSTART><DTEND>20250131</DTEND>' . PHP_EOL
+      . '<STMTTRN><TRNTYPE>DEBIT</TRNTYPE><DTPOSTED>20250115</DTPOSTED><TRNAMT>-1.00</TRNAMT><FITID>1</FITID><NAME>F:&xxe;</NAME></STMTTRN>' . PHP_EOL
+      . '</BANKTRANLIST><LEDGERBAL><BALAMT>1.00</BALAMT><DTASOF>20250131</DTASOF></LEDGERBAL>' . PHP_EOL
+      . '</STMTRS></STMTTRNRS></BANKMSGSRSV1></OFX>';
+    $o = new OFXParser;
+
+    try {
+      $r = $o->parse($str);
+    }
+    catch (\Throwable $e) {
+      Test::assert(false, 'xxe shouldn\'t work: ' . $e->getMessage());
+    }
+
+    Test::assert(isset($r->accounts[0]->statement->start));
+    Test::assert(isset($r->accounts[0]->statement->end));
+}
+
+test_xxe();
+
 $test1 = <<<EOF
 OFXHEADER:100
 DATA:OFXSGML

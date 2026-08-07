@@ -47,8 +47,9 @@ class OFXParser
 
 		libxml_clear_errors();
 		libxml_use_internal_errors(true);
+		libxml_set_external_entity_loader(null);
 
-		$xml = simplexml_load_string($str, 'SimpleXMLElement', LIBXML_NOENT | LIBXML_DTDLOAD | LIBXML_DTDATTR);
+		$xml = simplexml_load_string($str, 'SimpleXMLElement', LIBXML_NONET);
 
 		if ($errors = libxml_get_errors()) {
 			foreach ($errors as &$error) {
