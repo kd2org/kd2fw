@@ -336,6 +336,11 @@ class FossilInstaller
 				continue;
 			}
 
+			// Skip suspicious paths
+			if (false !== strpos($path, '..')) {
+				continue;
+			}
+
 			$relative_path = substr($path, $parent_l + 1);
 			$release_files[$relative_path] = $path;
 
