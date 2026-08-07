@@ -20,6 +20,12 @@ class FossilInstaller
 {
 	const DEFAULT_REGEXP = '/app-(?P<version>.*)\.tar\.gz/';
 
+	const VERIFY_OK = 1;
+	const VERIFY_FAIL = -1;
+	const VERIFY_FAIL_NO_GPG = 0;
+	const VERIFY_FAIL_UNSIGNED = -2;
+	const VERIFY_FAIL_NETWORK = -3;
+
 	protected array $releases;
 	protected string $app_path;
 	protected string $tmp_path;
@@ -54,6 +60,17 @@ class FossilInstaller
 	public function addIgnoredPath(string $path)
 	{
 		$this->ignored_paths[] = $path;
+	}
+
+	public function isIgnoredPath(string $path): bool
+	{
+		foreach ($this->ignored_paths as $search) {
+			if (0 === strpos($path, $search)) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	public function addManagedPath(string $path)
@@ -172,7 +189,7 @@ class FossilInstaller
 		return $this->tmp_path . '/tmp-release-' . sha1($version) . '.tar.gz';
 	}
 
-	public function verify(string $version): ?bool
+	public function verify(string $version): int
 	{
 		if (!isset($this->releases[$version])) {
 			throw new \InvalidArgumentException('Unknown release');
@@ -193,25 +210,25 @@ class FossilInstaller
 			throw new \RuntimeException('Error while downloading file: invalid hash');
 		}
 
-		if (!$release->signed) {
-			return null;
+		if (!Security::canUseEncryption()) {
+			return self::VERIFY_FAIL_NO_GPG;
 		}
 
-		if (!Security::canUseEncryption()) {
-			return null;
+		if (!$release->signed) {
+			return self::VERIFY_FAIL_UNSIGNED;
 		}
 
 		$url = sprintf('%suv/%s.asc', $this->fossil_url, $release->name);
 		$r = (new HTTP)->GET($url);
 
 		if ($r->fail || !$r->body) {
-			return null;
+			return self::VERIFY_FAIL_NETWORK;
 		}
 
 		$key = file_get_contents($this->gpg_pubkey_file);
 		$data = file_get_contents($tmpfile);
 
-		return Security::verifyWithPublicKey($key, $data, $r->body);
+		return Security::verifyWithPublicKey($key, $data, $r->body) ? self::VERIFY_OK : self::VERIFY_FAIL;
 	}
 
 	/**
@@ -322,7 +339,7 @@ class FossilInstaller
 			$relative_path = substr($path, $parent_l + 1);
 			$release_files[$relative_path] = $path;
 
-			$is_ignored = $this->isPublic($relative_path);
+			$is_ignored = $this->isIgnoredPath($relative_path);
 			$local_path = $this->app_path . DIRECTORY_SEPARATOR . $relative_path;
 
 			// Skip if file doesn't exist, it will be marked as to be created
