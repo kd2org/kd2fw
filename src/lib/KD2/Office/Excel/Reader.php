@@ -425,6 +425,9 @@ class Reader extends \KD2\Office\Calc\Reader
 		return true;
 	}
 
+	/**
+	 * @return string|int|float|null
+	 */
 	public function formatExcelNumber(string $number, ?array $formats)
 	{
 		$value = $this->applyNumberFormat($number, $formats);
@@ -444,6 +447,9 @@ class Reader extends \KD2\Office\Calc\Reader
 		return $number;
 	}
 
+	/**
+	 * @return string|int|float|null
+	 */
 	public function applyNumberFormat(string $number, ?array $formats)
 	{
 		if (null === $formats) {
@@ -507,6 +513,11 @@ class Reader extends \KD2\Office\Calc\Reader
 			$decimals = '.' . ($number_part[1] ?? '0');
 		}
 
+		// If there are no decimals, the number should be rounded
+		if (!$decimals) {
+			$number_parts[0] = round($number);
+		}
+
 		$format = array_reverse(str_split($format_parts[0], 1));
 		$number = str_split($number_parts[0], 1);
 		end($number);
@@ -534,6 +545,8 @@ class Reader extends \KD2\Office\Calc\Reader
 		}
 
 		$out = implode('', array_reverse($digits)) . $decimals;
+		$out = trim($out);
+		$out = mb_trim($out, ' '); // remove nbsp
 
 		if (trim($out, ' 0') === '') {
 			return '';

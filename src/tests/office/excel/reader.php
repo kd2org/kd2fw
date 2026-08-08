@@ -50,6 +50,12 @@ function test_number_formats()
 			'42.02' => 42.02,
 			'test' => 'test',
 		],
+		// Don't use rounding rules, just return the real number
+		'_-* # ##0_-;-* # ##0_-;_-* "-"??_-;_-@_-' => [
+			'3600.56' => '3 601',
+			'1335.17' => '1 335',
+			'17.71' => '18',
+		],
 	];
 
 	foreach ($formats as $raw_format => $tests) {
@@ -73,17 +79,17 @@ function test_reader(string $str)
 	Test::assert(1 === array_search('Test <> weird sheet name', $sheets, true));
 
 	$rows = iterator_to_array($r->iterate(1));
-	Test::assert(2 === count($rows));
-	Test::assert(4 === count($rows[1]));
-	Test::assert(1 === $rows[1][0]);
-	Test::assert(2 === $rows[1][1]);
-	Test::assert(3 === $rows[1][2]);
-	Test::assert(4 === $rows[1][3]);
-	Test::assert(4 === count($rows[0]));
-	Test::assert('A' === $rows[0][0]);
-	Test::assert('B' === $rows[0][1]);
-	Test::assert('' === $rows[0][2]);
-	Test::assert('D' === $rows[0][3]);
+	Test::strictlyEquals(2, count($rows));
+	Test::strictlyEquals(4, count($rows[2]));
+	Test::strictlyEquals(1, $rows[2][0]);
+	Test::strictlyEquals(2, $rows[2][1]);
+	Test::strictlyEquals(3, $rows[2][2]);
+	Test::strictlyEquals(4, $rows[2][3]);
+	Test::strictlyEquals(4, count($rows[1]));
+	Test::strictlyEquals('A', $rows[1][0]);
+	Test::strictlyEquals('B', $rows[1][1]);
+	Test::strictlyEquals('', $rows[1][2]);
+	Test::strictlyEquals('D', $rows[1][3]);
 
 	$rows = iterator_to_array($r->iterate(0));
 	Test::assert(8 === count($rows));
@@ -92,20 +98,20 @@ function test_reader(string $str)
 		Test::assert(2 === count($row));
 	}
 
-	Test::strictlyEquals('2026-02-01', $rows[0][0]);
-	Test::assert(3 === $rows[0][1]);
-	Test::assert(1.02 === $rows[1][0]);
-	Test::assert(0.1403 === $rows[2][0]);
-	Test::strictlyEquals('2026-01-01T02:02:01', $rows[3][0]);
-	Test::assert(3 === $rows[4][0]);
-	Test::assert(3.0004 === $rows[4][1]);
-	Test::assert("Line 1\nLine 2" === $rows[5][0]);
+	Test::strictlyEquals('2026-02-01', $rows[1][0]);
+	Test::strictlyEquals(3, $rows[1][1]);
+	Test::strictlyEquals(1.02, $rows[2][0]);
+	Test::strictlyEquals(0.1403, $rows[3][0]);
+	Test::strictlyEquals('2026-01-01T02:02:01', $rows[4][0]);
+	Test::strictlyEquals(3, $rows[5][0]);
+	Test::strictlyEquals(3.0004, $rows[5][1]);
+	Test::strictlyEquals("Line 1\nLine 2", $rows[6][0]);
 
 	$rows = iterator_to_array($r->iterate(2));
-	Test::assert(3 === count($rows));
+	Test::strictlyEquals(3, count($rows));
 
 	// Test number formats
-	Test::strictlyEquals('01 02 03 04 05', $rows[0][1]);
+	Test::strictlyEquals('01 02 03 04 05', $rows[1][1]);
 }
 
 $xlsx = <<<EOF
