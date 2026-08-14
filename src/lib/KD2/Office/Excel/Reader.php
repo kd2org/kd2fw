@@ -452,7 +452,7 @@ class Reader extends \KD2\Office\Calc\Reader
 	 */
 	public function applyNumberFormat(string $number, ?array $formats)
 	{
-		if (null === $formats) {
+		if (null === $formats || trim($number) === '') {
 			return null;
 		}
 
