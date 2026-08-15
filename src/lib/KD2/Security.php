@@ -585,7 +585,14 @@ class Security
 
 		$gpg->setarmor((int)!$binary);
 		$gpg->addencryptkey($info['fingerprint']);
+
+		try {
 		$data = $gpg->encrypt($data);
+		}
+		catch (\Throwable $e) {
+			$err = $gpg->geterrorinfo();
+			throw new \Exception($e->getMessage() . ": " . $err['gpgme_message'], $err['gpgme_code']);
+		}
 
 		self::_cleanGnupgEnv($tmpdir);
 
