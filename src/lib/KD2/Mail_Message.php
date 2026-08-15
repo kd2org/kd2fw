@@ -88,7 +88,7 @@ class Mail_Message
 		return null;
 	}
 
-	public function setMessageId($id = null)
+	public function setMessageId(?string $id = null)
 	{
 		if (is_null($id)) {
 			$id = $this->generateMessageId();
