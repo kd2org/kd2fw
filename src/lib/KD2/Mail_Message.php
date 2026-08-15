@@ -819,6 +819,7 @@ class Mail_Message
 		$enclosed = Security::encryptWithPublicKey($key, $enclosed);
 		$this->parts = [];
 		$this->headers['content-type'] = sprintf('multipart/encrypted; boundary="%s"; protocol="application/pgp-encrypted"', $this->output_boundary);
+		$this->headers['mime-version'] = '1.0';
 		$this->addPart('application/pgp-encrypted', 'Version: 1', null, null, 'raw');
 		$this->addPart('application/octet-stream', $enclosed, null, null, 'raw');
 		return $this;
@@ -894,6 +895,10 @@ class Mail_Message
 		$key = preg_replace_callback('/(^\w|-\w)/i', function ($match) {
 			return strtoupper($match[1]);
 		}, $key);
+
+		if ($key === 'Mime-Version') {
+			$key = 'MIME-Version';
+		}
 
 		if (is_array($value)) {
 			$value = array_map('trim', $value);
