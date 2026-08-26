@@ -69,9 +69,15 @@ function test_variables()
 	$b->assign('html', '<html>');
 	Test::equals('<html>', $b->render('{{$html}}'));
 	Test::equals('<html>', $b->render('{{$html|raw}}'));
+	// Allow whitespace
+	Test::equals('<html>', $b->render('{{$html   |   raw}}'));
+	Test::equals('<html>', $b->render("{{\$html\n   |   raw}}"));
 
 	$b->registerDefaults();
 	$b->setEscapeType('html');
+
+	// Make sure multi-line containting modifier separator is handled correctly
+	Test::equals("abc -- l'lol||\ntest", $b->render("{{\"abc -- l\\'lol||\ntest\"|raw:\$a:\$b|raw:'lol'}}"));
 
 	Test::equals('&lt;html&gt;abc42', $b->render('{{$html|cat:"a"|cat:"b":"c"|cat:42}}'));
 	Test::equals('<html>abc42', $b->render('{{$html|raw|cat:"a"|cat:"b":"c"|cat:42}}'));
