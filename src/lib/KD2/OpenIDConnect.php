@@ -32,6 +32,8 @@ use stdClass;
  */
 class OpenIDConnect
 {
+	const STATE_COOKIE_NAME = '___oidc_state';
+
 	/**
 	 * Auto-discovery configuration
 	 * @var stdClass
@@ -100,21 +102,33 @@ class OpenIDConnect
 			return $this->handleOAuthResponse();
 		}
 
-		header('Location: ' . $this->getAuthenticationURL());
+		$state = bin2hex(random_bytes(16));
+		$this->setStateCookie($state);
+
+		header('Location: ' . $this->getAuthenticationURL($state));
 		exit;
+	}
+
+	protected function setStateCookie(?string $state): void
+	{
+		setcookie(self::STATE_COOKIE_NAME, $state, [
+			'expires'  => $state ? 0 : -1,
+			'path'     => '/',
+			'httponly' => true,
+		]);
 	}
 
 	/**
 	 * Returns Authentication URL where user should be redirected to perform auth
 	 * @return string
 	 */
-	public function getAuthenticationURL(): string
+	public function getAuthenticationURL(string $state): string
 	{
 		$params = [
 			'response_type' => 'code',
 			'client_id'     => $this->id,
 			'redirect_uri'  => $this->redirect_url,
-			'state'         => sha1(random_bytes(10)),
+			'state'         => $state,
 			'scope'         => implode(' ', $this->config->scopes_supported),
 		];
 
@@ -137,10 +151,18 @@ class OpenIDConnect
 			throw new \RuntimeException('OAuth 2.0: Missing request code.');
 		}
 
+		$state = $_COOKIE[self::STATE_COOKIE_NAME] ?? null;
+
+		if (!$state || $state !== ($_GET['state'] ?? null)) {
+			throw new \RuntimeException('OAuth authentication error: invalid or missing "state"');
+		}
+
+		$this->setStateCookie(null);
+
 		$code = $_GET['code'];
 
 		$params = [
-			'code'          => $_GET['code'],
+			'code'          => $code,
 			'client_id'     => $this->id,
 			'client_secret' => $this->secret,
 			'redirect_uri'  => $this->redirect_url,
