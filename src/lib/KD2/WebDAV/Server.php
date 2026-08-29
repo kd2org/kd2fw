@@ -808,7 +808,7 @@ class Server
 				// see https://github.com/opencloud-eu/android/issues/74
 				if ($name == 'DAV::creationdate'
 					&& ($value instanceof \DateTimeInterface)
-					&& false !== preg_match('/(?:owncloud|opencloud).*android/i', $_SERVER['HTTP_USER_AGENT'] ?? '')) {
+					&& preg_match('/(?:owncloud|opencloud).*android/i', $_SERVER['HTTP_USER_AGENT'] ?? '')) {
 					$value = $value->getTimestamp();
 				}
 				// ownCloud app crashes if mimetype is provided for a directory
