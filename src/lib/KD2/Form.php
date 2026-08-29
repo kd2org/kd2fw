@@ -263,10 +263,12 @@ class Form
 		?int &$created = null,
 		?string &$random = null): string
 	{
-		$score = Security::getUserAgentScore($language);
+		if (!$require_captcha) {
+			$score = Security::getUserAgentScore($language);
 
-		if ($score < 15) {
-			$require_captcha = true;
+			if ($score < 15) {
+				$require_captcha = true;
+			}
 		}
 
 		$hash = null;
