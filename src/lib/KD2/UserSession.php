@@ -551,7 +551,7 @@ class UserSession
 		return $this->data[$key] ?? null;
 	}
 
-	public function login($login, $password, $remember_me = false)
+	public function login($login, $password, bool $remember_me = false, bool $ignore_otp = false)
 	{
 		assert(is_bool($remember_me));
 		assert(is_string($login));
@@ -574,7 +574,7 @@ class UserSession
 			return false;
 		}
 
-		if (!empty($user->otp_secret))
+		if (!$ignore_otp && !empty($user->otp_secret))
 		{
 			$this->start(true);
 
