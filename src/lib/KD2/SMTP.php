@@ -194,7 +194,9 @@ class SMTP
 			throw new SMTP_Exception('Unable to connect to server ' . $this->server . ': ' . $errno . ' - ' . $errstr);
 		}
 
-		if ($this->_readCode() != 220) {
+		$code = $this->_readCode();
+
+		if ($code !== 220) {
 			throw new SMTP_Exception(sprintf('(%s:%d) SMTP connect error: %s', $this->server, $this->port, $this->last_line), $code);
 		}
 	}
