@@ -51,14 +51,17 @@ class Security
 	 * @param  string $alphabet Alphabet used for password generation
 	 * @return string
 	 */
-	static public function getRandomPassword(int $length = 12, string $alphabet = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ123456789=/:!?-_'): string
+	static public function getRandomPassword(int $length = 12, string $alphabet = 'abcdefghijkmnopqrstuvwxyzACDEFGHJKLMNPQRSTUVWXYZ12345679=/:.!?-_'): string
 	{
 		$password = '';
+		$alphabet_no_special = preg_replace('/[^a-zA-Z0-9]/', '', $alphabet);
 
-		for ($i = 0; $i < (int)$length; $i++)
-		{
-			$pos = random_int(0, strlen($alphabet) - 1);
-			$password .= $alphabet[$pos];
+		for ($i = 0; $i < (int)$length; $i++) {
+			$set = ($i === 0 || $i === $length - 1) ? $alphabet_no_special : $alphabet;
+			$pos = random_int(0, strlen($set) - 1);
+			$char = $alphabet[$pos];
+
+			$password .= $char;
 		}
 
 		return $password;
