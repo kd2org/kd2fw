@@ -268,7 +268,7 @@ class WOPI
 			'Version'                 => $props['DAV::getetag'] ?? md5($uri . $size . $modified),
 			'ReadOnly'                => $readonly,
 			'UserCanWrite'            => !$readonly,
-			'UserCanRename'           => !$readonly,
+			'UserCanRename'           => false,
 			'DisableCopy'             => $readonly,
 			'UserCanNotWriteRelative' => true, // This requires you to implement file name UI
 		];
