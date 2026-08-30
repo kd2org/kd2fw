@@ -270,6 +270,14 @@ Subject: =?ISO-8859-1?B?SWYgeW91IGNhbiByZWFkIHRoaXMgeW8=?=
 	Test::equals('=?ISO-8859-1?Q?Jub=E9_-_Le_Xt=FCck=2C_monnaie_locale_du_Bas-Rhin?= <jube.machin@truc.eu>', $msg->getHeader('from'));
 	Test::equals('"Jubé - Le Xtück, monnaie locale du Bas-Rhin" <jube.machin@truc.eu>', $msg->getFrom()[0]);
 	Test::equals('Jubé - Le Xtück, monnaie locale du Bas-Rhin', $msg->getFromName());
+
+	// avoid header injection
+	$msg = new Mail_Message;
+	$msg->setHeader('Subject', "Test\r\nBcc: secret@example.org");
+	Test::equals('Subject: Test Bcc: secret@example.org', trim($msg->outputHeaders()));
+	// but folding should stay the same
+	$msg->setHeader('Subject', "Test\r\n Bcc: secret@example.org");
+	Test::equals("Subject: Test\r\n Bcc: secret@example.org", $msg->outputHeaders());
 }
 
 function test_encryption()

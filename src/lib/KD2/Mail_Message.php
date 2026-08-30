@@ -698,7 +698,7 @@ class Mail_Message
 
 			unset($headers['mime-version']);
 
-			if ((!isset($headers['content-type']) || stristr($headers['content-type'], 'text/plain')))
+			if (isset($parts[0]['type']) && (!isset($headers['content-type']) || stristr($headers['content-type'], 'text/plain')))
 			{
 				// Force UTF-8
 				$headers['content-type'] = $parts[0]['type'] . '; charset=utf-8';
@@ -743,7 +743,10 @@ class Mail_Message
 	{
 		$parts = array_values($this->parts);
 
-		if (count($parts) <= 1)
+		if (count($parts) === 0) {
+			return '';
+		}
+		elseif (count($parts) <= 1)
 		{
 			$cte = $this->getHeader('content-transfer-encoding');
 
@@ -938,6 +941,8 @@ class Mail_Message
 		if ($key == 'X-Spam-Report') {
 			return $value;
 		}
+
+		$value = preg_replace("/\r\n(?![ \t])/", ' ', $value);
 
 		if (in_array($key, ['From', 'Cc', 'To', 'Bcc', 'Reply-To']))
 		{
