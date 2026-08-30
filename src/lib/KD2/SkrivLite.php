@@ -1123,14 +1123,15 @@ class SkrivLite_Helper
                     $item = rawurlencode(rawurldecode($item[0]));
             }
 
-            $value .= '?' . htmlspecialchars(implode('&', $query), ENT_QUOTES, 'UTF-8', true);
+            $value .= '?' . implode('&', $query);
         }
 
         if (!empty($url['fragment']))
         {
             $value .= '#' . $url['fragment'];
         }
-        return $value;
+
+        return htmlspecialchars($value);
 	}
 
 	/**
