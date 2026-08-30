@@ -161,11 +161,11 @@ class Markdown_Extensions
 		}
 		else {
 			if (isset($args['column'])) {
-				$style .= 'grid-column: ' . htmlspecialchars($args['column']) . ';';
+				$style .= 'grid-column: ' . $args['column'] . ';';
 			}
 
 			if (isset($args['row'])) {
-				$style .= 'grid-row: ' . htmlspecialchars($args['row']) . ';';
+				$style .= 'grid-row: ' . $args['row'] . ';';
 			}
 
 			// Allow aliases
@@ -177,7 +177,7 @@ class Markdown_Extensions
 					$align = 'end';
 				}
 
-				$style .= sprintf('justify-self: %s;', htmlspecialchars($align));
+				$style .= sprintf('justify-self: %s;', $align);
 			}
 
 			// Allow aliases
@@ -192,13 +192,13 @@ class Markdown_Extensions
 					$valign = 'center';
 				}
 
-				$style .= 'align-self: ' . htmlspecialchars($valign) . ';';
+				$style .= 'align-self: ' . $valign. ';';
 			}
 
 			$style = self::filterStyleAttribute($style);
 		}
 
-		return sprintf('<article class="web-block" style="%s">', $style);
+		return sprintf('<article class="web-block" style="%s">', htmlspecialchars($style));
 	}
 
 	static public function grid(bool $block, array $args, ?string $content, string $name): string
