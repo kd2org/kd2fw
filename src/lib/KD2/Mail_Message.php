@@ -942,6 +942,8 @@ class Mail_Message
 			return $value;
 		}
 
+		// Protect against header injection by removing line breaks
+		// arbitrary header folding is still allowed
 		$value = preg_replace("/\r\n(?![ \t])/", ' ', $value);
 
 		if (in_array($key, ['From', 'Cc', 'To', 'Bcc', 'Reply-To']))
