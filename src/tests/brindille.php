@@ -7,6 +7,7 @@ use KD2\Brindille_Exception;
 require __DIR__ . '/_assert.php';
 
 test_tokenizer();
+test_variable_parsing();
 test_variables();
 test_php_tags();
 test_comments();
@@ -229,4 +230,11 @@ function test_modifiers_parameters()
 	});
 
 	Test::equals('bla "lol lol" bla bla \'lol lol\' bla', $b->render('{{:echo var1="bla \\"lol lol\\" bla" var2=\'bla \\\'lol lol\\\' bla\'}}'));
+}
+
+function test_variable_parsing()
+{
+	$b = new Brindille;
+	$b->registerModifier('or', fn($a, $b) => $a ?: $b);
+	Test::equals("\$this->callModifier('or', 1, \$this->callModifier('or', 1, 'a', 'b:c'), 'd')", $b->_variable("'a'|or:'b:c'|or:\"d\"", false, 1));
 }

@@ -1348,7 +1348,7 @@ class Brindille
 	public function _variable(string $raw, bool $escape, int $line): string
 	{
 		// Split by pipe (|) except if enclosed in quotes
-		$modifiers = preg_split('/\'(?:\\\'|[^\'])*\'(*SKIP)(*F)|\"(?:\\\"|[^\"])*\"(*SKIP)(*F)|\s*\|\s*/', $raw);
+		$modifiers = preg_split('/\'(?:[^\'\\\\]|\\\\.)*\'(*SKIP)(*F)|"(?:[^"\\\\]|\\\\.)*"(*SKIP)(*F)|\s*\|\s*/', $raw);
 		$var = array_shift($modifiers);
 
 		$pre = $post = '';
