@@ -345,12 +345,14 @@ class Form
 	static public function verifyBotProtection(
 		#[\SensitiveParameter]
 		string $secret_key,
-		bool $remove_cookie = true
-	): bool
+		bool $remove_cookie = true,
+		?string &$code = null
+	): ?int
 	{
 		$received = self::getReceivedBotProtection();
 
 		if (!$received) {
+			$code = '1';
 			return false;
 		}
 
@@ -359,22 +361,26 @@ class Form
 		$verifier = self::createBotProtection($secret_key, $require_captcha, $language, $created, $random);
 
 		if (!hash_equals($verifier, $cookie)) {
+			$code = '2';
 			return false;
 		}
 
 		// Make sure the token was created in the last 5 seconds, you need at least 5 seconds
 		// to fill out a form for a human, even if very fast
 		if ($created + 5 > time()) {
+			$code = '3';
 			return false;
 		}
 
 		// You can fill a form in less than 12 hours right?
 		if ($created < time() - 3600*12) {
+			$code = '4';
 			return false;
 		}
 
 		if ($require_captcha
-			&& !Security::checkCaptcha($secret_key, $captcha_hash, $captcha_response)) {
+			&& !Security::checkCaptcha($secret_key, $captcha_hash, $captcha_response, $sub_code)) {
+			$code = '5:' . $sub_code;
 			return false;
 		}
 

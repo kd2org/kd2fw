@@ -131,15 +131,17 @@ class Security
 		return base64_decode(str_pad(strtr($str, '-_', '+/'), strlen($str) % 4, '=', STR_PAD_RIGHT));
 	}
 
-	static public function checkCaptcha(string $secret, string $hash, string $user_value): bool
+	static public function checkCaptcha(string $secret, string $hash, string $user_value, ?string $code = null): bool
 	{
 		$parts = explode(':', $hash);
 
 		if (count($parts) !== 4) {
+			$code = 'a';
 			return false;
 		}
 
 		if ($parts[0] < time()) {
+			$code = 'b';
 			return false;
 		}
 
@@ -148,7 +150,13 @@ class Security
 		$value = sha1($secret . $number . $ua . $parts[1]);
 
 		$check = hash_hmac('sha1', $value, $secret);
-		return hash_equals($check, $parts[3]);
+
+		if (!hash_equals($check, $parts[3])) {
+			$code = 'c';
+			return false;
+		}
+
+		return true;
 	}
 
 	static public function createCaptcha(string $secret, string $locale = 'en_US'): array
