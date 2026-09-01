@@ -89,6 +89,10 @@ class Reader extends \KD2\Office\Calc\Reader
 			return 'missing _rels/.rels file in ZIP';
 		}
 
+		if (PHP_VERSION_ID < 80000) { // FIXME remove when PHP < 8.0 compatibility is no longer required
+			libxml_disable_entity_loader(true);
+		}
+
 		libxml_use_internal_errors(true);
 		$xml = simplexml_load_string($this->zip->fetch('_rels/.rels'));
 

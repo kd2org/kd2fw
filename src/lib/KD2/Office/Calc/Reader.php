@@ -35,6 +35,10 @@ class Reader
 		$magic = fread($fp, 2);
 		fseek($fp, 0, SEEK_SET);
 
+		if (PHP_VERSION_ID < 80000) { // FIXME remove when PHP < 8.0 compatibility is no longer required
+			libxml_disable_entity_loader(true);
+		}
+
 		libxml_use_internal_errors(true);
 
 		try {
