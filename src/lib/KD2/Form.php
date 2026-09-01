@@ -378,6 +378,8 @@ class Form
 			return false;
 		}
 
+		$sub_code = null;
+
 		if ($require_captcha
 			&& !Security::checkCaptcha($secret_key, $captcha_hash, $captcha_response, $sub_code)) {
 			$code = '5:' . $sub_code;
