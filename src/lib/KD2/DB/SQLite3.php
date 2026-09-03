@@ -460,7 +460,26 @@ class SQLite3 extends DB
 	 */
 	static public function restrictedAuthorizer(?array $allowed, int $action, ...$args): int
 	{
-		if ($action === \SQLite3::SELECT || $action === \SQLite3::FUNCTION) {
+		if ($action === \SQLite3::FUNCTION) {
+			static $blocklist = [
+				'sqlite_compileoption_get',
+				'sqlite_compileoption_used',
+				'sqlite_offset',
+				'sqlite_source_id',
+				'sqlite_version',
+				'load_extension',
+				'zeroblob',
+				'randomblob',
+				'fts3_tokenizer',
+			];
+
+			if (in_array($args[1], $blocklist, true)) {
+				return \SQLite3::DENY;
+			}
+
+			return \SQLite3::OK;
+		}
+		elseif ($action === \SQLite3::SELECT) {
 			return \SQLite3::OK;
 		}
 
