@@ -355,7 +355,7 @@ class ZipReader
 		$binary_data = fread($this->fp, 46);
 
 		try {
-			$header      = unpack(
+			$header = unpack(
 				'vchkid/vid/vversion/vversion_extracted/vflag/vcompression/vmtime/vmdate/Vcrc/Vcompressed_size/Vsize/vfilename_len/vextra_len/vcomment_len/vdisk/vinternal/Vexternal/Voffset',
 				$binary_data
 			);
@@ -401,10 +401,16 @@ class ZipReader
 	protected function readFileHeader(array $header)
 	{
 		$binary_data = fread($this->fp, 30);
-		$data        = unpack(
-			'vchk/vid/vversion/vflag/vcompression/vmtime/vmdate/Vcrc/Vcompressed_size/Vsize/vfilename_len/vextra_len',
-			$binary_data
-		);
+
+		try {
+			$data = unpack(
+				'vchk/vid/vversion/vflag/vcompression/vmtime/vmdate/Vcrc/Vcompressed_size/Vsize/vfilename_len/vextra_len',
+				$binary_data
+			);
+		}
+		catch (\Throwable $e) {
+			throw new \RuntimeException('Invalid file header', 0, $e);
+		}
 
 		if ($header['size'] == 0xffffffff) {
 			throw new \OutOfBoundsException('ZIP64 files are not supported');
