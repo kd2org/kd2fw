@@ -147,7 +147,8 @@ class Security
 
 		$number = preg_replace('/\s+/', '', $user_value);
 		$ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
-		$value = sha1($secret . $number . $ua . $parts[1]);
+		$ip = $_SERVER['REMOTE_ADDR'];
+		$value = sha1($secret . $number . $ua . $ip . $parts[1]);
 
 		$check = hash_hmac('sha1', $value, $secret);
 
@@ -164,10 +165,11 @@ class Security
 		$number = random_int(1000, 9999);
 		$spellout = numfmt_create($locale, \NumberFormatter::SPELLOUT)->format((int) $number);
 
-		$expiry = time() + 60*30;
+		$expiry = time() + 60*5; // 5 minutes
 		$ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
+		$ip = $_SERVER['REMOTE_ADDR'];
 		$random = sha1(random_bytes(10));
-		$value = sha1($secret . $number . $ua . $random);
+		$value = sha1($secret . $number . $ua . $ip . $random);
 
 		$hash = sprintf('%d:%s:%s:%s', $expiry, $random, $value, hash_hmac('sha1', $value, $secret));
 		return compact('hash', 'spellout');
