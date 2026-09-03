@@ -353,10 +353,16 @@ class ZipReader
 	protected function readCentralFileHeader(): array
 	{
 		$binary_data = fread($this->fp, 46);
-		$header      = unpack(
-			'vchkid/vid/vversion/vversion_extracted/vflag/vcompression/vmtime/vmdate/Vcrc/Vcompressed_size/Vsize/vfilename_len/vextra_len/vcomment_len/vdisk/vinternal/Vexternal/Voffset',
-			$binary_data
-		);
+
+		try {
+			$header      = unpack(
+				'vchkid/vid/vversion/vversion_extracted/vflag/vcompression/vmtime/vmdate/Vcrc/Vcompressed_size/Vsize/vfilename_len/vextra_len/vcomment_len/vdisk/vinternal/Vexternal/Voffset',
+				$binary_data
+			);
+		}
+		catch (\Throwable $e) {
+			throw new \RuntimeException('Invalid central file header', 0, $e);
+		}
 
 		if ($header['size'] == 0xffffffff) {
 			throw new \OutOfBoundsException('ZIP64 files are not supported');
