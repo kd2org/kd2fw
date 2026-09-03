@@ -365,9 +365,9 @@ class Form
 			return false;
 		}
 
-		// Make sure the token was created in the last 5 seconds, you need at least 5 seconds
+		// Make sure the token was created in the last 2 seconds, you need at least 2 seconds
 		// to fill out a form for a human, even if very fast
-		if ($created + 5 > time()) {
+		if ($created + 2 > time()) {
 			$code = '3';
 			return false;
 		}
