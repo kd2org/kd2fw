@@ -222,37 +222,25 @@ class Mail_Message
 
 	static public function extractNameFromHeader(string $value): string
 	{
-		if (preg_match('/(["\'])(.+?)\1/', $value, $match)) {
-			return trim($match[2]);
+		$address = (new self)->parseAddress($value);
+
+		if (isset($address['name'])) {
+			return $address['name'];
 		}
-		elseif (preg_match('/\\((.+?)\\)/', $value, $match)) {
-			return trim($match[1]);
-		}
-		elseif (preg_match('/^(.+?)</', $value, $match)) {
-			return trim($match[1]);
-		}
-		elseif (($pos = strpos($value, '@')) > 0) {
+
+		$value = $address['address'];
+
+		if (($pos = strpos($value, '@')) > 0) {
 			return trim(substr($value, 0, $pos), " \n\r\t<>");
 		}
-		else {
-			return $value;
-		}
+
+		return $value;
 	}
 
 	static public function extractAddressFromHeader(string $value): string
 	{
-		if (preg_match('/<(.+@.+)>/', $value, $match)) {
-			return $match[1];
-		}
-		elseif (preg_match('/([^\s]+@[^\s]+)/', $value, $match)) {
-			return $match[1];
-		}
-		elseif (preg_match('/\\((.+?)\\)/', $value, $match)) {
-			return trim(str_replace($match[0], '', $value));
-		}
-		else {
-			return $value;
-		}
+		$address = (new self)->parseAddress($value);
+		return $address['address'] ?? '';
 	}
 
 	public function getTo(): array
@@ -1233,11 +1221,16 @@ class Mail_Message
 	{
 		// Remove comments
 		$s = preg_replace('/\([^)]*?\)/', '', $s);
+		$s = trim($s);
 
 		// Extract name + email
 		if (preg_match('/^(?:(?<!\\\\)"(.*?)(?!\\\\)"|(.+?))?\s*<([^>]+)>$/', $s, $m)) {
 			$name  = $this->_decodeHeaderValue($m[1] ?: ($m[2] ?? ''));
 			$email = trim($m[3]);
+
+			if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+				$email = '';
+			}
 
 			return [
 				'type'    => 'mailbox',
@@ -1247,11 +1240,15 @@ class Mail_Message
 			];
 		}
 
+		if (!filter_var($s, FILTER_VALIDATE_EMAIL)) {
+			$s = '';
+		}
+
 		// Bare email
 		return [
 			'type'    => 'mailbox',
 			'name'    => null,
-			'address' => trim($s),
+			'address' => $s,
 			'members' => null
 		];
 	}
