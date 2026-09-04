@@ -822,4 +822,35 @@ class Form
 
 		return null;
 	}
+
+	static public function getQueryString(string $key): ?string
+	{
+		return isset($_GET[$key]) && is_string($_GET[$key]) ? $_GET[$key] : null;
+	}
+
+	static public function getQueryArray(string $key): ?array
+	{
+		return isset($_GET[$key]) && is_array($_GET[$key]) ? $_GET[$key] : null;
+	}
+
+	static public function getPostString(string $key, bool $trim = false): ?string
+	{
+		$v = isset($_POST[$key]) && is_string($_POST[$key]) ? $_POST[$key] : null;
+
+		if ($trim && $v !== null) {
+			$v = trim($v);
+		}
+
+		return $v;
+	}
+
+	static public function getPostArray(string $key): ?array
+	{
+		return isset($_POST[$key]) && is_array($_POST[$key]) ? $_POST[$key] : null;
+	}
+
+	static public function getPostBool(string $key): ?bool
+	{
+		return isset($_POST[$key]) && is_string($_POST[$key]) ? (bool) $_POST[$key] : null;
+	}
 }
