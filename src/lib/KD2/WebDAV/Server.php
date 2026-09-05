@@ -705,6 +705,11 @@ class Server
 		$items = [$uri => $properties];
 
 		if ($depth) {
+			// Don't request quota on each file/folder, only on root element
+			unset($requested['DAV::quota-used-bytes']);
+			unset($requested['DAV::quota-available-bytes']);
+			$requested_keys = $requested ? array_keys($requested) : null;
+
 			foreach ($this->storage->list($uri, $requested) as $file => $properties) {
 				$path = trim($uri . '/' . $file, '/');
 				$properties = $properties ?? $this->storage->propfind($path, $requested_keys, 0);
