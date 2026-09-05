@@ -63,18 +63,25 @@ class SMTP
 
 	protected $log_pointer = null;
 
+	protected ?int $started = null;
 	protected int $timeout = 15;
 	protected int $count = 0;
-	protected int $max = 50;
+	protected int $max_messages = 50;
+	protected int $max_session_time = 60;
 
 	public function setTimeout(int $timeout): void
 	{
 		$this->timeout = $timeout;
 	}
 
-	public function setMax(int $max): void
+	public function setMaxMessagesPerSession(int $max): void
 	{
-		$this->max = $max;
+		$this->max_messages = $max;
+	}
+
+	public function setMaxSessionTime(int $max): void
+	{
+		$this->max_session_time = $max;
 	}
 
 	public function count(): int
@@ -183,12 +190,14 @@ class SMTP
 		$this->conn = null;
 		$this->last_line = null;
 		$this->count = 0;
+		$this->started = null;
 	}
 
 	public function connect(): void
 	{
 		$this->conn = stream_socket_client($this->server . ':' . $this->port, $errno, $errstr, $this->timeout);
 		stream_set_timeout($this->conn, $this->timeout);
+		$this->started = time();
 
 		if (!$this->conn) {
 			throw new SMTP_Exception('Unable to connect to server ' . $this->server . ': ' . $errno . ' - ' . $errstr);
@@ -265,7 +274,12 @@ class SMTP
 	public function rawSend(string $from, $to, string $data): string
 	{
 		// Reconnect if max allowed messages per session is reached
-		if ($this->count >= $this->max) {
+		if ($this->count >= $this->max_messages) {
+			$this->disconnect();
+		}
+
+		// Reconnect if max session time is reached
+		if ((time() - $this->started) >= $this->max_session_time) {
 			$this->disconnect();
 		}
 
