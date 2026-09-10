@@ -1387,7 +1387,7 @@ class SQLite3 extends DB
 	/**
 	 * @see https://www.sqlite.org/lang_altertable.html
 	 */
-	public function alterTable(string $name, string $columns, ?string $insert, bool $keep_indexes_views_triggers = true): void
+	public function alterTable(string $name, string $schema, ?string $insert, bool $keep_indexes_views_triggers = true): void
 	{
 		$fk = $this->firstColumn('PRAGMA foreign_keys');
 		$insert ??= 'INSERT INTO @NEW SELECT * FROM @OLD;';
@@ -1401,7 +1401,7 @@ class SQLite3 extends DB
 			// This information will be needed in step 8 below.
 			$copy = $this->get('SELECT type, sql FROM sqlite_schema WHERE tbl_name = %s;', $this->quote($name));
 			// 4. Use CREATE TABLE to construct a new table "new_X" that is in the desired revised format of table X.
-			$sql = "\n" . sprintf('CREATE TABLE %s_new (%s);', $name, $columns);
+			$sql = "\n" . preg_replace('/\b' . preg_quote($name) . '\b/', $name . '_new', $schema);
 			// 5. Transfer content from X into new_X
 			$sql .= "\n" . strtr($insert, ['@NEW' => $name . '_new', '@OLD' => $name]);
 			// 6. Drop the old table X: DROP TABLE X.
