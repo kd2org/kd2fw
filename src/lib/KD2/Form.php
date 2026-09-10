@@ -828,6 +828,16 @@ class Form
 		return isset($_GET[$key]) && is_string($_GET[$key]) ? $_GET[$key] : null;
 	}
 
+	static public function getQueryInt(string $key): ?int
+	{
+		return isset($_GET[$key]) && is_string($_GET[$key]) && ctype_digit($_GET[$key]) ? (int)$_GET[$key] : null;
+	}
+
+	static public function getQueryBool(string $key): ?bool
+	{
+		return isset($_GET[$key]) && is_string($_GET[$key]) ? (bool)$_GET[$key] : null;
+	}
+
 	static public function getQueryArray(string $key): ?array
 	{
 		return isset($_GET[$key]) && is_array($_GET[$key]) ? $_GET[$key] : null;
@@ -839,6 +849,17 @@ class Form
 
 		if ($trim && $v !== null) {
 			$v = trim($v);
+		}
+
+		return $v;
+	}
+
+	static public function getPostInt(string $key): ?int
+	{
+		$v = self::getPostString($key, true);
+
+		if (null !== $v) {
+			$v = (int) $v;
 		}
 
 		return $v;
