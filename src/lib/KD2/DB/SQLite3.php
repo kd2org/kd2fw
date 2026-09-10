@@ -855,7 +855,7 @@ class SQLite3 extends DB
 
 	protected function throwError(\Exception $e)
 	{
-		if ($this->db->lastErrorCode()) {
+		if ($this->db && $this->db->lastErrorCode()) {
 			$e = new DB_Exception($this->db->lastErrorMsg(), $this->db->lastErrorCode(), $e);
 		}
 
@@ -1382,5 +1382,50 @@ class SQLite3 extends DB
 	public function changes(): int
 	{
 		return $this->db->changes();
+	}
+
+	/**
+	 * @see https://www.sqlite.org/lang_altertable.html
+	 */
+	public function alterTable(string $name, string $columns, ?string $insert, bool $keep_indexes_views_triggers = true): void
+	{
+		$fk = $this->firstColumn('PRAGMA foreign_keys');
+		$insert ??= 'INSERT INTO @NEW SELECT * FROM @OLD;';
+
+		try {
+			// 1. If foreign key constraints are enabled, disable them using PRAGMA foreign_keys=OFF.
+			$this->exec('PRAGMA foreign_keys = OFF;');
+			// 2. Start a transaction.
+			$this->begin();
+			// 3. Remember the format of all indexes, triggers, and views associated with table X.
+			// This information will be needed in step 8 below.
+			$copy = $this->get('SELECT type, sql FROM sqlite_schema WHERE tbl_name = %s;', $this->quote($name));
+			// 4. Use CREATE TABLE to construct a new table "new_X" that is in the desired revised format of table X.
+			$sql = "\n" . sprintf('CREATE TABLE %s_new (%s);', $name, $columns);
+			// 5. Transfer content from X into new_X
+			$sql .= "\n" . strtr($insert, ['@NEW' => $name . '_new', '@OLD' => $name]);
+			// 6. Drop the old table X: DROP TABLE X.
+			$sql .= "\n" . sprintf('DROP TABLE %s;', $name);
+			// 7. Change the name of new_X to X using: ALTER TABLE new_X RENAME TO X.
+			$sql .= "\n" . sprintf('ALTER TABLE TABLE %s RENAME TO %s;', $name . '_new', $name);
+			$this->exec($sql);
+
+			// 8. Re-create indexes, view and triggers
+			if ($keep_indexes_views_triggers && count($copy)) {
+				foreach ($copy as $item) {
+					$this->exec($item->sql);
+				}
+			}
+
+			// 10. If foreign key constraints were originally enabled then run
+			// PRAGMA foreign_key_check to verify that the schema change did not
+			// break any foreign key constraints.
+			$this->foreignKeyCheck();
+
+			$this->commit();
+		}
+		finally {
+			$this->exec('PRAGMA foreign_keys = %d;', $fk);
+		}
 	}
 }
