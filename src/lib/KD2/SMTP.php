@@ -64,7 +64,16 @@ class SMTP
 	protected $log_pointer = null;
 
 	protected ?int $started = null;
+	protected ?int $last_sent = null;
+
 	protected int $timeout = 15;
+
+	/**
+	 * Max inactivity in seconds between two requests
+	 * AWS is at 10 seconds, use 8 to be safe.
+	 */
+	protected int $idle_timeout = 8;
+
 	protected int $count = 0;
 	protected int $max_messages = 50;
 	protected int $max_session_time = 60;
@@ -72,6 +81,11 @@ class SMTP
 	public function setTimeout(int $timeout): void
 	{
 		$this->timeout = $timeout;
+	}
+
+	public function setIdleTimeout(int $timeout): void
+	{
+		$this->idle_timeout = $timeout;
 	}
 
 	public function setMaxMessagesPerSession(int $max): void
@@ -277,9 +291,12 @@ class SMTP
 		if ($this->count >= $this->max_messages) {
 			$this->disconnect();
 		}
-
 		// Reconnect if max session time is reached
-		if ((time() - $this->started) >= $this->max_session_time) {
+		elseif ($this->started && (time() - $this->started) >= $this->max_session_time) {
+			$this->disconnect();
+		}
+		// Reconnect if we spent more than X seconds doing nothing since last sent message
+		elseif ($this->last_sent && (time() - $this->last_sent) >= $this->idle_timeout) {
 			$this->disconnect();
 		}
 
@@ -338,6 +355,7 @@ class SMTP
 			throw new SMTP_Exception($message, $code);
 		}
 
+		$this->last_sent = time();
 		$this->count++;
 
 		return $message;
