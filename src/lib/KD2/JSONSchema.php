@@ -5,12 +5,15 @@ namespace KD2;
 use KD2\SMTP;
 
 use DateTime;
+use stdClass;
 
 class JSONSchema
 {
 	const TYPES = ['string', 'array', 'integer', 'object', 'null', 'number', 'boolean'];
 
-	protected $schema;
+	protected stdClass $schema;
+
+	protected ?string $root = null;
 
 	public function __construct($object)
 	{
@@ -60,10 +63,48 @@ class JSONSchema
 		$this->validate($object, $rules);
 	}
 
-	public function validate($object, $rules = null, $key = null): void
+	public function setRoot(?string $root): void
+	{
+		$this->root = $root;
+	}
+
+	public function select(string $path): stdClass
+	{
+		$path = explode('/', $path);
+		$root = $this->schema;
+
+		foreach ($path as $part) {
+			if ($part === '#') {
+				continue;
+			}
+
+			if (!property_exists($root, $part)) {
+				throw new \LogicException(sprintf('Cannot find "%s" in "%s"', $part, $path));
+			}
+
+			$root = $root->$part;
+		}
+
+		return $root;
+	}
+
+	/**
+	 * @param  mixed         $object
+	 * @param  stdClass|null $rules
+	 * @param  ?string       $key
+	 */
+	public function validate($object, ?stdClass $rules = null, ?string $key = null): void
 	{
 		if (null === $rules) {
 			$rules = $this->schema;
+
+			if (isset($this->root)) {
+				$rules = $this->select($this->root);
+			}
+		}
+
+		if (property_exists($rules, '$ref')) {
+			$rules = $this->select($rules->{'$ref'});
 		}
 
 		if (!isset($rules->type)) {
@@ -72,6 +113,14 @@ class JSONSchema
 
 		$name = $rules->description ?? ($key ?? 'root');
 		$types = is_array($rules->type) ? $rules->type : [$rules->type];
+
+		if (false !== ($pos = strpos($name, "\n"))) {
+			$name = substr($name, 0, $pos);
+		}
+
+		if (mb_strlen($name) > 100) {
+			$name = mb_substr($name, 0, 99) . '…';
+		}
 
 		$type = $this->findType($name, $types, $object);
 
@@ -103,7 +152,12 @@ class JSONSchema
 		}
 	}
 
-	protected function validateNumber($object, $rules, $name)
+	/**
+	 * @param  string|int|float $object
+	 * @param  stdClass $rules
+	 * @param  string   $name
+	 */
+	protected function validateNumber($object, stdClass $rules, string $name): void
 	{
 		if (isset($rules->minimum) && $object < $rules->minimum) {
 			throw new \RuntimeException(sprintf('%s: is too small (minimum %s)', $name, $rules->minimum));
@@ -122,7 +176,7 @@ class JSONSchema
 		}
 	}
 
-	protected function validateString($object, $rules, $name)
+	protected function validateString(string $object, stdClass $rules, string $name): void
 	{
 		if (isset($rules->pattern) && !preg_match('/' . $rules->pattern . '/', $object)) {
 			throw new \RuntimeException(sprintf('%s: did not match the specified pattern (%s)', $name, $rules->pattern));
@@ -141,7 +195,7 @@ class JSONSchema
 		}
 	}
 
-	protected function validateArray(array $object, $rules, $name)
+	protected function validateArray(array $object, stdClass $rules, string $name): void
 	{
 		if (isset($rules->minItems) && count($object) < $rules->minItems) {
 			throw new \RuntimeException(sprintf('%s: does not contain enough items (minimum %s)', $name, $rules->minItems));
@@ -195,7 +249,12 @@ class JSONSchema
 		}
 	}
 
-	protected function validateObject($object, $rules, $name)
+	/**
+	 * @param  mixed    $object
+	 * @param  stdClass $rules
+	 * @param  string   $name
+	 */
+	protected function validateObject($object, stdClass $rules, string $name): void
 	{
 		if (is_array($object)) {
 			$object = (object) $object;
@@ -233,6 +292,11 @@ class JSONSchema
 		}
 	}
 
+	/**
+	 * @param  string $name
+	 * @param  array  $types
+	 * @param  mixed  $object
+	 */
 	protected function findType(string $name, array $types, $object): ?string
 	{
 		foreach ($types as $type) {
@@ -249,6 +313,10 @@ class JSONSchema
 		return null;
 	}
 
+	/**
+	 * @param  string $type
+	 * @param  mixed $object
+	 */
 	protected function checkType(string $type, $object): bool
 	{
 		if ($type == 'null' && is_null($object)) {
@@ -276,6 +344,9 @@ class JSONSchema
 		return false;
 	}
 
+	/**
+	 * @param  array|object  $var
+	 */
 	protected function isAssociativeArrayOrObject($var): bool
 	{
 		return is_object($var)
