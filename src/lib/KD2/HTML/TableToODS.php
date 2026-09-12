@@ -492,9 +492,10 @@ class TableToODS extends AbstractTable
 	{
 		$type = !empty($attributes['type']) ? $attributes['type'] : ($styles['-spreadsheet-cell-type'] ?? null);
 
-		if (!$type || $type === 'auto') {
-			$number_value = str_replace([' ', "\xC2\xA0"], '', trim($value));
+		// Remove space and non-breaking space
+		$number_value = str_replace([' ', "\xC2\xA0"], '', trim($value));
 
+		if (!$type || $type === 'auto') {
 			if (is_object($value) && $value instanceof DateTimeInterface) {
 				$type = 'date';
 			}
@@ -515,8 +516,7 @@ class TableToODS extends AbstractTable
 			// or not be an integer beginning with a zero
 			// This is to avoid matching french phone numbers as integers (06XXXXXX)
 			elseif (is_string($value)
-				&& preg_match('/^[+-]?(\d+)([,.]\d+)$/', $number_value, $match)
-				&& ($match[1] == 0 || isset($match[2]) || substr($match[1], 0, 1) !== '0')) {
+				&& preg_match('/^[+-]?(?:\d+[,.]\d+|[1-9]\d*|0)$/', $number_value, $match)) {
 				$type = 'number';
 			}
 			elseif (preg_match('!^(?:\d\d?/\d\d?/\d\d(?:\d\d)?|\d{4}-\d{2}-\d{2})(?:\s+\d\d?[:\.]\d\d?(?:[:\.]\d\d?))?$!', $value)) {
@@ -545,14 +545,17 @@ class TableToODS extends AbstractTable
 		}
 		// Check for valid number
 		elseif ($type === 'percentage' || $type === 'number' || $type === 'currency') {
-			// Remove space and non-breaking space
-			$number_value = str_replace([' ', "\xC2\xA0"], '', $attributes['number'] ?? $value);
-
 			if (preg_match('/^[+-]?\d+(?:[,.]\d+)?$/', $number_value)) {
 				$number_value = str_replace(',', '.', $number_value);
 				$number_value = str_replace('+', '', $number_value);
+
+				// Don't display integers as numbers with decimals
+				if (ctype_digit($number_value)) {
+					$styles['-spreadsheet-number-format'] ??= 'integer';
+				}
 			}
 			else {
+				// If it doesn't look like a number, fallback to string, even if type was set as number
 				$type = 'string';
 			}
 		}
