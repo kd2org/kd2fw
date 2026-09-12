@@ -268,7 +268,7 @@ class Markdown extends Parsedown
 			}
 
 			$out .= str_repeat("\t", $level + 1);
-			$out .= sprintf('<li><a href="#%s">%s</a>', $h['id'], $h['label']);
+			$out .= sprintf('<li><a href="#%s">%s</a>', htmlspecialchars($h['id']), htmlspecialchars($h['label']));
 		}
 
 		if ($level > 0) {
