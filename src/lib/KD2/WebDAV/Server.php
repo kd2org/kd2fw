@@ -190,12 +190,12 @@ class Server
 			return null;
 		}
 
-		$out = sprintf('<!DOCTYPE html><html data-webdav-url="%s"><head><meta name="viewport" content="width=device-width, initial-scale=1.0, target-densitydpi=device-dpi" /><style>
+		$out = '<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1.0, target-densitydpi=device-dpi" /><style>
 			body { font-size: 1.1em; font-family: Arial, Helvetica, sans-serif; }
 			table { border-collapse: collapse; }
 			th, td { padding: .5em; text-align: left; border: 2px solid #ccc; }
 			span { font-size: 40px; line-height: 40px; }
-			</style>', '/' . ltrim($this->base_uri, '/'));
+			</style>';
 
 		$out .= sprintf('<title>%s</title></head><body><h1>%1$s</h1><table>', htmlspecialchars($uri ? str_replace('/', ' / ', $uri) . ' - Files' : 'Files'));
 
