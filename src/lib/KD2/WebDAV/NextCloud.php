@@ -416,7 +416,7 @@ abstract class NextCloud
 		}
 
 		// This route is XML only
-		if ($route == 'shares') {
+		if ($route === 'shares') {
 			http_response_code(200);
 			header('Content-Type: text/xml; charset=utf-8', true);
 			echo '<?xml version="1.0"?>' . $this->xml($v);
@@ -629,7 +629,7 @@ abstract class NextCloud
 					'versioning' => false,
 				],
 				'files_sharing' => [
-					'api_enabled' => false,
+					'api_enabled' => ($this instanceof NextCloud\SharesInterface),
 					'group_sharing' => false,
 					'resharing' => false,
 					'sharebymail' => ['enabled' => false],
@@ -689,9 +689,83 @@ abstract class NextCloud
 		]);
 	}
 
+	/**
+	 * @see https://docs.nextcloud.com/server/stable/developer_manual/client_apis/OCS/ocs-share-api.html
+	 */
 	public function nc_shares(): array
 	{
-		return $this->nc_ocs([]);
+		if (!($this instanceof NextCloud\SharesInterface)) {
+			return $this->nc_ocs([]);
+		}
+
+		$method = $_SERVER['REQUEST_METHOD'] ?? null;
+
+		if ($method === 'POST') {
+			if (($_POST['shareType'] ?? '3') !== '3') {
+				throw new Exception('Invalid request: only shareType=3 (link) is supported', 400);
+			}
+
+			$params = (object) [
+				'path'        => null,
+				'permissions' => '1',
+				'expiry'      => null,
+				'password'    => null,
+			];
+
+			foreach ($params as $key => $value) {
+				if (isset($_POST[$key]) && is_string($_POST[$key])) {
+					$params->$key = $_POST[$key];
+				}
+			}
+
+			if (!isset($params->path)) {
+				throw new Exception('Invalid request: missing path parameter', 400);
+			}
+
+			if (isset($params->password)) {
+				$params->password = trim($params->password);
+			}
+
+			if (isset($params->expiry)) {
+				if (strlen($params->expiry) === 10) {
+					$params->expiry = \DateTime::createFromFormat('!Y-m-d', $params->expiry) ?: null;
+				}
+				else {
+					try {
+						$params->expiry = new DateTime($params->expiry);
+					}
+					catch (\Exception $e) {
+						// Ignore invalid date formats
+					}
+				}
+			}
+
+			$permissions = [self::PERM_READ];
+
+			// 1 = read; 2 = update; 4 = create; 8 = delete; 16 = share; 31 = all
+			if ($params->permissions >= 2) {
+				$permissions[] = self::PERM_WRITE;
+			}
+
+			if ($params->permissions >= 4) {
+				$permissions[] = self::PERM_CREATE_FILES_DIRS;
+			}
+
+			if ($params->permissions >= 8) {
+				$permissions[] = self::PERM_DELETE;
+				$permissions[] = self::PERM_RENAME;
+			}
+
+			if ($params->permissions >= 16) {
+				$permissions[] = self::PERM_SHARE;
+			}
+
+			$url = $this->createShareLink($params->path, $permissions, $params->expiry, $params->password);
+			return $this->nc_ocs(compact('url'));
+		}
+		else {
+			throw new Exception('Not implemented yet', 501);
+		}
 	}
 
 	protected function nc_empty(): array
