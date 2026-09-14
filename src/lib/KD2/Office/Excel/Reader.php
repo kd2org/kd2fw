@@ -246,6 +246,11 @@ class Reader extends \KD2\Office\Calc\Reader
 		return $num;
 	}
 
+	/**
+	 * Iterate and return a row of a sheet for each iteration
+	 * @param int $sheet
+	 * @param bool $detailed (unused)
+	 */
 	public function iterate(int $sheet = 0, bool $detailed = false): Generator
 	{
 		$this->loadStrings();
@@ -272,6 +277,7 @@ class Reader extends \KD2\Office\Calc\Reader
 
 		$xml->registerXPathNamespace('a', self::NS_MAIN);
 		$d = $xml->xpath('.//a:dimension');
+		$sheet = $xml->xpath('.//a:sheetData')[0];
 
 		// Fast method
 		if (isset($d[0]['ref'])) {
@@ -293,12 +299,50 @@ class Reader extends \KD2\Office\Calc\Reader
 			return;
 		}
 
+		// If the file has more than 100 columns, it's probably a bug in the Excel file!
+		// eg. some files have more than 16.000 empty columns…
+		// So let's count actual non-empty columns…
+		if ($columns_count > 100) {
+			$columns_count = 0;
+			$i = 0;
+
+			foreach ($sheet->children(self::NS_MAIN) as $row) {
+				if ($row->getName() !== 'row') {
+					continue;
+				}
+
+				// Stop at 500_000 rows, more than that it's probably a bug
+				if ($i++ > 500_000) {
+					break;
+				}
+
+				$cells = '';
+
+				foreach ($row->children(self::NS_MAIN) as $cell) {
+					if ($cell->getName() !== 'c') {
+						continue;
+					}
+
+					// Mark 1 if the cell has a value, 0 if not
+					$cells .= $cell->children(self::NS_MAIN)->count() ? '1' : '0';
+				}
+
+				// Count until last non-empty cell
+				$cells = rtrim($cells, '0');
+
+				$columns_count = max($columns_count, strlen($cells));
+			}
+		}
+
+		if ($columns_count >= 2_000) {
+			throw new \LogicException(sprintf('Sheet #%d has more than 2000 columns (column count = )', $sheet, $columns_count));
+		}
+
 		// Fill empty cells, as Excel doesn't provide <c> elements for empty cells
-		$empty_row = array_fill(0, $columns_count, '');
+		$empty_row = array_fill(0, $columns_count, null);
 		$empty_rows_count = 0;
 		$i = 0;
-
-		$sheet = $xml->xpath('.//a:sheetData')[0];
+		$max_column_count = 0;
 
 		foreach ($sheet->children(self::NS_MAIN) as $row) {
 			if ($row->getName() !== 'row') {
@@ -363,6 +407,9 @@ class Reader extends \KD2\Office\Calc\Reader
 				// shared string
 				elseif ($t === 's') {
 					$value = $this->strings[(int)$v] ?? null;
+				}
+				elseif (null === $v) {
+					$value = null;
 				}
 				// Other numbers
 				else {
