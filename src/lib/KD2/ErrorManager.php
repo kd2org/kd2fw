@@ -1124,7 +1124,7 @@ class ErrorManager
 	 * @param string|null $log_file Log file to use, if NULL then the log file set in error_log will be used
 	 * @param string|null $filter_id Only return errors matching with this ID
 	 */
-	static public function getReportsFromLog($log_file = null, $filter_id = null)
+	static public function getReportsFromLog($log_file = null, $filter_id = null): array
 	{
 		if (!$log_file)
 		{
