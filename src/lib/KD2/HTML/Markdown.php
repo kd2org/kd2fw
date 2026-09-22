@@ -121,7 +121,7 @@ class Markdown extends Parsedown
 		return $params;
 	}
 
-	protected function _filterURL(string $url): ?string
+	static public function filterURL(string $url): ?string
 	{
 		$url = html_entity_decode($url);
 
@@ -199,19 +199,19 @@ class Markdown extends Parsedown
 				return null;
 			}
 
-			$attributes['data'] = $this->_filterURL($attributes['data']);
+			$attributes['data'] = self::filterURL($attributes['data']);
 		}
 
 		if (isset($attributes['src'])) {
-			$attributes['src'] = $this->_filterURL($attributes['src']);
+			$attributes['src'] = self::filterURL($attributes['src']);
 		}
 
 		if (isset($attributes['href'])) {
-			$attributes['href'] = $this->_filterURL($attributes['href']);
+			$attributes['href'] = self::filterURL($attributes['href']);
 		}
 
 		if (isset($attributes['poster'])) {
-			$attributes['poster'] = $this->_filterURL($attributes['poster']);
+			$attributes['poster'] = self::filterURL($attributes['poster']);
 		}
 
 		return $attributes;
