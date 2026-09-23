@@ -11,7 +11,7 @@ class JSONSchema
 {
 	const TYPES = ['string', 'array', 'integer', 'object', 'null', 'number', 'boolean'];
 
-	protected stdClass $schema;
+	protected ?stdClass $schema;
 
 	protected ?string $root = null;
 
