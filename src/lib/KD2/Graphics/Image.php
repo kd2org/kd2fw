@@ -1044,7 +1044,12 @@ class Image
 
 	protected function imagick_trim(float $fuzz)
 	{
-		$this->pointer->trimImage($fuzz);
+		try {
+			$this->pointer->trimImage($fuzz);
+		}
+		catch (\ImagickException $e) {
+			throw new \RuntimeException('Unable to trim image', 0, $e);
+		}
 	}
 
 	protected function imagick_reduce_colors(int $nb_colors)
