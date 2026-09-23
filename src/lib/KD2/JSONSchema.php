@@ -11,12 +11,16 @@ class JSONSchema
 {
 	const TYPES = ['string', 'array', 'integer', 'object', 'null', 'number', 'boolean'];
 
-	protected ?stdClass $schema;
+	protected stdClass $schema;
 
 	protected ?string $root = null;
 
 	public function __construct($object)
 	{
+		if (!is_object($object) || !($object instanceof stdClass)) {
+			throw new \InvalidArgumentException('Invalid schema');
+		}
+
 		$this->schema = $object;
 	}
 
@@ -26,9 +30,9 @@ class JSONSchema
 		return self::parse($file);
 	}
 
-	static protected function parse(string $raw, ?string $path = null)
+	static protected function parse(string $raw)
 	{
-		return json_decode($raw, false, JSON_THROW_ON_ERROR);
+		return json_decode($raw, false, 128, JSON_THROW_ON_ERROR);
 	}
 
 	static public function fromFile(string $file)
